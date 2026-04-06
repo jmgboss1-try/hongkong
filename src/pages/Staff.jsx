@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { db } from '../firebase'
-import { doc, getDoc, setDoc } from 'firebase/firestore'
+import { doc, getDoc, setDoc, collection, query, where, getDocs } from 'firebase/firestore'
 
 const pad = n => String(n).padStart(2,'0')
 const daysIn = ym => { const[y,m]=ym.split('-').map(Number); return new Date(y,m,0).getDate() }
@@ -13,6 +13,7 @@ export default function Staff() {
     return `${now.getFullYear()}-${pad(now.getMonth()+1)}`
   })
   const [employees, setEmployees] = useState([])
+  const [pending, setPending] = useState([])
   const [schData, setSchData] = useState({})
   const [loading, setLoading] = useState(true)
   const [showAdd, setShowAdd] = useState(false)
@@ -28,11 +29,21 @@ export default function Staff() {
   async function load() {
     setLoading(true)
     try {
+      // 직원 목록
       const empSnap = await getDoc(doc(db,'meta','employees'))
       const emps = empSnap.exists() ? empSnap.data().list || [] : []
       setEmployees(emps)
+
+      // 스케쥴
       const schSnap = await getDoc(doc(db,'schedule',curMonth))
       setSchData(schSnap.exists() ? schSnap.data() : {})
+
+      // 승인 대기 목록
+      const q = query(collection(db,'users'), where('status','==','pending'))
+      const pendingSnap = await getDocs(q)
+      const pendingList = []
+      pendingSnap.forEach(d => pendingList.push({uid:d.id, ...d.data()}))
+      setPending(pendingList)
     } catch(e) { console.error(e) }
     setLoading(false)
   }
@@ -49,11 +60,27 @@ export default function Staff() {
     setSchData(newSch)
   }
 
+  // 승인
+  async function approveUser(u, grade) {
+    await setDoc(doc(db,'users',u.uid), {
+      ...u, status:'approved', grade:+grade, wage:10030
+    })
+    // 직원 목록에 추가
+    const updated = [...employees, {uid:u.uid, name:u.name, wage:10030, phone:'', email:u.email}]
+    await saveEmployees(updated)
+    setPending(p => p.filter(x=>x.uid!==u.uid))
+  }
+
+  // 거절
+  async function rejectUser(uid) {
+    await setDoc(doc(db,'users',uid), {status:'rejected'}, {merge:true})
+    setPending(p => p.filter(x=>x.uid!==uid))
+  }
+
   async function addEmp() {
     if(!newName.trim()) return alert('이름을 입력해주세요')
     const newEmp = { uid: Date.now().toString(), name:newName.trim(), wage:+newWage||10030, phone:newPhone.trim(), email:newEmail.trim() }
-    const updated = [...employees, newEmp]
-    await saveEmployees(updated)
+    await saveEmployees([...employees, newEmp])
     setNewName(''); setNewWage(10030); setNewPhone(''); setNewEmail('')
     setShowAdd(false)
   }
@@ -105,12 +132,51 @@ export default function Staff() {
         </div>
       </div>
 
+      {/* 승인 대기 목록 */}
+      {pending.length > 0 && (
+        <div style={{background:'#12141f',border:'1px solid #f9b934',borderRadius:12,marginBottom:18}}>
+          <div style={{padding:'14px 18px',borderBottom:'1px solid #272a3d',fontSize:13,fontWeight:600,color:'#f9b934',display:'flex',alignItems:'center',gap:8}}>
+            ⏳ 가입 승인 대기 <span style={{background:'#f9b934',color:'#000',borderRadius:999,fontSize:10,fontWeight:700,padding:'2px 7px'}}>{pending.length}</span>
+          </div>
+          <div style={{padding:18,display:'flex',flexDirection:'column',gap:12}}>
+            {pending.map(u=>{
+              const [selGrade, setSelGrade] = useState('3')
+              return(
+                <div key={u.uid} style={{background:'#191c2b',border:'1px solid #272a3d',borderRadius:10,padding:'14px 16px',display:'flex',alignItems:'center',justifyContent:'space-between',flexWrap:'wrap',gap:10}}>
+                  <div>
+                    <div style={{fontSize:14,fontWeight:700}}>{u.name}</div>
+                    <div style={{fontSize:11,color:'#5e6585',marginTop:2}}>{u.email}</div>
+                    <div style={{fontSize:10,color:'#5e6585',marginTop:2}}>가입일: {u.createdAt?.slice(0,10)}</div>
+                  </div>
+                  <div style={{display:'flex',alignItems:'center',gap:8}}>
+                    <select value={selGrade} onChange={e=>setSelGrade(e.target.value)}
+                      style={{background:'#0b0d16',border:'1px solid #272a3d',borderRadius:6,color:'#dde1f2',padding:'6px 10px',fontSize:12,fontFamily:'inherit',outline:'none'}}>
+                      <option value="1">1등급 (1년↑)</option>
+                      <option value="2">2등급 (6개월~1년)</option>
+                      <option value="3">3등급 (6개월↓)</option>
+                    </select>
+                    <button onClick={()=>approveUser(u, selGrade)}
+                      style={{background:'#34d399',color:'#000',border:'none',borderRadius:6,padding:'7px 14px',fontSize:11,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
+                      승인
+                    </button>
+                    <button onClick={()=>rejectUser(u.uid)}
+                      style={{background:'transparent',border:'1px solid #3d1f1f',color:'#f87171',borderRadius:6,padding:'7px 14px',fontSize:11,cursor:'pointer',fontFamily:'inherit'}}>
+                      거절
+                    </button>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
+
       {/* 직원 추가 폼 */}
       {showAdd && (
         <div style={{background:'#12141f',border:'1px solid #f9b934',borderRadius:12,marginBottom:18}}>
-          <div style={{padding:'14px 18px',borderBottom:'1px solid #272a3d',fontSize:13,fontWeight:600,color:'#f9b934'}}>직원 추가</div>
+          <div style={{padding:'14px 18px',borderBottom:'1px solid #272a3d',fontSize:13,fontWeight:600,color:'#f9b934'}}>직원 직접 추가</div>
           <div style={{padding:18,display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(160px,1fr))',gap:10}}>
-            {[['이름',newName,setNewName,'text','홍길동'],['시급',newWage,setNewWage,'number','10030'],['연락처',newPhone,setNewPhone,'text','010-0000-0000'],['이메일(로그인용)',newEmail,setNewEmail,'email','example@gmail.com']].map(([label,val,set,type,ph])=>(
+            {[['이름',newName,setNewName,'text','홍길동'],['시급',newWage,setNewWage,'number','10030'],['연락처',newPhone,setNewPhone,'text','010-0000-0000'],['이메일',newEmail,setNewEmail,'email','example@gmail.com']].map(([label,val,set,type,ph])=>(
               <div key={label} style={{display:'flex',flexDirection:'column',gap:4}}>
                 <label style={{fontSize:10,color:'#5e6585',fontWeight:600}}>{label}</label>
                 <input type={type} value={val} onChange={e=>set(e.target.value)} placeholder={ph}
@@ -129,7 +195,7 @@ export default function Staff() {
       <div style={{background:'#12141f',border:'1px solid #272a3d',borderRadius:12,marginBottom:18}}>
         <div style={{padding:'14px 18px',borderBottom:'1px solid #272a3d',fontSize:13,fontWeight:600,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
           <span>직원 목록</span>
-          <button onClick={()=>setShowAdd(true)} style={{background:'#f9b934',color:'#000',border:'none',borderRadius:6,padding:'5px 14px',fontSize:11,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>+ 직원 추가</button>
+          <button onClick={()=>setShowAdd(true)} style={{background:'#f9b934',color:'#000',border:'none',borderRadius:6,padding:'5px 14px',fontSize:11,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>+ 직접 추가</button>
         </div>
         {loading ? <div style={{textAlign:'center',color:'#5e6585',padding:40}}>로딩 중...</div> : (
           <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(180px,1fr))',gap:12,padding:18}}>
@@ -143,7 +209,7 @@ export default function Staff() {
                     <div style={{fontSize:14,fontWeight:700}}>{e.name}</div>
                   </div>
                   <div style={{display:'inline-block',background:'rgba(249,185,52,0.12)',color:'#f9b934',fontSize:10,fontWeight:600,padding:'2px 7px',borderRadius:4,fontFamily:'DM Mono, monospace',width:'fit-content'}}>{e.wage.toLocaleString()}원/h</div>
-                  <div style={{fontSize:11,color:'#5e6585'}}>{e.phone||'연락처 없음'}</div>
+                  <div style={{fontSize:11,color:'#5e6585'}}>{e.phone||e.email||'연락처 없음'}</div>
                   <div style={{fontSize:11,color:'#34d399',fontFamily:'DM Mono, monospace'}}>{mLabel(curMonth)} {s.hours}h · {s.wage.toLocaleString()}원</div>
                   <div style={{display:'flex',gap:6,marginTop:6}}>
                     <button onClick={()=>{const w=prompt(`${e.name} 시급 수정:`,e.wage);if(w)updateWage(e.uid,w)}}
@@ -168,7 +234,6 @@ export default function Staff() {
           📅 {mLabel(curMonth)} 근무 스케쥴 <span style={{fontSize:11,fontWeight:400,color:'#5e6585'}}>— 날짜 클릭 시 입력</span>
         </div>
         <div style={{padding:18}}>
-          {/* 범례 */}
           <div style={{display:'flex',flexWrap:'wrap',gap:8,marginBottom:14}}>
             {employees.map((e,idx)=>(
               <div key={e.uid} style={{display:'flex',alignItems:'center',gap:5,fontSize:11,color:'#5e6585'}}>
@@ -177,7 +242,6 @@ export default function Staff() {
               </div>
             ))}
           </div>
-          {/* 달력 */}
           <div style={{display:'grid',gridTemplateColumns:'repeat(7,1fr)',gap:3,marginBottom:3}}>
             {['일','월','화','수','목','금','토'].map((d,i)=>(
               <div key={d} style={{textAlign:'center',fontSize:10,fontWeight:700,padding:'6px 0',
@@ -206,7 +270,7 @@ export default function Staff() {
                       color:dow===0?'#f87171':dow===6?'#93c5fd':isToday?'#f9b934':'#dde1f2'}}>{d}</div>
                     {!isActive && (
                       <div style={{display:'flex',flexDirection:'column',gap:2}}>
-                        {dayWorkers.map((e,ei)=>(
+                        {dayWorkers.map((e)=>(
                           <div key={e.uid} style={{background:COLORS[employees.indexOf(e)%COLORS.length],color:'#111',borderRadius:3,padding:'1px 4px',fontSize:9,fontWeight:700,display:'flex',justifyContent:'space-between'}}>
                             <span>{e.name.charAt(0)}</span>
                             <span>{(schData[e.uid]||{})[dd]}h</span>

@@ -29,10 +29,11 @@ export function AuthProvider({ children }) {
   }, [])
 
   const isOwner = userData?.role === 'owner'
+  const isPending = userData?.status === 'pending'
   const grade = userData?.grade || null
 
   return (
-    <AuthContext.Provider value={{ user, userData, isOwner, grade, loading }}>
+    <AuthContext.Provider value={{ user, userData, isOwner, isPending, grade, loading }}>
       {!loading && children}
     </AuthContext.Provider>
   )
