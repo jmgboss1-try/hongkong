@@ -7,6 +7,36 @@ const daysIn = ym => { const[y,m]=ym.split('-').map(Number); return new Date(y,m
 const mLabel = ym => { const[y,m]=ym.split('-'); return `${y}년 ${+m}월` }
 const COLORS = ['#f9b934','#93c5fd','#34d399','#c4b5fd','#fb923c','#f87171']
 
+// 승인 대기 카드 - 별도 컴포넌트
+function PendingCard({ u, onApprove, onReject }) {
+  const [selGrade, setSelGrade] = useState('3')
+  return (
+    <div style={{background:'#191c2b',border:'1px solid #272a3d',borderRadius:10,padding:'14px 16px',display:'flex',alignItems:'center',justifyContent:'space-between',flexWrap:'wrap',gap:10}}>
+      <div>
+        <div style={{fontSize:14,fontWeight:700}}>{u.name}</div>
+        <div style={{fontSize:11,color:'#5e6585',marginTop:2}}>{u.email}</div>
+        <div style={{fontSize:10,color:'#5e6585',marginTop:2}}>가입일: {u.createdAt?.slice(0,10)}</div>
+      </div>
+      <div style={{display:'flex',alignItems:'center',gap:8}}>
+        <select value={selGrade} onChange={e=>setSelGrade(e.target.value)}
+          style={{background:'#0b0d16',border:'1px solid #272a3d',borderRadius:6,color:'#dde1f2',padding:'6px 10px',fontSize:12,fontFamily:'inherit',outline:'none'}}>
+          <option value="1">1등급 (1년↑)</option>
+          <option value="2">2등급 (6개월~1년)</option>
+          <option value="3">3등급 (6개월↓)</option>
+        </select>
+        <button onClick={()=>onApprove(u, selGrade)}
+          style={{background:'#34d399',color:'#000',border:'none',borderRadius:6,padding:'7px 14px',fontSize:11,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
+          승인
+        </button>
+        <button onClick={()=>onReject(u.uid)}
+          style={{background:'transparent',border:'1px solid #3d1f1f',color:'#f87171',borderRadius:6,padding:'7px 14px',fontSize:11,cursor:'pointer',fontFamily:'inherit'}}>
+          거절
+        </button>
+      </div>
+    </div>
+  )
+}
+
 export default function Staff() {
   const [curMonth, setCurMonth] = useState(() => {
     const now = new Date()
@@ -29,16 +59,11 @@ export default function Staff() {
   async function load() {
     setLoading(true)
     try {
-      // 직원 목록
       const empSnap = await getDoc(doc(db,'meta','employees'))
       const emps = empSnap.exists() ? empSnap.data().list || [] : []
       setEmployees(emps)
-
-      // 스케쥴
       const schSnap = await getDoc(doc(db,'schedule',curMonth))
       setSchData(schSnap.exists() ? schSnap.data() : {})
-
-      // 승인 대기 목록
       const q = query(collection(db,'users'), where('status','==','pending'))
       const pendingSnap = await getDocs(q)
       const pendingList = []
@@ -60,18 +85,13 @@ export default function Staff() {
     setSchData(newSch)
   }
 
-  // 승인
   async function approveUser(u, grade) {
-    await setDoc(doc(db,'users',u.uid), {
-      ...u, status:'approved', grade:+grade, wage:10030
-    })
-    // 직원 목록에 추가
+    await setDoc(doc(db,'users',u.uid), { ...u, status:'approved', grade:+grade, wage:10030 })
     const updated = [...employees, {uid:u.uid, name:u.name, wage:10030, phone:'', email:u.email}]
     await saveEmployees(updated)
     setPending(p => p.filter(x=>x.uid!==u.uid))
   }
 
-  // 거절
   async function rejectUser(uid) {
     await setDoc(doc(db,'users',uid), {status:'rejected'}, {merge:true})
     setPending(p => p.filter(x=>x.uid!==uid))
@@ -108,7 +128,6 @@ export default function Staff() {
   const firstDow = new Date(cy,cm-1,1).getDay()
   const now = new Date()
   const isThisMonth = now.getFullYear()===cy && now.getMonth()+1===cm
-
   const schedTotals = employees.reduce((acc,e) => {
     const h = Object.values(schData[e.uid]||{}).reduce((a,b)=>a+b,0)
     acc[e.uid] = { hours:h, wage:Math.round(h*e.wage) }
@@ -132,41 +151,17 @@ export default function Staff() {
         </div>
       </div>
 
-      {/* 승인 대기 목록 */}
+      {/* 승인 대기 */}
       {pending.length > 0 && (
         <div style={{background:'#12141f',border:'1px solid #f9b934',borderRadius:12,marginBottom:18}}>
           <div style={{padding:'14px 18px',borderBottom:'1px solid #272a3d',fontSize:13,fontWeight:600,color:'#f9b934',display:'flex',alignItems:'center',gap:8}}>
-            ⏳ 가입 승인 대기 <span style={{background:'#f9b934',color:'#000',borderRadius:999,fontSize:10,fontWeight:700,padding:'2px 7px'}}>{pending.length}</span>
+            ⏳ 가입 승인 대기
+            <span style={{background:'#f9b934',color:'#000',borderRadius:999,fontSize:10,fontWeight:700,padding:'2px 7px'}}>{pending.length}</span>
           </div>
           <div style={{padding:18,display:'flex',flexDirection:'column',gap:12}}>
-            {pending.map(u=>{
-              const [selGrade, setSelGrade] = useState('3')
-              return(
-                <div key={u.uid} style={{background:'#191c2b',border:'1px solid #272a3d',borderRadius:10,padding:'14px 16px',display:'flex',alignItems:'center',justifyContent:'space-between',flexWrap:'wrap',gap:10}}>
-                  <div>
-                    <div style={{fontSize:14,fontWeight:700}}>{u.name}</div>
-                    <div style={{fontSize:11,color:'#5e6585',marginTop:2}}>{u.email}</div>
-                    <div style={{fontSize:10,color:'#5e6585',marginTop:2}}>가입일: {u.createdAt?.slice(0,10)}</div>
-                  </div>
-                  <div style={{display:'flex',alignItems:'center',gap:8}}>
-                    <select value={selGrade} onChange={e=>setSelGrade(e.target.value)}
-                      style={{background:'#0b0d16',border:'1px solid #272a3d',borderRadius:6,color:'#dde1f2',padding:'6px 10px',fontSize:12,fontFamily:'inherit',outline:'none'}}>
-                      <option value="1">1등급 (1년↑)</option>
-                      <option value="2">2등급 (6개월~1년)</option>
-                      <option value="3">3등급 (6개월↓)</option>
-                    </select>
-                    <button onClick={()=>approveUser(u, selGrade)}
-                      style={{background:'#34d399',color:'#000',border:'none',borderRadius:6,padding:'7px 14px',fontSize:11,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
-                      승인
-                    </button>
-                    <button onClick={()=>rejectUser(u.uid)}
-                      style={{background:'transparent',border:'1px solid #3d1f1f',color:'#f87171',borderRadius:6,padding:'7px 14px',fontSize:11,cursor:'pointer',fontFamily:'inherit'}}>
-                      거절
-                    </button>
-                  </div>
-                </div>
-              )
-            })}
+            {pending.map(u=>(
+              <PendingCard key={u.uid} u={u} onApprove={approveUser} onReject={rejectUser}/>
+            ))}
           </div>
         </div>
       )}
@@ -199,6 +194,7 @@ export default function Staff() {
         </div>
         {loading ? <div style={{textAlign:'center',color:'#5e6585',padding:40}}>로딩 중...</div> : (
           <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(180px,1fr))',gap:12,padding:18}}>
+            {employees.length === 0 && <div style={{color:'#5e6585',fontSize:12,padding:'10px 0'}}>등록된 직원이 없습니다</div>}
             {employees.map((e,idx)=>{
               const s = schedTotals[e.uid]||{hours:0,wage:0}
               const color = COLORS[idx%COLORS.length]
@@ -249,7 +245,7 @@ export default function Staff() {
             ))}
           </div>
           <div style={{display:'grid',gridTemplateColumns:'repeat(7,1fr)',gap:3}}>
-            {(() => {
+            {(()=>{
               const cells=[]
               for(let i=0;i<firstDow;i++) cells.push(null)
               for(let d=1;d<=days;d++) cells.push(d)
@@ -268,7 +264,7 @@ export default function Staff() {
                       borderRadius:8,padding:'6px',minHeight:80,cursor:'pointer',transition:'.15s'}}>
                     <div style={{fontSize:11,fontWeight:700,fontFamily:'DM Mono, monospace',marginBottom:3,
                       color:dow===0?'#f87171':dow===6?'#93c5fd':isToday?'#f9b934':'#dde1f2'}}>{d}</div>
-                    {!isActive && (
+                    {!isActive&&(
                       <div style={{display:'flex',flexDirection:'column',gap:2}}>
                         {dayWorkers.map((e)=>(
                           <div key={e.uid} style={{background:COLORS[employees.indexOf(e)%COLORS.length],color:'#111',borderRadius:3,padding:'1px 4px',fontSize:9,fontWeight:700,display:'flex',justifyContent:'space-between'}}>
@@ -279,7 +275,7 @@ export default function Staff() {
                         {dayWorkers.length===0&&<div style={{fontSize:9,color:'#272a3d'}}>휴무</div>}
                       </div>
                     )}
-                    {isActive && (
+                    {isActive&&(
                       <div onClick={e=>e.stopPropagation()} style={{display:'flex',flexDirection:'column',gap:4,marginTop:4}}>
                         {employees.map((e,ei)=>(
                           <div key={e.uid} style={{display:'flex',alignItems:'center',gap:4}}>
