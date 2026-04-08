@@ -3,6 +3,98 @@ import { db } from '../firebase'
 import { doc, getDoc, setDoc, collection, query, where, getDocs } from 'firebase/firestore'
 
 const pad = n => String(n).padStart(2,'0')
+
+function parseTimeDiff(inTime, outTime) {
+  try {
+    const parse = t => {
+      if(!t) return 0
+      const isPM = t.includes('오후')
+      const clean = t.replace('오전 ','').replace('오후 ','')
+      const [h,m] = clean.split(':').map(Number)
+      return (h%12+(isPM?12:0))*60+m
+    }
+    const diff = parse(outTime)-parse(inTime)
+    if(diff<=0) return '—'
+    return `${Math.floor(diff/60)}h ${diff%60}m`
+  } catch { return '—' }
+}
+
+function CheckinRecords({ month, employees }) {
+  const [records, setRecords] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [selEmp, setSelEmp] = useState('all')
+
+  useEffect(()=>{
+    async function load() {
+      setLoading(true)
+      try {
+        const { collection, query, where, getDocs } = await import('firebase/firestore')
+        const { db } = await import('../firebase')
+        const q = query(collection(db,'checkin'), where('month','==',month))
+        const snap = await getDocs(q)
+        const list = []
+        snap.forEach(d=>list.push(d.data()))
+        setRecords(list.sort((a,b)=>a.date>b.date?1:a.date<b.date?-1:0))
+      } catch(e){ console.error(e) }
+      setLoading(false)
+    }
+    load()
+  },[month])
+
+  const filtered = selEmp==='all' ? records : records.filter(r=>r.uid===selEmp)
+
+  return (
+    <div>
+      {/* 직원 필터 */}
+      <div style={{padding:'12px 18px',borderBottom:'1px solid #272a3d',display:'flex',gap:8,flexWrap:'wrap'}}>
+        <button onClick={()=>setSelEmp('all')}
+          style={{padding:'5px 12px',borderRadius:6,border:'none',fontSize:11,fontWeight:600,cursor:'pointer',fontFamily:'inherit',
+            background:selEmp==='all'?'#f9b934':'#191c2b',color:selEmp==='all'?'#000':'#5e6585'}}>
+          전체
+        </button>
+        {employees.map(e=>(
+          <button key={e.uid} onClick={()=>setSelEmp(e.uid)}
+            style={{padding:'5px 12px',borderRadius:6,border:'none',fontSize:11,fontWeight:600,cursor:'pointer',fontFamily:'inherit',
+              background:selEmp===e.uid?'#f9b934':'#191c2b',color:selEmp===e.uid?'#000':'#5e6585'}}>
+            {e.name}
+          </button>
+        ))}
+      </div>
+
+      {loading ? (
+        <div style={{textAlign:'center',color:'#5e6585',padding:30}}>로딩 중...</div>
+      ) : filtered.length === 0 ? (
+        <div style={{textAlign:'center',color:'#5e6585',padding:30}}>기록이 없습니다</div>
+      ) : (
+        <div style={{overflowX:'auto'}}>
+          <table style={{width:'100%',borderCollapse:'collapse',fontSize:12}}>
+            <thead>
+              <tr style={{background:'#191c2b'}}>
+                {['날짜','직원','출근','퇴근','근무시간'].map(h=>(
+                  <th key={h} style={{padding:'8px 14px',fontSize:10,fontWeight:600,color:'#5e6585',
+                    textAlign:h==='날짜'||h==='직원'?'left':'right',whiteSpace:'nowrap'}}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map((r,i)=>(
+                <tr key={i}>
+                  <td style={{padding:'9px 14px',borderBottom:'1px solid #272a3d',color:'#dde1f2'}}>{+r.date}일</td>
+                  <td style={{padding:'9px 14px',borderBottom:'1px solid #272a3d',color:'#dde1f2',fontFamily:'Noto Sans KR,sans-serif'}}>{r.name}</td>
+                  <td style={{padding:'9px 14px',borderBottom:'1px solid #272a3d',textAlign:'right',fontFamily:'DM Mono, monospace',color:'#34d399'}}>{r.checkinTime||'—'}</td>
+                  <td style={{padding:'9px 14px',borderBottom:'1px solid #272a3d',textAlign:'right',fontFamily:'DM Mono, monospace',color:'#f87171'}}>{r.checkoutTime||'—'}</td>
+                  <td style={{padding:'9px 14px',borderBottom:'1px solid #272a3d',textAlign:'right',fontFamily:'DM Mono, monospace',color:'#f9b934'}}>
+                    {r.checkinTime&&r.checkoutTime ? parseTimeDiff(r.checkinTime,r.checkoutTime) : '—'}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  )
+}
 const daysIn = ym => { const[y,m]=ym.split('-').map(Number); return new Date(y,m,0).getDate() }
 const mLabel = ym => { const[y,m]=ym.split('-'); return `${y}년 ${+m}월` }
 const DAYS_KR = ['일','월','화','수','목','금','토']
@@ -274,6 +366,16 @@ export default function Staff() {
             ))}
           </div>
         </div>
+        {/* 출퇴근 기록 조회 */}
+      <div style={{background:'#12141f',border:'1px solid #272a3d',borderRadius:12,marginTop:18}}>
+        <div style={{padding:'14px 18px',borderBottom:'1px solid #272a3d',fontSize:13,fontWeight:600}}>
+          🕐 직원 출퇴근 기록 — {mLabel(curMonth)}
+        </div>
+        <CheckinRecords month={curMonth} employees={employees}/>
+      </div>
+    </div>
+  )
+}
 
         {/* 직원 범례 */}
         <div style={{padding:'10px 18px',borderBottom:'1px solid #272a3d',display:'flex',flexWrap:'wrap',gap:10}}>
