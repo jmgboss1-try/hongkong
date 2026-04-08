@@ -5,12 +5,14 @@ import Dashboard from './pages/Dashboard'
 import Revenue from './pages/Revenue'
 import Expenses from './pages/Expenses'
 import Staff from './pages/Staff'
+import Members from './pages/Members'
 import Payroll from './pages/Payroll'
 import MySchedule from './pages/MySchedule'
+import Team from './pages/Team'
+import ExpensesInput from './pages/ExpensesInput'
 import Layout from './components/Layout'
 
 function PendingScreen() {
-  const { user } = useAuth()
   async function handleLogout() {
     const { auth } = await import('./firebase')
     const { signOut } = await import('firebase/auth')
@@ -34,11 +36,12 @@ function PendingScreen() {
   )
 }
 
-function PrivateRoute({ children, ownerOnly }) {
-  const { user, isOwner, isPending } = useAuth()
+function PrivateRoute({ children, ownerOnly, legendOnly }) {
+  const { user, isOwner, isPending, isLegend } = useAuth()
   if (!user) return <Navigate to="/login" />
   if (isPending) return <PendingScreen />
   if (ownerOnly && !isOwner) return <Navigate to="/my-schedule" />
+  if (legendOnly && !isOwner && !isLegend) return <Navigate to="/my-schedule" />
   return children
 }
 
@@ -59,8 +62,11 @@ function AppRoutes() {
         <Route path="/revenue" element={<PrivateRoute ownerOnly><Revenue /></PrivateRoute>} />
         <Route path="/expenses" element={<PrivateRoute ownerOnly><Expenses /></PrivateRoute>} />
         <Route path="/staff" element={<PrivateRoute ownerOnly><Staff /></PrivateRoute>} />
+        <Route path="/members" element={<PrivateRoute ownerOnly><Members /></PrivateRoute>} />
         <Route path="/payroll" element={<PrivateRoute ownerOnly><Payroll /></PrivateRoute>} />
         <Route path="/my-schedule" element={<PrivateRoute><MySchedule /></PrivateRoute>} />
+        <Route path="/team" element={<PrivateRoute><Team /></PrivateRoute>} />
+        <Route path="/expenses-input" element={<PrivateRoute legendOnly><ExpensesInput /></PrivateRoute>} />
         <Route path="*" element={<Navigate to={isOwner ? "/" : "/my-schedule"} />} />
       </Routes>
     </Layout>
