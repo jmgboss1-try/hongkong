@@ -1,12 +1,12 @@
 import { useNavigate, useLocation } from 'react-router-dom'
 import { auth } from '../firebase'
 import { signOut } from 'firebase/auth'
-import { useAuth } from '../AuthContext'
+import { useAuth, GradeBadge } from '../AuthContext'
 
 export default function Layout({ children }) {
   const navigate = useNavigate()
   const location = useLocation()
-  const { isOwner, userData } = useAuth()
+  const { isOwner, isLegend, userData } = useAuth()
 
   async function handleLogout() {
     await signOut(auth)
@@ -14,16 +14,23 @@ export default function Layout({ children }) {
   }
 
   const ownerMenus = [
-    { path:'/', icon:'📊', label:'대시보드' },
-    { path:'/revenue', icon:'💰', label:'매출관리' },
-    { path:'/expenses', icon:'📋', label:'지출관리' },
-    { path:'/staff', icon:'👥', label:'인원·스케쥴' },
-    { path:'/payroll', icon:'📄', label:'인건비 보고서' },
+    { path:'/',          icon:'📊', label:'대시보드' },
+    { path:'/revenue',   icon:'💰', label:'매출관리' },
+    { path:'/expenses',  icon:'📋', label:'지출관리' },
+    { path:'/staff',     icon:'👥', label:'인원·스케쥴' },
+    { path:'/members',   icon:'📁', label:'인원관리' },
+    { path:'/payroll',   icon:'📄', label:'인건비 보고서' },
   ]
 
   const staffMenus = [
     { path:'/my-schedule', icon:'📅', label:'내 스케쥴' },
+    { path:'/team',        icon:'👥', label:'팀원 소개' },
   ]
+
+  // 1등급(대선배)는 지출입력 가능
+  if (isLegend && !isOwner) {
+    staffMenus.push({ path:'/expenses-input', icon:'📋', label:'지출입력' })
+  }
 
   const menus = isOwner ? ownerMenus : staffMenus
 
@@ -41,9 +48,14 @@ export default function Layout({ children }) {
         </div>
 
         <div style={{padding:'10px 14px', borderBottom:'1px solid #272a3d'}}>
-          <div style={{fontSize:11, color:'#5e6585'}}>
-            {isOwner ? '👑 사장' : `${userData?.name || ''} · ${userData?.grade || ''}등급`}
-          </div>
+          {isOwner ? (
+            <div style={{fontSize:11, color:'#f9b934', fontWeight:700}}>👑 사장</div>
+          ) : (
+            <div style={{display:'flex', flexDirection:'column', gap:4}}>
+              <div style={{fontSize:12, fontWeight:700, color:'#dde1f2'}}>{userData?.name}</div>
+              <GradeBadge joinDate={userData?.joinDate} size={10}/>
+            </div>
+          )}
         </div>
 
         <nav style={{flex:1, padding:'4px 0'}}>
