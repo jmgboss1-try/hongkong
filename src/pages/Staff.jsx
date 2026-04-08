@@ -119,12 +119,18 @@ export default function Staff() {
     setEvents(newEv)
   }
 
-  async function approveUser(u, grade) {
-    await setDoc(doc(db,'users',u.uid), {...u, status:'approved', grade:+grade, wage:10030})
-    const updated = [...employees, {uid:u.uid, name:u.name, wage:10030, phone:'', email:u.email}]
-    await saveEmployees(updated)
-    setPending(p => p.filter(x=>x.uid!==u.uid))
-  }
+  async function approveUser(u, grade, joinDate, wage) {
+  await setDoc(doc(db,'users',u.uid), {
+    ...u,
+    status:'approved',
+    grade:+grade,
+    wage:+wage||10030,
+    joinDate: joinDate||''
+  })
+  const updated = [...employees, {uid:u.uid, name:u.name, wage:+wage||10030, phone:'', email:u.email, joinDate:joinDate||''}]
+  await saveEmployees(updated)
+  setPending(p => p.filter(x=>x.uid!==u.uid))
+}
 
   async function rejectUser(uid) {
     await setDoc(doc(db,'users',uid), {status:'rejected'}, {merge:true})
