@@ -17,26 +17,46 @@ const EMP_COLORS = ['#f9b934','#93c5fd','#34d399','#c4b5fd','#fb923c','#f87171']
 
 function PendingCard({ u, onApprove, onReject }) {
   const [selGrade, setSelGrade] = useState('3')
+  const [joinDate, setJoinDate] = useState(u.createdAt?.slice(0,10) || '')
+  const [wage, setWage] = useState(10030)
+
   return (
-    <div style={{background:'#191c2b',border:'1px solid #272a3d',borderRadius:10,padding:'14px 16px',display:'flex',alignItems:'center',justifyContent:'space-between',flexWrap:'wrap',gap:10}}>
-      <div>
-        <div style={{fontSize:14,fontWeight:700}}>{u.name}</div>
-        <div style={{fontSize:11,color:'#5e6585',marginTop:2}}>{u.email}</div>
-        <div style={{fontSize:10,color:'#5e6585',marginTop:2}}>가입일: {u.createdAt?.slice(0,10)}</div>
+    <div style={{background:'#191c2b',border:'1px solid #272a3d',borderRadius:10,padding:'16px'}}>
+      <div style={{display:'flex',justifyContent:'space-between',flexWrap:'wrap',gap:8,marginBottom:12}}>
+        <div>
+          <div style={{fontSize:14,fontWeight:700}}>{u.name}</div>
+          <div style={{fontSize:11,color:'#5e6585',marginTop:2}}>{u.email}</div>
+          <div style={{fontSize:10,color:'#5e6585',marginTop:2}}>가입 신청일: {u.createdAt?.slice(0,10)}</div>
+        </div>
       </div>
-      <div style={{display:'flex',alignItems:'center',gap:8}}>
-        <select value={selGrade} onChange={e=>setSelGrade(e.target.value)}
-          style={{background:'#0b0d16',border:'1px solid #272a3d',borderRadius:6,color:'#dde1f2',padding:'6px 10px',fontSize:12,fontFamily:'inherit',outline:'none'}}>
-          <option value="1">대선배 (1년↑)</option>
-          <option value="2">고오급인력 (6개월~1년)</option>
-          <option value="3">병아리 (6개월↓)</option>
-        </select>
-        <button onClick={()=>onApprove(u, selGrade)}
-          style={{background:'#34d399',color:'#000',border:'none',borderRadius:6,padding:'7px 14px',fontSize:11,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
-          승인
+      <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(150px,1fr))',gap:10,marginBottom:12}}>
+        <div style={{display:'flex',flexDirection:'column',gap:4}}>
+          <label style={{fontSize:10,color:'#5e6585',fontWeight:600}}>등급</label>
+          <select value={selGrade} onChange={e=>setSelGrade(e.target.value)}
+            style={{background:'#0b0d16',border:'1px solid #272a3d',borderRadius:6,color:'#dde1f2',padding:'7px 10px',fontSize:12,fontFamily:'inherit',outline:'none'}}>
+            <option value="1">🌟 대선배 (1년↑)</option>
+            <option value="2">⭐ 고오급인력 (6개월~1년)</option>
+            <option value="3">🐣 병아리 (6개월↓)</option>
+          </select>
+        </div>
+        <div style={{display:'flex',flexDirection:'column',gap:4}}>
+          <label style={{fontSize:10,color:'#5e6585',fontWeight:600}}>입사일</label>
+          <input type="date" value={joinDate} onChange={e=>setJoinDate(e.target.value)}
+            style={{background:'#0b0d16',border:'1px solid #272a3d',borderRadius:6,color:'#dde1f2',padding:'7px 10px',fontSize:12,fontFamily:'inherit',outline:'none'}}/>
+        </div>
+        <div style={{display:'flex',flexDirection:'column',gap:4}}>
+          <label style={{fontSize:10,color:'#5e6585',fontWeight:600}}>시급 (원)</label>
+          <input type="number" value={wage} onChange={e=>setWage(+e.target.value)}
+            style={{background:'#0b0d16',border:'1px solid #272a3d',borderRadius:6,color:'#dde1f2',padding:'7px 10px',fontSize:12,fontFamily:'inherit',outline:'none'}}/>
+        </div>
+      </div>
+      <div style={{display:'flex',gap:8}}>
+        <button onClick={()=>onApprove(u, selGrade, joinDate, wage)}
+          style={{background:'#34d399',color:'#000',border:'none',borderRadius:6,padding:'8px 18px',fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
+          ✅ 승인
         </button>
         <button onClick={()=>onReject(u.uid)}
-          style={{background:'transparent',border:'1px solid #3d1f1f',color:'#f87171',borderRadius:6,padding:'7px 14px',fontSize:11,cursor:'pointer',fontFamily:'inherit'}}>
+          style={{background:'transparent',border:'1px solid #3d1f1f',color:'#f87171',borderRadius:6,padding:'8px 18px',fontSize:12,cursor:'pointer',fontFamily:'inherit'}}>
           거절
         </button>
       </div>
