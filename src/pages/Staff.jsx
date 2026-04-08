@@ -371,11 +371,6 @@ export default function Staff() {
         <div style={{padding:'14px 18px',borderBottom:'1px solid #272a3d',fontSize:13,fontWeight:600}}>
           🕐 직원 출퇴근 기록 — {mLabel(curMonth)}
         </div>
-        <CheckinRecords month={curMonth} employees={employees}/>
-      </div>
-    </div>
-  )
-}
 
         {/* 직원 범례 */}
         <div style={{padding:'10px 18px',borderBottom:'1px solid #272a3d',display:'flex',flexWrap:'wrap',gap:10}}>
@@ -506,4 +501,13 @@ export default function Staff() {
       </div>
     </div>
   )
+      <div style={{background:'#12141f',border:'1px solid #272a3d',borderRadius:12,marginTop:18}}>
+        <div style={{padding:'14px 18px',borderBottom:'1px solid #272a3d',fontSize:13,fontWeight:600}}>
+          🕐 직원 출퇴근 기록 — {mLabel(curMonth)}
+        </div>
+        <CheckinRecords month={curMonth} employees={employees}/>
+      </div>
+    </div>
+    )
+  }
 }
