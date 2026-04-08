@@ -126,10 +126,13 @@ export default function MySchedule() {
       <div style={{display:'flex',alignItems:'flex-end',justifyContent:'space-between',marginBottom:22}}>
         <div>
           <div style={{fontSize:20,fontWeight:700}}>📅 내 스케쥴</div>
-          <div style={{display:'flex',alignItems:'center',gap:8,marginTop:4}}>
-            <span style={{fontSize:12,color:'#dde1f2'}}>{userData?.name}</span>
-            <GradeBadge joinDate={userData?.joinDate} size={10}/>
-          </div>
+          <div style={{display:'flex',alignItems:'center',gap:8,marginTop:4,flexWrap:'wrap'}}>
+  <span style={{fontSize:12,color:'#dde1f2'}}>{userData?.name}</span>
+  <GradeBadge joinDate={userData?.joinDate} size={10}/>
+  <span style={{fontSize:11,color:'#f9b934',fontFamily:'DM Mono, monospace',background:'rgba(249,185,52,0.12)',padding:'2px 7px',borderRadius:4}}>
+    {wage.toLocaleString()}원/h
+  </span>
+</div>
         </div>
         <select value={curMonth} onChange={e=>setCurMonth(e.target.value)}
           style={{background:'#191c2b',border:'1px solid #272a3d',borderRadius:8,color:'#dde1f2',padding:'8px 12px',fontSize:12,fontFamily:'inherit',outline:'none'}}>
@@ -236,10 +239,17 @@ export default function MySchedule() {
               {monthCheckins.map(c=>{
                 let workTime = '—'
                 if(c.checkinTime && c.checkoutTime) {
-                  const [ih,im] = c.checkinTime.split(':').map(Number)
-                  const [oh,om] = c.checkoutTime.split(':').map(Number)
-                  const diff = (oh*60+om)-(ih*60+im)
-                  if(diff>0) workTime = `${Math.floor(diff/60)}h ${diff%60}m`
+                  try {
+  const parseTime = (t) => {
+    if(!t) return 0
+    const isPM = t.includes('오후')
+    const clean = t.replace('오전 ','').replace('오후 ','')
+    const [h,m] = clean.split(':').map(Number)
+    return (h%12 + (isPM?12:0))*60 + m
+  }
+  const diff = parseTime(c.checkoutTime) - parseTime(c.checkinTime)
+  if(diff>0) workTime = `${Math.floor(diff/60)}h ${diff%60}m`
+} catch(e) {}
                 }
                 return(
                   <tr key={c.date}>
