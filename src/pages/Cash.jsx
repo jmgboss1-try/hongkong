@@ -102,7 +102,7 @@ function CashForm({ type, baseAmount, onSave, existing }) {
 }
 
 export default function Cash() {
-  const { isOwner } = useAuth()
+  const { isOwner, userData } = useAuth()
   const now = new Date()
   const today = `${now.getFullYear()}-${pad(now.getMonth()+1)}`
   const todayDD = pad(now.getDate())
@@ -141,18 +141,28 @@ export default function Cash() {
     alert(`기준 시재가 ${amt.toLocaleString()}원으로 설정됐습니다.`)
   }
 
-  async function saveRecord(type, data) {
-    const newRecords = {
-      ...records,
-      [todayDD]: {
-        ...(records[todayDD]||{}),
-        [type]: {...data, recordedAt: new Date().toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit'})}
+async function saveRecord(type, data) {
+  const now = new Date()
+  const timeStr = now.toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit'})
+  const dateStr = now.toLocaleDateString('ko-KR')
+
+  const newRecords = {
+    ...records,
+    [todayDD]: {
+      ...(records[todayDD]||{}),
+      [type]: {
+        ...data,
+        recordedAt: timeStr,
+        recordedDate: dateStr,
+        recordedBy: auth.currentUser?.email || '알 수 없음',
+        recordedByName: userData?.name || '알 수 없음',
       }
     }
-    await setDoc(doc(db,'cash',today), newRecords)
-    setRecords(newRecords)
-    alert(`${type==='open'?'오픈':'마감'} 시재가 저장됐습니다!`)
   }
+  await setDoc(doc(db,'cash',today), newRecords)
+  setRecords(newRecords)
+  alert(`${type==='open'?'오픈':'마감'} 시재가 저장됐습니다!`)
+}
 
   const todayRecord = records[todayDD] || {}
   const isOwnerView = isOwner
@@ -194,17 +204,17 @@ export default function Cash() {
           return(
             <div key={type} style={{background:'#12141f',border:`1px solid ${rec?'#34d399':'#272a3d'}`,borderRadius:12,padding:'14px 16px'}}>
               <div style={{fontSize:11,fontWeight:600,color:'#5e6585',marginBottom:6}}>{type==='open'?'🌅 오픈 시재':'🌙 마감 시재'}</div>
-              {rec ? (
-                <>
-                  <div style={{fontSize:16,fontWeight:700,color:'#34d399',fontFamily:'DM Mono, monospace'}}>{rec.total?.toLocaleString()}원</div>
-                  <div style={{fontSize:10,color:'#5e6585',marginTop:4}}>{rec.recordedAt} 기록</div>
-                  <div style={{fontSize:11,marginTop:4,color:rec.diff===0?'#34d399':rec.diff>0?'#f9b934':'#f87171'}}>
-                    차액: {rec.diff===0?'일치':rec.diff>0?`+${rec.diff?.toLocaleString()}원`:`${rec.diff?.toLocaleString()}원`}
-                  </div>
-                </>
-              ) : (
-                <div style={{fontSize:12,color:'#5e6585'}}>미입력</div>
-              )}
+{rec ? (
+  <>
+    <div style={{fontSize:16,fontWeight:700,color:'#34d399',fontFamily:'DM Mono, monospace'}}>{rec.total?.toLocaleString()}원</div>
+    <div style={{fontSize:10,color:'#5e6585',marginTop:4}}>{rec.recordedAt} · {rec.recordedByName||rec.recordedBy||'?'}</div>
+    <div style={{fontSize:11,marginTop:4,color:rec.diff===0?'#34d399':rec.diff>0?'#f9b934':'#f87171'}}>
+      차액: {rec.diff===0?'일치':rec.diff>0?`+${rec.diff?.toLocaleString()}원`:`${rec.diff?.toLocaleString()}원`}
+    </div>
+  </>
+) : (
+  <div style={{fontSize:12,color:'#5e6585'}}>미입력</div>
+)}
             </div>
           )
         })}
