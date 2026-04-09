@@ -94,25 +94,36 @@ export default function Staff() {
       const memEmps = []
       memSnap.forEach(d => memEmps.push({...d.data(), uid:d.id}))
 
-      // 4. users 컬렉션 기반으로 직원 목록 구성 (실제 uid 사용)
-      const finalEmps = []
-      const addedUids = new Set()
+// 4. users 컬렉션 기반으로 직원 목록 구성
+const finalEmps = []
+const addedUids = new Set()
+const addedEmails = new Set()
 
-      // users에서 승인된 직원 추가
-      usersSnap.forEach(d => {
-        const data = d.data()
-        if(data.status === 'approved' && data.role !== 'owner') {
-          finalEmps.push({
-            uid: d.id,  // 실제 Firebase Auth uid
-            name: data.name,
-            wage: data.wage || 10030,
-            email: data.email,
-            phone: data.phone || '',
-            joinDate: data.joinDate || '',
-          })
-          addedUids.add(d.id)
-        }
-      })
+// users에서 승인된 직원 추가
+usersSnap.forEach(d => {
+  const data = d.data()
+  if(data.status === 'approved' && data.role !== 'owner') {
+    finalEmps.push({
+      uid: d.id,
+      name: data.name,
+      wage: data.wage || 10030,
+      email: data.email,
+      phone: data.phone || '',
+      joinDate: data.joinDate || '',
+    })
+    addedUids.add(d.id)
+    if(data.email) addedEmails.add(data.email)
+  }
+})
+
+// meta/employees에서 추가 (uid도 없고 이메일도 없는 것만)
+metaEmps.forEach(e => {
+  if(!addedUids.has(e.uid) && !(e.email && addedEmails.has(e.email))) {
+    finalEmps.push(e)
+    addedUids.add(e.uid)
+    if(e.email) addedEmails.add(e.email)
+  }
+})
 
       // meta/employees에서 추가 (users에 없는 것만)
       metaEmps.forEach(e => {
