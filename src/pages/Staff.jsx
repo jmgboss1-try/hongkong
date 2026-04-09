@@ -99,16 +99,25 @@ export default function Staff() {
       const evSnap = await getDoc(doc(db,'events',curMonth))
       setEvents(evSnap.exists() ? evSnap.data() : {})
 
-      // 출퇴근 기록
-      const q = query(collection(db,'checkin'), where('month','==',curMonth))
-      const snap = await getDocs(q)
-      const ci = {}
-      snap.forEach(d => {
-        const data = d.data()
-        if(!ci[data.uid]) ci[data.uid] = {}
-        ci[data.uid][data.date] = data
-      })
-      setCheckins(ci)
+      // 출퇴근 기록 — 문서 ID 패턴으로 직접 조회
+const ci = {}
+const days = daysIn(curMonth)
+await Promise.all(
+  employees.map(async emp => {
+    for(let d=1; d<=days; d++) {
+      const dd = pad(d)
+      const docId = `${curMonth}_${dd}_${emp.uid}`
+      try {
+        const snap = await getDoc(doc(db,'checkin',docId))
+        if(snap.exists()) {
+          if(!ci[emp.uid]) ci[emp.uid] = {}
+          ci[emp.uid][dd] = snap.data()
+        }
+      } catch(e) {}
+    }
+  })
+)
+setCheckins(ci)
 
       if(isOwner) {
         const pq = query(collection(db,'users'), where('status','==','pending'))
