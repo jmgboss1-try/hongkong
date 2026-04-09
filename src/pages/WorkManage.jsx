@@ -77,6 +77,35 @@ async function load() {
   } catch(e) { console.error(e) }
   setLoading(false)
 }
+  async function editCheckin(uid, dd, ci) {
+  const newIn = prompt('출근 시각 수정 (예: 오전 10:00)', ci.checkinTime||'')
+  if(newIn === null) return
+  const newOut = prompt('퇴근 시각 수정 (예: 오후 06:00)', ci.checkoutTime||'')
+  if(newOut === null) return
+  try {
+    const { setDoc, doc } = await import('firebase/firestore')
+    const { db } = await import('../firebase')
+    const docId = `${curMonth}_${dd}_${uid}`
+    await setDoc(doc(db,'checkin',docId), {
+      ...ci,
+      checkinTime: newIn,
+      checkoutTime: newOut,
+      status: 'checkout'
+    }, {merge:true})
+    await load()
+  } catch(e) { console.error(e) }
+}
+
+async function deleteCheckin(uid, dd) {
+  if(!window.confirm(`${+dd}일 출퇴근 기록을 삭제하시겠습니까?`)) return
+  try {
+    const { deleteDoc, doc } = await import('firebase/firestore')
+    const { db } = await import('../firebase')
+    const docId = `${curMonth}_${dd}_${uid}`
+    await deleteDoc(doc(db,'checkin',docId))
+    await load()
+  } catch(e) { console.error(e) }
+}
 
   useEffect(() => { load() }, [curMonth])
 
@@ -265,7 +294,7 @@ async function load() {
                   <table style={{width:'100%',borderCollapse:'collapse',fontSize:12}}>
                     <thead>
                       <tr style={{background:'#191c2b'}}>
-                        {['날짜','출근기록','퇴근기록','자동계산','입력시간(h)','일급'].map(h=>(
+{['날짜','출근기록','퇴근기록','자동계산','입력시간(h)','일급',''].map(h=>(
                           <th key={h} style={{padding:'8px 14px',fontSize:10,fontWeight:600,color:'#5e6585',
                             textAlign:h==='날짜'?'left':'right',whiteSpace:'nowrap'}}>{h}</th>
                         ))}
@@ -293,12 +322,26 @@ async function load() {
                             <td style={{padding:'8px 14px',borderBottom:'1px solid #272a3d',textAlign:'right',fontFamily:'DM Mono,monospace',color:'#5e6585'}}>
                               {autoH>0 ? `${autoH.toFixed(1)}h` : '—'}
                             </td>
-                            <td style={{padding:'6px 14px',borderBottom:'1px solid #272a3d',textAlign:'right'}}>
-                              <input type="number" defaultValue={manualH} min="0" max="24" step="0.5"
-                                placeholder={autoH>0?autoH.toFixed(1):'0'}
-                                onBlur={e=>saveWorkHours(emp.uid,dd,e.target.value)}
-                                style={{width:60,background:'#0b0d16',border:'1px solid #272a3d',borderRadius:5,color:'#dde1f2',padding:'4px 6px',fontSize:11,textAlign:'right',outline:'none',fontFamily:'DM Mono,monospace'}}/>
-                            </td>
+<td style={{padding:'6px 14px',borderBottom:'1px solid #272a3d',textAlign:'right'}}>
+  <input type="number" defaultValue={manualH} min="0" max="24" step="0.5"
+    placeholder={autoH>0?autoH.toFixed(1):'0'}
+    onBlur={e=>saveWorkHours(emp.uid,dd,e.target.value)}
+    style={{width:60,background:'#0b0d16',border:'1px solid #272a3d',borderRadius:5,color:'#dde1f2',padding:'4px 6px',fontSize:11,textAlign:'right',outline:'none',fontFamily:'DM Mono,monospace'}}/>
+</td>
+<td style={{padding:'6px 14px',borderBottom:'1px solid #272a3d',textAlign:'right',whiteSpace:'nowrap'}}>
+  {ci && (
+    <div style={{display:'flex',gap:4,justifyContent:'flex-end'}}>
+      <button onClick={()=>editCheckin(emp.uid,dd,ci)}
+        style={{background:'transparent',border:'1px solid #272a3d',color:'#dde1f2',padding:'3px 7px',fontSize:10,borderRadius:4,cursor:'pointer',fontFamily:'inherit'}}>
+        수정
+      </button>
+      <button onClick={()=>deleteCheckin(emp.uid,dd)}
+        style={{background:'transparent',border:'1px solid #3d1f1f',color:'#f87171',padding:'3px 7px',fontSize:10,borderRadius:4,cursor:'pointer',fontFamily:'inherit'}}>
+        삭제
+      </button>
+    </div>
+  )}
+</td>
                             <td style={{padding:'8px 14px',borderBottom:'1px solid #272a3d',textAlign:'right',fontFamily:'DM Mono,monospace',color:'#f9b934'}}>
                               {finalH>0 ? Math.round(finalH*(emp.wage||10030)).toLocaleString() : '—'}
                             </td>
