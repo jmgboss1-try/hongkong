@@ -63,15 +63,10 @@ export default function Staff() {
   })
   const [employees, setEmployees] = useState([])
   const [pending, setPending] = useState([])
-  const [checkins, setCheckins] = useState({}) // {uid: {dd: {in, out}}}
+  const [checkins, setCheckins] = useState({})
   const [events, setEvents] = useState({})
   const [loading, setLoading] = useState(true)
   const [activeDay, setActiveDay] = useState(null)
-  const [showAdd, setShowAdd] = useState(false)
-  const [newName, setNewName] = useState('')
-  const [newWage, setNewWage] = useState(10030)
-  const [newPhone, setNewPhone] = useState('')
-  const [newEmail, setNewEmail] = useState('')
 
   const monthOpts = []
   for(let y=2022;y<=2026;y++){const sm=y===2022?10:1;for(let m=sm;m<=12;m++){monthOpts.push(`${y}-${pad(m)}`)}}
@@ -79,14 +74,32 @@ export default function Staff() {
   async function load() {
     setLoading(true)
     try {
+      // 직원목록 — meta/employees 와 members 컬렉션 통합
       const empSnap = await getDoc(doc(db,'meta','employees'))
-      const emps = empSnap.exists() ? empSnap.data().list||[] : []
-      setEmployees(emps)
+      const metaEmps = empSnap.exists() ? empSnap.data().list||[] : []
+
+      // members 컬렉션에서도 불러오기
+      const memSnap = await getDocs(collection(db,'members'))
+      const memEmps = []
+      memSnap.forEach(d => memEmps.push({...d.data(), uid:d.id}))
+
+      // 두 목록 병합 (uid 기준, 중복 제거)
+      const allUids = new Set(metaEmps.map(e=>e.uid))
+      const merged = [...metaEmps]
+      memEmps.forEach(m => {
+        if(!allUids.has(m.uid)) merged.push(m)
+      })
+      setEmployees(merged)
+
+      // meta/employees 에 members 정보 동기화
+      if(memEmps.length > 0 && merged.length > metaEmps.length) {
+        await setDoc(doc(db,'meta','employees'), {list: merged})
+      }
 
       const evSnap = await getDoc(doc(db,'events',curMonth))
       setEvents(evSnap.exists() ? evSnap.data() : {})
 
-      // 출퇴근 기록 불러오기
+      // 출퇴근 기록
       const q = query(collection(db,'checkin'), where('month','==',curMonth))
       const snap = await getDocs(q)
       const ci = {}
@@ -135,18 +148,10 @@ export default function Staff() {
     if(!text) delete newEv[dd]
     await saveEvents(newEv)
   }
-  async function addEmp() {
-    if(!newName.trim()) return alert('이름을 입력해주세요')
-    const newEmp = {uid:Date.now().toString(), name:newName.trim(), wage:+newWage||10030, phone:newPhone.trim(), email:newEmail.trim()}
-    await saveEmployees([...employees, newEmp])
-    setNewName(''); setNewWage(10030); setNewPhone(''); setNewEmail('')
-    setShowAdd(false)
-  }
   async function delEmp(uid) {
     if(!window.confirm('정말 삭제하시겠습니까?')) return
     await saveEmployees(employees.filter(e=>e.uid!==uid))
   }
-
 
   const days = daysIn(curMonth)
   const [cy,cm] = curMonth.split('-').map(Number)
@@ -167,7 +172,7 @@ export default function Staff() {
         </select>
       </div>
 
-      {/* 사장만: 승인 대기 */}
+      {/* 사장: 승인 대기 */}
       {isOwner && pending.length>0 && (
         <div style={{background:'#12141f',border:'1px solid #f9b934',borderRadius:12,marginBottom:18}}>
           <div style={{padding:'14px 18px',borderBottom:'1px solid #272a3d',fontSize:13,fontWeight:600,color:'#f9b934',display:'flex',alignItems:'center',gap:8}}>
@@ -180,31 +185,12 @@ export default function Staff() {
         </div>
       )}
 
-      {/* 사장만: 직원 목록 관리 */}
+      {/* 사장: 직원 목록 */}
       {isOwner && (
         <div style={{background:'#12141f',border:'1px solid #272a3d',borderRadius:12,marginBottom:18}}>
           <div style={{padding:'14px 18px',borderBottom:'1px solid #272a3d',fontSize:13,fontWeight:600,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
-            <span>직원 목록</span>
-            <button onClick={()=>setShowAdd(v=>!v)}
-              style={{background:'#f9b934',color:'#000',border:'none',borderRadius:6,padding:'5px 14px',fontSize:11,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
-              + 직접 추가
-            </button>
+            <span>직원 목록 <span style={{fontSize:10,color:'#5e6585'}}>(인원관리 탭에서 추가/수정)</span></span>
           </div>
-          {showAdd && (
-            <div style={{padding:18,borderBottom:'1px solid #272a3d',display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(160px,1fr))',gap:10}}>
-              {[['이름',newName,setNewName,'text'],['시급',newWage,setNewWage,'number'],['연락처',newPhone,setNewPhone,'text'],['이메일',newEmail,setNewEmail,'email']].map(([label,val,set,type])=>(
-                <div key={label} style={{display:'flex',flexDirection:'column',gap:4}}>
-                  <label style={{fontSize:10,color:'#5e6585',fontWeight:600}}>{label}</label>
-                  <input type={type} value={val} onChange={e=>set(e.target.value)}
-                    style={{background:'#0b0d16',border:'1px solid #272a3d',borderRadius:7,color:'#dde1f2',padding:'8px 10px',fontSize:12,outline:'none'}}/>
-                </div>
-              ))}
-              <div style={{display:'flex',alignItems:'flex-end',gap:8}}>
-                <button onClick={addEmp} style={{background:'#f9b934',color:'#000',border:'none',borderRadius:7,padding:'9px 14px',fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>추가</button>
-                <button onClick={()=>setShowAdd(false)} style={{background:'#191c2b',color:'#5e6585',border:'1px solid #272a3d',borderRadius:7,padding:'9px 14px',fontSize:12,cursor:'pointer',fontFamily:'inherit'}}>취소</button>
-              </div>
-            </div>
-          )}
           {loading ? <div style={{textAlign:'center',color:'#5e6585',padding:30}}>로딩 중...</div> : (
             <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(180px,1fr))',gap:12,padding:18}}>
               {employees.length===0 && <div style={{color:'#5e6585',fontSize:12}}>등록된 직원이 없습니다</div>}
@@ -214,12 +200,12 @@ export default function Staff() {
                     <div style={{width:10,height:10,borderRadius:3,background:EMP_COLORS[idx%EMP_COLORS.length],flexShrink:0}}></div>
                     <div style={{fontSize:14,fontWeight:700}}>{e.name}</div>
                   </div>
-<div style={{fontSize:10,color:'#f9b934',fontFamily:'DM Mono,monospace'}}>{(e.wage||10030).toLocaleString()}원/h</div>
-<div style={{fontSize:10,color:'#5e6585'}}>시급수정 → 인원관리 탭</div>
-<div style={{display:'flex',gap:6,marginTop:4}}>
-  <button onClick={()=>delEmp(e.uid)}
-    style={{background:'transparent',border:'1px solid #3d1f1f',color:'#f87171',padding:'3px 8px',fontSize:10,borderRadius:5,cursor:'pointer',fontFamily:'inherit'}}>삭제</button>
-</div>
+                  <div style={{fontSize:10,color:'#f9b934',fontFamily:'DM Mono,monospace'}}>{(e.wage||10030).toLocaleString()}원/h</div>
+                  <div style={{fontSize:10,color:'#5e6585'}}>시급수정 → 인원관리 탭</div>
+                  <div style={{display:'flex',gap:6,marginTop:4}}>
+                    <button onClick={()=>delEmp(e.uid)}
+                      style={{background:'transparent',border:'1px solid #3d1f1f',color:'#f87171',padding:'3px 8px',fontSize:10,borderRadius:5,cursor:'pointer',fontFamily:'inherit'}}>삭제</button>
+                  </div>
                 </div>
               ))}
             </div>
@@ -261,7 +247,7 @@ export default function Staff() {
                 const isActive=activeDay===dd
                 const event=events[dd]
 
-                // 이 날 출근한 직원들
+                // 출퇴근 기록 기반으로 출근 직원 표시
                 const dayCheckins=employees.map((e,ei)=>{
                   const ci=(checkins[e.uid]||{})[dd]
                   if(!ci) return null
@@ -283,7 +269,6 @@ export default function Staff() {
                       {isToday&&<div style={{width:5,height:5,borderRadius:'50%',background:'#f9b934'}}></div>}
                     </div>
 
-                    {/* 매장 이벤트 */}
                     {event&&!isActive&&(
                       <div style={{background:'rgba(249,185,52,0.15)',color:'#f9b934',fontSize:8,padding:'2px 4px',borderRadius:3,marginBottom:3,lineHeight:1.4}}>
                         📌 {event}
@@ -308,21 +293,21 @@ export default function Staff() {
                       </div>
                     )}
 
-                    {/* 사장: 클릭시 이벤트 입력 */}
+                    {/* 사장: 클릭시 이벤트 입력 + 상세 */}
                     {isActive&&isOwner&&(
                       <div onClick={e=>e.stopPropagation()} style={{display:'flex',flexDirection:'column',gap:6,marginTop:4}}>
                         <input defaultValue={event||''} placeholder="매장일정..."
                           onBlur={e=>updEvent(dd,e.target.value)}
                           style={{width:'100%',background:'rgba(249,185,52,0.1)',border:'1px solid rgba(249,185,52,0.3)',borderRadius:4,color:'#f9b934',padding:'3px 5px',fontSize:9,outline:'none',fontFamily:'inherit'}}/>
-                        <div style={{fontSize:9,color:'#5e6585'}}>
+                        <div style={{fontSize:9,color:'#5e6585',lineHeight:1.8}}>
                           {dayCheckins.length>0 ? (
                             dayCheckins.map(({emp,ci})=>(
-                              <div key={emp.uid} style={{marginBottom:3}}>
+                              <div key={emp.uid}>
                                 <span style={{color:'#dde1f2',fontWeight:700}}>{emp.name}</span>
                                 {' '}{ci.checkinTime||'?'} ~ {ci.checkoutTime||'근무중'}
                               </div>
                             ))
-                          ) : '출근 기록 없음'}
+                          ) : <span>출근 기록 없음</span>}
                         </div>
                       </div>
                     )}
