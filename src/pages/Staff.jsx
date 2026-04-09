@@ -146,9 +146,7 @@ export default function Staff() {
     if(!window.confirm('정말 삭제하시겠습니까?')) return
     await saveEmployees(employees.filter(e=>e.uid!==uid))
   }
-  async function updateWage(uid, wage) {
-    await saveEmployees(employees.map(e=>e.uid===uid?{...e,wage:+wage}:e))
-  }
+
 
   const days = daysIn(curMonth)
   const [cy,cm] = curMonth.split('-').map(Number)
@@ -216,13 +214,12 @@ export default function Staff() {
                     <div style={{width:10,height:10,borderRadius:3,background:EMP_COLORS[idx%EMP_COLORS.length],flexShrink:0}}></div>
                     <div style={{fontSize:14,fontWeight:700}}>{e.name}</div>
                   </div>
-                  <div style={{fontSize:10,color:'#f9b934',fontFamily:'DM Mono,monospace'}}>{(e.wage||10030).toLocaleString()}원/h</div>
-                  <div style={{display:'flex',gap:6,marginTop:4}}>
-                    <button onClick={()=>{const w=prompt(`${e.name} 시급:`,e.wage);if(w)updateWage(e.uid,w)}}
-                      style={{background:'transparent',border:'1px solid #3d1f1f',color:'#f87171',padding:'3px 8px',fontSize:10,borderRadius:5,cursor:'pointer',fontFamily:'inherit'}}>시급수정</button>
-                    <button onClick={()=>delEmp(e.uid)}
-                      style={{background:'transparent',border:'1px solid #3d1f1f',color:'#f87171',padding:'3px 8px',fontSize:10,borderRadius:5,cursor:'pointer',fontFamily:'inherit'}}>삭제</button>
-                  </div>
+<div style={{fontSize:10,color:'#f9b934',fontFamily:'DM Mono,monospace'}}>{(e.wage||10030).toLocaleString()}원/h</div>
+<div style={{fontSize:10,color:'#5e6585'}}>시급수정 → 인원관리 탭</div>
+<div style={{display:'flex',gap:6,marginTop:4}}>
+  <button onClick={()=>delEmp(e.uid)}
+    style={{background:'transparent',border:'1px solid #3d1f1f',color:'#f87171',padding:'3px 8px',fontSize:10,borderRadius:5,cursor:'pointer',fontFamily:'inherit'}}>삭제</button>
+</div>
                 </div>
               ))}
             </div>
