@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { db } from '../firebase'
-import { collection, getDocs, doc, setDoc, deleteDoc } from 'firebase/firestore'
+import { collection, getDocs, doc, getDoc, setDoc, deleteDoc } from 'firebase/firestore'
 import { GradeBadge, calcGrade } from '../AuthContext'
 
 function calcTenure(joinDate) {
@@ -123,18 +123,40 @@ export default function Members() {
 
   function setF(key,val){ setForm(f=>({...f,[key]:val})) }
 
-  async function save() {
-    if(!form.name.trim()) return alert('이름을 입력해주세요')
-    setSaving(true)
-    try {
-      const uid = form.uid || Date.now().toString()
-      await setDoc(doc(db,'members',uid), {...form, uid})
-      await load()
-      setShowForm(false)
-      setForm(EMPTY)
-    } catch(e) { console.error(e) }
-    setSaving(false)
-  }
+async function save() {
+  if(!form.name.trim()) return alert('이름을 입력해주세요')
+  setSaving(true)
+  try {
+    const uid = form.uid || Date.now().toString()
+    // members 컬렉션 저장
+    await setDoc(doc(db,'members',uid), {...form, uid})
+
+    // users 컬렉션에도 시급/입사일 동기화
+    const userRef = doc(db,'users',uid)
+    const userSnap = await getDoc(userRef)
+    if(userSnap.exists()) {
+      await setDoc(userRef, {
+        wage: +form.wage || 10030,
+        joinDate: form.joinDate || '',
+        name: form.name.trim(),
+        phone: form.phone || '',
+      }, {merge:true})
+    }
+
+    // meta/employees 도 시급 동기화
+    const empSnap = await getDoc(doc(db,'meta','employees'))
+    if(empSnap.exists()) {
+      const list = empSnap.data().list || []
+      const updated = list.map(e => e.uid===uid ? {...e, wage:+form.wage||10030, name:form.name.trim()} : e)
+      await setDoc(doc(db,'meta','employees'), {list:updated})
+    }
+
+    await load()
+    setShowForm(false)
+    setForm(EMPTY)
+  } catch(e) { console.error(e) }
+  setSaving(false)
+}
 
   async function deleteMember(uid) {
     if(!window.confirm('정말 삭제하시겠습니까?')) return
