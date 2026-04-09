@@ -74,51 +74,82 @@ export default function Staff() {
   async function load() {
     setLoading(true)
     try {
-      // 직원목록 — meta/employees 와 members 컬렉션 통합
+      // 1. users 컬렉션에서 승인된 직원 목록 가져오기 (실제 uid 사용)
+      const usersSnap = await getDocs(collection(db,'users'))
+      const approvedUsers = []
+      usersSnap.forEach(d => {
+        const data = d.data()
+        if(data.status === 'approved' || data.role === 'owner') return
+        if(data.status === 'approved') {
+          approvedUsers.push({uid: d.id, ...data})
+        }
+      })
+
+      // 2. meta/employees 목록도 가져오기
       const empSnap = await getDoc(doc(db,'meta','employees'))
       const metaEmps = empSnap.exists() ? empSnap.data().list||[] : []
 
-      // members 컬렉션에서도 불러오기
+      // 3. members 컬렉션도 가져오기
       const memSnap = await getDocs(collection(db,'members'))
       const memEmps = []
       memSnap.forEach(d => memEmps.push({...d.data(), uid:d.id}))
 
-      // 두 목록 병합 (uid 기준, 중복 제거)
-      const allUids = new Set(metaEmps.map(e=>e.uid))
-      const merged = [...metaEmps]
-      memEmps.forEach(m => {
-        if(!allUids.has(m.uid)) merged.push(m)
+      // 4. users 컬렉션 기반으로 직원 목록 구성 (실제 uid 사용)
+      const finalEmps = []
+      const addedUids = new Set()
+
+      // users에서 승인된 직원 추가
+      usersSnap.forEach(d => {
+        const data = d.data()
+        if(data.status === 'approved' && data.role !== 'owner') {
+          finalEmps.push({
+            uid: d.id,  // 실제 Firebase Auth uid
+            name: data.name,
+            wage: data.wage || 10030,
+            email: data.email,
+            phone: data.phone || '',
+            joinDate: data.joinDate || '',
+          })
+          addedUids.add(d.id)
+        }
       })
-      setEmployees(merged)
 
-      // meta/employees 에 members 정보 동기화
-      if(memEmps.length > 0 && merged.length > metaEmps.length) {
-        await setDoc(doc(db,'meta','employees'), {list: merged})
-      }
+      // meta/employees에서 추가 (users에 없는 것만)
+      metaEmps.forEach(e => {
+        if(!addedUids.has(e.uid)) {
+          finalEmps.push(e)
+          addedUids.add(e.uid)
+        }
+      })
 
+      setEmployees(finalEmps)
+
+      // 5. 이벤트
       const evSnap = await getDoc(doc(db,'events',curMonth))
       setEvents(evSnap.exists() ? evSnap.data() : {})
 
-      // 출퇴근 기록 — 문서 ID 패턴으로 직접 조회
-const ci = {}
-const days = daysIn(curMonth)
-await Promise.all(
-  employees.map(async emp => {
-    for(let d=1; d<=days; d++) {
-      const dd = pad(d)
-      const docId = `${curMonth}_${dd}_${emp.uid}`
-      try {
-        const snap = await getDoc(doc(db,'checkin',docId))
-        if(snap.exists()) {
-          if(!ci[emp.uid]) ci[emp.uid] = {}
-          ci[emp.uid][dd] = snap.data()
-        }
-      } catch(e) {}
-    }
-  })
-)
-setCheckins(ci)
+      // 6. 출퇴근 기록 — 실제 uid로 직접 조회
+      const totalDays = daysIn(curMonth)
+      const ci = {}
 
+      await Promise.all(
+        finalEmps.map(async emp => {
+          for(let d=1; d<=totalDays; d++) {
+            const dd = pad(d)
+            const docId = `${curMonth}_${dd}_${emp.uid}`
+            try {
+              const ciSnap = await getDoc(doc(db,'checkin',docId))
+              if(ciSnap.exists()) {
+                if(!ci[emp.uid]) ci[emp.uid] = {}
+                ci[emp.uid][dd] = ciSnap.data()
+              }
+            } catch(e) {}
+          }
+        })
+      )
+      setCheckins(ci)
+
+      // 7. 승인 대기
       if(isOwner) {
         const pq = query(collection(db,'users'), where('status','==','pending'))
         const pSnap = await getDocs(pq)
@@ -126,6 +157,7 @@ setCheckins(ci)
         pSnap.forEach(d => list.push({uid:d.id,...d.data()}))
         setPending(list)
       }
+
     } catch(e) { console.error(e) }
     setLoading(false)
   }
@@ -197,8 +229,8 @@ setCheckins(ci)
       {/* 사장: 직원 목록 */}
       {isOwner && (
         <div style={{background:'#12141f',border:'1px solid #272a3d',borderRadius:12,marginBottom:18}}>
-          <div style={{padding:'14px 18px',borderBottom:'1px solid #272a3d',fontSize:13,fontWeight:600,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
-            <span>직원 목록 <span style={{fontSize:10,color:'#5e6585'}}>(인원관리 탭에서 추가/수정)</span></span>
+          <div style={{padding:'14px 18px',borderBottom:'1px solid #272a3d',fontSize:13,fontWeight:600}}>
+            직원 목록 <span style={{fontSize:10,color:'#5e6585'}}>(인원관리 탭에서 추가/수정)</span>
           </div>
           {loading ? <div style={{textAlign:'center',color:'#5e6585',padding:30}}>로딩 중...</div> : (
             <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(180px,1fr))',gap:12,padding:18}}>
@@ -211,10 +243,10 @@ setCheckins(ci)
                   </div>
                   <div style={{fontSize:10,color:'#f9b934',fontFamily:'DM Mono,monospace'}}>{(e.wage||10030).toLocaleString()}원/h</div>
                   <div style={{fontSize:10,color:'#5e6585'}}>시급수정 → 인원관리 탭</div>
-                  <div style={{display:'flex',gap:6,marginTop:4}}>
-                    <button onClick={()=>delEmp(e.uid)}
-                      style={{background:'transparent',border:'1px solid #3d1f1f',color:'#f87171',padding:'3px 8px',fontSize:10,borderRadius:5,cursor:'pointer',fontFamily:'inherit'}}>삭제</button>
-                  </div>
+                  <button onClick={()=>delEmp(e.uid)}
+                    style={{background:'transparent',border:'1px solid #3d1f1f',color:'#f87171',padding:'3px 8px',fontSize:10,borderRadius:5,cursor:'pointer',fontFamily:'inherit',width:'fit-content',marginTop:4}}>
+                    삭제
+                  </button>
                 </div>
               ))}
             </div>
@@ -255,8 +287,6 @@ setCheckins(ci)
                 const isToday=isThisMonth&&d===now.getDate()
                 const isActive=activeDay===dd
                 const event=events[dd]
-
-                // 출퇴근 기록 기반으로 출근 직원 표시
                 const dayCheckins=employees.map((e,ei)=>{
                   const ci=(checkins[e.uid]||{})[dd]
                   if(!ci) return null
@@ -277,14 +307,11 @@ setCheckins(ci)
                         color:dow===0?'#f87171':dow===6?'#93c5fd':isToday?'#f9b934':'#dde1f2'}}>{d}</div>
                       {isToday&&<div style={{width:5,height:5,borderRadius:'50%',background:'#f9b934'}}></div>}
                     </div>
-
                     {event&&!isActive&&(
                       <div style={{background:'rgba(249,185,52,0.15)',color:'#f9b934',fontSize:8,padding:'2px 4px',borderRadius:3,marginBottom:3,lineHeight:1.4}}>
                         📌 {event}
                       </div>
                     )}
-
-                    {/* 출근 직원 표시 */}
                     {!isActive&&(
                       <div style={{display:'flex',flexDirection:'column',gap:2}}>
                         {dayCheckins.map(({emp,idx:ei,ci})=>(
@@ -301,8 +328,6 @@ setCheckins(ci)
                         {dayCheckins.length===0&&<div style={{fontSize:8,color:'#272a3d'}}>출근 없음</div>}
                       </div>
                     )}
-
-                    {/* 사장: 클릭시 이벤트 입력 + 상세 */}
                     {isActive&&isOwner&&(
                       <div onClick={e=>e.stopPropagation()} style={{display:'flex',flexDirection:'column',gap:6,marginTop:4}}>
                         <input defaultValue={event||''} placeholder="매장일정..."
