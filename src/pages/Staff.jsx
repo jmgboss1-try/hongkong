@@ -99,19 +99,30 @@ export default function Staff() {
       const evSnap = await getDoc(doc(db,'events',curMonth))
       setEvents(evSnap.exists() ? evSnap.data() : {})
 
-      // 출퇴근 기록 — 문서 ID 패턴으로 직접 조회
+// 출퇴근 기록 — users 컬렉션에서 실제 uid 가져와서 조회
 const ci = {}
-const days = daysIn(curMonth)
+const totalDays = daysIn(curMonth)
+
+// users 컬렉션에서 이메일로 uid 매핑
+const usersSnap = await getDocs(collection(db,'users'))
+const emailToUid = {}
+usersSnap.forEach(d => {
+  const data = d.data()
+  if(data.email) emailToUid[data.email] = d.id
+})
+
 await Promise.all(
-  employees.map(async emp => {
-    for(let d=1; d<=days; d++) {
+  merged.map(async emp => {
+    // 실제 Firebase Auth uid 찾기
+    const realUid = emailToUid[emp.email] || emp.uid
+    for(let d=1; d<=totalDays; d++) {
       const dd = pad(d)
-      const docId = `${curMonth}_${dd}_${emp.uid}`
+      const docId = `${curMonth}_${dd}_${realUid}`
       try {
-        const snap = await getDoc(doc(db,'checkin',docId))
-        if(snap.exists()) {
+        const ciSnap = await getDoc(doc(db,'checkin',docId))
+        if(ciSnap.exists()) {
           if(!ci[emp.uid]) ci[emp.uid] = {}
-          ci[emp.uid][dd] = snap.data()
+          ci[emp.uid][dd] = ciSnap.data()
         }
       } catch(e) {}
     }
