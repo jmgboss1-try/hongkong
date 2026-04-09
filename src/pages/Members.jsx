@@ -83,10 +83,16 @@ function MemberCard({ m, onEdit }) {
             </div>
           </div>
 
-          <button onClick={()=>onEdit(m)}
-            style={{background:'#f9b934',color:'#000',border:'none',borderRadius:7,padding:'8px 16px',fontSize:11,fontWeight:700,cursor:'pointer',fontFamily:'inherit',width:'fit-content'}}>
-            ✏️ 정보 수정
-          </button>
+<div style={{display:'flex',gap:8}}>
+  <button onClick={()=>onEdit(m)}
+    style={{background:'#f9b934',color:'#000',border:'none',borderRadius:7,padding:'8px 16px',fontSize:11,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
+    ✏️ 정보 수정
+  </button>
+  <button onClick={()=>onDelete(m.uid)}
+    style={{background:'transparent',border:'1px solid #3d1f1f',color:'#f87171',borderRadius:7,padding:'8px 16px',fontSize:11,cursor:'pointer',fontFamily:'inherit'}}>
+    🗑 삭제
+  </button>
+</div>
         </div>
       )}
     </div>
