@@ -159,7 +159,14 @@ export default function Members() {
     } catch(e) { console.error(e) }
     setSaving(false)
   }
-
+async function deleteMember(uid) {
+  if(!window.confirm('정말 삭제하시겠습니까?\n해당 직원의 로그인 계정은 유지되지만\n인원관리 목록에서 제외됩니다.')) return
+  try {
+    const { deleteDoc } = await import('firebase/firestore')
+    await setDoc(doc(db,'users',uid), {status:'deleted'}, {merge:true})
+    setMembers(m => m.filter(x=>x.uid!==uid))
+  } catch(e) { console.error(e) }
+}
   function editMember(m) {
     setForm(m)
     setShowForm(true)
@@ -234,9 +241,9 @@ export default function Members() {
               <span style={{fontSize:11}}>스케쥴 탭에서 직원 가입 신청을 승인해주세요.</span>
             </div>
           )}
-          {members.map(m=>(
-            <MemberCard key={m.uid} m={m} onEdit={editMember}/>
-          ))}
+{members.map(m=>(
+  <MemberCard key={m.uid} m={m} onEdit={editMember} onDelete={deleteMember}/>
+))}
         </div>
       )}
     </div>
