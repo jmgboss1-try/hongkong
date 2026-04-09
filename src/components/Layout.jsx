@@ -16,21 +16,23 @@ export default function Layout({ children }) {
   }
 
   const ownerMenus = [
-    { path:'/',                icon:'📊', label:'대시보드' },
-    { path:'/revenue',        icon:'💰', label:'매출' },
-    { path:'/expenses',       icon:'📋', label:'지출' },
-    { path:'/staff',          icon:'👥', label:'스케쥴' },
-    { path:'/members',        icon:'📁', label:'인원관리' },
-    { path:'/cash',           icon:'💵', label:'현금시재' },
-    { path:'/payroll',        icon:'📄', label:'인건비' },
-  ]
+  { path:'/',              icon:'📊', label:'대시보드' },
+  { path:'/revenue',      icon:'💰', label:'매출' },
+  { path:'/expenses',     icon:'📋', label:'지출' },
+  { path:'/staff',        icon:'📅', label:'스케쥴' },
+  { path:'/work-manage',  icon:'⏱',  label:'근무관리' },
+  { path:'/members',      icon:'📁', label:'인원관리' },
+  { path:'/cash',         icon:'💵', label:'현금시재' },
+  { path:'/payroll',      icon:'📄', label:'인건비' },
+]
 
-  const staffMenus = [
-    { path:'/my-schedule',    icon:'📅', label:'스케쥴' },
-    { path:'/team',           icon:'👥', label:'팀원' },
-    { path:'/cash',           icon:'💵', label:'현금시재' },
-    ...(isLegend ? [{ path:'/expenses-input', icon:'📋', label:'지출입력' }] : []),
-  ]
+const staffMenus = [
+  { path:'/staff',           icon:'📅', label:'스케쥴' },
+  { path:'/my-schedule',    icon:'🕐', label:'내 기록' },
+  { path:'/team',           icon:'👥', label:'팀원' },
+  { path:'/cash',           icon:'💵', label:'현금시재' },
+  ...(isLegend ? [{ path:'/expenses-input', icon:'📋', label:'지출입력' }] : []),
+]
 
   const menus = isOwner ? ownerMenus : staffMenus
   // 모바일 하단 탭은 최대 5개
