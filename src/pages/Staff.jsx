@@ -76,14 +76,7 @@ export default function Staff() {
     try {
       // 1. users 컬렉션에서 승인된 직원 목록 가져오기 (실제 uid 사용)
       const usersSnap = await getDocs(collection(db,'users'))
-      const approvedUsers = []
-      usersSnap.forEach(d => {
-        const data = d.data()
-        if(data.status === 'approved' || data.role === 'owner') return
-        if(data.status === 'approved') {
-          approvedUsers.push({uid: d.id, ...data})
-        }
-      })
+
 
       // 2. meta/employees 목록도 가져오기
       const empSnap = await getDoc(doc(db,'meta','employees'))
