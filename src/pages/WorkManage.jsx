@@ -41,30 +41,42 @@ export default function WorkManage() {
   const monthOpts = []
   for(let y=2022;y<=2026;y++){const sm=y===2022?10:1;for(let m=sm;m<=12;m++){monthOpts.push(`${y}-${pad(m)}`)}}
 
-  async function load() {
-    setLoading(true)
-    try {
-      const empSnap = await getDoc(doc(db,'meta','employees'))
-      const emps = empSnap.exists() ? empSnap.data().list||[] : []
-      setEmployees(emps)
+async function load() {
+  setLoading(true)
+  try {
+    const empSnap = await getDoc(doc(db,'meta','employees'))
+    const emps = empSnap.exists() ? empSnap.data().list||[] : []
 
-      // 사장이 입력한 근무시간
-      const whSnap = await getDoc(doc(db,'workhours',curMonth))
-      setWorkHours(whSnap.exists() ? whSnap.data() : {})
+    // users 컬렉션에서 최신 시급 가져오기
+    const empsWithWage = await Promise.all(emps.map(async e => {
+      try {
+        const userSnap = await getDoc(doc(db,'users',e.uid))
+        if(userSnap.exists()) {
+          const userData = userSnap.data()
+          return {...e, wage: userData.wage || e.wage || 10030}
+        }
+      } catch {}
+      return e
+    }))
+    setEmployees(empsWithWage)
 
-      // 직원 출퇴근 기록
-      const q = query(collection(db,'checkin'), where('month','==',curMonth))
-      const snap = await getDocs(q)
-      const ci = {}
-      snap.forEach(d => {
-        const data = d.data()
-        if(!ci[data.uid]) ci[data.uid] = {}
-        ci[data.uid][data.date] = data
-      })
-      setCheckins(ci)
-    } catch(e) { console.error(e) }
-    setLoading(false)
-  }
+    // 사장이 입력한 근무시간
+    const whSnap = await getDoc(doc(db,'workhours',curMonth))
+    setWorkHours(whSnap.exists() ? whSnap.data() : {})
+
+    // 직원 출퇴근 기록
+    const q = query(collection(db,'checkin'), where('month','==',curMonth))
+    const snap = await getDocs(q)
+    const ci = {}
+    snap.forEach(d => {
+      const data = d.data()
+      if(!ci[data.uid]) ci[data.uid] = {}
+      ci[data.uid][data.date] = data
+    })
+    setCheckins(ci)
+  } catch(e) { console.error(e) }
+  setLoading(false)
+}
 
   useEffect(() => { load() }, [curMonth])
 
