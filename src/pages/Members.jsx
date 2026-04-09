@@ -32,7 +32,7 @@ function maskSSN(ssn) {
   return ssn.slice(0,6) + '-●●●●●●'
 }
 
-function MemberCard({ m, onEdit }) {
+function MemberCard({ m, onEdit, onDelete }) {
   const [showDetail, setShowDetail] = useState(false)
   const tenure = calcTenure(m.joinDate)
   const severance = calcSeverance(m.joinDate, m.wage||10030, m.avgHours||8)
