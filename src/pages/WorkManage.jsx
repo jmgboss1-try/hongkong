@@ -1,25 +1,11 @@
 import { useEffect, useState } from 'react'
 import { db } from '../firebase'
-import { doc, getDoc, setDoc, collection, query, where, getDocs } from 'firebase/firestore'
+import { doc, getDoc, setDoc, collection, getDocs } from 'firebase/firestore'
 
 const pad = n => String(n).padStart(2,'0')
 const daysIn = ym => { const[y,m]=ym.split('-').map(Number); return new Date(y,m,0).getDate() }
 const mLabel = ym => { const[y,m]=ym.split('-'); return `${y}년 ${+m}월` }
-
-function parseTimeDiff(inTime, outTime) {
-  try {
-    const parse = t => {
-      if(!t) return 0
-      const isPM = t.includes('오후')
-      const clean = t.replace('오전 ','').replace('오후 ','')
-      const [h,m] = clean.split(':').map(Number)
-      return (h%12+(isPM?12:0))*60+m
-    }
-    const diff = parse(outTime)-parse(inTime)
-    if(diff<=0) return 0
-    return diff/60
-  } catch { return 0 }
-}
+const DAYS_KR = ['일','월','화','수','목','금','토']
 
 function calcWeeklyHoliday(totalHours, wage) {
   if(totalHours < 15) return 0
@@ -32,136 +18,64 @@ export default function WorkManage() {
     return `${now.getFullYear()}-${pad(now.getMonth()+1)}`
   })
   const [employees, setEmployees] = useState([])
-  const [workHours, setWorkHours] = useState({}) // {uid: {dd: hours}}
-  const [checkins, setCheckins] = useState({}) // {uid: {dd: checkinData}}
+  const [workHours, setWorkHours] = useState({})
   const [loading, setLoading] = useState(true)
-  const [saving, setSaving] = useState(false)
   const [activeEmp, setActiveEmp] = useState(null)
 
   const monthOpts = []
   for(let y=2022;y<=2026;y++){const sm=y===2022?10:1;for(let m=sm;m<=12;m++){monthOpts.push(`${y}-${pad(m)}`)}}
 
-async function load() {
-  setLoading(true)
-  try {
-    const empSnap = await getDoc(doc(db,'meta','employees'))
-    const emps = empSnap.exists() ? empSnap.data().list||[] : []
-
-    // users 컬렉션에서 최신 시급 가져오기
-    const empsWithWage = await Promise.all(emps.map(async e => {
-      try {
-        const userSnap = await getDoc(doc(db,'users',e.uid))
-        if(userSnap.exists()) {
-          const userData = userSnap.data()
-          return {...e, wage: userData.wage || e.wage || 10030}
+  async function load() {
+    setLoading(true)
+    try {
+      // users 컬렉션에서 승인된 직원 불러오기
+      const usersSnap = await getDocs(collection(db,'users'))
+      const finalEmps = []
+      usersSnap.forEach(d => {
+        const data = d.data()
+        if(data.status === 'approved' && data.role !== 'owner') {
+          finalEmps.push({uid: d.id, name: data.name, wage: data.wage||10030, email: data.email})
         }
-      } catch {}
-      return e
-    }))
-    setEmployees(empsWithWage)
+      })
+      setEmployees(finalEmps)
 
-    // 사장이 입력한 근무시간
-    const whSnap = await getDoc(doc(db,'workhours',curMonth))
-    setWorkHours(whSnap.exists() ? whSnap.data() : {})
-
-    // 직원 출퇴근 기록
-    const q = query(collection(db,'checkin'), where('month','==',curMonth))
-    const snap = await getDocs(q)
-    const ci = {}
-    snap.forEach(d => {
-      const data = d.data()
-      if(!ci[data.uid]) ci[data.uid] = {}
-      ci[data.uid][data.date] = data
-    })
-    setCheckins(ci)
-  } catch(e) { console.error(e) }
-  setLoading(false)
-}
-  async function editCheckin(uid, dd, ci) {
-  const newIn = prompt('출근 시각 수정 (예: 오전 10:00)', ci.checkinTime||'')
-  if(newIn === null) return
-  const newOut = prompt('퇴근 시각 수정 (예: 오후 06:00)', ci.checkoutTime||'')
-  if(newOut === null) return
-  try {
-    const { setDoc, doc } = await import('firebase/firestore')
-    const { db } = await import('../firebase')
-    const docId = `${curMonth}_${dd}_${uid}`
-    await setDoc(doc(db,'checkin',docId), {
-      ...ci,
-      checkinTime: newIn,
-      checkoutTime: newOut,
-      status: 'checkout'
-    }, {merge:true})
-    await load()
-  } catch(e) { console.error(e) }
-}
-
-async function deleteCheckin(uid, dd) {
-  if(!window.confirm(`${+dd}일 출퇴근 기록을 삭제하시겠습니까?`)) return
-  try {
-    const { deleteDoc, doc } = await import('firebase/firestore')
-    const { db } = await import('../firebase')
-    const docId = `${curMonth}_${dd}_${uid}`
-    await deleteDoc(doc(db,'checkin',docId))
-    await load()
-  } catch(e) { console.error(e) }
-}
+      const whSnap = await getDoc(doc(db,'workhours',curMonth))
+      setWorkHours(whSnap.exists() ? whSnap.data() : {})
+    } catch(e) { console.error(e) }
+    setLoading(false)
+  }
 
   useEffect(() => { load() }, [curMonth])
 
   async function saveWorkHours(uid, dd, hours) {
+    const h = +hours || 0
     const newWH = {
       ...workHours,
-      [uid]: { ...(workHours[uid]||{}), [dd]: +hours||0 }
+      [uid]: { ...(workHours[uid]||{}), [dd]: h }
     }
-    if(!(+hours)) {
-      delete newWH[uid][dd]
-    }
+    if(!h) delete newWH[uid][dd]
     await setDoc(doc(db,'workhours',curMonth), newWH)
     setWorkHours(newWH)
   }
 
-  // 직원별 월 통계
   function getEmpStats(emp) {
     const wh = workHours[emp.uid] || {}
-    const ci = checkins[emp.uid] || {}
     const wage = emp.wage || 10030
     const days = daysIn(curMonth)
-
     let totalHours = 0
-    const dayStats = []
-
     for(let d=1;d<=days;d++) {
-      const dd = pad(d)
-      const manualH = wh[dd] || 0
-      const ciData = ci[dd]
-      const autoH = ciData?.checkinTime && ciData?.checkoutTime
-        ? parseTimeDiff(ciData.checkinTime, ciData.checkoutTime) : 0
-
-      // 사장 입력값 우선, 없으면 출퇴근 기록 기반
-      const finalH = manualH || autoH
-      totalHours += finalH
-      if(finalH > 0 || ciData) {
-        dayStats.push({ dd, d, manualH, autoH, finalH, ciData })
-      }
+      totalHours += wh[pad(d)] || 0
     }
-
-    // 주차별 주휴수당
     let weeklyHoliday = 0
     let weekStart = 1
     while(weekStart <= 31) {
       let weekH = 0
-      for(let d=weekStart;d<weekStart+7&&d<=31;d++) {
-        weekH += workHours[emp.uid]?.[pad(d)] || 0
-      }
+      for(let d=weekStart;d<weekStart+7&&d<=31;d++) weekH += wh[pad(d)]||0
       weeklyHoliday += calcWeeklyHoliday(weekH, wage)
       weekStart += 7
     }
-
     const basePay = Math.round(totalHours * wage)
-    const totalPay = basePay + weeklyHoliday
-
-    return { totalHours, basePay, weeklyHoliday, totalPay, dayStats }
+    return { totalHours, basePay, weeklyHoliday, totalPay: basePay + weeklyHoliday }
   }
 
   const allStats = employees.map(e => ({ emp:e, ...getEmpStats(e) }))
@@ -215,7 +129,7 @@ async function deleteCheckin(uid, dd) {
 
       {loading ? <div style={{textAlign:'center',color:'#5e6585',padding:60}}>로딩 중...</div> : (
         <>
-          {/* 전체 요약 테이블 */}
+          {/* 전체 요약 */}
           {activeEmp===null && (
             <div style={{background:'#12141f',border:'1px solid #272a3d',borderRadius:12,overflow:'hidden',marginBottom:18}}>
               <div style={{padding:'14px 18px',borderBottom:'1px solid #272a3d',fontSize:13,fontWeight:600}}>직원별 급여 요약</div>
@@ -233,9 +147,9 @@ async function deleteCheckin(uid, dd) {
                     {allStats.map(({emp,totalHours,basePay,weeklyHoliday,totalPay})=>(
                       <tr key={emp.uid} onClick={()=>setActiveEmp(emp.uid)} style={{cursor:'pointer'}}>
                         <td style={{padding:'10px 14px',borderBottom:'1px solid #272a3d',color:'#dde1f2',fontWeight:600}}>{emp.name}</td>
-                        <td style={{padding:'10px 14px',borderBottom:'1px solid #272a3d',textAlign:'right',fontFamily:'DM Mono,monospace'}}>{(emp.wage||10030).toLocaleString()}</td>
-                        <td style={{padding:'10px 14px',borderBottom:'1px solid #272a3d',textAlign:'right',fontFamily:'DM Mono,monospace'}}>{totalHours.toFixed(1)}h</td>
-                        <td style={{padding:'10px 14px',borderBottom:'1px solid #272a3d',textAlign:'right',fontFamily:'DM Mono,monospace'}}>{basePay.toLocaleString()}</td>
+                        <td style={{padding:'10px 14px',borderBottom:'1px solid #272a3d',textAlign:'right',fontFamily:'DM Mono,monospace',color:'#dde1f2'}}>{(emp.wage||10030).toLocaleString()}</td>
+                        <td style={{padding:'10px 14px',borderBottom:'1px solid #272a3d',textAlign:'right',fontFamily:'DM Mono,monospace',color:'#dde1f2'}}>{totalHours.toFixed(1)}h</td>
+                        <td style={{padding:'10px 14px',borderBottom:'1px solid #272a3d',textAlign:'right',fontFamily:'DM Mono,monospace',color:'#dde1f2'}}>{basePay.toLocaleString()}</td>
                         <td style={{padding:'10px 14px',borderBottom:'1px solid #272a3d',textAlign:'right',fontFamily:'DM Mono,monospace',color:'#93c5fd'}}>{weeklyHoliday.toLocaleString()}</td>
                         <td style={{padding:'10px 14px',borderBottom:'1px solid #272a3d',textAlign:'right',fontFamily:'DM Mono,monospace',color:'#34d399',fontWeight:700}}>{totalPay.toLocaleString()}</td>
                       </tr>
@@ -260,8 +174,10 @@ async function deleteCheckin(uid, dd) {
           {activeEmp!==null && (()=>{
             const empData = allStats.find(s=>s.emp.uid===activeEmp)
             if(!empData) return null
-            const {emp, totalHours, basePay, weeklyHoliday, totalPay, dayStats} = empData
-            const empCheckins = checkins[emp.uid] || {}
+            const {emp, totalHours, basePay, weeklyHoliday, totalPay} = empData
+            const wh = workHours[emp.uid] || {}
+            const days = daysIn(curMonth)
+            const [cy,cm] = curMonth.split('-').map(Number)
 
             return (
               <div style={{background:'#12141f',border:'1px solid #272a3d',borderRadius:12,overflow:'hidden'}}>
@@ -286,95 +202,75 @@ async function deleteCheckin(uid, dd) {
                 </div>
 
                 {/* 일별 근무시간 입력 */}
-                <div style={{padding:'14px 18px',borderBottom:'1px solid #272a3d',fontSize:12,fontWeight:600,display:'flex',justifyContent:'space-between'}}>
+                <div style={{padding:'12px 18px',borderBottom:'1px solid #272a3d',fontSize:12,fontWeight:600,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
                   <span>일별 근무시간 입력</span>
-                  <span style={{fontSize:10,color:'#5e6585'}}>출퇴근 기록 참고 · 직접 수정 가능</span>
+                  <span style={{fontSize:10,color:'#5e6585'}}>입력 후 Enter 또는 클릭 이동</span>
                 </div>
                 <div style={{overflowX:'auto'}}>
                   <table style={{width:'100%',borderCollapse:'collapse',fontSize:12}}>
                     <thead>
                       <tr style={{background:'#191c2b'}}>
-{['날짜','출근기록','퇴근기록','자동계산','입력시간(h)','일급',''].map(h=>(
+                        {['날짜','요일','근무시간 (h)','일급'].map(h=>(
                           <th key={h} style={{padding:'8px 14px',fontSize:10,fontWeight:600,color:'#5e6585',
-                            textAlign:h==='날짜'?'left':'right',whiteSpace:'nowrap'}}>{h}</th>
+                            textAlign:h==='날짜'||h==='요일'?'left':'center',whiteSpace:'nowrap'}}>{h}</th>
                         ))}
                       </tr>
                     </thead>
                     <tbody>
-                      {Array.from({length:daysIn(curMonth)},(_,i)=>{
+                      {Array.from({length:days},(_,i)=>{
                         const d = i+1
                         const dd = pad(d)
-                        const ci = empCheckins[dd]
-                        const autoH = ci?.checkinTime && ci?.checkoutTime
-                          ? parseTimeDiff(ci.checkinTime, ci.checkoutTime) : 0
-                        const manualH = workHours[emp.uid]?.[dd] || ''
-                        const finalH = +manualH || autoH
-                        if(!ci && !manualH) return null
+                        const dow = new Date(cy,cm-1,d).getDay()
+                        const h = wh[dd] || 0
+                        const isWeekend = dow===0||dow===6
                         return (
-                          <tr key={dd}>
-                            <td style={{padding:'8px 14px',borderBottom:'1px solid #272a3d',color:'#dde1f2'}}>{d}일</td>
-                            <td style={{padding:'8px 14px',borderBottom:'1px solid #272a3d',textAlign:'right',fontFamily:'DM Mono,monospace',color:'#34d399',fontSize:11}}>
-                              {ci?.checkinTime||'—'}
+                          <tr key={dd} style={{background:h>0?'rgba(249,185,52,0.05)':'transparent'}}>
+                            <td style={{padding:'7px 14px',borderBottom:'1px solid #1a1d2e',
+                              color:isWeekend?(dow===0?'#f87171':'#93c5fd'):'#dde1f2',fontWeight:600}}>
+                              {d}일
                             </td>
-                            <td style={{padding:'8px 14px',borderBottom:'1px solid #272a3d',textAlign:'right',fontFamily:'DM Mono,monospace',color:'#f87171',fontSize:11}}>
-                              {ci?.checkoutTime||'—'}
+                            <td style={{padding:'7px 14px',borderBottom:'1px solid #1a1d2e',
+                              color:isWeekend?(dow===0?'#f87171':'#93c5fd'):'#5e6585',fontSize:11}}>
+                              {DAYS_KR[dow]}
                             </td>
-                            <td style={{padding:'8px 14px',borderBottom:'1px solid #272a3d',textAlign:'right',fontFamily:'DM Mono,monospace',color:'#5e6585'}}>
-                              {autoH>0 ? `${autoH.toFixed(1)}h` : '—'}
+                            <td style={{padding:'5px 14px',borderBottom:'1px solid #1a1d2e',textAlign:'center'}}>
+                              <input
+                                type="number"
+                                defaultValue={h||''}
+                                min="0" max="24" step="0.5"
+                                placeholder="0"
+                                onBlur={e=>saveWorkHours(emp.uid,dd,e.target.value)}
+                                onKeyDown={e=>e.key==='Enter'&&e.target.blur()}
+                                style={{
+                                  width:70,
+                                  background: h>0 ? 'rgba(249,185,52,0.15)' : '#191c2b',
+                                  border: h>0 ? '1px solid #f9b934' : '1px solid #272a3d',
+                                  borderRadius:6,
+                                  color: h>0 ? '#f9b934' : '#dde1f2',
+                                  padding:'6px 8px',
+                                  fontSize:13,
+                                  fontWeight: h>0 ? 700 : 400,
+                                  textAlign:'center',
+                                  outline:'none',
+                                  fontFamily:'DM Mono,monospace'
+                                }}
+                              />
                             </td>
-<td style={{padding:'6px 14px',borderBottom:'1px solid #272a3d',textAlign:'right'}}>
-  <input type="number" defaultValue={manualH} min="0" max="24" step="0.5"
-    placeholder={autoH>0?autoH.toFixed(1):'0'}
-    onBlur={e=>saveWorkHours(emp.uid,dd,e.target.value)}
-    style={{width:60,background:'#0b0d16',border:'1px solid #272a3d',borderRadius:5,color:'#dde1f2',padding:'4px 6px',fontSize:11,textAlign:'right',outline:'none',fontFamily:'DM Mono,monospace'}}/>
-</td>
-<td style={{padding:'6px 14px',borderBottom:'1px solid #272a3d',textAlign:'right',whiteSpace:'nowrap'}}>
-  {ci && (
-    <div style={{display:'flex',gap:4,justifyContent:'flex-end'}}>
-      <button onClick={()=>editCheckin(emp.uid,dd,ci)}
-        style={{background:'transparent',border:'1px solid #272a3d',color:'#dde1f2',padding:'3px 7px',fontSize:10,borderRadius:4,cursor:'pointer',fontFamily:'inherit'}}>
-        수정
-      </button>
-      <button onClick={()=>deleteCheckin(emp.uid,dd)}
-        style={{background:'transparent',border:'1px solid #3d1f1f',color:'#f87171',padding:'3px 7px',fontSize:10,borderRadius:4,cursor:'pointer',fontFamily:'inherit'}}>
-        삭제
-      </button>
-    </div>
-  )}
-</td>
-                            <td style={{padding:'8px 14px',borderBottom:'1px solid #272a3d',textAlign:'right',fontFamily:'DM Mono,monospace',color:'#f9b934'}}>
-                              {finalH>0 ? Math.round(finalH*(emp.wage||10030)).toLocaleString() : '—'}
+                            <td style={{padding:'7px 14px',borderBottom:'1px solid #1a1d2e',textAlign:'center',
+                              fontFamily:'DM Mono,monospace',
+                              color:h>0?'#f9b934':'#272a3d',
+                              fontWeight:h>0?700:400}}>
+                              {h>0 ? Math.round(h*(emp.wage||10030)).toLocaleString()+'원' : '—'}
                             </td>
                           </tr>
                         )
-                      }).filter(Boolean)}
-                      {/* 출퇴근 없어도 직접 입력 가능한 빈 행들 */}
-                      {Array.from({length:daysIn(curMonth)},(_,i)=>{
-                        const d = i+1
-                        const dd = pad(d)
-                        const ci = empCheckins[dd]
-                        const manualH = workHours[emp.uid]?.[dd]
-                        if(ci || manualH) return null
-                        return (
-                          <tr key={`empty_${dd}`} style={{opacity:.4}}>
-                            <td style={{padding:'6px 14px',borderBottom:'1px solid #1a1d2e',color:'#5e6585'}}>{d}일</td>
-                            <td colSpan={3} style={{padding:'6px 14px',borderBottom:'1px solid #1a1d2e',textAlign:'right',color:'#272a3d',fontSize:10}}>출근 기록 없음</td>
-                            <td style={{padding:'4px 14px',borderBottom:'1px solid #1a1d2e',textAlign:'right'}}>
-                              <input type="number" min="0" max="24" step="0.5" placeholder="0"
-                                onBlur={e=>{ if(e.target.value) saveWorkHours(emp.uid,dd,e.target.value) }}
-                                style={{width:60,background:'#0b0d16',border:'1px solid #1a1d2e',borderRadius:5,color:'#5e6585',padding:'4px 6px',fontSize:11,textAlign:'right',outline:'none',fontFamily:'DM Mono,monospace'}}/>
-                            </td>
-                            <td style={{padding:'6px 14px',borderBottom:'1px solid #1a1d2e',textAlign:'right',color:'#272a3d'}}>—</td>
-                          </tr>
-                        )
-                      }).filter(Boolean)}
+                      })}
                     </tbody>
                     <tfoot>
                       <tr style={{background:'#1f2236'}}>
-                        <td style={{padding:'10px 14px',fontWeight:700,color:'#f9b934'}}>합 계</td>
-                        <td colSpan={3}></td>
-                        <td style={{padding:'10px 14px',textAlign:'right',fontWeight:700,color:'#f9b934',fontFamily:'DM Mono,monospace'}}>{totalHours.toFixed(1)}h</td>
-                        <td style={{padding:'10px 14px',textAlign:'right',fontWeight:700,color:'#f9b934',fontFamily:'DM Mono,monospace'}}>{basePay.toLocaleString()}</td>
+                        <td colSpan={2} style={{padding:'10px 14px',fontWeight:700,color:'#f9b934'}}>합 계</td>
+                        <td style={{padding:'10px 14px',textAlign:'center',fontWeight:700,color:'#f9b934',fontFamily:'DM Mono,monospace'}}>{totalHours.toFixed(1)}h</td>
+                        <td style={{padding:'10px 14px',textAlign:'center',fontWeight:700,color:'#f9b934',fontFamily:'DM Mono,monospace'}}>{basePay.toLocaleString()}원</td>
                       </tr>
                     </tfoot>
                   </table>
