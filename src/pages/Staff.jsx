@@ -132,26 +132,10 @@ metaEmps.forEach(e => {
       const evSnap = await getDoc(doc(db,'events',curMonth))
       setEvents(evSnap.exists() ? evSnap.data() : {})
 
-      // 6. 출퇴근 기록 — 실제 uid로 직접 조회
-      const totalDays = daysIn(curMonth)
-      const ci = {}
-
-      await Promise.all(
-        finalEmps.map(async emp => {
-          for(let d=1; d<=totalDays; d++) {
-            const dd = pad(d)
-            const docId = `${curMonth}_${dd}_${emp.uid}`
-            try {
-              const ciSnap = await getDoc(doc(db,'checkin',docId))
-              if(ciSnap.exists()) {
-                if(!ci[emp.uid]) ci[emp.uid] = {}
-                ci[emp.uid][dd] = ciSnap.data()
-              }
-            } catch(e) {}
-          }
-        })
-      )
-      setCheckins(ci)
+// 6. workhours 기반으로 근무 현황 표시
+const whSnap = await getDoc(doc(db,'workhours',curMonth))
+const whData = whSnap.exists() ? whSnap.data() : {}
+setCheckins(whData)
 
       // 7. 승인 대기
       if(isOwner) {
@@ -291,11 +275,11 @@ metaEmps.forEach(e => {
                 const isToday=isThisMonth&&d===now.getDate()
                 const isActive=activeDay===dd
                 const event=events[dd]
-                const dayCheckins=employees.map((e,ei)=>{
-                  const ci=(checkins[e.uid]||{})[dd]
-                  if(!ci) return null
-                  return {emp:e, idx:ei, ci}
-                }).filter(Boolean)
+const dayCheckins=employees.map((e,ei)=>{
+  const h=(checkins[e.uid]||{})[dd]
+  if(!h || h===0) return null
+  return {emp:e, idx:ei, h}
+}).filter(Boolean)
 
                 return(
                   <div key={idx}
@@ -318,17 +302,16 @@ metaEmps.forEach(e => {
                     )}
                     {!isActive&&(
                       <div style={{display:'flex',flexDirection:'column',gap:2}}>
-                        {dayCheckins.map(({emp,idx:ei,ci})=>(
-                          <div key={emp.uid} style={{
-                            background:EMP_COLORS[ei%EMP_COLORS.length]+'26',
-                            borderLeft:`2px solid ${EMP_COLORS[ei%EMP_COLORS.length]}`,
-                            borderRadius:3,padding:'2px 4px',fontSize:8,fontWeight:700,
-                            color:EMP_COLORS[ei%EMP_COLORS.length],
-                          }}>
-                            {emp.name.charAt(0)} {ci.checkinTime?.replace('오전 ','').replace('오후 ','')||''}
-                            {ci.checkoutTime&&` ~ ${ci.checkoutTime?.replace('오전 ','').replace('오후 ','')}`}
-                          </div>
-                        ))}
+{dayCheckins.map(({emp,idx:ei,h})=>(
+  <div key={emp.uid} style={{
+    background:EMP_COLORS[ei%EMP_COLORS.length]+'26',
+    borderLeft:`2px solid ${EMP_COLORS[ei%EMP_COLORS.length]}`,
+    borderRadius:3,padding:'2px 4px',fontSize:8,fontWeight:700,
+    color:EMP_COLORS[ei%EMP_COLORS.length],
+  }}>
+    {emp.name.charAt(0)} {h}h
+  </div>
+))}
                         {dayCheckins.length===0&&<div style={{fontSize:8,color:'#272a3d'}}>출근 없음</div>}
                       </div>
                     )}
@@ -338,14 +321,14 @@ metaEmps.forEach(e => {
                           onBlur={e=>updEvent(dd,e.target.value)}
                           style={{width:'100%',background:'rgba(249,185,52,0.1)',border:'1px solid rgba(249,185,52,0.3)',borderRadius:4,color:'#f9b934',padding:'3px 5px',fontSize:9,outline:'none',fontFamily:'inherit'}}/>
                         <div style={{fontSize:9,color:'#5e6585',lineHeight:1.8}}>
-                          {dayCheckins.length>0 ? (
-                            dayCheckins.map(({emp,ci})=>(
-                              <div key={emp.uid}>
-                                <span style={{color:'#dde1f2',fontWeight:700}}>{emp.name}</span>
-                                {' '}{ci.checkinTime||'?'} ~ {ci.checkoutTime||'근무중'}
-                              </div>
-                            ))
-                          ) : <span>출근 기록 없음</span>}
+{dayCheckins.length>0 ? (
+  dayCheckins.map(({emp,h})=>(
+    <div key={emp.uid}>
+      <span style={{color:'#dde1f2',fontWeight:700}}>{emp.name}</span>
+      {' '}{h}h 근무
+    </div>
+  ))
+) : <span>근무 기록 없음</span>}
                         </div>
                       </div>
                     )}
