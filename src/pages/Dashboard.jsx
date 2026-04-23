@@ -4,6 +4,15 @@ import { doc, getDoc, getDocs, collection } from 'firebase/firestore'
 
 const pad = n => String(n).padStart(2,'0')
 const mLabel = ym => { const[y,m]=ym.split('-'); return `${y}년 ${+m}월` }
+
+function getWageForMonth(emp, month) {
+  const history = emp.wageHistory || []
+  if(history.length === 0) return emp.wage || 10030
+  const applicable = history
+    .filter(h => h.month <= month)
+    .sort((a,b) => a.month > b.month ? -1 : 1)
+  return applicable.length > 0 ? applicable[0].wage : (emp.wage || 10030)
+}
 const wonFmt = n => n ? n.toLocaleString('ko-KR')+'원' : '—'
 const pct = (a,b) => b>0 ? Math.round(a/b*100) : 0
 
