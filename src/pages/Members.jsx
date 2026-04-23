@@ -132,7 +132,19 @@ export default function Members() {
     setSaving(true)
     try {
       // users 컬렉션 업데이트
-await setDoc(doc(db,'users',form.uid), {
+const now = new Date()
+      const thisMonth = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`
+
+      // 기존 wageHistory 불러오기
+      const userSnap = await getDoc(doc(db,'users',form.uid))
+      const existingHistory = userSnap.exists() ? userSnap.data().wageHistory || [] : []
+
+      // 이번달 기록이 이미 있으면 업데이트, 없으면 추가
+      const newHistory = existingHistory.filter(h => h.month !== thisMonth)
+      newHistory.push({ month: thisMonth, wage: +form.wage || 10030 })
+      newHistory.sort((a,b) => a.month > b.month ? 1 : -1)
+
+      await setDoc(doc(db,'users',form.uid), {
         name: form.name,
         wage: +form.wage || 10030,
         joinDate: form.joinDate || '',
@@ -142,6 +154,7 @@ await setDoc(doc(db,'users',form.uid), {
         ssn: form.ssn || '',
         avgHours: +form.avgHours || 8,
         workDays: form.workDays || [1,2,3,4,5],
+        wageHistory: newHistory,
       }, {merge:true})
 
       // meta/employees 도 시급 동기화
