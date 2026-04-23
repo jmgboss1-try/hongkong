@@ -15,7 +15,6 @@ function getWageForMonth(emp, month) {
   return applicable.length > 0 ? applicable[0].wage : (emp.wage || 10030)
 }
 
-const daysIn = ym => ...
 const daysIn = ym => { const[y,m]=ym.split('-').map(Number); return new Date(y,m,0).getDate() }
 const mLabel = ym => { const[y,m]=ym.split('-'); return `${y}년 ${+m}월` }
 const DAYS_KR = ['일','월','화','수','목','금','토']
