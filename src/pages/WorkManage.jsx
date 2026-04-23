@@ -3,6 +3,19 @@ import { db } from '../firebase'
 import { doc, getDoc, setDoc, collection, getDocs } from 'firebase/firestore'
 
 const pad = n => String(n).padStart(2,'0')
+const pad = n => String(n).padStart(2,'0')
+
+// 해당 월의 시급 찾기
+function getWageForMonth(emp, month) {
+  const history = emp.wageHistory || []
+  if(history.length === 0) return emp.wage || 10030
+  const applicable = history
+    .filter(h => h.month <= month)
+    .sort((a,b) => a.month > b.month ? -1 : 1)
+  return applicable.length > 0 ? applicable[0].wage : (emp.wage || 10030)
+}
+
+const daysIn = ym => ...
 const daysIn = ym => { const[y,m]=ym.split('-').map(Number); return new Date(y,m,0).getDate() }
 const mLabel = ym => { const[y,m]=ym.split('-'); return `${y}년 ${+m}월` }
 const DAYS_KR = ['일','월','화','수','목','금','토']
@@ -63,6 +76,7 @@ usersSnap.forEach(d => {
             uid:d.id,
             name:data.name,
             wage:data.wage||10030,
+            wageHistory:data.wageHistory||[],
             workDays:data.workDays||[1,2,3,4,5]
           })
         }
@@ -110,7 +124,7 @@ function getEmpStats(emp) {
     const wh = workHours[emp.uid] || {}
     const ex = workExtra[emp.uid] || {}
     const empMemos = memos[emp.uid] || {}
-    const wage = emp.wage || 10030
+ const wage = getWageForMonth(emp, curMonth)
     const workDays = emp.workDays || [1,2,3,4,5] // 소정근로일 (0=일,1=월..6=토)
     const days = daysIn(curMonth)
     const [cy,cm] = curMonth.split('-').map(Number)
