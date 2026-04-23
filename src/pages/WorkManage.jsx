@@ -3,7 +3,6 @@ import { db } from '../firebase'
 import { doc, getDoc, setDoc, collection, getDocs } from 'firebase/firestore'
 
 const pad = n => String(n).padStart(2,'0')
-const pad = n => String(n).padStart(2,'0')
 
 // 해당 월의 시급 찾기
 function getWageForMonth(emp, month) {
