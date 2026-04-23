@@ -43,10 +43,15 @@ export default function Dashboard() {
         // 직원 목록 — users 컬렉션 기반
         const usersSnap = await getDocs(collection(db,'users'))
         const emps = []
-        usersSnap.forEach(d => {
+usersSnap.forEach(d => {
           const data = d.data()
           if(data.status==='approved' && data.role!=='owner') {
-            emps.push({uid:d.id, name:data.name, wage:data.wage||10030})
+            emps.push({
+              uid:d.id,
+              name:data.name,
+              wage:data.wage||10030,
+              workDays:data.workDays||[1,2,3,4,5]
+            })
           }
         })
         setStaff(emps)
@@ -57,17 +62,61 @@ export default function Dashboard() {
         const extraSnap = await getDoc(doc(db,'workextra',curMonth))
         const extraData = extraSnap.exists() ? extraSnap.data() : {}
 
+const memoSnap = await getDoc(doc(db,'workmemos',curMonth))
+        const memoData = memoSnap.exists() ? memoSnap.data() : {}
+
         const stats = {}
         emps.forEach(emp => {
           const wh = whData[emp.uid] || {}
           const ex = extraData[emp.uid] || {}
+          const empMemos = memoData[emp.uid] || {}
+          const workDays = emp.workDays || [1,2,3,4,5]
+          const wage = emp.wage || 10030
+
           let totalHours = 0
           let totalMins = 0
-          Object.keys(wh).forEach(dd => { totalHours += wh[dd]||0 })
-          Object.keys(ex).forEach(dd => { totalMins += ex[dd]||0 })
+          let totalWeeklyHoliday = 0
+
+          const [cy,cm] = curMonth.split('-').map(Number)
+          const days = new Date(cy,cm,0).getDate()
+
+          for(let d=1; d<=days; d++) {
+            const dd = String(d).padStart(2,'0')
+            const dow = new Date(cy,cm-1,d).getDay()
+            totalHours += wh[dd]||0
+            totalMins += ex[dd]||0
+
+            if(dow === 0) {
+              let weekH = 0
+              const weekAttendance = {}
+              const weekMemos = {}
+              for(let wd=1; wd<=6; wd++) {
+                const prevD = d - wd
+                if(prevD >= 1) {
+                  const prevDD = String(prevD).padStart(2,'0')
+                  const prevDow = new Date(cy,cm-1,prevD).getDay()
+                  const prevH = (wh[prevDD]||0) + (ex[prevDD]||0)/60
+                  weekH += prevH
+                  weekAttendance[prevDow] = prevH
+                  if(empMemos[prevDD]) weekMemos[prevDD] = empMemos[prevDD]
+                }
+              }
+
+              // 주휴수당 계산
+              if(weekH >= 15) {
+                const absentDays = workDays.filter(d => (weekAttendance[d]||0) === 0)
+                const subCount = Object.values(weekMemos).filter(m => m&&m.includes('대타')).length
+                if(absentDays.length === 0 || subCount >= absentDays.length) {
+                  totalWeeklyHoliday += Math.round((weekH/40)*8*wage)
+                }
+              }
+            }
+          }
+
           const totalH = totalHours + totalMins/60
-          const wage = Math.round(totalH * emp.wage)
-          stats[emp.uid] = { hours: totalHours, mins: totalMins, totalH, wage }
+          const basePay = Math.round(totalH * wage)
+          const totalWage = basePay + totalWeeklyHoliday
+          stats[emp.uid] = { hours: totalHours, mins: totalMins, totalH, wage: totalWage, basePay, weeklyHoliday: totalWeeklyHoliday }
         })
         setStaffStats(stats)
 
