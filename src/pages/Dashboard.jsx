@@ -50,6 +50,7 @@ usersSnap.forEach(d => {
               uid:d.id,
               name:data.name,
               wage:data.wage||10030,
+              wageHistory:data.wageHistory||[],
               workDays:data.workDays||[1,2,3,4,5]
             })
           }
@@ -71,7 +72,7 @@ const memoSnap = await getDoc(doc(db,'workmemos',curMonth))
           const ex = extraData[emp.uid] || {}
           const empMemos = memoData[emp.uid] || {}
           const workDays = emp.workDays || [1,2,3,4,5]
-          const wage = emp.wage || 10030
+const wage = getWageForMonth(emp, curMonth)
 
           let totalHours = 0
           let totalMins = 0
