@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { db } from '../firebase'
-import { doc, getDoc } from 'firebase/firestore'
+import { doc, getDoc, getDocs, collection } from 'firebase/firestore'
 
 const pad = n => String(n).padStart(2,'0')
 const mLabel = ym => { const[y,m]=ym.split('-'); return `${y}년 ${+m}월` }
@@ -15,7 +15,7 @@ export default function Dashboard() {
   const [rev, setRev] = useState({kiosk:0,del:0,pos:0,total:0})
   const [exp, setExp] = useState({total:0,mat:0,mgmt:0,sal:0})
   const [staff, setStaff] = useState([])
-  const [sched, setSched] = useState({})
+  const [staffStats, setStaffStats] = useState({})
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -40,22 +40,37 @@ export default function Dashboard() {
           setExp({total:hq+veg+oil+box+gas+elec+omg+rent+dfee+meal+sal, mat:hq+veg+oil+box, mgmt:gas+elec+omg+rent+dfee, sal})
         } else setExp({total:0,mat:0,mgmt:0,sal:0})
 
-        // 직원
-        const staffSnap = await getDoc(doc(db,'meta','employees'))
-        const employees = staffSnap.exists() ? staffSnap.data().list || [] : []
-        setStaff(employees)
+        // 직원 목록 — users 컬렉션 기반
+        const usersSnap = await getDocs(collection(db,'users'))
+        const emps = []
+        usersSnap.forEach(d => {
+          const data = d.data()
+          if(data.status==='approved' && data.role!=='owner') {
+            emps.push({uid:d.id, name:data.name, wage:data.wage||10030})
+          }
+        })
+        setStaff(emps)
 
-        // 스케쥴
-        const schSnap = await getDoc(doc(db,'schedule',curMonth))
-        if(schSnap.exists()) {
-          const schData = schSnap.data()
-          const res = {}
-          employees.forEach(e => {
-            const h = Object.values(schData[e.uid]||{}).reduce((a,b)=>a+b,0)
-            res[e.uid] = {hours:h, wage:Math.round(h*e.wage)}
-          })
-          setSched(res)
-        }
+        // workhours 기반 근무시간/인건비 계산
+        const whSnap = await getDoc(doc(db,'workhours',curMonth))
+        const whData = whSnap.exists() ? whSnap.data() : {}
+        const extraSnap = await getDoc(doc(db,'workextra',curMonth))
+        const extraData = extraSnap.exists() ? extraSnap.data() : {}
+
+        const stats = {}
+        emps.forEach(emp => {
+          const wh = whData[emp.uid] || {}
+          const ex = extraData[emp.uid] || {}
+          let totalHours = 0
+          let totalMins = 0
+          Object.keys(wh).forEach(dd => { totalHours += wh[dd]||0 })
+          Object.keys(ex).forEach(dd => { totalMins += ex[dd]||0 })
+          const totalH = totalHours + totalMins/60
+          const wage = Math.round(totalH * emp.wage)
+          stats[emp.uid] = { hours: totalHours, mins: totalMins, totalH, wage }
+        })
+        setStaffStats(stats)
+
       } catch(e) { console.error(e) }
       setLoading(false)
     }
@@ -63,6 +78,7 @@ export default function Dashboard() {
   }, [curMonth])
 
   const profit = rev.total - exp.total
+  const totalLaborCost = Object.values(staffStats).reduce((a,s)=>a+s.wage,0)
   const monthOpts = []
   for(let y=2022;y<=2026;y++){const sm=y===2022?10:1;for(let m=sm;m<=12;m++){monthOpts.push(`${y}-${pad(m)}`)}}
 
@@ -94,7 +110,7 @@ export default function Dashboard() {
             <KPI label="월 총 매출" value={wonFmt(rev.total)} note={`배달 ${pct(rev.del,rev.total)}% · 포스 ${pct(rev.pos,rev.total)}% · 키오스크 ${pct(rev.kiosk,rev.total)}%`} color="#f9b934"/>
             <KPI label="월 총 지출" value={wonFmt(exp.total)} note={`재료비 ${wonFmt(exp.mat)} · 관리비 ${wonFmt(exp.mgmt)}`} color="#f87171"/>
             <KPI label="순이익" value={wonFmt(Math.abs(profit))} note={profit>=0?'흑자 ▲':'적자 ▼'} color={profit>=0?'#34d399':'#f87171'}/>
-            <KPI label="인건비" value={wonFmt(exp.sal)} note={`인건비율 ${pct(exp.sal,rev.total)}% · ${staff.length}명`} color="#93c5fd"/>
+            <KPI label="인건비" value={wonFmt(totalLaborCost)} note={`인건비율 ${pct(totalLaborCost,rev.total)}% · ${staff.length}명`} color="#93c5fd"/>
           </div>
 
           <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:14}}>
@@ -124,17 +140,19 @@ export default function Dashboard() {
                 <thead>
                   <tr style={{background:'#191c2b'}}>
                     {['직원','근무시간','인건비'].map(h=>(
-                      <th key={h} style={{padding:'8px 18px',fontSize:10,fontWeight:600,color:'#5e6585',textAlign: h==='직원'?'left':'right'}}>{h}</th>
+                      <th key={h} style={{padding:'8px 18px',fontSize:10,fontWeight:600,color:'#5e6585',textAlign:h==='직원'?'left':'right'}}>{h}</th>
                     ))}
                   </tr>
                 </thead>
                 <tbody>
                   {staff.map(e=>{
-                    const s=sched[e.uid]||{hours:0,wage:0}
+                    const s = staffStats[e.uid]||{hours:0,mins:0,totalH:0,wage:0}
                     return(
                       <tr key={e.uid}>
                         <td style={{padding:'9px 18px',borderBottom:'1px solid #272a3d',color:'#dde1f2'}}>{e.name}</td>
-                        <td style={{padding:'9px 18px',borderBottom:'1px solid #272a3d',textAlign:'right',fontFamily:'DM Mono, monospace'}}>{s.hours}h</td>
+                        <td style={{padding:'9px 18px',borderBottom:'1px solid #272a3d',textAlign:'right',fontFamily:'DM Mono, monospace',color:'#dde1f2'}}>
+                          {s.hours}h{s.mins>0?` ${s.mins}m`:''}
+                        </td>
                         <td style={{padding:'9px 18px',borderBottom:'1px solid #272a3d',textAlign:'right',color:'#34d399',fontFamily:'DM Mono, monospace'}}>{s.wage.toLocaleString()}</td>
                       </tr>
                     )
@@ -143,8 +161,10 @@ export default function Dashboard() {
                 <tfoot>
                   <tr style={{background:'#1f2236'}}>
                     <td style={{padding:'10px 18px',fontWeight:700,color:'#f9b934'}}>합 계</td>
-                    <td style={{padding:'10px 18px',textAlign:'right',fontWeight:700,color:'#f9b934',fontFamily:'DM Mono, monospace'}}>{Object.values(sched).reduce((a,b)=>a+b.hours,0)}h</td>
-                    <td style={{padding:'10px 18px',textAlign:'right',fontWeight:700,color:'#f9b934',fontFamily:'DM Mono, monospace'}}>{Object.values(sched).reduce((a,b)=>a+b.wage,0).toLocaleString()}</td>
+                    <td style={{padding:'10px 18px',textAlign:'right',fontWeight:700,color:'#f9b934',fontFamily:'DM Mono, monospace'}}>
+                      {Object.values(staffStats).reduce((a,s)=>a+s.hours,0)}h
+                    </td>
+                    <td style={{padding:'10px 18px',textAlign:'right',fontWeight:700,color:'#f9b934',fontFamily:'DM Mono, monospace'}}>{totalLaborCost.toLocaleString()}</td>
                   </tr>
                 </tfoot>
               </table>
