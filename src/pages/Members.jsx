@@ -132,7 +132,7 @@ export default function Members() {
     setSaving(true)
     try {
       // users 컬렉션 업데이트
-      await setDoc(doc(db,'users',form.uid), {
+await setDoc(doc(db,'users',form.uid), {
         name: form.name,
         wage: +form.wage || 10030,
         joinDate: form.joinDate || '',
@@ -141,6 +141,7 @@ export default function Members() {
         account: form.account || '',
         ssn: form.ssn || '',
         avgHours: +form.avgHours || 8,
+        workDays: form.workDays || [1,2,3,4,5],
       }, {merge:true})
 
       // meta/employees 도 시급 동기화
@@ -203,21 +204,52 @@ async function deleteMember(uid) {
               style={{background:'transparent',border:'none',color:'#5e6585',fontSize:18,cursor:'pointer'}}>✕</button>
           </div>
           <div style={{padding:18,display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(180px,1fr))',gap:12}}>
-            {[
-              ['이름','text','name',form.name||''],
-              ['입사일','date','joinDate',form.joinDate||''],
-              ['연락처','text','phone',form.phone||''],
-              ['계좌번호','text','account',form.account||''],
-              ['주민등록번호','text','ssn',form.ssn||''],
-              ['시급','number','wage',form.wage||10030],
-              ['평균근무시간(h/일)','number','avgHours',form.avgHours||8],
-            ].map(([label,type,key,val])=>(
+{[
+  ['이름','text','name',form.name||''],
+  ['입사일','date','joinDate',form.joinDate||''],
+  ['연락처','text','phone',form.phone||''],
+  ['계좌번호','text','account',form.account||''],
+  ['주민등록번호','text','ssn',form.ssn||''],
+  ['시급','number','wage',form.wage||10030],
+  ['평균근무시간(h/일)','number','avgHours',form.avgHours||8],
+].map(([label,type,key,val])=>(
               <div key={key} style={{display:'flex',flexDirection:'column',gap:4}}>
                 <label style={{fontSize:10,color:'#5e6585',fontWeight:600}}>{label}</label>
                 <input type={type} value={val} onChange={e=>setF(key,e.target.value)}
                   style={{background:'#191c2b',border:'1px solid #272a3d',borderRadius:7,color:'#dde1f2',padding:'8px 10px',fontSize:12,outline:'none',width:'100%',fontFamily:'inherit'}}/>
               </div>
             ))}
+          </div>
+          {/* 소정근로일 설정 */}
+          <div style={{padding:'0 18px 14px'}}>
+            <label style={{fontSize:10,color:'#5e6585',fontWeight:600,display:'block',marginBottom:8}}>소정근로일 (주휴수당 기준)</label>
+            <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
+              {['월','화','수','목','금','토','일'].map((day,i)=>{
+                const idx = i+1===7 ? 0 : i+1 // 0=일,1=월...6=토
+                const workDays = form.workDays || [1,2,3,4,5]
+                const checked = workDays.includes(idx)
+                return (
+                  <label key={day} style={{display:'flex',alignItems:'center',gap:4,cursor:'pointer',
+                    background:checked?'rgba(249,185,52,0.15)':'#191c2b',
+                    border:checked?'1px solid #f9b934':'1px solid #272a3d',
+                    borderRadius:6,padding:'6px 10px',fontSize:12,fontWeight:600,
+                    color:checked?'#f9b934':'#5e6585',transition:'.15s'}}>
+                    <input type="checkbox" checked={checked} style={{display:'none'}}
+                      onChange={()=>{
+                        const current = form.workDays || [1,2,3,4,5]
+                        const next = current.includes(idx)
+                          ? current.filter(d=>d!==idx)
+                          : [...current, idx].sort()
+                        setF('workDays', next)
+                      }}/>
+                    {day}
+                  </label>
+                )
+              })}
+            </div>
+            <div style={{fontSize:10,color:'#5e6585',marginTop:6}}>
+              주 {(form.workDays||[1,2,3,4,5]).length}일 소정근로 · 이 날 중 하루라도 결근시 주휴 미지급
+            </div>
           </div>
           <div style={{padding:'0 18px 18px',display:'flex',gap:8}}>
             <button onClick={save} disabled={saving}
