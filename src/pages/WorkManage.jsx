@@ -7,9 +7,33 @@ const daysIn = ym => { const[y,m]=ym.split('-').map(Number); return new Date(y,m
 const mLabel = ym => { const[y,m]=ym.split('-'); return `${y}년 ${+m}월` }
 const DAYS_KR = ['일','월','화','수','목','금','토']
 
-function calcWeeklyHoliday(weekHours, wage) {
+function calcWeeklyHoliday(weekHours, wage, workDays, weekAttendance, weekMemos) {
+  // 15시간 미만이면 무조건 미지급
   if(weekHours < 15) return 0
-  return Math.round((weekHours/40)*8*wage)
+
+  // 소정근로일 중 결근일 계산
+  const absentDays = workDays.filter(dow => {
+    const h = weekAttendance[dow] || 0
+    return h === 0
+  })
+
+  if(absentDays.length === 0) {
+    // 개근 → 주휴 지급
+    return Math.round((weekHours/40)*8*wage)
+  }
+
+  // 결근이 있는 경우 → 대타로 메꿨는지 확인
+  const subCount = Object.values(weekMemos).filter(memo =>
+    memo && memo.includes('대타')
+  ).length
+
+  if(subCount >= absentDays.length) {
+    // 대타로 결근 메꿈 → 주휴 지급
+    return Math.round((weekHours/40)*8*wage)
+  }
+
+  // 결근 > 대타 → 주휴 미지급
+  return 0
 }
 
 export default function WorkManage() {
@@ -32,10 +56,15 @@ export default function WorkManage() {
     try {
       const usersSnap = await getDocs(collection(db,'users'))
       const finalEmps = []
-      usersSnap.forEach(d => {
+usersSnap.forEach(d => {
         const data = d.data()
         if(data.status==='approved' && data.role!=='owner') {
-          finalEmps.push({uid:d.id, name:data.name, wage:data.wage||10030})
+          finalEmps.push({
+            uid:d.id,
+            name:data.name,
+            wage:data.wage||10030,
+            workDays:data.workDays||[1,2,3,4,5]
+          })
         }
       })
       setEmployees(finalEmps)
@@ -77,10 +106,12 @@ export default function WorkManage() {
     setMemos(newMemos)
   }
 
-  function getEmpStats(emp) {
+function getEmpStats(emp) {
     const wh = workHours[emp.uid] || {}
     const ex = workExtra[emp.uid] || {}
+    const empMemos = memos[emp.uid] || {}
     const wage = emp.wage || 10030
+    const workDays = emp.workDays || [1,2,3,4,5] // 소정근로일 (0=일,1=월..6=토)
     const days = daysIn(curMonth)
     const [cy,cm] = curMonth.split('-').map(Number)
 
@@ -99,15 +130,24 @@ export default function WorkManage() {
 
       let weeklyHoliday = 0
       if(dow === 0) {
+        // 이번 주 (일요일 기준 직전 월~토) 데이터 수집
         let weekH = 0
+        const weekAttendance = {} // {dow: hours}
+        const weekMemos = {}      // {dd: memo}
+
         for(let wd=1; wd<=6; wd++) {
           const prevD = d - wd
           if(prevD >= 1) {
-            weekH += wh[pad(prevD)] || 0
-            weekH += (ex[pad(prevD)] || 0) / 60
+            const prevDD = pad(prevD)
+            const prevDow = new Date(cy,cm-1,prevD).getDay()
+            const prevH = (wh[prevDD]||0) + (ex[prevDD]||0)/60
+            weekH += prevH
+            weekAttendance[prevDow] = prevH
+            if(empMemos[prevDD]) weekMemos[prevDD] = empMemos[prevDD]
           }
         }
-        weeklyHoliday = calcWeeklyHoliday(weekH, wage)
+
+        weeklyHoliday = calcWeeklyHoliday(weekH, wage, workDays, weekAttendance, weekMemos)
         totalWeeklyHoliday += weeklyHoliday
       }
 
@@ -316,13 +356,13 @@ export default function WorkManage() {
                             </td>
                             {/* 주휴수당 */}
                             <td style={{padding:'6px 10px',borderBottom:'1px solid #1a1d2e',textAlign:'center',fontFamily:'DM Mono,monospace'}}>
-                              {isSun && weeklyHoliday>0 ? (
-                                <span style={{color:'#93c5fd',fontWeight:700,fontSize:12}}>{weeklyHoliday.toLocaleString()}원</span>
-                              ) : isSun && weeklyHoliday===0 ? (
-                                <span style={{color:'#3d4060',fontSize:11}}>15h 미만</span>
-                              ) : (
-                                <span style={{color:'#272a3d'}}>—</span>
-                              )}
+{isSun && weeklyHoliday>0 ? (
+  <span style={{color:'#93c5fd',fontWeight:700,fontSize:12}}>{weeklyHoliday.toLocaleString()}원</span>
+) : isSun ? (
+  <span style={{color:'#3d4060',fontSize:11}}>미지급</span>
+) : (
+  <span style={{color:'#272a3d'}}>—</span>
+)}
                             </td>
                             {/* 비고 */}
                             <td style={{padding:'4px 10px',borderBottom:'1px solid #1a1d2e'}}>
