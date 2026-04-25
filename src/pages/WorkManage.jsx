@@ -102,15 +102,6 @@ const memoSnap = await getDoc(doc(db,'workmemos',curMonth))
       setPrevWorkExtra(prevExSnap.exists() ? prevExSnap.data() : {})
       setPrevMemos(prevMemoSnap.exists() ? prevMemoSnap.data() : {})
 
-      // 이전달 데이터도 불러오기
-      const [cy,cm] = curMonth.split('-').map(Number)
-      const prevMonth = cm===1 ? `${cy-1}-12` : `${cy}-${pad(cm-1)}`
-      const prevWhSnap = await getDoc(doc(db,'workhours',prevMonth))
-      setPrevWorkHours(prevWhSnap.exists() ? prevWhSnap.data() : {})
-      const prevExSnap = await getDoc(doc(db,'workextra',prevMonth))
-      setPrevWorkExtra(prevExSnap.exists() ? prevExSnap.data() : {})
-      const prevMemoSnap = await getDoc(doc(db,'workmemos',prevMonth))
-      setPrevMemos(prevMemoSnap.exists() ? prevMemoSnap.data() : {})
     } catch(e) { console.error(e) }
     setLoading(false)
   }
