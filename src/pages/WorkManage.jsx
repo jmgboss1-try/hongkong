@@ -100,7 +100,6 @@ const memoSnap = await getDoc(doc(db,'workmemos',curMonth))
       setPrevWorkHours(prevWhSnap.exists() ? prevWhSnap.data() : {})
       const prevExSnap = await getDoc(doc(db,'workextra',prevMonth))
       setPrevWorkExtra(prevExSnap.exists() ? prevExSnap.data() : {})
-      const prevMemoSnap = await getDoc(doc(db,'workmemos',prevMonth))
       setPrevMemos(prevMemoSnap.exists() ? prevMemoSnap.data() : {})
 
       // 이전달 데이터도 불러오기
