@@ -268,8 +268,9 @@ function getEmpStats(emp) {
           )}
 
           {/* 개인별 상세 */}
-          {activeEmp!==null && (()=>{
-            const empData = allStats.find(s=>s.emp.uid===activeEmp)
+{activeEmp!==null && (()=>{
+  const empData = allStats.find(s=>s.emp.uid===activeEmp)
+  if(!empData) return null
             if(!empData) return null
             const {emp, totalHours, totalMins, totalH, basePay, totalWeeklyHoliday, totalPay, rows} = empData
             const empMemos = memos[emp.uid] || {}
@@ -313,8 +314,8 @@ function getEmpStats(emp) {
                         <th style={{padding:'8px 10px',fontSize:10,fontWeight:600,color:'#5e6585',textAlign:'left'}}>비고</th>
                       </tr>
                     </thead>
-                    <tbody>
-                      {rows.map(({d,dd,dow,h,m,weeklyHoliday})=>{
+<tbody key={activeEmp}>
+  {rows.map(({d,dd,dow,h,m,weeklyHoliday})=>{
                         const isWeekend = dow===0||dow===6
                         const isSun = dow===0
                         const now = new Date()
@@ -337,9 +338,9 @@ function getEmpStats(emp) {
                             {/* 근무시간 */}
                             <td style={{padding:'4px 10px',borderBottom:'1px solid #1a1d2e',textAlign:'center'}}>
                               {!isSun ? (
-                                <input type="number" defaultValue={h||''} min="0" max="24" step="0.5" placeholder="0"
-                                  onBlur={e=>saveWorkHours(emp.uid,dd,e.target.value)}
-                                  onKeyDown={e=>e.key==='Enter'&&e.target.blur()}
+<input key={`${activeEmp}_${dd}_h`} type="number" defaultValue={h||''} min="0" max="24" step="0.5" placeholder="0"
+  onBlur={e=>saveWorkHours(emp.uid,dd,e.target.value)}
+  onKeyDown={e=>e.key==='Enter'&&e.target.blur()}
                                   style={{
                                     width:80, background:h>0?'rgba(249,185,52,0.15)':'#191c2b',
                                     border:h>0?'1px solid #f9b934':'1px solid #272a3d',
@@ -354,9 +355,9 @@ function getEmpStats(emp) {
                             {/* 추가근무(분) */}
                             <td style={{padding:'4px 10px',borderBottom:'1px solid #1a1d2e',textAlign:'center'}}>
                               {!isSun ? (
-                                <input type="number" defaultValue={m||''} min="0" max="180" step="5" placeholder="0"
-                                  onBlur={e=>saveWorkExtra(emp.uid,dd,e.target.value)}
-                                  onKeyDown={e=>e.key==='Enter'&&e.target.blur()}
+<input key={`${activeEmp}_${dd}_m`} type="number" defaultValue={m||''} min="0" max="180" step="5" placeholder="0"
+  onBlur={e=>saveWorkExtra(emp.uid,dd,e.target.value)}
+  onKeyDown={e=>e.key==='Enter'&&e.target.blur()}
                                   style={{
                                     width:80, background:m>0?'rgba(249,185,52,0.15)':'#191c2b',
                                     border:m>0?'1px solid #f9b934':'1px solid #272a3d',
@@ -378,10 +379,10 @@ function getEmpStats(emp) {
                             </td>
                             {/* 비고 */}
                             <td style={{padding:'4px 10px',borderBottom:'1px solid #1a1d2e'}}>
-                              <input type="text" defaultValue={empMemos[dd]||''}
-                                placeholder={isSun?'':'결석사유 등...'}
-                                onBlur={e=>saveMemo(emp.uid,dd,e.target.value)}
-                                onKeyDown={e=>e.key==='Enter'&&e.target.blur()}
+<input key={`${activeEmp}_${dd}_memo`} type="text" defaultValue={empMemos[dd]||''}
+  placeholder={isSun?'':'결석사유 등...'}
+  onBlur={e=>saveMemo(emp.uid,dd,e.target.value)}
+  onKeyDown={e=>e.key==='Enter'&&e.target.blur()}
                                 style={{
                                   width:'100%', background:'transparent', border:'none',
                                   borderBottom:empMemos[dd]?'1px solid #272a3d':'1px solid transparent',
