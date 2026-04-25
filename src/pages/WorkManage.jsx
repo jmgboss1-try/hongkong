@@ -56,6 +56,9 @@ export default function WorkManage() {
   const [workHours, setWorkHours] = useState({})   // {uid: {dd: hours}}
   const [workExtra, setWorkExtra] = useState({})   // {uid: {dd: minutes}}
   const [memos, setMemos] = useState({})           // {uid: {dd: memo}}
+  const [prevWorkHours, setPrevWorkHours] = useState({})
+  const [prevWorkExtra, setPrevWorkExtra] = useState({})
+  const [prevMemos, setPrevMemos] = useState({})
   const [loading, setLoading] = useState(true)
   const [activeEmp, setActiveEmp] = useState(null)
 
@@ -81,7 +84,7 @@ usersSnap.forEach(d => {
       })
       setEmployees(finalEmps)
 
-      const whSnap = await getDoc(doc(db,'workhours',curMonth))
+const whSnap = await getDoc(doc(db,'workhours',curMonth))
       setWorkHours(whSnap.exists() ? whSnap.data() : {})
 
       const exSnap = await getDoc(doc(db,'workextra',curMonth))
@@ -89,6 +92,16 @@ usersSnap.forEach(d => {
 
       const memoSnap = await getDoc(doc(db,'workmemos',curMonth))
       setMemos(memoSnap.exists() ? memoSnap.data() : {})
+
+      // 이전달 데이터도 불러오기
+      const [cy,cm] = curMonth.split('-').map(Number)
+      const prevMonth = cm===1 ? `${cy-1}-12` : `${cy}-${pad(cm-1)}`
+      const prevWhSnap = await getDoc(doc(db,'workhours',prevMonth))
+      setPrevWorkHours(prevWhSnap.exists() ? prevWhSnap.data() : {})
+      const prevExSnap = await getDoc(doc(db,'workextra',prevMonth))
+      setPrevWorkExtra(prevExSnap.exists() ? prevExSnap.data() : {})
+      const prevMemoSnap = await getDoc(doc(db,'workmemos',prevMonth))
+      setPrevMemos(prevMemoSnap.exists() ? prevMemoSnap.data() : {})
     } catch(e) { console.error(e) }
     setLoading(false)
   }
@@ -122,10 +135,16 @@ function getEmpStats(emp) {
     const wh = workHours[emp.uid] || {}
     const ex = workExtra[emp.uid] || {}
     const empMemos = memos[emp.uid] || {}
- const wage = getWageForMonth(emp, curMonth)
-    const workDays = emp.workDays || [1,2,3,4,5] // 소정근로일 (0=일,1=월..6=토)
+    const prevWh = prevWorkHours[emp.uid] || {}
+    const prevEx = prevWorkExtra[emp.uid] || {}
+    const prevEmpMemos = prevMemos[emp.uid] || {}
+    const wage = getWageForMonth(emp, curMonth)
+    const workDays = emp.workDays || [1,2,3,4,5]
     const days = daysIn(curMonth)
     const [cy,cm] = curMonth.split('-').map(Number)
+
+    // 이전달 마지막 날 계산
+    const prevMonthDays = cm===1 ? new Date(cy-1,12,0).getDate() : new Date(cy,cm-1,0).getDate()
 
     let totalHours = 0
     let totalMins = 0
@@ -142,20 +161,32 @@ function getEmpStats(emp) {
 
       let weeklyHoliday = 0
       if(dow === 0) {
-        // 이번 주 (일요일 기준 직전 월~토) 데이터 수집
         let weekH = 0
-        const weekAttendance = {} // {dow: hours}
-        const weekMemos = {}      // {dd: memo}
+        const weekAttendance = {}
+        const weekMemos = {}
 
         for(let wd=1; wd<=6; wd++) {
           const prevD = d - wd
+
           if(prevD >= 1) {
+            // 이번달 데이터
             const prevDD = pad(prevD)
             const prevDow = new Date(cy,cm-1,prevD).getDay()
             const prevH = (wh[prevDD]||0) + (ex[prevDD]||0)/60
             weekH += prevH
-            weekAttendance[prevDow] = prevH
+            weekAttendance[prevDow] = (weekAttendance[prevDow]||0) + prevH
             if(empMemos[prevDD]) weekMemos[prevDD] = empMemos[prevDD]
+          } else {
+            // 이전달 데이터
+            const prevMonthD = prevMonthDays + prevD // prevD는 음수이므로 더하기
+            if(prevMonthD >= 1) {
+              const prevDD = pad(prevMonthD)
+              const prevDow = new Date(cy,cm-2,prevMonthD).getDay()
+              const prevH = (prevWh[prevDD]||0) + (prevEx[prevDD]||0)/60
+              weekH += prevH
+              weekAttendance[prevDow] = (weekAttendance[prevDow]||0) + prevH
+              if(prevEmpMemos[prevDD]) weekMemos[`prev_${prevDD}`] = prevEmpMemos[prevDD]
+            }
           }
         }
 
