@@ -21,11 +21,14 @@ export default function Dashboard() {
     const now = new Date()
     return `${now.getFullYear()}-${pad(now.getMonth()+1)}`
   })
-  const [rev, setRev] = useState({kiosk:0,del:0,pos:0,total:0})
+const [rev, setRev] = useState({kiosk:0,del:0,pos:0,total:0})
   const [exp, setExp] = useState({total:0,mat:0,mgmt:0,sal:0})
   const [staff, setStaff] = useState([])
   const [staffStats, setStaffStats] = useState({})
   const [loading, setLoading] = useState(true)
+  const [prevWH, setPrevWH] = useState({})
+  const [prevEX, setPrevEX] = useState({})
+  const [prevMemo, setPrevMemo] = useState({})
 
   useEffect(() => {
     async function load() {
@@ -75,20 +78,37 @@ usersSnap.forEach(d => {
 const memoSnap = await getDoc(doc(db,'workmemos',curMonth))
         const memoData = memoSnap.exists() ? memoSnap.data() : {}
 
-        const stats = {}
+        // 이전달 데이터
+        const [cy2,cm2] = curMonth.split('-').map(Number)
+        const prevMonth = cm2===1 ? `${cy2-1}-12` : `${cy2}-${pad(cm2-1)}`
+        const prevWhSnap = await getDoc(doc(db,'workhours',prevMonth))
+        const prevWhData = prevWhSnap.exists() ? prevWhSnap.data() : {}
+        const prevExSnap = await getDoc(doc(db,'workextra',prevMonth))
+        const prevExData = prevExSnap.exists() ? prevExSnap.data() : {}
+        const prevMemoSnap = await getDoc(doc(db,'workmemos',prevMonth))
+        const prevMemoData = prevMemoSnap.exists() ? prevMemoSnap.data() : {}
+        setPrevWH(prevWhData)
+        setPrevEX(prevExData)
+        setPrevMemo(prevMemoData)
+
+const stats = {}
+        const [cy,cm] = curMonth.split('-').map(Number)
+        const prevMonthDays = cm===1 ? new Date(cy-1,12,0).getDate() : new Date(cy,cm-1,0).getDate()
+        const days = new Date(cy,cm,0).getDate()
+
         emps.forEach(emp => {
           const wh = whData[emp.uid] || {}
           const ex = extraData[emp.uid] || {}
           const empMemos = memoData[emp.uid] || {}
+          const pWh = prevWhData[emp.uid] || {}
+          const pEx = prevExData[emp.uid] || {}
+          const pMemos = prevMemoData[emp.uid] || {}
           const workDays = emp.workDays || [1,2,3,4,5]
-const wage = getWageForMonth(emp, curMonth)
+          const wage = getWageForMonth(emp, curMonth)
 
           let totalHours = 0
           let totalMins = 0
           let totalWeeklyHoliday = 0
-
-          const [cy,cm] = curMonth.split('-').map(Number)
-          const days = new Date(cy,cm,0).getDate()
 
           for(let d=1; d<=days; d++) {
             const dd = String(d).padStart(2,'0')
@@ -100,6 +120,7 @@ const wage = getWageForMonth(emp, curMonth)
               let weekH = 0
               const weekAttendance = {}
               const weekMemos = {}
+
               for(let wd=1; wd<=6; wd++) {
                 const prevD = d - wd
                 if(prevD >= 1) {
@@ -107,12 +128,22 @@ const wage = getWageForMonth(emp, curMonth)
                   const prevDow = new Date(cy,cm-1,prevD).getDay()
                   const prevH = (wh[prevDD]||0) + (ex[prevDD]||0)/60
                   weekH += prevH
-                  weekAttendance[prevDow] = prevH
+                  weekAttendance[prevDow] = (weekAttendance[prevDow]||0) + prevH
                   if(empMemos[prevDD]) weekMemos[prevDD] = empMemos[prevDD]
+                } else {
+                  // 이전달 데이터
+                  const prevMonthD = prevMonthDays + prevD
+                  if(prevMonthD >= 1) {
+                    const prevDD = String(prevMonthD).padStart(2,'0')
+                    const prevDow = new Date(cy,cm-2,prevMonthD).getDay()
+                    const prevH = (pWh[prevDD]||0) + (pEx[prevDD]||0)/60
+                    weekH += prevH
+                    weekAttendance[prevDow] = (weekAttendance[prevDow]||0) + prevH
+                    if(pMemos[prevDD]) weekMemos[`prev_${prevDD}`] = pMemos[prevDD]
+                  }
                 }
               }
 
-              // 주휴수당 계산
               if(weekH >= 15) {
                 const absentDays = workDays.filter(d => (weekAttendance[d]||0) === 0)
                 const subCount = Object.values(weekMemos).filter(m => m&&m.includes('대타')).length
