@@ -18,8 +18,11 @@ const daysIn = ym => { const[y,m]=ym.split('-').map(Number); return new Date(y,m
 const mLabel = ym => { const[y,m]=ym.split('-'); return `${y}년 ${+m}월` }
 const DAYS_KR = ['일','월','화','수','목','금','토']
 
-function calcWeeklyHoliday(weekHours, wage, workDays, weekAttendance, weekMemos) {
-  // 15시간 미만이면 무조건 미지급
+function calcWeeklyHoliday(weekHours, wage, workDays, weekAttendance, weekMemos, avgHours) {
+  const dailyHours = avgHours || 8
+  const weeklyContract = workDays.length * dailyHours // 소정근로시간
+
+  // 소정근로시간 미만이면 미지급
   if(weekHours < 15) return 0
 
   // 소정근로일 중 결근일 계산
@@ -30,7 +33,8 @@ function calcWeeklyHoliday(weekHours, wage, workDays, weekAttendance, weekMemos)
 
   if(absentDays.length === 0) {
     // 개근 → 주휴 지급
-    return Math.round((weekHours/40)*8*wage)
+    // 주휴수당 = 1일 소정근로시간 * 시급
+    return Math.round(dailyHours * wage)
   }
 
   // 결근이 있는 경우 → 대타로 메꿨는지 확인
@@ -39,11 +43,9 @@ function calcWeeklyHoliday(weekHours, wage, workDays, weekAttendance, weekMemos)
   ).length
 
   if(subCount >= absentDays.length) {
-    // 대타로 결근 메꿈 → 주휴 지급
-    return Math.round((weekHours/40)*8*wage)
+    return Math.round(dailyHours * wage)
   }
 
-  // 결근 > 대타 → 주휴 미지급
   return 0
 }
 
@@ -78,7 +80,8 @@ usersSnap.forEach(d => {
             name:data.name,
             wage:data.wage||10030,
             wageHistory:data.wageHistory||[],
-            workDays:data.workDays||[1,2,3,4,5]
+            workDays:data.workDays||[1,2,3,4,5],
+            avgHours:data.avgHours||8
           })
         }
       })
@@ -140,6 +143,7 @@ function getEmpStats(emp) {
     const prevEmpMemos = prevMemos[emp.uid] || {}
     const wage = getWageForMonth(emp, curMonth)
     const workDays = emp.workDays || [1,2,3,4,5]
+    const avgHours = emp.avgHours || 8
     const days = daysIn(curMonth)
     const [cy,cm] = curMonth.split('-').map(Number)
 
@@ -190,7 +194,7 @@ function getEmpStats(emp) {
           }
         }
 
-        weeklyHoliday = calcWeeklyHoliday(weekH, wage, workDays, weekAttendance, weekMemos)
+        weeklyHoliday = calcWeeklyHoliday(weekH, wage, workDays, weekAttendance, weekMemos, avgHours)
         totalWeeklyHoliday += weeklyHoliday
       }
 
