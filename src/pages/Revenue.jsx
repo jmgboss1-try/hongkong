@@ -64,6 +64,13 @@ export default function Revenue() {
       setData(newData)
       setKiosk(''); setDel(''); setPos('')
       setEditDay(null)
+      // 저장 후 다음 빈 날짜로 이동
+      const nextDay = Array.from({length:days},(_,i)=>pad(i+1))
+        .find(dd => {
+          const r = newData[dd]
+          return !r || ((r.kiosk||0)+(r.del||0)+(r.pos||0))===0
+        })
+      if(nextDay) setDay(nextDay)
     } catch(e) { console.error(e) }
     setSaving(false)
   }
