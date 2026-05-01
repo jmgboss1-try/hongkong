@@ -182,7 +182,10 @@ async function deleteMember(uid) {
   } catch(e) { console.error(e) }
 }
   function editMember(m) {
-    setForm(m)
+    setForm({
+      ...m,
+      workDays: Array.isArray(m.workDays) ? m.workDays : [1,2,3,4,5]
+    })
     setShowForm(true)
     window.scrollTo({top:0,behavior:'smooth'})
   }
@@ -261,7 +264,7 @@ async function deleteMember(uid) {
               })}
             </div>
             <div style={{fontSize:10,color:'#5e6585',marginTop:6}}>
-              주 {(form.workDays||[1,2,3,4,5]).length}일 소정근로 · 이 날 중 하루라도 결근시 주휴 미지급
+              주 {Array.isArray(form.workDays)?form.workDays.length:5}일 소정근로 · 이 날 중 하루라도 결근시 주휴 미지급
             </div>
           </div>
           <div style={{padding:'0 18px 18px',display:'flex',gap:8}}>
