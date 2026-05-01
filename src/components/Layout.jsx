@@ -31,6 +31,7 @@ export default function Layout({ children }) {
 const staffMenus = [
     { path:'/staff',          icon:'📅', label:'스케쥴' },
     { path:'/my-schedule',   icon:'🕐', label:'내 기록' },
+    { path:'/my-payroll',    icon:'💸', label:'내 급여' },
     { path:'/team',          icon:'👥', label:'팀원' },
     { path:'/cash',          icon:'💵', label:'현금시재' },
     { path:'/notice',        icon:'📋', label:'공지·메모' },
