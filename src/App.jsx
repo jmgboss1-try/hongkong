@@ -12,6 +12,7 @@ import Team from './pages/Team'
 import ExpensesInput from './pages/ExpensesInput'
 import Cash from './pages/Cash'
 import WorkManage from './pages/WorkManage'
+import MyPayroll from './pages/MyPayroll'
 import Notice from './pages/Notice'
 import Order from './pages/Order'
 import Layout from './components/Layout'
@@ -68,6 +69,7 @@ function AppRoutes() {
         <Route path="/work-manage" element={<PrivateRoute ownerOnly><WorkManage /></PrivateRoute>} />
         <Route path="/members" element={<PrivateRoute ownerOnly><Members /></PrivateRoute>} />
         <Route path="/payroll" element={<PrivateRoute ownerOnly><Payroll /></PrivateRoute>} />
+        <Route path="/my-payroll" element={<PrivateRoute><MyPayroll /></PrivateRoute>} />
         <Route path="/my-schedule" element={<PrivateRoute><MySchedule /></PrivateRoute>} />
         <Route path="/team" element={<PrivateRoute><Team /></PrivateRoute>} />
         <Route path="/cash" element={<PrivateRoute><Cash /></PrivateRoute>} />
