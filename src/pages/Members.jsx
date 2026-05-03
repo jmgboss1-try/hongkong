@@ -159,8 +159,9 @@ export default function Members() {
         account: form.account || '',
         ssn: form.ssn || '',
         avgHours: +form.avgHours || 8,
-        workDays: form.workDays || [1,2,3,4,5],
+       workDays: form.workDays || [1,2,3,4,5],
         holidayBase: form.holidayBase || 'contract',
+        employType: form.employType || 'part',
         wageHistory: newHistory,
       }, {merge:true})
 
@@ -302,6 +303,31 @@ export default function Members() {
             </div>
           </div>
 
+          {/* 고용 유형 설정 */}
+          <div style={{padding:'0 18px 14px'}}>
+            <label style={{fontSize:10,color:'#5e6585',fontWeight:600,display:'block',marginBottom:8}}>
+              고용 유형 (공제 기준)
+            </label>
+            <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
+              {[
+                {key:'part',     label:'🕐 아르바이트', desc:'3.3% 원천징수'},
+                {key:'full',     label:'💼 정직원',     desc:'4대보험 적용'},
+                {key:'none',     label:'✕ 공제없음',   desc:'세전 지급'},
+              ].map(opt=>{
+                const selected = (form.employType||'part') === opt.key
+                return (
+                  <div key={opt.key} onClick={()=>setF('employType', opt.key)}
+                    style={{flex:1,padding:'10px 14px',borderRadius:8,cursor:'pointer',
+                      background:selected?'rgba(249,185,52,0.12)':'#191c2b',
+                      border:selected?'1px solid #f9b934':'1px solid #272a3d',
+                      transition:'.15s',minWidth:100}}>
+                    <div style={{fontSize:12,fontWeight:600,color:selected?'#f9b934':'#5e6585',marginBottom:3}}>{opt.label}</div>
+                    <div style={{fontSize:10,color:'#5e6585'}}>{opt.desc}</div>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
           <div style={{padding:'0 18px 18px',display:'flex',gap:8}}>
             <button onClick={save} disabled={saving}
               style={{background:'#f9b934',color:'#000',border:'none',borderRadius:8,padding:'9px 20px',fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
