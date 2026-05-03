@@ -312,7 +312,6 @@ function getEmpStats(emp) {
 {activeEmp!==null && (()=>{
   const empData = allStats.find(s=>s.emp.uid===activeEmp)
   if(!empData) return null
-            if(!empData) return null
             const {emp, totalHours, totalMins, totalH, basePay, totalWeeklyHoliday, totalPay, rows} = empData
             const empMemos = memos[emp.uid] || {}
 
