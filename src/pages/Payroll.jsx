@@ -26,13 +26,12 @@ function calcDeduction(totalPay, employType) {
   const total   = pension + health + employ + care
   return { tax:0, pension, health, employ, care, total }
 }
-function calcWeeklyHoliday(weekHours, wage, workDays, weekAttendance, weekMemos, avgHours) {
-  const dailyHours = avgHours || 8
+function calcWeeklyHoliday(weekHours, wage, workDays, weekAttendance, weekMemos, holidayHours) {
   if(weekHours < 15) return 0
   const absentDays = workDays.filter(dow => (weekAttendance[dow]||0) === 0)
-  if(absentDays.length === 0) return Math.round(dailyHours * wage)
+  if(absentDays.length === 0) return Math.round((holidayHours/40)*8*wage)
   const subCount = Object.values(weekMemos).filter(m=>m&&m.includes('대타')).length
-  if(subCount >= absentDays.length) return Math.round(dailyHours * wage)
+  if(subCount >= absentDays.length) return Math.round((holidayHours/40)*8*wage)
   return 0
 }
 
@@ -40,6 +39,7 @@ function computeSalary(emp, wh, ex, empMemos, prevWh, prevEx, prevEmpMemos, curM
   const wage = getWageForMonth(emp, curMonth)
   const workDays = emp.workDays || [1,2,3,4,5]
   const avgHours = emp.avgHours || 8
+  const holidayBase = emp.holidayBase || 'contract'
   const days = daysIn(curMonth)
   const [cy,cm] = curMonth.split('-').map(Number)
   const prevMonthDays = cm===1 ? new Date(cy-1,12,0).getDate() : new Date(cy,cm-1,0).getDate()
@@ -70,10 +70,14 @@ function computeSalary(emp, wh, ex, empMemos, prevWh, prevEx, prevEmpMemos, curM
           }
         }
       }
-      totalWeeklyHoliday += calcWeeklyHoliday(weekH, wage, workDays, weekAttendance, weekMemos, avgHours)
+      // 소정근로 기준 or 실제근무 기준
+      const holidayHours = holidayBase==='actual'
+        ? weekH
+        : avgHours * workDays.length
+      totalWeeklyHoliday += calcWeeklyHoliday(weekH, wage, workDays, weekAttendance, weekMemos, holidayHours)
     }
   }
- const totalH = totalHours + totalMins/60
+  const totalH = totalHours + totalMins/60
   const basePay = Math.round(totalH * wage)
   const totalPay = basePay + totalWeeklyHoliday
   const deduction = calcDeduction(totalPay, emp.employType||'part')
@@ -119,7 +123,8 @@ export default function Payroll() {
         if(data.status==='approved' && data.role!=='owner')
          emps.push({uid:d.id, name:data.name, wage:data.wage||10030,
             wageHistory:data.wageHistory||[], workDays:data.workDays||[1,2,3,4,5],
-            avgHours:data.avgHours||8, employType:data.employType||'part'})
+            avgHours:data.avgHours||8, employType:data.employType||'part',
+            holidayBase:data.holidayBase||'contract'})
       })
       setEmployees(emps)
 
