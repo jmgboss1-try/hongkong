@@ -13,6 +13,19 @@ function getWageForMonth(emp, month) {
   return applicable.length ? applicable[0].wage : (emp.wage||10030)
 }
 
+function calcDeduction(totalPay, employType) {
+  if(employType === 'none') return { tax:0, pension:0, health:0, employ:0, care:0, total:0 }
+  if(employType === 'part') {
+    const tax = Math.round(totalPay * 0.033)
+    return { tax, pension:0, health:0, employ:0, care:0, total:tax }
+  }
+  const pension = Math.round(totalPay * 0.045)
+  const health  = Math.round(totalPay * 0.03545)
+  const employ  = Math.round(totalPay * 0.009)
+  const care    = Math.round(health   * 0.1295)
+  const total   = pension + health + employ + care
+  return { tax:0, pension, health, employ, care, total }
+}
 function calcWeeklyHoliday(weekHours, wage, workDays, weekAttendance, weekMemos, avgHours) {
   const dailyHours = avgHours || 8
   if(weekHours < 15) return 0
@@ -60,9 +73,12 @@ function computeSalary(emp, wh, ex, empMemos, prevWh, prevEx, prevEmpMemos, curM
       totalWeeklyHoliday += calcWeeklyHoliday(weekH, wage, workDays, weekAttendance, weekMemos, avgHours)
     }
   }
-  const totalH = totalHours + totalMins/60
+ const totalH = totalHours + totalMins/60
   const basePay = Math.round(totalH * wage)
-  return { basePay, weeklyHoliday: totalWeeklyHoliday, totalPay: basePay+totalWeeklyHoliday, totalHours, totalMins, wage }
+  const totalPay = basePay + totalWeeklyHoliday
+  const deduction = calcDeduction(totalPay, emp.employType||'part')
+  const netPay = totalPay - deduction.total
+  return { basePay, weeklyHoliday: totalWeeklyHoliday, totalPay, netPay, deduction, totalHours, totalMins, wage }
 }
 
 const STATUS = {
@@ -101,8 +117,9 @@ export default function Payroll() {
       usersSnap.forEach(d=>{
         const data=d.data()
         if(data.status==='approved' && data.role!=='owner')
-          emps.push({uid:d.id, name:data.name, wage:data.wage||10030,
-            wageHistory:data.wageHistory||[], workDays:data.workDays||[1,2,3,4,5], avgHours:data.avgHours||8})
+         emps.push({uid:d.id, name:data.name, wage:data.wage||10030,
+            wageHistory:data.wageHistory||[], workDays:data.workDays||[1,2,3,4,5],
+            avgHours:data.avgHours||8, employType:data.employType||'part'})
       })
       setEmployees(emps)
 
@@ -230,7 +247,10 @@ export default function Payroll() {
   const paidCount    = employees.filter(e=>getStatus(e.uid)==='paid').length
   const checkedCount = employees.filter(e=>['checked','paid'].includes(getStatus(e.uid))).length
   const grandTotal   = employees.reduce((a,emp)=>{
-    const p=payroll[emp.uid]; return a+(p?.totalPay||getComputed(emp).totalPay)
+    const p=payroll[emp.uid]
+    const computed = getComputed(emp)
+    const netPay = p?.netPay || computed.netPay
+    return a + netPay
   },0)
 
   return (
@@ -314,16 +334,24 @@ export default function Payroll() {
                     )}
                   </div>
                   <div style={{display:'flex',alignItems:'center',gap:14,flexWrap:'wrap'}}>
-                    {/* 급여 표시 */}
+                   {/* 급여 표시 */}
                     <div style={{textAlign:'right'}}>
                       <div style={{fontSize:10,color:'#5e6585',marginBottom:2}}>
                         {display.totalHours}h {display.totalMins>0?display.totalMins+'m':''} · 시급 {(display.wage||10030).toLocaleString()}원
                       </div>
-                      <div style={{fontSize:15,fontWeight:700,color:'#f9b934',fontFamily:'DM Mono,monospace'}}>
-                        {(display.totalPay||0).toLocaleString()}원
-                      </div>
-                      <div style={{fontSize:10,color:'#5e6585'}}>
+                      <div style={{fontSize:10,color:'#5e6585',marginBottom:2}}>
                         기본 {(display.basePay||0).toLocaleString()} + 주휴 {(display.weeklyHoliday||0).toLocaleString()}
+                      </div>
+                      <div style={{fontSize:11,color:'#5e6585',marginBottom:2}}>
+                        세전 {(display.totalPay||0).toLocaleString()}원
+                        {(display.deduction?.total||0)>0 && (
+                          <span style={{color:'#f87171',marginLeft:6}}>
+                            -{(display.deduction?.total||0).toLocaleString()}원
+                          </span>
+                        )}
+                      </div>
+                      <div style={{fontSize:16,fontWeight:700,color:'#34d399',fontFamily:'DM Mono,monospace'}}>
+                        실수령 {(display.netPay||display.totalPay||0).toLocaleString()}원
                       </div>
                     </div>
                     {/* 액션 */}
