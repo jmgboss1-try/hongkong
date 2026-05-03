@@ -152,8 +152,10 @@ const stats = {}
                 const absentDays = workDays.filter(d => (weekAttendance[d]||0) === 0)
                 const subCount = Object.values(weekMemos).filter(m => m&&m.includes('대타')).length
                 if(absentDays.length === 0 || subCount >= absentDays.length) {
-                  const holidayHours = holidayBase==='actual' ? weekH / workDays.length : avgHours
-                  totalWeeklyHoliday += Math.round(holidayHours * wage)
+                  const holidayHours = holidayBase==='actual'
+  ? weekH
+  : avgHours * workDays.length
+totalWeeklyHoliday += Math.round((holidayHours / 40) * 8 * wage)
                 }
               }
             }
