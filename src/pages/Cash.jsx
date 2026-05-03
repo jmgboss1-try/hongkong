@@ -263,7 +263,7 @@ async function saveRecord(type, data) {
                 <table style={{width:'100%',borderCollapse:'collapse',fontSize:12}}>
                   <thead>
                     <tr style={{background:'#191c2b'}}>
-                      {['날짜','오픈 시재','오픈 차액','마감 시재','마감 차액','현금매출'].map(h=>(
+                      {['날짜','오픈 시재','오픈 입력자','오픈 차액','마감 시재','마감 입력자','마감 차액','현금매출'].map(h=>(
                         <th key={h} style={{padding:'8px 14px',fontSize:10,fontWeight:600,color:'#5e6585',textAlign:'right',whiteSpace:'nowrap'}}>
                           {h==='날짜'?<span style={{float:'left'}}>{h}</span>:h}
                         </th>
@@ -277,11 +277,19 @@ async function saveRecord(type, data) {
                         <tr key={dd}>
                           <td style={{padding:'9px 14px',borderBottom:'1px solid #272a3d',color:'#dde1f2'}}>{+dd}일</td>
                           <td style={{padding:'9px 14px',borderBottom:'1px solid #272a3d',textAlign:'right',fontFamily:'DM Mono, monospace'}}>{r.open?.total?.toLocaleString()||'—'}</td>
+                          <td style={{padding:'9px 14px',borderBottom:'1px solid #272a3d',textAlign:'right',fontSize:11,
+                            color:r.open?.diff!==0&&r.open?.diff!==undefined?'#f87171':'#5e6585'}}>
+                            {r.open?.recordedByName||r.open?.recordedBy||'—'}
+                          </td>
                           <td style={{padding:'9px 14px',borderBottom:'1px solid #272a3d',textAlign:'right',fontFamily:'DM Mono, monospace',
                             color:r.open?.diff===0?'#34d399':r.open?.diff>0?'#f9b934':'#f87171'}}>
                             {r.open?.diff===undefined?'—':r.open.diff===0?'일치':r.open.diff>0?`+${r.open.diff.toLocaleString()}`:r.open.diff.toLocaleString()}
                           </td>
                           <td style={{padding:'9px 14px',borderBottom:'1px solid #272a3d',textAlign:'right',fontFamily:'DM Mono, monospace'}}>{r.close?.total?.toLocaleString()||'—'}</td>
+                          <td style={{padding:'9px 14px',borderBottom:'1px solid #272a3d',textAlign:'right',fontSize:11,
+                            color:r.close?.diff!==0&&r.close?.diff!==undefined?'#f87171':'#5e6585'}}>
+                            {r.close?.recordedByName||r.close?.recordedBy||'—'}
+                          </td>
                           <td style={{padding:'9px 14px',borderBottom:'1px solid #272a3d',textAlign:'right',fontFamily:'DM Mono, monospace',
                             color:r.close?.diff===0?'#34d399':r.close?.diff>0?'#f9b934':'#f87171'}}>
                             {r.close?.diff===undefined?'—':r.close.diff===0?'일치':r.close.diff>0?`+${r.close.diff.toLocaleString()}`:r.close.diff.toLocaleString()}
