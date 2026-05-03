@@ -8,6 +8,15 @@ const daysIn = ym => { const[y,m]=ym.split('-').map(Number); return new Date(y,m
 const mLabel = ym => { const[y,m]=ym.split('-'); return `${y}년 ${+m}월` }
 const DAYS_KR = ['일','월','화','수','목','금','토']
 
+function calcDeduction(totalPay, employType) {
+  if(employType === 'none') return { total:0 }
+  if(employType === 'part') return { total: Math.round(totalPay * 0.033) }
+  const pension = Math.round(totalPay * 0.045)
+  const health  = Math.round(totalPay * 0.03545)
+  const employ  = Math.round(totalPay * 0.009)
+  const care    = Math.round(health   * 0.1295)
+  return { total: pension + health + employ + care }
+}
 function calcWeeklyHoliday(totalHours, wage) {
   if(totalHours < 15) return 0
   return Math.round((totalHours/40)*8*wage)
@@ -22,7 +31,8 @@ export default function MySchedule() {
   const [workHours, setWorkHours] = useState({}) // 사장이 입력한 근무시간
   const [events, setEvents] = useState({})
   const [wage, setWage] = useState(10030)
-  const [loading, setLoading] = useState(true)
+const [employType, setEmployType] = useState('part')
+const [loading, setLoading] = useState(true)
 
   const now = new Date()
   const curYM = `${now.getFullYear()}-${pad(now.getMonth()+1)}`
@@ -37,7 +47,10 @@ export default function MySchedule() {
       try {
         // 시급
         const userSnap = await getDoc(doc(db,'users',user.uid))
-        if(userSnap.exists()) setWage(userSnap.data().wage||10030)
+        if(userSnap.exists()) {
+          setWage(userSnap.data().wage||10030)
+          setEmployType(userSnap.data().employType||'part')
+        }
 
         // 사장이 입력한 근무시간
         const whSnap = await getDoc(doc(db,'workhours',curMonth))
@@ -76,6 +89,8 @@ export default function MySchedule() {
   }
 
   const totalPay = totalWage + weeklyHoliday
+  const deduction = calcDeduction(totalPay, employType)
+  const netPay = totalPay - deduction.total
 
   // 근무 강도에 따른 색상
   function getHourColor(h) {
@@ -122,13 +137,34 @@ export default function MySchedule() {
       </div>
 
       {/* 총 지급 예상액 */}
-      <div style={{background:'rgba(52,211,153,0.08)',border:'1px solid rgba(52,211,153,0.2)',borderRadius:12,padding:'16px 20px',marginBottom:20,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
-        <div>
-          <div style={{fontSize:11,color:'#5e6585',marginBottom:4}}>💰 이번달 예상 총 지급액</div>
-          <div style={{fontSize:22,fontWeight:700,color:'#34d399',fontFamily:'DM Mono,monospace'}}>{totalPay.toLocaleString()}원</div>
-          <div style={{fontSize:10,color:'#5e6585',marginTop:2}}>기본급 {totalWage.toLocaleString()} + 주휴수당 {weeklyHoliday.toLocaleString()}</div>
+      <div style={{background:'rgba(52,211,153,0.08)',border:'1px solid rgba(52,211,153,0.2)',borderRadius:12,padding:'16px 20px',marginBottom:20}}>
+        <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start'}}>
+          <div style={{flex:1}}>
+            <div style={{fontSize:11,color:'#5e6585',marginBottom:6}}>💰 이번달 예상 급여</div>
+            <div style={{display:'flex',flexDirection:'column',gap:4}}>
+              <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+                <span style={{fontSize:11,color:'#5e6585'}}>세전 총액</span>
+                <span style={{fontSize:13,color:'#dde1f2',fontFamily:'DM Mono,monospace'}}>{totalPay.toLocaleString()}원</span>
+              </div>
+              {deduction.total > 0 && (
+                <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+                  <span style={{fontSize:11,color:'#5e6585'}}>
+                    공제 ({employType==='part'?'3.3% 원천징수':'4대보험'})
+                  </span>
+                  <span style={{fontSize:13,color:'#f87171',fontFamily:'DM Mono,monospace'}}>-{deduction.total.toLocaleString()}원</span>
+                </div>
+              )}
+              <div style={{borderTop:'1px solid rgba(52,211,153,0.2)',paddingTop:6,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+                <span style={{fontSize:12,fontWeight:700,color:'#34d399'}}>실수령액</span>
+                <span style={{fontSize:22,fontWeight:700,color:'#34d399',fontFamily:'DM Mono,monospace'}}>{netPay.toLocaleString()}원</span>
+              </div>
+              <div style={{fontSize:10,color:'#5e6585'}}>
+                기본급 {totalWage.toLocaleString()} + 주휴수당 {weeklyHoliday.toLocaleString()}
+              </div>
+            </div>
+          </div>
+          <div style={{fontSize:32,marginLeft:16}}>💵</div>
         </div>
-        <div style={{fontSize:32}}>💵</div>
       </div>
 
       {loading ? <div style={{textAlign:'center',color:'#5e6585',padding:40}}>로딩 중...</div> : (
