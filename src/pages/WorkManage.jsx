@@ -81,7 +81,8 @@ usersSnap.forEach(d => {
             wage:data.wage||10030,
             wageHistory:data.wageHistory||[],
             workDays:data.workDays||[1,2,3,4,5],
-            avgHours:data.avgHours||8
+            avgHours:data.avgHours||8,
+            holidayBase:data.holidayBase||'contract'
           })
         }
       })
@@ -145,6 +146,7 @@ function getEmpStats(emp) {
     const wage = getWageForMonth(emp, curMonth)
     const workDays = emp.workDays || [1,2,3,4,5]
     const avgHours = emp.avgHours || 8
+    const holidayBase = emp.holidayBase || 'contract'
     const days = daysIn(curMonth)
     const [cy,cm] = curMonth.split('-').map(Number)
 
@@ -195,7 +197,9 @@ function getEmpStats(emp) {
           }
         }
 
-        weeklyHoliday = calcWeeklyHoliday(weekH, wage, workDays, weekAttendance, weekMemos, avgHours)
+        // 실제근무 기준이면 실제 근무시간으로 주휴 계산
+        const holidayHours = holidayBase==='actual' ? weekH / workDays.length : avgHours
+        weeklyHoliday = calcWeeklyHoliday(weekH, wage, workDays, weekAttendance, weekMemos, holidayHours)
         totalWeeklyHoliday += weeklyHoliday
       }
 
