@@ -109,7 +109,6 @@ export default function Members() {
   async function load() {
     setLoading(true)
     try {
-      // users 컬렉션에서 승인된 직원만 불러오기
       const snap = await getDocs(collection(db,'users'))
       const list = []
       snap.forEach(d => {
@@ -131,22 +130,29 @@ export default function Members() {
     if(!form.name?.trim()) return alert('이름을 입력해주세요')
     setSaving(true)
     try {
-      // users 컬렉션 업데이트
-const now = new Date()
+      const now = new Date()
       const thisMonth = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`
 
       // 기존 wageHistory 불러오기
       const userSnap = await getDoc(doc(db,'users',form.uid))
       const existingHistory = userSnap.exists() ? userSnap.data().wageHistory || [] : []
+      const oldWage = userSnap.exists() ? (userSnap.data().wage || 10030) : 10030
+      const newWage = +form.wage || 10030
 
-      // 이번달 기록이 이미 있으면 업데이트, 없으면 추가
+      // 이번달 이전 기록이 없고 시급이 변경된 경우
+      // → 입사월부터 이전 시급으로 기록해 소급 적용 방지
+      const hasPriorHistory = existingHistory.some(h => h.month < thisMonth)
       const newHistory = existingHistory.filter(h => h.month !== thisMonth)
-      newHistory.push({ month: thisMonth, wage: +form.wage || 10030 })
+      if (!hasPriorHistory && oldWage !== newWage) {
+        const joinMonth = form.joinDate ? form.joinDate.slice(0,7) : '2022-10'
+        newHistory.push({ month: joinMonth, wage: oldWage })
+      }
+      newHistory.push({ month: thisMonth, wage: newWage })
       newHistory.sort((a,b) => a.month > b.month ? 1 : -1)
 
       await setDoc(doc(db,'users',form.uid), {
         name: form.name,
-        wage: +form.wage || 10030,
+        wage: newWage,
         joinDate: form.joinDate || '',
         phone: form.phone || '',
         email: form.email || '',
@@ -163,7 +169,7 @@ const now = new Date()
       const metaSnap = await getDoc(metaRef)
       if(metaSnap.exists()) {
         const list = metaSnap.data().list || []
-        const updated = list.map(e => e.uid===form.uid ? {...e, wage:+form.wage||10030, name:form.name} : e)
+        const updated = list.map(e => e.uid===form.uid ? {...e, wage:newWage, name:form.name} : e)
         await setDoc(metaRef, {list:updated})
       }
 
@@ -173,14 +179,16 @@ const now = new Date()
     } catch(e) { console.error(e) }
     setSaving(false)
   }
-async function deleteMember(uid) {
-  if(!window.confirm('정말 삭제하시겠습니까?\n해당 직원의 로그인 계정은 유지되지만\n인원관리 목록에서 제외됩니다.')) return
-  try {
-    const { deleteDoc } = await import('firebase/firestore')
-    await setDoc(doc(db,'users',uid), {status:'deleted'}, {merge:true})
-    setMembers(m => m.filter(x=>x.uid!==uid))
-  } catch(e) { console.error(e) }
-}
+
+  async function deleteMember(uid) {
+    if(!window.confirm('정말 삭제하시겠습니까?\n해당 직원의 로그인 계정은 유지되지만\n인원관리 목록에서 제외됩니다.')) return
+    try {
+      const { deleteDoc } = await import('firebase/firestore')
+      await setDoc(doc(db,'users',uid), {status:'deleted'}, {merge:true})
+      setMembers(m => m.filter(x=>x.uid!==uid))
+    } catch(e) { console.error(e) }
+  }
+
   function editMember(m) {
     setForm({
       ...m,
@@ -220,15 +228,15 @@ async function deleteMember(uid) {
               style={{background:'transparent',border:'none',color:'#5e6585',fontSize:18,cursor:'pointer'}}>✕</button>
           </div>
           <div style={{padding:18,display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(180px,1fr))',gap:12}}>
-{[
-  ['이름','text','name',form.name||''],
-  ['입사일','date','joinDate',form.joinDate||''],
-  ['연락처','text','phone',form.phone||''],
-  ['계좌번호','text','account',form.account||''],
-  ['주민등록번호','text','ssn',form.ssn||''],
-  ['시급','number','wage',form.wage||10030],
-  ['평균근무시간(h/일)','number','avgHours',form.avgHours||8],
-].map(([label,type,key,val])=>(
+            {[
+              ['이름','text','name',form.name||''],
+              ['입사일','date','joinDate',form.joinDate||''],
+              ['연락처','text','phone',form.phone||''],
+              ['계좌번호','text','account',form.account||''],
+              ['주민등록번호','text','ssn',form.ssn||''],
+              ['시급','number','wage',form.wage||10030],
+              ['평균근무시간(h/일)','number','avgHours',form.avgHours||8],
+            ].map(([label,type,key,val])=>(
               <div key={key} style={{display:'flex',flexDirection:'column',gap:4}}>
                 <label style={{fontSize:10,color:'#5e6585',fontWeight:600}}>{label}</label>
                 <input type={type} value={val} onChange={e=>setF(key,e.target.value)}
@@ -236,12 +244,13 @@ async function deleteMember(uid) {
               </div>
             ))}
           </div>
+
           {/* 소정근로일 설정 */}
           <div style={{padding:'0 18px 14px'}}>
             <label style={{fontSize:10,color:'#5e6585',fontWeight:600,display:'block',marginBottom:8}}>소정근로일 (주휴수당 기준)</label>
             <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
               {['월','화','수','목','금','토','일'].map((day,i)=>{
-                const idx = i+1===7 ? 0 : i+1 // 0=일,1=월...6=토
+                const idx = i+1===7 ? 0 : i+1
                 const workDays = form.workDays || [1,2,3,4,5]
                 const checked = workDays.includes(idx)
                 return (
@@ -292,6 +301,7 @@ async function deleteMember(uid) {
               })}
             </div>
           </div>
+
           <div style={{padding:'0 18px 18px',display:'flex',gap:8}}>
             <button onClick={save} disabled={saving}
               style={{background:'#f9b934',color:'#000',border:'none',borderRadius:8,padding:'9px 20px',fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
@@ -314,9 +324,9 @@ async function deleteMember(uid) {
               <span style={{fontSize:11}}>스케쥴 탭에서 직원 가입 신청을 승인해주세요.</span>
             </div>
           )}
-{members.map(m=>(
-  <MemberCard key={m.uid} m={m} onEdit={editMember} onDelete={deleteMember}/>
-))}
+          {members.map(m=>(
+            <MemberCard key={m.uid} m={m} onEdit={editMember} onDelete={deleteMember}/>
+          ))}
         </div>
       )}
     </div>
