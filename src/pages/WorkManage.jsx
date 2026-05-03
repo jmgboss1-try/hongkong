@@ -46,6 +46,23 @@ function calcWeeklyHoliday(weekHours, wage, workDays, weekAttendance, weekMemos,
   return 0
 }
 
+function calcDeduction(totalPay, employType) {
+  if(employType === 'none') return { tax:0, pension:0, health:0, employ:0, care:0, total:0 }
+
+  if(employType === 'part') {
+    const tax = Math.round(totalPay * 0.033)
+    return { tax, pension:0, health:0, employ:0, care:0, total:tax }
+  }
+
+  // 정직원 4대보험
+  const pension = Math.round(totalPay * 0.045)   // 국민연금 4.5%
+  const health  = Math.round(totalPay * 0.03545) // 건강보험 3.545%
+  const employ  = Math.round(totalPay * 0.009)   // 고용보험 0.9%
+  const care    = Math.round(health   * 0.1295)  // 장기요양 건강보험의 12.95%
+  const total   = pension + health + employ + care
+  return { tax:0, pension, health, employ, care, total }
+}
+
 export default function WorkManage() {
   const [curMonth, setCurMonth] = useState(() => {
     const now = new Date()
@@ -79,7 +96,8 @@ usersSnap.forEach(d => {
             wageHistory:data.wageHistory||[],
             workDays:data.workDays||[1,2,3,4,5],
             avgHours:data.avgHours||8,
-            holidayBase:data.holidayBase||'contract'
+            holidayBase:data.holidayBase||'contract',
+            employType:data.employType||'part'
           })
         }
       })
@@ -210,8 +228,10 @@ function getEmpStats(emp) {
     const totalH = totalHours + totalMins/60
     const basePay = Math.round(totalH * wage)
     const totalPay = basePay + totalWeeklyHoliday
+    const deduction = calcDeduction(totalPay, emp.employType||'part')
+    const netPay = totalPay - deduction.total
 
-    return { totalHours, totalMins, totalH, basePay, totalWeeklyHoliday, totalPay, rows }
+    return { totalHours, totalMins, totalH, basePay, totalWeeklyHoliday, totalPay, deduction, netPay, rows }
   }
 
   const allStats = employees.map(e => ({ emp:e, ...getEmpStats(e) }))
@@ -328,13 +348,43 @@ function getEmpStats(emp) {
                     {label:'총 근무시간', val:`${totalHours}h ${totalMins>0?totalMins+'m':''}`, color:'#f9b934'},
                     {label:'기본급', val:`${basePay.toLocaleString()}원`, color:'#dde1f2'},
                     {label:'주휴수당', val:`${totalWeeklyHoliday.toLocaleString()}원`, color:'#93c5fd'},
-                    {label:'이달 월급', val:`${totalPay.toLocaleString()}원`, color:'#34d399'},
+                    {label:'세전 총액', val:`${totalPay.toLocaleString()}원`, color:'#34d399'},
                   ].map(k=>(
                     <div key={k.label} style={{background:'#191c2b',borderRadius:8,padding:'10px 12px'}}>
                       <div style={{fontSize:10,color:'#5e6585',marginBottom:3}}>{k.label}</div>
                       <div style={{fontSize:13,fontWeight:700,color:k.color,fontFamily:'DM Mono,monospace'}}>{k.val}</div>
                     </div>
                   ))}
+                </div>
+
+                {/* 공제 및 실수령액 */}
+                <div style={{padding:'14px 18px',borderBottom:'1px solid #272a3d'}}>
+                  <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',flexWrap:'wrap',gap:10}}>
+                    <div style={{display:'flex',flexDirection:'column',gap:6}}>
+                      <div style={{fontSize:11,fontWeight:600,color:'#5e6585',marginBottom:4}}>
+                        공제 내역 ({emp.employType==='part'?'3.3% 원천징수':emp.employType==='full'?'4대보험':'공제없음'})
+                      </div>
+                      {emp.employType==='part' && (
+                        <div style={{fontSize:12,color:'#f87171'}}>원천징수세: -{deduction.tax.toLocaleString()}원</div>
+                      )}
+                      {emp.employType==='full' && (
+                        <>
+                          <div style={{fontSize:12,color:'#f87171'}}>국민연금 (4.5%): -{deduction.pension.toLocaleString()}원</div>
+                          <div style={{fontSize:12,color:'#f87171'}}>건강보험 (3.545%): -{deduction.health.toLocaleString()}원</div>
+                          <div style={{fontSize:12,color:'#f87171'}}>고용보험 (0.9%): -{deduction.employ.toLocaleString()}원</div>
+                          <div style={{fontSize:12,color:'#f87171'}}>장기요양 (건강보험×12.95%): -{deduction.care.toLocaleString()}원</div>
+                        </>
+                      )}
+                      {emp.employType==='none' && (
+                        <div style={{fontSize:12,color:'#5e6585'}}>공제 없음</div>
+                      )}
+                    </div>
+                    <div style={{background:'rgba(52,211,153,0.08)',border:'1px solid rgba(52,211,153,0.2)',borderRadius:10,padding:'14px 20px',textAlign:'right'}}>
+                      <div style={{fontSize:11,color:'#5e6585',marginBottom:4}}>실수령액</div>
+                      <div style={{fontSize:22,fontWeight:700,color:'#34d399',fontFamily:'DM Mono,monospace'}}>{netPay.toLocaleString()}원</div>
+                      <div style={{fontSize:10,color:'#5e6585',marginTop:4}}>공제 합계: -{deduction.total.toLocaleString()}원</div>
+                    </div>
+                  </div>
                 </div>
 
                 {/* 테이블 */}
@@ -441,12 +491,17 @@ function getEmpStats(emp) {
                         <td style={{padding:'12px 10px',textAlign:'center',fontWeight:700,color:'#f9b934',fontFamily:'DM Mono,monospace'}}>{totalMins>0?`${totalMins}m`:'—'}</td>
                         <td style={{padding:'12px 10px',textAlign:'center',fontWeight:700,color:'#93c5fd',fontFamily:'DM Mono,monospace'}}>{totalWeeklyHoliday.toLocaleString()}원</td>
                         <td style={{padding:'12px 10px'}}>
-                          <span style={{color:'#34d399',fontWeight:700,fontFamily:'DM Mono,monospace',fontSize:14}}>
-                            월급 {totalPay.toLocaleString()}원
-                          </span>
-                          <span style={{color:'#5e6585',fontSize:10,marginLeft:8}}>
-                            (기본급 {basePay.toLocaleString()} + 주휴 {totalWeeklyHoliday.toLocaleString()})
-                          </span>
+                          <div style={{display:'flex',flexDirection:'column',gap:2}}>
+                            <span style={{color:'#5e6585',fontSize:11}}>
+                              세전 {totalPay.toLocaleString()}원
+                            </span>
+                            <span style={{color:'#34d399',fontWeight:700,fontFamily:'DM Mono,monospace',fontSize:14}}>
+                              실수령 {netPay.toLocaleString()}원
+                            </span>
+                            <span style={{color:'#f87171',fontSize:10}}>
+                              공제 -{deduction.total.toLocaleString()}원
+                            </span>
+                          </div>
                         </td>
                       </tr>
                     </tfoot>
