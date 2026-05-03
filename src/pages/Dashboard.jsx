@@ -59,12 +59,14 @@ usersSnap.forEach(d => {
           const data = d.data()
           if(data.status==='approved' && data.role!=='owner') {
             emps.push({
-              uid:d.id,
-              name:data.name,
-              wage:data.wage||10030,
-              wageHistory:data.wageHistory||[],
-              workDays:data.workDays||[1,2,3,4,5]
-            })
+            uid:d.id,
+            name:data.name,
+            wage:data.wage||10030,
+            wageHistory:data.wageHistory||[],
+            workDays:data.workDays||[1,2,3,4,5],
+            avgHours:data.avgHours||8,
+            holidayBase:data.holidayBase||'contract'
+          })
           }
         })
         setStaff(emps)
@@ -104,6 +106,8 @@ const stats = {}
           const pEx = prevExData[emp.uid] || {}
           const pMemos = prevMemoData[emp.uid] || {}
           const workDays = emp.workDays || [1,2,3,4,5]
+          const avgHours = emp.avgHours || 8
+          const holidayBase = emp.holidayBase || 'contract'
           const wage = getWageForMonth(emp, curMonth)
 
           let totalHours = 0
@@ -148,7 +152,8 @@ const stats = {}
                 const absentDays = workDays.filter(d => (weekAttendance[d]||0) === 0)
                 const subCount = Object.values(weekMemos).filter(m => m&&m.includes('대타')).length
                 if(absentDays.length === 0 || subCount >= absentDays.length) {
-                  totalWeeklyHoliday += Math.round((weekH/40)*8*wage)
+                  const holidayHours = holidayBase==='actual' ? weekH / workDays.length : avgHours
+                  totalWeeklyHoliday += Math.round(holidayHours * wage)
                 }
               }
             }
