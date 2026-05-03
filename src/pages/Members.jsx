@@ -154,6 +154,7 @@ const now = new Date()
         ssn: form.ssn || '',
         avgHours: +form.avgHours || 8,
         workDays: form.workDays || [1,2,3,4,5],
+        holidayBase: form.holidayBase || 'contract',
         wageHistory: newHistory,
       }, {merge:true})
 
@@ -264,6 +265,31 @@ async function deleteMember(uid) {
             </div>
             <div style={{fontSize:10,color:'#5e6585',marginTop:6}}>
               주 {Array.isArray(form.workDays)?form.workDays.length:5}일 소정근로 · 이 날 중 하루라도 결근시 주휴 미지급
+            </div>
+          </div>
+
+          {/* 주휴 계산 기준 */}
+          <div style={{padding:'0 18px 14px'}}>
+            <label style={{fontSize:10,color:'#5e6585',fontWeight:600,display:'block',marginBottom:8}}>
+              주휴수당 계산 기준
+            </label>
+            <div style={{display:'flex',gap:8}}>
+              {[
+                {key:'contract', label:'📋 소정근로 기준', desc:'법적 기준 (계약시간)'},
+                {key:'actual',   label:'⭐ 실제근무 기준', desc:'복지 적용 (실제시간)'},
+              ].map(opt=>{
+                const selected = (form.holidayBase||'contract') === opt.key
+                return (
+                  <div key={opt.key} onClick={()=>setF('holidayBase', opt.key)}
+                    style={{flex:1,padding:'10px 14px',borderRadius:8,cursor:'pointer',
+                      background:selected?'rgba(249,185,52,0.12)':'#191c2b',
+                      border:selected?'1px solid #f9b934':'1px solid #272a3d',
+                      transition:'.15s'}}>
+                    <div style={{fontSize:12,fontWeight:600,color:selected?'#f9b934':'#5e6585',marginBottom:3}}>{opt.label}</div>
+                    <div style={{fontSize:10,color:'#5e6585'}}>{opt.desc}</div>
+                  </div>
+                )
+              })}
             </div>
           </div>
           <div style={{padding:'0 18px 18px',display:'flex',gap:8}}>
