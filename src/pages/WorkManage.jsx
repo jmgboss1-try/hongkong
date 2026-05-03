@@ -238,6 +238,8 @@ function getEmpStats(emp) {
   const grandBase = allStats.reduce((a,s)=>a+s.basePay,0)
   const grandHoliday = allStats.reduce((a,s)=>a+s.totalWeeklyHoliday,0)
   const grandTotal = allStats.reduce((a,s)=>a+s.totalPay,0)
+  const grandNet = allStats.reduce((a,s)=>a+(s.netPay||s.totalPay),0)
+  const grandDeduction = allStats.reduce((a,s)=>a+(s.deduction?.total||0),0)
 
   return (
     <div>
@@ -258,7 +260,7 @@ function getEmpStats(emp) {
           {label:'기본급 합계', val:grandBase, color:'#f9b934'},
           {label:'주휴수당 합계', val:grandHoliday, color:'#93c5fd'},
           {label:'총 세전 인건비', val:grandTotal, color:'#5e6585'},
-          {label:'총 세후 인건비', val:allStats.reduce((a,s)=>a+s.netPay,0), color:'#34d399'},
+          {label:'총 세후 인건비', val:grandNet, color:'#34d399'},
         ].map(k=>(
           <div key={k.label} style={{background:'#12141f',border:'1px solid #272a3d',borderRadius:12,padding:'18px 20px',position:'relative',overflow:'hidden'}}>
             <div style={{position:'absolute',top:0,left:0,right:0,height:3,background:k.color}}></div>
@@ -324,8 +326,8 @@ function getEmpStats(emp) {
                       <td style={{padding:'10px 14px',textAlign:'right',fontWeight:700,color:'#f9b934',fontFamily:'DM Mono,monospace'}}>{grandBase.toLocaleString()}</td>
                       <td style={{padding:'10px 14px',textAlign:'right',fontWeight:700,color:'#f9b934',fontFamily:'DM Mono,monospace'}}>{grandHoliday.toLocaleString()}</td>
                       <td style={{padding:'10px 14px',textAlign:'right',fontWeight:700,color:'#5e6585',fontFamily:'DM Mono,monospace'}}>{grandTotal.toLocaleString()}</td>
-                      <td style={{padding:'10px 14px',textAlign:'right',fontWeight:700,color:'#f87171',fontFamily:'DM Mono,monospace'}}>-{allStats.reduce((a,s)=>a+s.deduction.total,0).toLocaleString()}</td>
-                      <td style={{padding:'10px 14px',textAlign:'right',fontWeight:700,color:'#34d399',fontFamily:'DM Mono,monospace'}}>{allStats.reduce((a,s)=>a+s.netPay,0).toLocaleString()}</td>
+                      <td style={{padding:'10px 14px',textAlign:'right',fontWeight:700,color:'#f87171',fontFamily:'DM Mono,monospace'}}>-{grandDeduction.toLocaleString()}</td>
+                      <td style={{padding:'10px 14px',textAlign:'right',fontWeight:700,color:'#34d399',fontFamily:'DM Mono,monospace'}}>{grandNet.toLocaleString()}</td>
                     </tr>
                   </tfoot>
                 </table>
