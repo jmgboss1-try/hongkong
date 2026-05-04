@@ -26,6 +26,7 @@ export default function Layout({ children }) {
     { path:'/payroll',      icon:'📄', label:'인건비' },
     { path:'/notice',       icon:'📋', label:'공지·메모' },
     { path:'/order',        icon:'📦', label:'발주요청' },
+    { path:'/inventory',    icon:'🗃️', label:'재고관리' },
   ]
 
 const staffMenus = [
