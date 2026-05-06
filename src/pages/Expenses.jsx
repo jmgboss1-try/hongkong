@@ -44,6 +44,7 @@ export default function Expenses() {
   const [day, setDay] = useState(getNowDD)
   const [form, setForm] = useState({})
   const [deposit, setDeposit] = useState('') // 실입금액
+  const [carryover, setCarryover] = useState('') // 이월 잔액
 
   const days = daysIn(curMonth)
   const monthOpts = []
@@ -57,7 +58,14 @@ export default function Expenses() {
     setLoading(true)
     try {
       const snap = await getDoc(doc(db,'expenses',curMonth))
-      setData(snap.exists() ? snap.data() : {})
+      if(snap.exists()) {
+        const d = snap.data()
+        setData(d)
+        setCarryover(d.carryover||'')
+      } else {
+        setData({})
+        setCarryover('')
+      }
     } catch(e) { console.error(e) }
     setLoading(false)
   }
@@ -94,6 +102,15 @@ export default function Expenses() {
     setSaving(false)
   }
 
+  async function saveCarryover() {
+    try {
+      const newData = { ...data, carryover: +carryover||0 }
+      await setDoc(doc(db,'expenses',curMonth), newData)
+      setData(newData)
+      alert('이월 잔액이 저장됐습니다!')
+    } catch(e) { console.error(e) }
+  }
+
   async function del_row(dd) {
     if(!window.confirm(`${+dd}일 지출 내역을 삭제하시겠습니까?`)) return
     const newData = { ...data }
@@ -110,6 +127,8 @@ export default function Expenses() {
   const grand = Object.values(tot).reduce((a,b)=>a+b,0)
   const totalDeposit = Object.values(data).reduce((a,e)=>a+(e.deposit||0),0)
   const realProfit = totalDeposit - grand
+  const carryoverAmt = data.carryover || 0
+  const currentBalance = carryoverAmt + totalDeposit - grand
 
   const inp = (id) => (
     <input type="number" value={form[id]||''} onChange={e=>setForm(p=>({...p,[id]:e.target.value}))}
@@ -148,17 +167,17 @@ export default function Expenses() {
       </div>
 
       {/* 월별 실수익 요약 */}
-      <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:12,marginBottom:18}}>
+      <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:12,marginBottom:18}}>
         {[
-          {label:'총 실입금액', val:totalDeposit, color:'#34d399'},
-          {label:'총 지출',     val:grand,         color:'#f87171'},
-          {label:'월 실수익',   val:realProfit,    color: realProfit>=0?'#f9b934':'#f87171'},
+          {label:'전월 이월 잔액', val:carryoverAmt, color:'#93c5fd'},
+          {label:'총 실입금액',   val:totalDeposit,  color:'#34d399'},
+          {label:'총 지출',       val:grand,          color:'#f87171'},
+          {label:'현재 잔액',     val:currentBalance, color:currentBalance>=0?'#f9b934':'#f87171'},
         ].map(k=>(
           <div key={k.label} style={{background:'#12141f',border:'1px solid #272a3d',borderRadius:12,padding:'14px 16px',position:'relative',overflow:'hidden'}}>
             <div style={{position:'absolute',top:0,left:0,right:0,height:3,background:k.color}}></div>
             <div style={{fontSize:10,fontWeight:600,color:'#5e6585',marginBottom:6}}>{k.label}</div>
             <div style={{fontSize:18,fontWeight:700,color:k.color,fontFamily:'DM Mono,monospace'}}>
-              {realProfit<0&&k.label==='월 실수익'?'':''}
               {k.val.toLocaleString()}원
             </div>
           </div>
@@ -169,6 +188,28 @@ export default function Expenses() {
       <div style={{background:'#12141f',border:'1px solid #272a3d',borderRadius:12,marginBottom:18}}>
         <div style={{padding:'14px 18px',borderBottom:'1px solid #272a3d',fontSize:13,fontWeight:600}}>지출 입력</div>
         <div style={{padding:18}}>
+
+          {/* 이월 잔액 설정 */}
+          <div style={{background:'rgba(147,197,253,0.08)',border:'1px solid rgba(147,197,253,0.2)',borderRadius:10,padding:'14px 16px',marginBottom:16}}>
+            <label style={{fontSize:11,fontWeight:700,color:'#93c5fd',display:'block',marginBottom:8}}>
+              💳 전월 이월 잔액
+            </label>
+            <div style={{display:'flex',gap:10,alignItems:'center'}}>
+              <input type="number" value={carryover} onChange={e=>setCarryover(e.target.value)}
+                placeholder="전달에서 이월된 계좌 잔액"
+                style={{flex:1,background:'#191c2b',border:'1px solid rgba(147,197,253,0.3)',borderRadius:7,
+                  color:'#93c5fd',padding:'10px 12px',fontSize:14,outline:'none',
+                  fontFamily:'DM Mono,monospace',fontWeight:700}}/>
+              <button onClick={saveCarryover}
+                style={{background:'#93c5fd',color:'#000',border:'none',borderRadius:7,
+                  padding:'10px 16px',fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'inherit',whiteSpace:'nowrap'}}>
+                저장
+              </button>
+            </div>
+            <div style={{fontSize:10,color:'#5e6585',marginTop:6}}>
+              이월잔액 {carryoverAmt.toLocaleString()}원 + 실입금 {totalDeposit.toLocaleString()}원 - 지출 {grand.toLocaleString()}원 = 현재잔액 <span style={{color:currentBalance>=0?'#f9b934':'#f87171',fontWeight:700}}>{currentBalance.toLocaleString()}원</span>
+            </div>
+          </div>
 
           {/* 날짜 선택 */}
           <div style={{marginBottom:16}}>
