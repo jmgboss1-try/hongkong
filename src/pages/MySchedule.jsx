@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { db } from '../firebase'
-import { doc, getDoc, collection, query, where, getDocs } from 'firebase/firestore'
+import { doc, getDoc, setDoc, collection, query, where, getDocs } from 'firebase/firestore'
 import { useAuth, GradeBadge } from '../AuthContext'
 
 const pad = n => String(n).padStart(2,'0')
@@ -29,10 +29,12 @@ export default function MySchedule() {
     return `${now.getFullYear()}-${pad(now.getMonth()+1)}`
   })
   const [workHours, setWorkHours] = useState({}) // 사장이 입력한 근무시간
+  const [workExtra, setWorkExtra] = useState({}) // 추가근무(분)
   const [events, setEvents] = useState({})
   const [wage, setWage] = useState(10030)
 const [employType, setEmployType] = useState('part')
-const [loading, setLoading] = useState(true)
+  const [payroll, setPayroll] = useState(null)
+  const [loading, setLoading] = useState(true)
 
   const now = new Date()
   const curYM = `${now.getFullYear()}-${pad(now.getMonth()+1)}`
@@ -57,9 +59,19 @@ const [loading, setLoading] = useState(true)
         const whData = whSnap.exists() ? whSnap.data() : {}
         setWorkHours(whData[user.uid] || {})
 
+        // 추가근무(분)
+        const exSnap = await getDoc(doc(db,'workextra',curMonth))
+        const exData = exSnap.exists() ? exSnap.data() : {}
+        setWorkExtra(exData[user.uid] || {})
+
         // 매장 이벤트
         const evSnap = await getDoc(doc(db,'events',curMonth))
         setEvents(evSnap.exists() ? evSnap.data() : {})
+
+        // 급여 확인
+        const prSnap = await getDoc(doc(db,'payroll',curMonth))
+        if(prSnap.exists()) setPayroll(prSnap.data()[user.uid]||null)
+        else setPayroll(null)
 
       } catch(e) { console.error(e) }
       setLoading(false)
@@ -71,10 +83,16 @@ const [loading, setLoading] = useState(true)
   const [cy,cm] = curMonth.split('-').map(Number)
   const firstDow = new Date(cy,cm-1,1).getDay()
 
-  // 통계 계산
-  const workDays = Object.keys(workHours).filter(d=>workHours[d]>0)
+  // 통계 계산 (추가근무 포함)
+  const allDays = new Set([
+    ...Object.keys(workHours).filter(d=>workHours[d]>0),
+    ...Object.keys(workExtra).filter(d=>workExtra[d]>0)
+  ])
+  const workDays = [...allDays].sort()
   const totalHours = workDays.reduce((a,d)=>a+(workHours[d]||0),0)
-  const totalWage = Math.round(totalHours * wage)
+  const totalMins = workDays.reduce((a,d)=>a+(workExtra[d]||0),0)
+  const totalH = totalHours + totalMins/60
+  const totalWage = Math.round(totalH * wage)
 
   // 주휴수당
   let weeklyHoliday = 0
@@ -98,6 +116,35 @@ const [loading, setLoading] = useState(true)
     if(h <= 4) return { bg:'rgba(147,197,253,0.2)', border:'#93c5fd', text:'#93c5fd' }
     if(h <= 6) return { bg:'rgba(249,185,52,0.2)', border:'#f9b934', text:'#f9b934' }
     return { bg:'rgba(52,211,153,0.2)', border:'#34d399', text:'#34d399' }
+  }
+
+  async function checkPayroll() {
+    if(!payroll?.confirmedByOwner) return
+    try {
+      const prSnap = await getDoc(doc(db,'payroll',curMonth))
+      if(prSnap.exists()) {
+        const newPayroll = { ...prSnap.data(), [user.uid]: { ...(prSnap.data()[user.uid]||{}), checkedByEmp:true, checkedAt:new Date().toISOString() }}
+        await setDoc(doc(db,'payroll',curMonth), newPayroll)
+        setPayroll(p=>({...p, checkedByEmp:true}))
+        alert('급여 내역을 확인했습니다!')
+      }
+    } catch(e) { console.error(e) }
+  }
+
+  async function sendInquiry(msg) {
+    if(!msg.trim()) return
+    try {
+      const prSnap = await getDoc(doc(db,'payroll',curMonth))
+      if(prSnap.exists()) {
+        const newPayroll = { ...prSnap.data(), [user.uid]: {
+          ...(prSnap.data()[user.uid]||{}),
+          inquiry: { message:msg.trim(), createdAt:new Date().toISOString(), resolved:false }
+        }}
+        await setDoc(doc(db,'payroll',curMonth), newPayroll)
+        setPayroll(p=>({...p, inquiry:{message:msg.trim(), createdAt:new Date().toISOString(), resolved:false}}))
+        alert('문의가 전송됐습니다!')
+      }
+    } catch(e) { console.error(e) }
   }
 
   return (
@@ -167,6 +214,71 @@ const [loading, setLoading] = useState(true)
         </div>
       </div>
 
+      {/* 급여 확인 섹션 */}
+      {payroll?.confirmedByOwner && (
+        <div style={{background:'#12141f',border:`1px solid ${payroll.checkedByEmp?'#34d399':'#f9b934'}`,borderRadius:12,padding:'18px',marginBottom:20}}>
+          <div style={{fontSize:13,fontWeight:600,marginBottom:12}}>
+            💸 {mLabel(curMonth)} 확정 급여
+          </div>
+          <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',flexWrap:'wrap',gap:10}}>
+            <div>
+              <div style={{fontSize:11,color:'#5e6585',marginBottom:4}}>
+                기본급 {(payroll.basePay||0).toLocaleString()} + 주휴 {(payroll.weeklyHoliday||0).toLocaleString()}
+              </div>
+              <div style={{fontSize:11,color:'#5e6585',marginBottom:4}}>
+                세전 {(payroll.totalPay||0).toLocaleString()}원
+                {(payroll.deduction?.total||0)>0 && (
+                  <span style={{color:'#f87171',marginLeft:6}}>-{(payroll.deduction?.total||0).toLocaleString()}원</span>
+                )}
+              </div>
+              <div style={{fontSize:20,fontWeight:700,color:'#34d399',fontFamily:'DM Mono,monospace'}}>
+                실수령 {(payroll.netPay||payroll.totalPay||0).toLocaleString()}원
+              </div>
+            </div>
+            <div style={{display:'flex',flexDirection:'column',gap:8,alignItems:'flex-end'}}>
+              {!payroll.checkedByEmp && !payroll.inquiry && (
+                <button onClick={checkPayroll}
+                  style={{background:'#34d399',color:'#000',border:'none',borderRadius:8,
+                    padding:'10px 20px',fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
+                  ✅ 급여 확인
+                </button>
+              )}
+              {!payroll.checkedByEmp && !payroll.inquiry && (
+                <button onClick={()=>{
+                  const msg = window.prompt('문의 내용을 입력해주세요')
+                  if(msg) sendInquiry(msg)
+                }}
+                  style={{background:'transparent',border:'1px solid #f87171',color:'#f87171',borderRadius:8,
+                    padding:'8px 16px',fontSize:11,cursor:'pointer',fontFamily:'inherit'}}>
+                  📨 문의하기
+                </button>
+              )}
+              {payroll.checkedByEmp && (
+                <span style={{fontSize:11,color:'#34d399',fontWeight:600}}>✅ 확인 완료</span>
+              )}
+              {payroll.inquiry && !payroll.inquiry.resolved && (
+                <div style={{textAlign:'right'}}>
+                  <div style={{fontSize:11,color:'#f87171',marginBottom:4}}>📨 문의 중...</div>
+                  {payroll.inquiry.ownerReply && (
+                    <div style={{background:'rgba(249,185,52,0.08)',border:'1px solid rgba(249,185,52,0.2)',
+                      borderRadius:8,padding:'8px 12px',fontSize:11,color:'#dde1f2',maxWidth:200,textAlign:'left'}}>
+                      사장님 답변: {payroll.inquiry.ownerReply}
+                    </div>
+                  )}
+                </div>
+              )}
+              {payroll.inquiry?.resolved && !payroll.checkedByEmp && (
+                <button onClick={checkPayroll}
+                  style={{background:'#34d399',color:'#000',border:'none',borderRadius:8,
+                    padding:'10px 20px',fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
+                  ✅ 급여 확인
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       {loading ? <div style={{textAlign:'center',color:'#5e6585',padding:40}}>로딩 중...</div> : (
         <>
           {/* 달력 */}
@@ -229,14 +341,20 @@ const [loading, setLoading] = useState(true)
                           </div>
                         )}
 
-                        {h>0 ? (
-                          <div style={{marginTop:'auto'}}>
-                            <div style={{fontSize:12,fontWeight:700,color:colors?.text,fontFamily:'DM Mono,monospace',textAlign:'center'}}>{h}h</div>
-                            <div style={{fontSize:9,color:'#5e6585',textAlign:'center'}}>{Math.round(h*wage).toLocaleString()}원</div>
-                          </div>
-                        ) : (
-                          <div style={{fontSize:8,color:'#272a3d',marginTop:'auto',textAlign:'center'}}>휴무</div>
-                        )}
+                        {(()=>{
+                          const ex = workExtra[dd]||0
+                          const totalDayH = h + ex/60
+                          return h>0||ex>0 ? (
+                            <div style={{marginTop:'auto'}}>
+                              <div style={{fontSize:12,fontWeight:700,color:colors?.text,fontFamily:'DM Mono,monospace',textAlign:'center'}}>
+                                {h}h{ex>0?` ${ex}m`:''}
+                              </div>
+                              <div style={{fontSize:9,color:'#5e6585',textAlign:'center'}}>{Math.round(totalDayH*wage).toLocaleString()}원</div>
+                            </div>
+                          ) : (
+                            <div style={{fontSize:8,color:'#272a3d',marginTop:'auto',textAlign:'center'}}>휴무</div>
+                          )
+                        })()}
                       </div>
                     )
                   })
@@ -261,8 +379,10 @@ const [loading, setLoading] = useState(true)
                   </tr>
                 </thead>
                 <tbody>
-                  {workDays.sort().map(dd=>{
+                  {workDays.map(dd=>{
                     const h = workHours[dd]||0
+                    const ex = workExtra[dd]||0
+                    const totalDayH = h + ex/60
                     const [y2,m2] = curMonth.split('-').map(Number)
                     const dow = new Date(y2,m2-1,+dd).getDay()
                     const dowLabel = DAYS_KR[dow]
@@ -275,12 +395,12 @@ const [loading, setLoading] = useState(true)
                         <td style={{padding:'10px 14px',borderBottom:'1px solid #272a3d',textAlign:'right'}}>
                           <span style={{background:colors?.bg,color:colors?.text,fontFamily:'DM Mono,monospace',
                             fontWeight:700,padding:'3px 10px',borderRadius:20,fontSize:12}}>
-                            {h}h
+                            {h}h{ex>0?` ${ex}m`:''}
                           </span>
                         </td>
                         <td style={{padding:'10px 14px',borderBottom:'1px solid #272a3d',textAlign:'right',
                           fontFamily:'DM Mono,monospace',color:'#f9b934',fontWeight:700}}>
-                          {Math.round(h*wage).toLocaleString()}원
+                          {Math.round(totalDayH*wage).toLocaleString()}원
                         </td>
                       </tr>
                     )
@@ -289,7 +409,7 @@ const [loading, setLoading] = useState(true)
                 <tfoot>
                   <tr style={{background:'#1f2236'}}>
                     <td colSpan={2} style={{padding:'10px 14px',fontWeight:700,color:'#f9b934'}}>합 계</td>
-                    <td style={{padding:'10px 14px',textAlign:'right',fontWeight:700,color:'#f9b934',fontFamily:'DM Mono,monospace'}}>{totalHours}h</td>
+                    <td style={{padding:'10px 14px',textAlign:'right',fontWeight:700,color:'#f9b934',fontFamily:'DM Mono,monospace'}}>{totalHours}h{totalMins>0?` ${totalMins}m`:''}</td>
                     <td style={{padding:'10px 14px',textAlign:'right',fontWeight:700,color:'#f9b934',fontFamily:'DM Mono,monospace'}}>{totalWage.toLocaleString()}원</td>
                   </tr>
                 </tfoot>
