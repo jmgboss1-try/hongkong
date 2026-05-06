@@ -48,9 +48,14 @@ const [rev, setRev] = useState({kiosk:0,del:0,pos:0,total:0})
         if(expSnap.exists()) {
           const d = expSnap.data()
           let hq=0,veg=0,oil=0,box=0,gas=0,elec=0,omg=0,rent=0,dfee=0,meal=0,sal=0,dep=0
-          Object.values(d).forEach(e=>{hq+=e.hq||0;veg+=e.veg||0;oil+=e.oil||0;box+=e.box||0;gas+=e.gas||0;elec+=e.elec||0;omg+=e.omg||0;rent+=e.rent||0;dfee+=e.dfee||0;meal+=e.meal||0;sal+=e.sal||0;dep+=e.deposit||0})
-          setExp({total:hq+veg+oil+box+gas+elec+omg+rent+dfee+meal+sal, mat:hq+veg+oil+box, mgmt:gas+elec+omg+rent+dfee, sal, deposit:dep})
-        } else setExp({total:0,mat:0,mgmt:0,sal:0,deposit:0})
+          const carryover = d.carryover || 0
+          Object.values(d).forEach(e=>{
+            if(typeof e !== 'object' || e===null) return
+            hq+=e.hq||0;veg+=e.veg||0;oil+=e.oil||0;box+=e.box||0;gas+=e.gas||0;elec+=e.elec||0;omg+=e.omg||0;rent+=e.rent||0;dfee+=e.dfee||0;meal+=e.meal||0;sal+=e.sal||0;dep+=e.deposit||0
+          })
+          const expTotal = hq+veg+oil+box+gas+elec+omg+rent+dfee+meal+sal
+          setExp({total:expTotal, mat:hq+veg+oil+box, mgmt:gas+elec+omg+rent+dfee, sal, deposit:dep, carryover, balance:carryover+dep-expTotal})
+        } else setExp({total:0,mat:0,mgmt:0,sal:0,deposit:0,carryover:0,balance:0})
 
         // 직원 목록 — users 컬렉션 기반
         const usersSnap = await getDocs(collection(db,'users'))
@@ -209,8 +214,8 @@ totalWeeklyHoliday += Math.round((holidayHours / 40) * 8 * wage)
             <KPI label="인건비" value={wonFmt(totalLaborCost)} note={`인건비율 ${pct(totalLaborCost,rev.total)}% · ${staff.length}명`} color="#93c5fd"/>
           </div>
           <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:14,marginBottom:20}}>
-            <KPI label="총 실입금액" value={wonFmt(exp.deposit||0)} note="수수료 제외 계좌 실입금" color="#34d399"/>
-            <KPI label="실수익" value={wonFmt(Math.abs((exp.deposit||0)-exp.total))} note={(exp.deposit||0)-exp.total>=0?'흑자 ▲':'적자 ▼'} color={(exp.deposit||0)-exp.total>=0?'#f9b934':'#f87171'}/>
+            <<KPI label="총 실입금액" value={wonFmt(exp.deposit||0)} note="수수료 제외 계좌 실입금" color="#34d399"/>
+            <KPI label="현재 계좌 잔액" value={wonFmt(Math.abs(exp.balance||0))} note={`이월 ${wonFmt(exp.carryover||0)} + 입금 - 지출`} color={(exp.balance||0)>=0?'#f9b934':'#f87171'}/>
             <KPI label="매출 기준 순이익" value={wonFmt(Math.abs(profit))} note={profit>=0?'흑자 ▲':'적자 ▼'} color={profit>=0?'#5e6585':'#f87171'}/>
           </div>
 
