@@ -35,6 +35,7 @@ const staffMenus = [
     { path:'/my-payroll',    icon:'💸', label:'내 급여' },
     { path:'/team',          icon:'👥', label:'팀원' },
     { path:'/cash',          icon:'💵', label:'현금시재' },
+    { path:'/revenue-input', icon:'💰', label:'매출입력' },
     { path:'/notice',        icon:'📋', label:'공지·메모' },
     { path:'/order',         icon:'📦', label:'발주요청' },
     ...(isLegend ? [{ path:'/expenses-input', icon:'📋', label:'지출입력' }] : []),
