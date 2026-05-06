@@ -214,7 +214,7 @@ totalWeeklyHoliday += Math.round((holidayHours / 40) * 8 * wage)
             <KPI label="인건비" value={wonFmt(totalLaborCost)} note={`인건비율 ${pct(totalLaborCost,rev.total)}% · ${staff.length}명`} color="#93c5fd"/>
           </div>
           <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:14,marginBottom:20}}>
-            <<KPI label="총 실입금액" value={wonFmt(exp.deposit||0)} note="수수료 제외 계좌 실입금" color="#34d399"/>
+            <KPI label="총 실입금액" value={wonFmt(exp.deposit||0)} note="수수료 제외 계좌 실입금" color="#34d399"/>
             <KPI label="현재 계좌 잔액" value={wonFmt(Math.abs(exp.balance||0))} note={`이월 ${wonFmt(exp.carryover||0)} + 입금 - 지출`} color={(exp.balance||0)>=0?'#f9b934':'#f87171'}/>
             <KPI label="매출 기준 순이익" value={wonFmt(Math.abs(profit))} note={profit>=0?'흑자 ▲':'적자 ▼'} color={profit>=0?'#5e6585':'#f87171'}/>
           </div>
