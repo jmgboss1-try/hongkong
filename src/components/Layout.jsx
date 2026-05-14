@@ -45,7 +45,6 @@ const staffMenus = [
     { path:'/revenue-input', icon:'💰', label:'매출입력' },
     { path:'/cash',          icon:'💵', label:'현금시재' },
     { path:'/notice',        icon:'📋', label:'공지·메모' },
-    { path:'/order',         icon:'📦', label:'발주요청' },
   ]
 
   const menus = isOwner ? ownerMenus : isStore ? storeMenus : staffMenus
