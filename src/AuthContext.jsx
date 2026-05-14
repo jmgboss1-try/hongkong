@@ -82,12 +82,12 @@ export function AuthProvider({ children }) {
     return () => unsub()
   }, [])
 
-  const isOwner = userData?.role === 'owner'
+const isOwner = userData?.role === 'owner'
+  const isStore = userData?.role === 'store'
   const isPending = userData?.status === 'pending'
   const isLegend = calcGrade(userData?.joinDate) === 'legend'
-
   return (
-    <AuthContext.Provider value={{ user, userData, isOwner, isPending, isLegend, loading }}>
+    <AuthContext.Provider value={{ user, userData, isOwner, isStore, isPending, isLegend, loading }}>
       {!loading && children}
     </AuthContext.Provider>
   )
