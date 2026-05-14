@@ -42,17 +42,19 @@ function PendingScreen() {
   )
 }
 
-function PrivateRoute({ children, ownerOnly, legendOnly }) {
-  const { user, isOwner, isPending, isLegend } = useAuth()
+function PrivateRoute({ children, ownerOnly, legendOnly, storeOk }) {
+  const { user, isOwner, isStore, isPending, isLegend } = useAuth()
   if (!user) return <Navigate to="/login" />
   if (isPending) return <PendingScreen />
-  if (ownerOnly && !isOwner) return <Navigate to="/my-schedule" />
-  if (legendOnly && !isOwner && !isLegend) return <Navigate to="/my-schedule" />
+  if (ownerOnly && !isOwner) return <Navigate to="/revenue-input" />
+  if (legendOnly && !isOwner && !isLegend) return <Navigate to="/revenue-input" />
+  // 매장계정은 storeOk 표시된 라우트만 접근 가능
+  if (isStore && !storeOk) return <Navigate to="/revenue-input" />
   return children
 }
 
 function AppRoutes() {
-  const { user, isOwner } = useAuth()
+  const { user, isOwner, isStore } = useAuth()
 
   if (!user) return (
     <Routes>
@@ -74,13 +76,13 @@ function AppRoutes() {
         <Route path="/my-payroll" element={<PrivateRoute><MyPayroll /></PrivateRoute>} />
         <Route path="/my-schedule" element={<PrivateRoute><MySchedule /></PrivateRoute>} />
         <Route path="/team" element={<PrivateRoute><Team /></PrivateRoute>} />
-        <Route path="/cash" element={<PrivateRoute><Cash /></PrivateRoute>} />
+        <Route path="/cash" element={<PrivateRoute storeOk><Cash /></PrivateRoute>} />
         <Route path="/expenses-input" element={<PrivateRoute legendOnly><ExpensesInput /></PrivateRoute>} />
-        <Route path="/notice" element={<PrivateRoute><Notice /></PrivateRoute>} />
-        <Route path="/order" element={<PrivateRoute><Order /></PrivateRoute>} />
+        <Route path="/notice" element={<PrivateRoute storeOk><Notice /></PrivateRoute>} />
+        <Route path="/order" element={<PrivateRoute storeOk><Order /></PrivateRoute>} />
         <Route path="/inventory" element={<PrivateRoute><Inventory /></PrivateRoute>} />
-        <Route path="/revenue-input" element={<PrivateRoute><RevenueInput /></PrivateRoute>} />
-        <Route path="*" element={<Navigate to={isOwner ? "/" : "/my-schedule"} />} />
+        <Route path="/revenue-input" element={<PrivateRoute storeOk><RevenueInput /></PrivateRoute>} />
+        <Route path="*" element={<Navigate to={isOwner ? "/" : isStore ? "/revenue-input" : "/my-schedule"} />} />
       </Routes>
     </Layout>
   )
