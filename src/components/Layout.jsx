@@ -24,6 +24,7 @@ export default function Layout({ children }) {
     { path:'/members',      icon:'📁', label:'인원관리' },
     { path:'/cash',         icon:'💵', label:'현금시재' },
     { path:'/payroll',      icon:'📄', label:'인건비' },
+    { path:'/investment',  icon:'📈', label:'투자관리' },
     { path:'/notice',       icon:'📋', label:'공지·메모' },
     { path:'/order',        icon:'📦', label:'발주요청' },
     { path:'/inventory',    icon:'🗃️', label:'재고관리' },
