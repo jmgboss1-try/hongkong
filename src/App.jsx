@@ -15,8 +15,7 @@ import Cash from './pages/Cash'
 import WorkManage from './pages/WorkManage'
 import MyPayroll from './pages/MyPayroll'
 import Notice from './pages/Notice'
-import Order from './pages/Order'
-import Inventory from './pages/Inventory'
+import ConsumptionAnalysis from './pages/ConsumptionAnalysis'
 import RevenueInput from './pages/RevenueInput'
 import Layout from './components/Layout'
 
@@ -49,7 +48,6 @@ function PrivateRoute({ children, ownerOnly, legendOnly, storeOk }) {
   if (isPending) return <PendingScreen />
   if (ownerOnly && !isOwner) return <Navigate to="/revenue-input" />
   if (legendOnly && !isOwner && !isLegend) return <Navigate to="/revenue-input" />
-  // 매장계정은 storeOk 표시된 라우트만 접근 가능
   if (isStore && !storeOk) return <Navigate to="/revenue-input" />
   return children
 }
@@ -81,8 +79,7 @@ function AppRoutes() {
         <Route path="/cash" element={<PrivateRoute storeOk><Cash /></PrivateRoute>} />
         <Route path="/expenses-input" element={<PrivateRoute legendOnly><ExpensesInput /></PrivateRoute>} />
         <Route path="/notice" element={<PrivateRoute storeOk><Notice /></PrivateRoute>} />
-        <Route path="/order" element={<PrivateRoute storeOk><Order /></PrivateRoute>} />
-        <Route path="/inventory" element={<PrivateRoute><Inventory /></PrivateRoute>} />
+        <Route path="/consumption" element={<PrivateRoute ownerOnly><ConsumptionAnalysis /></PrivateRoute>} />
         <Route path="/revenue-input" element={<PrivateRoute storeOk><RevenueInput /></PrivateRoute>} />
         <Route path="*" element={<Navigate to={isOwner ? "/" : isStore ? "/revenue-input" : "/my-schedule"} />} />
       </Routes>
