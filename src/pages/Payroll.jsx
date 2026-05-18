@@ -120,11 +120,17 @@ export default function Payroll() {
       const emps = []
       usersSnap.forEach(d=>{
         const data=d.data()
-        if(data.status==='approved' && data.role!=='owner')
-         emps.push({uid:d.id, name:data.name, wage:data.wage||10030,
+        if(data.role==='owner') return
+        const isActive  = data.status === 'approved'
+        const isRetired = data.status === 'retired'
+        // 퇴직자는 퇴사일이 이번달 이후인 경우만 포함 (이번달 근무 기록 있을 수 있음)
+        if(isRetired && (!data.leaveDate || data.leaveDate < curMonth+'-01')) return
+        if(!isActive && !isRetired) return
+        emps.push({uid:d.id, name:data.name, wage:data.wage||10030,
             wageHistory:data.wageHistory||[], workDays:data.workDays||[1,2,3,4,5],
             avgHours:data.avgHours||8, employType:data.employType||'part',
-            holidayBase:data.holidayBase||'contract'})
+            holidayBase:data.holidayBase||'contract',
+            isRetired, leaveDate:data.leaveDate||null})
       })
       setEmployees(emps)
 
@@ -327,6 +333,12 @@ export default function Payroll() {
                   justifyContent:'space-between',flexWrap:'wrap',gap:10}}>
                   <div style={{display:'flex',alignItems:'center',gap:10,flexWrap:'wrap'}}>
                     <div style={{fontSize:14,fontWeight:700}}>{emp.name}</div>
+                    {emp.isRetired && (
+                      <span style={{fontSize:10,fontWeight:700,padding:'2px 8px',borderRadius:4,
+                        background:'rgba(94,101,133,0.2)',color:'#5e6585'}}>
+                        📤 퇴직 {emp.leaveDate?.slice(0,10)}
+                      </span>
+                    )}
                     <span style={{fontSize:11,fontWeight:700,padding:'3px 9px',borderRadius:5,
                       background:st.bg,color:st.color}}>{st.label}</span>
                     {hasInquiry && (
