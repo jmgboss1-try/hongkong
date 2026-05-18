@@ -7,7 +7,7 @@ import { useState } from 'react'
 export default function Layout({ children }) {
   const navigate = useNavigate()
   const location = useLocation()
-  const { isOwner, isLegend, userData } = useAuth()
+  const { isOwner, isStore, isLegend, userData } = useAuth()
   const [sideOpen, setSideOpen] = useState(false)
 
   async function handleLogout() {
@@ -29,19 +29,24 @@ export default function Layout({ children }) {
     { path:'/notice',       icon:'📋', label:'공지·메모' },
   ]
 
-const staffMenus = [
+  const staffMenus = [
     { path:'/staff',          icon:'📅', label:'스케쥴' },
     { path:'/my-schedule',   icon:'🕐', label:'내 기록' },
+    { path:'/my-payroll',    icon:'💸', label:'내 급여' },
     { path:'/team',          icon:'👥', label:'팀원' },
     { path:'/cash',          icon:'💵', label:'현금시재' },
     { path:'/notice',        icon:'📋', label:'공지·메모' },
     ...(isLegend ? [{ path:'/expenses-input', icon:'📋', label:'지출입력' }] : []),
   ]
 
-  const menus = isOwner ? ownerMenus : staffMenus
-  // 모바일 하단 탭은 최대 5개
+  const storeMenus = [
+    { path:'/revenue-input', icon:'💰', label:'매출입력' },
+    { path:'/cash',          icon:'💵', label:'현금시재' },
+    { path:'/notice',        icon:'📋', label:'공지·메모' },
+  ]
+
+  const menus = isOwner ? ownerMenus : isStore ? storeMenus : staffMenus
   const bottomMenus = menus.slice(0, 5)
-  const extraMenus = menus.slice(5)
 
   return (
     <div style={{display:'flex', minHeight:'100vh', fontFamily:'Noto Sans KR, sans-serif', background:'#0b0d16', color:'#dde1f2'}}>
@@ -51,8 +56,6 @@ const staffMenus = [
         width:214, background:'#12141f', borderRight:'1px solid #272a3d',
         display:'flex', flexDirection:'column', position:'fixed',
         top:0, left:0, bottom:0, zIndex:10,
-        // 모바일에서 숨김
-        '@media(max-width:768px)': {display:'none'}
       }} className="pc-sidebar">
         <div style={{padding:'22px 18px 16px', borderBottom:'1px solid #272a3d'}}>
           <div style={{fontSize:14, fontWeight:700, color:'#f9b934'}}>🍜 홍콩반점 중앙대점</div>
@@ -61,6 +64,8 @@ const staffMenus = [
         <div style={{padding:'10px 14px', borderBottom:'1px solid #272a3d'}}>
           {isOwner ? (
             <div style={{fontSize:11, color:'#f9b934', fontWeight:700}}>👑 사장</div>
+          ) : isStore ? (
+            <div style={{fontSize:11, color:'#93c5fd', fontWeight:700}}>🏪 매장계정</div>
           ) : (
             <div style={{display:'flex', flexDirection:'column', gap:4}}>
               <div style={{fontSize:12, fontWeight:700}}>{userData?.name}</div>
@@ -98,8 +103,9 @@ const staffMenus = [
       }}>
         <div style={{fontSize:13, fontWeight:700, color:'#f9b934'}}>🍜 홍콩반점</div>
         <div style={{display:'flex', alignItems:'center', gap:10}}>
-          {!isOwner && <GradeBadge joinDate={userData?.joinDate} size={9}/>}
+          {!isOwner && !isStore && <GradeBadge joinDate={userData?.joinDate} size={9}/>}
           {isOwner && <span style={{fontSize:11, color:'#f9b934', fontWeight:700}}>👑 사장</span>}
+          {isStore && <span style={{fontSize:11, color:'#93c5fd', fontWeight:700}}>🏪 매장</span>}
           <button onClick={()=>setSideOpen(v=>!v)}
             style={{background:'#191c2b', border:'1px solid #272a3d', borderRadius:6, color:'#dde1f2', padding:'5px 10px', fontSize:16, cursor:'pointer', lineHeight:1}}>
             ☰
@@ -113,8 +119,10 @@ const staffMenus = [
           <div style={{position:'absolute', top:0, right:0, width:220, height:'100%', background:'#12141f', borderLeft:'1px solid #272a3d', padding:'20px 0'}}
             onClick={e=>e.stopPropagation()}>
             <div style={{padding:'0 18px 16px', borderBottom:'1px solid #272a3d', marginBottom:8}}>
-              <div style={{fontSize:13, fontWeight:700, color:isOwner?'#f9b934':'#dde1f2'}}>{isOwner?'👑 사장':userData?.name}</div>
-              {!isOwner && <div style={{marginTop:4}}><GradeBadge joinDate={userData?.joinDate} size={10}/></div>}
+              <div style={{fontSize:13, fontWeight:700, color:isOwner?'#f9b934':isStore?'#93c5fd':'#dde1f2'}}>
+                {isOwner?'👑 사장':isStore?'🏪 매장계정':userData?.name}
+              </div>
+              {!isOwner && !isStore && <div style={{marginTop:4}}><GradeBadge joinDate={userData?.joinDate} size={10}/></div>}
             </div>
             {menus.map(m=>(
               <div key={m.path} onClick={()=>{navigate(m.path);setSideOpen(false)}}
