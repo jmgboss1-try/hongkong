@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react'
 import { db } from '../firebase'
 import { doc, getDoc, setDoc } from 'firebase/firestore'
-import { useAuth } from '../AuthContext'
 
 const pad = n => String(n).padStart(2,'0')
 const wonFmt = n => (n||0).toLocaleString('ko-KR') + '원'
@@ -125,7 +124,6 @@ function ProgressBar({ value, max, color }) {
 }
 
 export default function Investment() {
-  const { isOwner, isInvestor } = useAuth()
   const [config, setConfig]   = useState({
     terry: { amount: 0, startDate: '', interestRate: 0.05 },
     hyung:  { amount: 0, startDate: '', interestRate: 0.05 },
@@ -137,6 +135,7 @@ export default function Investment() {
   const [showConfig, setShowConfig]   = useState(false)
   const [editConfig, setEditConfig]   = useState({})
   const [showForm, setShowForm]       = useState(false)
+  const [filterInv, setFilterInv]     = useState('all') // 'all' | 'terry' | 'hyung'
   const [form, setForm]               = useState({ date:todayStr(), amount:'', investor:'terry', category:'investment', memo:'' })
 
   async function load() {
@@ -253,20 +252,18 @@ export default function Investment() {
           <div style={{fontSize:20,fontWeight:700}}>📈 투자관리</div>
           <div style={{fontSize:12,color:'#5e6585',marginTop:2}}>사장 전용 — 투자금 회수 현황</div>
         </div>
-        {!isInvestor && (
-          <div style={{display:'flex',gap:8}}>
-            <button onClick={()=>{ setEditConfig(JSON.parse(JSON.stringify(config))); setShowConfig(v=>!v) }}
-              style={{background:'#191c2b',border:'1px solid #272a3d',color:'#dde1f2',borderRadius:8,
-                padding:'8px 14px',fontSize:11,cursor:'pointer',fontFamily:'inherit'}}>
-              ⚙️ 투자금 설정
-            </button>
-            <button onClick={()=>{setShowForm(v=>!v); setForm(f=>({...f, date:todayStr()}))}}
-              style={{background:'#f9b934',color:'#000',border:'none',borderRadius:8,
-                padding:'8px 16px',fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
-              + 회수 입력
-            </button>
-          </div>
-        )}
+        <div style={{display:'flex',gap:8}}>
+          <button onClick={()=>{ setEditConfig(JSON.parse(JSON.stringify(config))); setShowConfig(v=>!v) }}
+            style={{background:'#191c2b',border:'1px solid #272a3d',color:'#dde1f2',borderRadius:8,
+              padding:'8px 14px',fontSize:11,cursor:'pointer',fontFamily:'inherit'}}>
+            ⚙️ 투자금 설정
+          </button>
+          <button onClick={()=>{setShowForm(v=>!v); setForm(f=>({...f, date:todayStr()}))}}
+            style={{background:'#f9b934',color:'#000',border:'none',borderRadius:8,
+              padding:'8px 16px',fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
+            + 회수 입력
+          </button>
+        </div>
       </div>
 
       {/* 투자금 설정 패널 */}
@@ -597,57 +594,127 @@ export default function Investment() {
             })}
           </div>
 
-          {/* 회수 내역 목록 */}
+          {/* 회수 내역 — 타임라인 */}
           <div style={{background:'#12141f',border:'1px solid #272a3d',borderRadius:12,overflow:'hidden'}}>
-            <div style={{padding:'14px 18px',borderBottom:'1px solid #272a3d',fontSize:13,fontWeight:600,
-              display:'flex',justifyContent:'space-between',alignItems:'center'}}>
-              <span>📋 회수 내역</span>
-              <span style={{fontSize:11,color:'#5e6585'}}>총 {records.length}건 · {wonFmt(totalRecovered)}</span>
+            {/* 헤더 + 필터 */}
+            <div style={{padding:'14px 18px',borderBottom:'1px solid #272a3d',
+              display:'flex',justifyContent:'space-between',alignItems:'center',flexWrap:'wrap',gap:10}}>
+              <div>
+                <span style={{fontSize:13,fontWeight:600}}>📋 회수 내역</span>
+                <span style={{fontSize:11,color:'#5e6585',marginLeft:10}}>
+                  총 {records.length}건 · {wonFmt(totalRecovered)}
+                </span>
+              </div>
+              <div style={{display:'flex',gap:4}}>
+                {[['all','전체'],['terry','👑 테리'],['hyung','🤝 형']].map(([key,label])=>(
+                  <button key={key} onClick={()=>setFilterInv(key)}
+                    style={{padding:'5px 12px',borderRadius:6,border:'none',fontSize:11,fontWeight:600,
+                      cursor:'pointer',fontFamily:'inherit',
+                      background: filterInv===key ? '#f9b934' : '#191c2b',
+                      color:       filterInv===key ? '#000'     : '#5e6585',
+                      outline:     filterInv===key ? 'none'     : '1px solid #272a3d'}}>
+                    {label}
+                  </button>
+                ))}
+              </div>
             </div>
+
             {records.length === 0 ? (
               <div style={{textAlign:'center',color:'#5e6585',padding:40}}>회수 내역이 없습니다</div>
-            ) : (
-              <div style={{overflowX:'auto'}}>
-                <table style={{width:'100%',borderCollapse:'collapse',fontSize:12}}>
-                  <thead>
-                    <tr style={{background:'#191c2b'}}>
-                      {['날짜','대상','카테고리','금액','메모','삭제'].map(h=>(
-                        <th key={h} style={{padding:'8px 14px',fontSize:10,fontWeight:600,color:'#5e6585',
-                          textAlign:h==='금액'?'right':'left',whiteSpace:'nowrap'}}>{h}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {[...records].reverse().map(r=>{
-                      const inv = INVESTORS[r.investor]
-                      const cat = ALL_CATEGORIES.find(c=>c.key===r.category)
-                      return (
-                        <tr key={r.id}>
-                          <td style={{padding:'9px 14px',...bdBot,fontFamily:'DM Mono,monospace',color:'#5e6585'}}>{dateFmt(r.date)}</td>
-                          <td style={{padding:'9px 14px',...bdBot}}>
-                            <span style={{color:inv?.color,fontWeight:600}}>{inv?.emoji} {inv?.name}</span>
-                          </td>
-                          <td style={{padding:'9px 14px',...bdBot,color:'#dde1f2'}}>{cat?.label||r.category}</td>
-                          <td style={{padding:'9px 14px',...bdBot,...cell,color:'#f9b934',fontWeight:700}}>
-                            {wonFmt(r.amount)}
-                          </td>
-                          <td style={{padding:'9px 14px',...bdBot,color:'#5e6585'}}>{r.memo||'—'}</td>
-                          <td style={{padding:'9px 14px',...bdBot}}>
-                            {!isInvestor && (
-                            <button onClick={()=>deleteRecord(r.id)}
-                              style={{background:'transparent',border:'1px solid #3d1f1f',color:'#f87171',
-                                padding:'3px 8px',fontSize:10,borderRadius:4,cursor:'pointer',fontFamily:'inherit'}}>
-                              삭제
-                            </button>
-                          )}
-                          </td>
-                        </tr>
-                      )
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            )}
+            ) : (() => {
+              const filtered = filterInv === 'all'
+                ? records : records.filter(r=>r.investor===filterInv)
+              if (filtered.length === 0) return (
+                <div style={{textAlign:'center',color:'#5e6585',padding:30,fontSize:12}}>
+                  해당 내역이 없습니다
+                </div>
+              )
+              const grouped = {}
+              ;[...filtered].sort((a,b)=>b.date.localeCompare(a.date)).forEach(r=>{
+                const ym = r.date.slice(0,7)
+                if(!grouped[ym]) grouped[ym] = []
+                grouped[ym].push(r)
+              })
+              return (
+                <div style={{padding:'8px 0 4px'}}>
+                  {Object.entries(grouped).map(([ym, rows])=>{
+                    const [y,m] = ym.split('-')
+                    const monthTotal = rows.reduce((a,r)=>a+r.amount,0)
+                    return (
+                      <div key={ym} style={{marginBottom:4}}>
+                        {/* 월 헤더 */}
+                        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',
+                          padding:'8px 18px',background:'rgba(255,255,255,0.02)'}}>
+                          <div style={{display:'flex',alignItems:'center',gap:8}}>
+                            <div style={{width:6,height:6,borderRadius:'50%',background:'#f9b934'}}/>
+                            <span style={{fontSize:12,fontWeight:700,color:'#dde1f2'}}>
+                              {y}년 {+m}월
+                            </span>
+                            <span style={{fontSize:10,color:'#5e6585'}}>{rows.length}건</span>
+                          </div>
+                          <span style={{fontSize:12,fontWeight:700,color:'#f9b934',fontFamily:'DM Mono,monospace'}}>
+                            {wonFmt(monthTotal)}
+                          </span>
+                        </div>
+                        {/* 내역 아이템들 */}
+                        {rows.map((r,i)=>{
+                          const inv = INVESTORS[r.investor]
+                          const cat = ALL_CATEGORIES.find(c=>c.key===r.category)
+                          const isLast = i === rows.length - 1
+                          return (
+                            <div key={r.id} style={{
+                              display:'flex',alignItems:'center',gap:12,
+                              padding:'10px 18px 10px 30px',position:'relative',
+                              borderBottom: isLast ? '1px solid #1a1d2e' : '1px solid #191c2b',
+                            }}>
+                              {/* 투자자 색상 선 */}
+                              <div style={{position:'absolute',left:18,top:'50%',transform:'translateY(-50%)',
+                                width:3,height:28,borderRadius:99,background:inv?.color||'#5e6585',opacity:.7}}/>
+                              {/* 날짜 MM-DD */}
+                              <div style={{fontSize:11,color:'#5e6585',fontFamily:'DM Mono,monospace',
+                                minWidth:42,flexShrink:0}}>
+                                {r.date.slice(5)}
+                              </div>
+                              {/* 투자자 뱃지 */}
+                              <span style={{fontSize:11,fontWeight:700,padding:'2px 8px',borderRadius:4,
+                                background:`${inv?.color}18`,color:inv?.color,whiteSpace:'nowrap',flexShrink:0}}>
+                                {inv?.emoji} {inv?.name}
+                              </span>
+                              {/* 카테고리 */}
+                              <span style={{fontSize:11,color:'#5e6585',flex:1,
+                                overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>
+                                {cat?.label||r.category}
+                              </span>
+                              {/* 메모 */}
+                              {r.memo && (
+                                <span style={{fontSize:10,color:'#3d4060',
+                                  overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',maxWidth:120}}>
+                                  {r.memo}
+                                </span>
+                              )}
+                              {/* 금액 */}
+                              <span style={{fontSize:13,fontWeight:700,color:'#f9b934',
+                                fontFamily:'DM Mono,monospace',flexShrink:0}}>
+                                {wonFmt(r.amount)}
+                              </span>
+                              {/* 삭제 */}
+                              {!isInvestor && (
+                                <button onClick={()=>deleteRecord(r.id)}
+                                  style={{background:'transparent',border:'1px solid #3d1f1f',color:'#f87171',
+                                    padding:'3px 8px',fontSize:10,borderRadius:4,cursor:'pointer',
+                                    fontFamily:'inherit',flexShrink:0}}>
+                                  삭제
+                                </button>
+                              )}
+                            </div>
+                          )
+                        })}
+                      </div>
+                    )
+                  })}
+                </div>
+              )
+            })()}
           </div>
         </>
       )}
