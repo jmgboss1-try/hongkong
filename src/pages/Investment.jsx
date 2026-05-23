@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { db } from '../firebase'
 import { doc, getDoc, setDoc } from 'firebase/firestore'
+import { useAuth } from '../AuthContext'
 
 const pad = n => String(n).padStart(2,'0')
 const wonFmt = n => (n||0).toLocaleString('ko-KR') + '원'
@@ -124,6 +125,7 @@ function ProgressBar({ value, max, color }) {
 }
 
 export default function Investment() {
+  const { isOwner, isInvestor } = useAuth()
   const [config, setConfig]   = useState({
     terry: { amount: 0, startDate: '', interestRate: 0.05 },
     hyung:  { amount: 0, startDate: '', interestRate: 0.05 },
@@ -251,18 +253,20 @@ export default function Investment() {
           <div style={{fontSize:20,fontWeight:700}}>📈 투자관리</div>
           <div style={{fontSize:12,color:'#5e6585',marginTop:2}}>사장 전용 — 투자금 회수 현황</div>
         </div>
-        <div style={{display:'flex',gap:8}}>
-          <button onClick={()=>{ setEditConfig(JSON.parse(JSON.stringify(config))); setShowConfig(v=>!v) }}
-            style={{background:'#191c2b',border:'1px solid #272a3d',color:'#dde1f2',borderRadius:8,
-              padding:'8px 14px',fontSize:11,cursor:'pointer',fontFamily:'inherit'}}>
-            ⚙️ 투자금 설정
-          </button>
-          <button onClick={()=>{setShowForm(v=>!v); setForm(f=>({...f, date:todayStr()}))}}
-            style={{background:'#f9b934',color:'#000',border:'none',borderRadius:8,
-              padding:'8px 16px',fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
-            + 회수 입력
-          </button>
-        </div>
+        {!isInvestor && (
+          <div style={{display:'flex',gap:8}}>
+            <button onClick={()=>{ setEditConfig(JSON.parse(JSON.stringify(config))); setShowConfig(v=>!v) }}
+              style={{background:'#191c2b',border:'1px solid #272a3d',color:'#dde1f2',borderRadius:8,
+                padding:'8px 14px',fontSize:11,cursor:'pointer',fontFamily:'inherit'}}>
+              ⚙️ 투자금 설정
+            </button>
+            <button onClick={()=>{setShowForm(v=>!v); setForm(f=>({...f, date:todayStr()}))}}
+              style={{background:'#f9b934',color:'#000',border:'none',borderRadius:8,
+                padding:'8px 16px',fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
+              + 회수 입력
+            </button>
+          </div>
+        )}
       </div>
 
       {/* 투자금 설정 패널 */}
@@ -629,11 +633,13 @@ export default function Investment() {
                           </td>
                           <td style={{padding:'9px 14px',...bdBot,color:'#5e6585'}}>{r.memo||'—'}</td>
                           <td style={{padding:'9px 14px',...bdBot}}>
+                            {!isInvestor && (
                             <button onClick={()=>deleteRecord(r.id)}
                               style={{background:'transparent',border:'1px solid #3d1f1f',color:'#f87171',
                                 padding:'3px 8px',fontSize:10,borderRadius:4,cursor:'pointer',fontFamily:'inherit'}}>
                               삭제
                             </button>
+                          )}
                           </td>
                         </tr>
                       )
