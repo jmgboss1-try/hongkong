@@ -7,7 +7,7 @@ import { useState } from 'react'
 export default function Layout({ children }) {
   const navigate = useNavigate()
   const location = useLocation()
-  const { isOwner, isStore, isLegend, userData } = useAuth()
+  const { isOwner, isStore, isInvestor, isLegend, userData } = useAuth()
   const [sideOpen, setSideOpen] = useState(false)
 
   async function handleLogout() {
@@ -45,7 +45,13 @@ export default function Layout({ children }) {
     { path:'/notice',        icon:'📋', label:'공지·메모' },
   ]
 
-  const menus = isOwner ? ownerMenus : isStore ? storeMenus : staffMenus
+  // 투자자 전용: 매출(조회) + 투자관리(조회)만
+  const investorMenus = [
+    { path:'/revenue',    icon:'💰', label:'매출' },
+    { path:'/investment', icon:'📈', label:'투자관리' },
+  ]
+
+  const menus = isOwner ? ownerMenus : isStore ? storeMenus : isInvestor ? investorMenus : staffMenus
   const bottomMenus = menus.slice(0, 5)
 
   return (
@@ -66,6 +72,8 @@ export default function Layout({ children }) {
             <div style={{fontSize:11, color:'#f9b934', fontWeight:700}}>👑 사장</div>
           ) : isStore ? (
             <div style={{fontSize:11, color:'#93c5fd', fontWeight:700}}>🏪 매장계정</div>
+          ) : isInvestor ? (
+            <div style={{fontSize:11, color:'#34d399', fontWeight:700}}>🤝 {userData?.name||'투자자'}</div>
           ) : (
             <div style={{display:'flex', flexDirection:'column', gap:4}}>
               <div style={{fontSize:12, fontWeight:700}}>{userData?.name}</div>
@@ -103,9 +111,10 @@ export default function Layout({ children }) {
       }}>
         <div style={{fontSize:13, fontWeight:700, color:'#f9b934'}}>🍜 홍콩반점</div>
         <div style={{display:'flex', alignItems:'center', gap:10}}>
-          {!isOwner && !isStore && <GradeBadge joinDate={userData?.joinDate} size={9}/>}
-          {isOwner && <span style={{fontSize:11, color:'#f9b934', fontWeight:700}}>👑 사장</span>}
-          {isStore && <span style={{fontSize:11, color:'#93c5fd', fontWeight:700}}>🏪 매장</span>}
+          {!isOwner && !isStore && !isInvestor && <GradeBadge joinDate={userData?.joinDate} size={9}/>}
+          {isOwner    && <span style={{fontSize:11, color:'#f9b934', fontWeight:700}}>👑 사장</span>}
+          {isStore    && <span style={{fontSize:11, color:'#93c5fd', fontWeight:700}}>🏪 매장</span>}
+          {isInvestor && <span style={{fontSize:11, color:'#34d399', fontWeight:700}}>🤝 투자자</span>}
           <button onClick={()=>setSideOpen(v=>!v)}
             style={{background:'#191c2b', border:'1px solid #272a3d', borderRadius:6, color:'#dde1f2', padding:'5px 10px', fontSize:16, cursor:'pointer', lineHeight:1}}>
             ☰
@@ -119,10 +128,11 @@ export default function Layout({ children }) {
           <div style={{position:'absolute', top:0, right:0, width:220, height:'100%', background:'#12141f', borderLeft:'1px solid #272a3d', padding:'20px 0'}}
             onClick={e=>e.stopPropagation()}>
             <div style={{padding:'0 18px 16px', borderBottom:'1px solid #272a3d', marginBottom:8}}>
-              <div style={{fontSize:13, fontWeight:700, color:isOwner?'#f9b934':isStore?'#93c5fd':'#dde1f2'}}>
-                {isOwner?'👑 사장':isStore?'🏪 매장계정':userData?.name}
+              <div style={{fontSize:13, fontWeight:700,
+                color:isOwner?'#f9b934':isStore?'#93c5fd':isInvestor?'#34d399':'#dde1f2'}}>
+                {isOwner?'👑 사장':isStore?'🏪 매장계정':isInvestor?`🤝 ${userData?.name||'투자자'}`:userData?.name}
               </div>
-              {!isOwner && !isStore && <div style={{marginTop:4}}><GradeBadge joinDate={userData?.joinDate} size={10}/></div>}
+              {!isOwner && !isStore && !isInvestor && <div style={{marginTop:4}}><GradeBadge joinDate={userData?.joinDate} size={10}/></div>}
             </div>
             {menus.map(m=>(
               <div key={m.path} onClick={()=>{navigate(m.path);setSideOpen(false)}}
