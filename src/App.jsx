@@ -42,18 +42,20 @@ function PendingScreen() {
   )
 }
 
-function PrivateRoute({ children, ownerOnly, legendOnly, storeOk }) {
-  const { user, isOwner, isStore, isPending, isLegend } = useAuth()
+function PrivateRoute({ children, ownerOnly, legendOnly, storeOk, investorOk }) {
+  const { user, isOwner, isStore, isInvestor, isPending, isLegend } = useAuth()
   if (!user) return <Navigate to="/login" />
   if (isPending) return <PendingScreen />
-  if (ownerOnly && !isOwner) return <Navigate to="/revenue-input" />
+  // 투자자 계정: investorOk 표시된 라우트만 접근 가능
+  if (isInvestor && !investorOk) return <Navigate to="/revenue" />
+  if (ownerOnly && !isOwner && !isInvestor) return <Navigate to="/revenue-input" />
   if (legendOnly && !isOwner && !isLegend) return <Navigate to="/revenue-input" />
   if (isStore && !storeOk) return <Navigate to="/revenue-input" />
   return children
 }
 
 function AppRoutes() {
-  const { user, isOwner, isStore } = useAuth()
+  const { user, isOwner, isStore, isInvestor } = useAuth()
 
   if (!user) return (
     <Routes>
@@ -66,13 +68,15 @@ function AppRoutes() {
     <Layout>
       <Routes>
         <Route path="/" element={<PrivateRoute ownerOnly><Dashboard /></PrivateRoute>} />
-        <Route path="/revenue" element={<PrivateRoute ownerOnly><Revenue /></PrivateRoute>} />
+        {/* 매출: 사장 + 투자자 접근 가능 */}
+        <Route path="/revenue" element={<PrivateRoute investorOk><Revenue /></PrivateRoute>} />
         <Route path="/expenses" element={<PrivateRoute ownerOnly><Expenses /></PrivateRoute>} />
         <Route path="/staff" element={<PrivateRoute><Staff /></PrivateRoute>} />
         <Route path="/work-manage" element={<PrivateRoute ownerOnly><WorkManage /></PrivateRoute>} />
         <Route path="/members" element={<PrivateRoute ownerOnly><Members /></PrivateRoute>} />
         <Route path="/payroll" element={<PrivateRoute ownerOnly><Payroll /></PrivateRoute>} />
-        <Route path="/investment" element={<PrivateRoute ownerOnly><Investment /></PrivateRoute>} />
+        {/* 투자관리: 사장 + 투자자 접근 가능 */}
+        <Route path="/investment" element={<PrivateRoute investorOk><Investment /></PrivateRoute>} />
         <Route path="/my-payroll" element={<PrivateRoute><MyPayroll /></PrivateRoute>} />
         <Route path="/my-schedule" element={<PrivateRoute><MySchedule /></PrivateRoute>} />
         <Route path="/team" element={<PrivateRoute><Team /></PrivateRoute>} />
@@ -81,7 +85,7 @@ function AppRoutes() {
         <Route path="/notice" element={<PrivateRoute storeOk><Notice /></PrivateRoute>} />
         <Route path="/consumption" element={<PrivateRoute ownerOnly><ConsumptionAnalysis /></PrivateRoute>} />
         <Route path="/revenue-input" element={<PrivateRoute storeOk><RevenueInput /></PrivateRoute>} />
-        <Route path="*" element={<Navigate to={isOwner ? "/" : isStore ? "/revenue-input" : "/my-schedule"} />} />
+        <Route path="*" element={<Navigate to={isOwner ? "/" : isStore ? "/revenue-input" : isInvestor ? "/revenue" : "/my-schedule"} />} />
       </Routes>
     </Layout>
   )
