@@ -244,6 +244,77 @@ export default function Investment() {
   const cell  = {fontFamily:'DM Mono,monospace', textAlign:'right'}
   const bdBot = {borderBottom:'1px solid #272a3d'}
 
+  // 회수 내역 타임라인 렌더링
+  const filtered = filterInv === 'all' ? records : records.filter(r=>r.investor===filterInv)
+  const grouped = {}
+  ;[...filtered].sort((a,b)=>b.date.localeCompare(a.date)).forEach(r=>{
+    const ym = r.date.slice(0,7)
+    if(!grouped[ym]) grouped[ym] = []
+    grouped[ym].push(r)
+  })
+  const timelineContent = filtered.length === 0 ? (
+    <div style={{textAlign:'center',color:'#5e6585',padding:30,fontSize:12}}>해당 내역이 없습니다</div>
+  ) : (
+    <div style={{padding:'8px 0 4px'}}>
+      {Object.entries(grouped).map(([ym, rows])=>{
+        const [y,m] = ym.split('-')
+        const monthTotal = rows.reduce((a,r)=>a+r.amount,0)
+        return (
+          <div key={ym} style={{marginBottom:4}}>
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',
+              padding:'8px 18px',background:'rgba(255,255,255,0.02)'}}>
+              <div style={{display:'flex',alignItems:'center',gap:8}}>
+                <div style={{width:6,height:6,borderRadius:'50%',background:'#f9b934'}}/>
+                <span style={{fontSize:12,fontWeight:700,color:'#dde1f2'}}>{y}년 {+m}월</span>
+                <span style={{fontSize:10,color:'#5e6585'}}>{rows.length}건</span>
+              </div>
+              <span style={{fontSize:12,fontWeight:700,color:'#f9b934',fontFamily:'DM Mono,monospace'}}>
+                {wonFmt(monthTotal)}
+              </span>
+            </div>
+            {rows.map((r,i)=>{
+              const inv = INVESTORS[r.investor]
+              const cat = ALL_CATEGORIES.find(c=>c.key===r.category)
+              return (
+                <div key={r.id} style={{display:'flex',alignItems:'center',gap:12,
+                  padding:'10px 18px 10px 30px',position:'relative',
+                  borderBottom: i<rows.length-1 ? '1px solid #191c2b' : '1px solid #1a1d2e'}}>
+                  <div style={{position:'absolute',left:18,top:'50%',transform:'translateY(-50%)',
+                    width:3,height:28,borderRadius:99,background:inv?.color||'#5e6585',opacity:.7}}/>
+                  <div style={{fontSize:11,color:'#5e6585',fontFamily:'DM Mono,monospace',minWidth:42,flexShrink:0}}>
+                    {r.date.slice(5)}
+                  </div>
+                  <span style={{fontSize:11,fontWeight:700,padding:'2px 8px',borderRadius:4,
+                    background:`${inv?.color}18`,color:inv?.color,whiteSpace:'nowrap',flexShrink:0}}>
+                    {inv?.emoji} {inv?.name}
+                  </span>
+                  <span style={{fontSize:11,color:'#5e6585',flex:1,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>
+                    {cat?.label||r.category}
+                  </span>
+                  {r.memo && (
+                    <span style={{fontSize:10,color:'#3d4060',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',maxWidth:120}}>
+                      {r.memo}
+                    </span>
+                  )}
+                  <span style={{fontSize:13,fontWeight:700,color:'#f9b934',fontFamily:'DM Mono,monospace',flexShrink:0}}>
+                    {wonFmt(r.amount)}
+                  </span>
+                  {!isInvestor && (
+                    <button onClick={()=>deleteRecord(r.id)}
+                      style={{background:'transparent',border:'1px solid #3d1f1f',color:'#f87171',
+                        padding:'3px 8px',fontSize:10,borderRadius:4,cursor:'pointer',fontFamily:'inherit',flexShrink:0}}>
+                      삭제
+                    </button>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        )
+      })}
+    </div>
+  )
+
   return (
     <div>
       {/* 헤더 */}
@@ -621,100 +692,7 @@ export default function Investment() {
 
             {records.length === 0 ? (
               <div style={{textAlign:'center',color:'#5e6585',padding:40}}>회수 내역이 없습니다</div>
-            ) : (() => {
-              const filtered = filterInv === 'all'
-                ? records : records.filter(r=>r.investor===filterInv)
-              if (filtered.length === 0) return (
-                <div style={{textAlign:'center',color:'#5e6585',padding:30,fontSize:12}}>
-                  해당 내역이 없습니다
-                </div>
-              )
-              const grouped = {}
-              ;[...filtered].sort((a,b)=>b.date.localeCompare(a.date)).forEach(r=>{
-                const ym = r.date.slice(0,7)
-                if(!grouped[ym]) grouped[ym] = []
-                grouped[ym].push(r)
-              })
-              return (
-                <div style={{padding:'8px 0 4px'}}>
-                  {Object.entries(grouped).map(([ym, rows])=>{
-                    const [y,m] = ym.split('-')
-                    const monthTotal = rows.reduce((a,r)=>a+r.amount,0)
-                    return (
-                      <div key={ym} style={{marginBottom:4}}>
-                        {/* 월 헤더 */}
-                        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',
-                          padding:'8px 18px',background:'rgba(255,255,255,0.02)'}}>
-                          <div style={{display:'flex',alignItems:'center',gap:8}}>
-                            <div style={{width:6,height:6,borderRadius:'50%',background:'#f9b934'}}/>
-                            <span style={{fontSize:12,fontWeight:700,color:'#dde1f2'}}>
-                              {y}년 {+m}월
-                            </span>
-                            <span style={{fontSize:10,color:'#5e6585'}}>{rows.length}건</span>
-                          </div>
-                          <span style={{fontSize:12,fontWeight:700,color:'#f9b934',fontFamily:'DM Mono,monospace'}}>
-                            {wonFmt(monthTotal)}
-                          </span>
-                        </div>
-                        {/* 내역 아이템들 */}
-                        {rows.map((r,i)=>{
-                          const inv = INVESTORS[r.investor]
-                          const cat = ALL_CATEGORIES.find(c=>c.key===r.category)
-                          const isLast = i === rows.length - 1
-                          return (
-                            <div key={r.id} style={{
-                              display:'flex',alignItems:'center',gap:12,
-                              padding:'10px 18px 10px 30px',position:'relative',
-                              borderBottom: isLast ? '1px solid #1a1d2e' : '1px solid #191c2b',
-                            }}>
-                              {/* 투자자 색상 선 */}
-                              <div style={{position:'absolute',left:18,top:'50%',transform:'translateY(-50%)',
-                                width:3,height:28,borderRadius:99,background:inv?.color||'#5e6585',opacity:.7}}/>
-                              {/* 날짜 MM-DD */}
-                              <div style={{fontSize:11,color:'#5e6585',fontFamily:'DM Mono,monospace',
-                                minWidth:42,flexShrink:0}}>
-                                {r.date.slice(5)}
-                              </div>
-                              {/* 투자자 뱃지 */}
-                              <span style={{fontSize:11,fontWeight:700,padding:'2px 8px',borderRadius:4,
-                                background:`${inv?.color}18`,color:inv?.color,whiteSpace:'nowrap',flexShrink:0}}>
-                                {inv?.emoji} {inv?.name}
-                              </span>
-                              {/* 카테고리 */}
-                              <span style={{fontSize:11,color:'#5e6585',flex:1,
-                                overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>
-                                {cat?.label||r.category}
-                              </span>
-                              {/* 메모 */}
-                              {r.memo && (
-                                <span style={{fontSize:10,color:'#3d4060',
-                                  overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',maxWidth:120}}>
-                                  {r.memo}
-                                </span>
-                              )}
-                              {/* 금액 */}
-                              <span style={{fontSize:13,fontWeight:700,color:'#f9b934',
-                                fontFamily:'DM Mono,monospace',flexShrink:0}}>
-                                {wonFmt(r.amount)}
-                              </span>
-                              {/* 삭제 */}
-                              {!isInvestor && (
-                                <button onClick={()=>deleteRecord(r.id)}
-                                  style={{background:'transparent',border:'1px solid #3d1f1f',color:'#f87171',
-                                    padding:'3px 8px',fontSize:10,borderRadius:4,cursor:'pointer',
-                                    fontFamily:'inherit',flexShrink:0}}>
-                                  삭제
-                                </button>
-                              )}
-                            </div>
-                          )
-                        })}
-                      </div>
-                    )
-                  })}
-                </div>
-              )
-            })()}
+            ) : timelineContent}
           </div>
         </>
       )}
