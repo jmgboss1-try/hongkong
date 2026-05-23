@@ -11,6 +11,12 @@ const INVESTORS = {
   hyung:  { name: '형',   ratio: 0.3, color: '#93c5fd', emoji: '🤝' },
 }
 
+// 형 대출금 별도 설정 (투자금과 이자율 다름)
+const HYUNG_LOAN = {
+  amount: 12000000,   // 1200만원
+  rate: 0.10,         // 연 10%
+}
+
 // 투자자별 카테고리 분리
 const CATEGORIES_BY_INVESTOR = {
   terry: [
@@ -20,6 +26,7 @@ const CATEGORIES_BY_INVESTOR = {
   ],
   hyung: [
     { key: 'investment', label: '💰 투자금 회수' },
+    { key: 'loan',       label: '🏦 대출금 상환 회수' },
   ],
 }
 // 전체 카테고리 (집계/테이블용)
@@ -27,6 +34,7 @@ const ALL_CATEGORIES = [
   { key: 'investment', label: '💰 투자금 회수' },
   { key: 'loss',       label: '📉 운영 손해분 회수' },
   { key: 'severance',  label: '📦 퇴직금 대납 회수' },
+  { key: 'loan',       label: '🏦 대출금 상환 회수' },
 ]
 
 // 단리 이자 계산 (연 5%, 일 단위)
@@ -138,12 +146,19 @@ export default function Investment() {
   const today = new Date().toISOString().slice(0,10)
   const interests = calcTotalInterest(config, today)
 
+  // 형 대출금 이자 계산 (연 10% 단리, 대출 시작일 별도)
+  const hyungLoanStartDate = config.hyung?.loanStartDate || ''
+  const hyungLoanInterest = calcInterest(HYUNG_LOAN.amount, hyungLoanStartDate, today, HYUNG_LOAN.rate)
+
   const summary = {}
   for (const uid of Object.keys(INVESTORS)) {
     const inv      = config[uid] || {}
     const interest = interests[uid] || 0
     const principal = inv.amount || 0
-    const totalTarget = principal + interest
+
+    // 형의 경우 대출금 원금+이자도 회수 목표에 포함
+    const loanTarget = uid === 'hyung' ? HYUNG_LOAN.amount + hyungLoanInterest : 0
+    const totalTarget = principal + interest + loanTarget
 
     const recovered = records
       .filter(r => r.investor === uid)
@@ -156,7 +171,10 @@ export default function Investment() {
         .reduce((a,r) => a + (r.amount||0), 0)
     }
 
-    summary[uid] = { principal, interest, totalTarget, recovered, remaining: Math.max(0, totalTarget - recovered), byCategory }
+    summary[uid] = { principal, interest, totalTarget, recovered,
+      remaining: Math.max(0, totalTarget - recovered), byCategory,
+      loanTarget: uid === 'hyung' ? loanTarget : 0,
+      loanInterest: uid === 'hyung' ? hyungLoanInterest : 0 }
   }
 
   const totalPrincipal  = Object.values(summary).reduce((a,s)=>a+s.principal,0)
@@ -205,6 +223,7 @@ export default function Investment() {
                 {[
                   ['투자 원금 (원)','number','amount'],
                   ['투자 시작일','date','startDate'],
+                  ...(uid==='hyung' ? [['대출 시작일 (연10%)','date','loanStartDate']] : []),
                 ].map(([label,type,key])=>(
                   <div key={key} style={{marginBottom:10}}>
                     <label style={{fontSize:10,color:'#5e6585',display:'block',marginBottom:4}}>{label}</label>
@@ -214,13 +233,15 @@ export default function Investment() {
                         ...prev,
                         [uid]: {...(prev[uid]||{}), [key]: type==='number'?+e.target.value:e.target.value}
                       }))}
-                      style={{background:'#12141f',border:'1px solid #272a3d',borderRadius:7,
-                        color:'#dde1f2',padding:'8px 10px',fontSize:12,outline:'none',
+                      style={{background:'#12141f',
+                        border:`1px solid ${key==='loanStartDate'?'rgba(147,197,253,0.3)':'#272a3d'}`,
+                        borderRadius:7,color:'#dde1f2',padding:'8px 10px',fontSize:12,outline:'none',
                         width:'100%',fontFamily:'inherit'}}/>
                   </div>
                 ))}
                 <div style={{fontSize:10,color:'#5e6585',marginTop:4}}>
-                  연 이자율: 5% (단리) — 추후 변경 가능
+                  투자 이자: 연 5% 단리
+                  {uid==='hyung' && <span style={{color:'#93c5fd'}}> / 대출금 1,200만원 연 10% 단리</span>}
                 </div>
               </div>
             ))}
@@ -409,9 +430,39 @@ export default function Investment() {
                       })}
                     </div>
 
+                    {/* 형 전용: 대출금 상환 정보 */}
+                    {uid === 'hyung' && (
+                      <div style={{marginTop:12,background:'rgba(147,197,253,0.06)',
+                        border:'1px solid rgba(147,197,253,0.2)',borderRadius:8,padding:'10px 12px'}}>
+                        <div style={{fontSize:10,color:'#93c5fd',fontWeight:600,marginBottom:8}}>
+                          🏦 대출금 상환 현황
+                        </div>
+                        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:6}}>
+                          {[
+                            {label:'대출 원금',   val:HYUNG_LOAN.amount,               color:'#dde1f2'},
+                            {label:'이자(연10%)', val:s.loanInterest,                  color:'#f87171'},
+                            {label:'상환 목표',   val:HYUNG_LOAN.amount+s.loanInterest,color:'#93c5fd'},
+                            {label:'상환 완료',   val:s.byCategory['loan']||0,         color:'#34d399'},
+                          ].map(k=>(
+                            <div key={k.label} style={{background:'#191c2b',borderRadius:6,padding:'6px 8px'}}>
+                              <div style={{fontSize:9,color:'#5e6585',marginBottom:2}}>{k.label}</div>
+                              <div style={{fontSize:11,fontWeight:700,color:k.color,fontFamily:'DM Mono,monospace'}}>
+                                {wonFmt(k.val)}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                     {inv_cfg.startDate && (
-                      <div style={{marginTop:10,fontSize:10,color:'#5e6585',textAlign:'right'}}>
-                        이자 산정 시작: {inv_cfg.startDate} (연 5% 단리)
+                      <div style={{marginTop:10,fontSize:10,color:'#5e6585',textAlign:'right',lineHeight:1.8}}>
+                        투자 이자: {inv_cfg.startDate}부터 연 5% 단리
+                        {uid==='hyung' && inv_cfg.loanStartDate && (
+                          <><br/><span style={{color:'#93c5fd'}}>대출금 이자: {inv_cfg.loanStartDate}부터 연 10% 단리</span></>
+                        )}
+                        {uid==='hyung' && !inv_cfg.loanStartDate && (
+                          <><br/><span style={{color:'#f87171'}}>⚠ 대출 시작일 미입력 (설정 필요)</span></>
+                        )}
                       </div>
                     )}
                   </div>
