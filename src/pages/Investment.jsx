@@ -125,6 +125,7 @@ function ProgressBar({ value, max, color }) {
 }
 
 export default function Investment() {
+  const { isInvestor } = useAuth()
   const [config, setConfig]   = useState({
     terry: { amount: 0, startDate: '', interestRate: 0.05 },
     hyung:  { amount: 0, startDate: '', interestRate: 0.05 },
@@ -300,20 +301,14 @@ export default function Investment() {
                   <span style={{fontSize:13,fontWeight:700,color:'#f9b934',fontFamily:'DM Mono,monospace',flexShrink:0}}>
                     {wonFmt(r.amount)}
                   </span>
-                  <button onClick={()=>deleteRecord(r.id)}
-  style={{
-    background:'transparent',
-    border:'1px solid #3d1f1f',
-    color:'#f87171',
-    padding:'3px 8px',
-    fontSize:10,
-    borderRadius:4,
-    cursor:'pointer',
-    fontFamily:'inherit',
-    flexShrink:0
-  }}>
-  삭제
-</button>
+                  {!isInvestor && (
+                    <button onClick={()=>deleteRecord(r.id)}
+                      style={{background:'transparent',border:'1px solid #3d1f1f',color:'#f87171',
+                        padding:'3px 8px',fontSize:10,borderRadius:4,cursor:'pointer',
+                        fontFamily:'inherit',flexShrink:0}}>
+                      삭제
+                    </button>
+                  )}
                 </div>
               )
             })}
@@ -331,18 +326,20 @@ export default function Investment() {
           <div style={{fontSize:20,fontWeight:700}}>📈 투자관리</div>
           <div style={{fontSize:12,color:'#5e6585',marginTop:2}}>사장 전용 — 투자금 회수 현황</div>
         </div>
-        <div style={{display:'flex',gap:8}}>
-          <button onClick={()=>{ setEditConfig(JSON.parse(JSON.stringify(config))); setShowConfig(v=>!v) }}
-            style={{background:'#191c2b',border:'1px solid #272a3d',color:'#dde1f2',borderRadius:8,
-              padding:'8px 14px',fontSize:11,cursor:'pointer',fontFamily:'inherit'}}>
-            ⚙️ 투자금 설정
-          </button>
-          <button onClick={()=>{setShowForm(v=>!v); setForm(f=>({...f, date:todayStr()}))}}
-            style={{background:'#f9b934',color:'#000',border:'none',borderRadius:8,
-              padding:'8px 16px',fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
-            + 회수 입력
-          </button>
-        </div>
+        {!isInvestor && (
+          <div style={{display:'flex',gap:8}}>
+            <button onClick={()=>{ setEditConfig(JSON.parse(JSON.stringify(config))); setShowConfig(v=>!v) }}
+              style={{background:'#191c2b',border:'1px solid #272a3d',color:'#dde1f2',borderRadius:8,
+                padding:'8px 14px',fontSize:11,cursor:'pointer',fontFamily:'inherit'}}>
+              ⚙️ 투자금 설정
+            </button>
+            <button onClick={()=>{setShowForm(v=>!v); setForm(f=>({...f, date:todayStr()}))}}
+              style={{background:'#f9b934',color:'#000',border:'none',borderRadius:8,
+                padding:'8px 16px',fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
+              + 회수 입력
+            </button>
+          </div>
+        )}
       </div>
 
       {/* 투자금 설정 패널 */}
