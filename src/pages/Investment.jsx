@@ -277,23 +277,28 @@ export default function Investment() {
                   {inv.emoji} {inv.name} ({(inv.ratio*100).toFixed(0)}%)
                 </div>
                 {[
-                  ['투자 원금 (원)','number','amount'],
+                  ['투자 원금 (원)','amount','amount'],
                   ['투자 시작일','date','startDate'],
                   ...(uid==='terry' ? [
-                    ['📉 운영 손해분 목표 (원)','number','lossAmount'],
-                    ['📦 퇴직금 대납 목표 (원)','number','severanceAmount'],
+                    ['📉 운영 손해분 목표 (원)','amount','lossAmount'],
+                    ['📦 퇴직금 대납 목표 (원)','amount','severanceAmount'],
                   ] : []),
                   ...(uid==='hyung' ? [['대출 시작일 (연10%)','date','loanStartDate']] : []),
-                ].map(([label,type,key])=>(
+                ].map(([label,type,key])=>{
+                  const isAmount = type === 'amount'
+                  const rawVal   = editConfig[uid]?.[key] || ''
+                  const dispVal  = isAmount && rawVal
+                    ? Number(rawVal).toLocaleString('ko-KR') : rawVal
+                  return (
                   <div key={key} style={{marginBottom:10}}>
                     <label style={{fontSize:10,color:'#5e6585',display:'block',marginBottom:4}}>{label}</label>
-                    <input type={type}
-                      value={type==='number' && editConfig[uid]?.[key]
-                        ? Number(editConfig[uid][key]).toLocaleString('ko-KR')
-                        : (editConfig[uid]?.[key] || '')}
+                    <input
+                      type={isAmount ? 'text' : 'date'}
+                      inputMode={isAmount ? 'numeric' : undefined}
+                      value={dispVal}
                       onChange={e=>{
-                        const val = type==='number'
-                          ? +e.target.value.replace(/[^0-9]/g,'') || 0
+                        const val = isAmount
+                          ? (+e.target.value.replace(/[^0-9]/g,'') || 0)
                           : e.target.value
                         setEditConfig(prev=>({
                           ...prev,
@@ -302,13 +307,14 @@ export default function Investment() {
                       }}
                       style={{background:'#12141f',
                         border:`1px solid ${
-                          key==='loanStartDate' ? 'rgba(147,197,253,0.3)' :
-                          key==='lossAmount'    ? 'rgba(248,113,113,0.3)' :
-                          key==='severanceAmount'?'rgba(249,185,52,0.3)' : '#272a3d'}`,
+                          key==='loanStartDate'   ? 'rgba(147,197,253,0.3)' :
+                          key==='lossAmount'      ? 'rgba(248,113,113,0.3)' :
+                          key==='severanceAmount' ? 'rgba(249,185,52,0.3)'  : '#272a3d'}`,
                         borderRadius:7,color:'#dde1f2',padding:'8px 10px',fontSize:12,outline:'none',
-                        width:'100%',fontFamily:'DM Mono,monospace'}}/>
+                        width:'100%',fontFamily:'DM Mono,monospace',
+                        textAlign: isAmount ? 'right' : 'left'}}/>
                   </div>
-                ))}
+                )})}
                 <div style={{fontSize:10,color:'#5e6585',marginTop:4}}>
                   투자 이자: 연 5% 단리
                   {uid==='hyung' && <span style={{color:'#93c5fd'}}> / 대출금 1,200만원 연 10% 단리</span>}
