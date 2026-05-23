@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { db } from '../firebase'
 import { doc, getDoc, setDoc } from 'firebase/firestore'
+import { useAuth } from '../AuthContext'
 
 const pad = n => String(n).padStart(2,'0')
 const wonFmt = n => (n||0).toLocaleString('ko-KR') + '원'
