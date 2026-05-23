@@ -27,9 +27,7 @@ export function calcYears(joinDate) {
 export function GradeBadge({ joinDate, size = 12 }) {
   const grade = calcGrade(joinDate)
   const years = calcYears(joinDate)
-
   if (!grade) return null
-
   if (grade === 'chick') {
     return (
       <span style={{display:'inline-flex',alignItems:'center',gap:4,
@@ -39,7 +37,6 @@ export function GradeBadge({ joinDate, size = 12 }) {
       </span>
     )
   }
-
   if (grade === 'senior') {
     return (
       <span style={{display:'inline-flex',alignItems:'center',gap:4,
@@ -49,8 +46,6 @@ export function GradeBadge({ joinDate, size = 12 }) {
       </span>
     )
   }
-
-  // legend — 1년마다 노란별 하나씩
   const stars = Math.max(1, years)
   return (
     <span style={{display:'inline-flex',alignItems:'center',gap:4,
@@ -82,12 +77,14 @@ export function AuthProvider({ children }) {
     return () => unsub()
   }, [])
 
-const isOwner = userData?.role === 'owner'
-  const isStore = userData?.role === 'store'
-  const isPending = userData?.status === 'pending'
-  const isLegend = calcGrade(userData?.joinDate) === 'legend'
+  const isOwner    = userData?.role === 'owner'
+  const isStore    = userData?.role === 'store'
+  const isInvestor = userData?.role === 'investor'  // 👈 추가
+  const isPending  = userData?.status === 'pending'
+  const isLegend   = calcGrade(userData?.joinDate) === 'legend'
+
   return (
-    <AuthContext.Provider value={{ user, userData, isOwner, isStore, isPending, isLegend, loading }}>
+    <AuthContext.Provider value={{ user, userData, isOwner, isStore, isInvestor, isPending, isLegend, loading }}>
       {!loading && children}
     </AuthContext.Provider>
   )
