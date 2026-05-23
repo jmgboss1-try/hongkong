@@ -208,7 +208,10 @@ export default function Investment() {
 
     // 형의 경우 대출금 원금+이자도 회수 목표에 포함
     const loanTarget = uid === 'hyung' ? HYUNG_LOAN.amount + hyungLoanInterest : 0
-    const totalTarget = principal + interest + loanTarget
+    // 테리의 경우 운영손해분/퇴직금 목표도 포함
+    const lossTarget      = uid === 'terry' ? (inv.lossAmount     || 0) : 0
+    const severanceTarget = uid === 'terry' ? (inv.severanceAmount|| 0) : 0
+    const totalTarget = principal + interest + loanTarget + lossTarget + severanceTarget
 
     const recovered = records
       .filter(r => r.investor === uid)
@@ -222,10 +225,12 @@ export default function Investment() {
     }
 
     summary[uid] = { principal, interest, totalTarget, recovered,
-      remaining: Math.max(0, totalTarget - recovered), byCategory,
-      loanTarget:    uid === 'hyung' ? loanTarget : 0,
-      loanInterest:  uid === 'hyung' ? hyungLoanInterest : 0,
-      loanSchedule:  uid === 'hyung' ? hyungLoanCalc.schedule : [] }
+      remaining:      Math.max(0, totalTarget - recovered), byCategory,
+      loanTarget:     uid === 'hyung' ? loanTarget : 0,
+      loanInterest:   uid === 'hyung' ? hyungLoanInterest : 0,
+      loanSchedule:   uid === 'hyung' ? hyungLoanCalc.schedule : [],
+      lossTarget,
+      severanceTarget }
   }
 
   const totalPrincipal  = Object.values(summary).reduce((a,s)=>a+s.principal,0)
@@ -274,20 +279,34 @@ export default function Investment() {
                 {[
                   ['투자 원금 (원)','number','amount'],
                   ['투자 시작일','date','startDate'],
+                  ...(uid==='terry' ? [
+                    ['📉 운영 손해분 목표 (원)','number','lossAmount'],
+                    ['📦 퇴직금 대납 목표 (원)','number','severanceAmount'],
+                  ] : []),
                   ...(uid==='hyung' ? [['대출 시작일 (연10%)','date','loanStartDate']] : []),
                 ].map(([label,type,key])=>(
                   <div key={key} style={{marginBottom:10}}>
                     <label style={{fontSize:10,color:'#5e6585',display:'block',marginBottom:4}}>{label}</label>
                     <input type={type}
-                      value={editConfig[uid]?.[key] || ''}
-                      onChange={e=>setEditConfig(prev=>({
-                        ...prev,
-                        [uid]: {...(prev[uid]||{}), [key]: type==='number'?+e.target.value:e.target.value}
-                      }))}
+                      value={type==='number' && editConfig[uid]?.[key]
+                        ? Number(editConfig[uid][key]).toLocaleString('ko-KR')
+                        : (editConfig[uid]?.[key] || '')}
+                      onChange={e=>{
+                        const val = type==='number'
+                          ? +e.target.value.replace(/[^0-9]/g,'') || 0
+                          : e.target.value
+                        setEditConfig(prev=>({
+                          ...prev,
+                          [uid]: {...(prev[uid]||{}), [key]: val}
+                        }))
+                      }}
                       style={{background:'#12141f',
-                        border:`1px solid ${key==='loanStartDate'?'rgba(147,197,253,0.3)':'#272a3d'}`,
+                        border:`1px solid ${
+                          key==='loanStartDate' ? 'rgba(147,197,253,0.3)' :
+                          key==='lossAmount'    ? 'rgba(248,113,113,0.3)' :
+                          key==='severanceAmount'?'rgba(249,185,52,0.3)' : '#272a3d'}`,
                         borderRadius:7,color:'#dde1f2',padding:'8px 10px',fontSize:12,outline:'none',
-                        width:'100%',fontFamily:'inherit'}}/>
+                        width:'100%',fontFamily:'DM Mono,monospace'}}/>
                   </div>
                 ))}
                 <div style={{fontSize:10,color:'#5e6585',marginTop:4}}>
@@ -466,18 +485,38 @@ export default function Investment() {
                     <ProgressBar value={s.recovered} max={s.totalTarget} color={inv.color}/>
 
                     {/* 카테고리별 회수 — 투자자별로 해당 카테고리만 표시 */}
-                    <div style={{marginTop:14,display:'flex',flexDirection:'column',gap:6}}>
+                    <div style={{marginTop:14,display:'flex',flexDirection:'column',gap:8}}>
                       <div style={{fontSize:10,color:'#5e6585',fontWeight:600,marginBottom:2}}>카테고리별 회수 현황</div>
                       {(CATEGORIES_BY_INVESTOR[uid]||CATEGORIES_BY_INVESTOR.terry).map(cat=>{
                         const val = s.byCategory[cat.key] || 0
+                        const target = cat.key==='investment' ? (s.principal + s.interest)
+                          : cat.key==='loss'       ? s.lossTarget
+                          : cat.key==='severance'  ? s.severanceTarget
+                          : cat.key==='loan'       ? s.loanTarget
+                          : 0
+                        const pct = target > 0 ? Math.min(100, Math.round(val/target*100)) : 0
+                        const notSet = target === 0 && cat.key !== 'investment'
                         return (
-                          <div key={cat.key} style={{display:'flex',justifyContent:'space-between',
-                            alignItems:'center',fontSize:11,padding:'6px 10px',borderRadius:6,
-                            background:'#191c2b'}}>
-                            <span style={{color:'#5e6585'}}>{cat.label}</span>
-                            <span style={{color:val>0?inv.color:'#3d4060',fontFamily:'DM Mono,monospace',fontWeight:val>0?700:400}}>
-                              {val>0 ? wonFmt(val) : '—'}
-                            </span>
+                          <div key={cat.key} style={{background:'#191c2b',borderRadius:7,padding:'8px 10px'}}>
+                            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:target>0?6:0}}>
+                              <span style={{fontSize:11,color:'#5e6585'}}>{cat.label}</span>
+                              <span style={{fontSize:11,color:val>0?inv.color:'#3d4060',
+                                fontFamily:'DM Mono,monospace',fontWeight:val>0?700:400}}>
+                                {val>0 ? wonFmt(val) : '—'}
+                                {target>0 && <span style={{color:'#3d4060',fontWeight:400}}> / {wonFmt(target)}</span>}
+                              </span>
+                            </div>
+                            {target > 0 && (
+                              <div style={{background:'#272a3d',borderRadius:99,height:4,overflow:'hidden'}}>
+                                <div style={{width:`${pct}%`,height:'100%',borderRadius:99,
+                                  background:pct>=100?'#34d399':inv.color,transition:'width .5s'}}/>
+                              </div>
+                            )}
+                            {notSet && (
+                              <div style={{fontSize:9,color:'#f87171',marginTop:2}}>
+                                ⚠ 목표 금액 미설정 (⚙️ 투자금 설정에서 입력)
+                              </div>
+                            )}
                           </div>
                         )
                       })}
