@@ -55,6 +55,39 @@ function calcTotalInterest(config, toDate) {
   return results
 }
 
+// 대출금 연간 일시 이자 계산
+// - 대출 시작일(= 1월30일)에 첫 이자 즉시 부과
+// - 매년 1월30일에 잔여 잔액 기준 10% 이자 추가
+function calcLoanLumpSum(principal, loanStartDate, loanPayments, today, rate = 0.10) {
+  if (!principal || !loanStartDate) return { totalInterest: 0, totalOwed: principal, schedule: [], nextDate: null }
+
+  const start = new Date(loanStartDate)
+  const now   = new Date(today)
+  const schedule = []
+  let totalInterest = 0
+
+  for (let year = 0; year <= 20; year++) {
+    const anniv = new Date(start)
+    anniv.setFullYear(start.getFullYear() + year)
+    if (anniv > now) {
+      // 다음 이자 날짜
+      schedule.push({ date: anniv.toISOString().slice(0,10), upcoming: true })
+      break
+    }
+    const annivStr = anniv.toISOString().slice(0,10)
+    // 이 시점까지의 상환 합계
+    const paid = loanPayments.filter(p => p.date <= annivStr).reduce((a,p)=>a+p.amount,0)
+    // 이 시점 잔액 (이전 이자 포함)
+    const balance = Math.max(0, principal + totalInterest - paid)
+    if (balance <= 0) break
+    const interest = Math.round(balance * rate)
+    totalInterest += interest
+    schedule.push({ date: annivStr, balance, interest, upcoming: false })
+  }
+
+  return { totalInterest, totalOwed: principal + totalInterest, schedule }
+}
+
 function ProgressBar({ value, max, color }) {
   const pct = max > 0 ? Math.min(100, Math.round((value / max) * 100)) : 0
   return (
@@ -146,9 +179,11 @@ export default function Investment() {
   const today = new Date().toISOString().slice(0,10)
   const interests = calcTotalInterest(config, today)
 
-  // 형 대출금 이자 계산 (연 10% 단리, 대출 시작일 별도)
+  // 형 대출금 이자 계산 (연간 일시 부과, 매년 1월30일)
   const hyungLoanStartDate = config.hyung?.loanStartDate || ''
-  const hyungLoanInterest = calcInterest(HYUNG_LOAN.amount, hyungLoanStartDate, today, HYUNG_LOAN.rate)
+  const hyungLoanPayments  = records.filter(r => r.investor==='hyung' && r.category==='loan')
+  const hyungLoanCalc      = calcLoanLumpSum(HYUNG_LOAN.amount, hyungLoanStartDate, hyungLoanPayments, today, HYUNG_LOAN.rate)
+  const hyungLoanInterest  = hyungLoanCalc.totalInterest
 
   const summary = {}
   for (const uid of Object.keys(INVESTORS)) {
@@ -173,8 +208,9 @@ export default function Investment() {
 
     summary[uid] = { principal, interest, totalTarget, recovered,
       remaining: Math.max(0, totalTarget - recovered), byCategory,
-      loanTarget: uid === 'hyung' ? loanTarget : 0,
-      loanInterest: uid === 'hyung' ? hyungLoanInterest : 0 }
+      loanTarget:    uid === 'hyung' ? loanTarget : 0,
+      loanInterest:  uid === 'hyung' ? hyungLoanInterest : 0,
+      loanSchedule:  uid === 'hyung' ? hyungLoanCalc.schedule : [] }
   }
 
   const totalPrincipal  = Object.values(summary).reduce((a,s)=>a+s.principal,0)
@@ -437,12 +473,12 @@ export default function Investment() {
                         <div style={{fontSize:10,color:'#93c5fd',fontWeight:600,marginBottom:8}}>
                           🏦 대출금 상환 현황
                         </div>
-                        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:6}}>
+                        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:6,marginBottom:10}}>
                           {[
-                            {label:'대출 원금',   val:HYUNG_LOAN.amount,               color:'#dde1f2'},
-                            {label:'이자(연10%)', val:s.loanInterest,                  color:'#f87171'},
-                            {label:'상환 목표',   val:HYUNG_LOAN.amount+s.loanInterest,color:'#93c5fd'},
-                            {label:'상환 완료',   val:s.byCategory['loan']||0,         color:'#34d399'},
+                            {label:'대출 원금',        val:HYUNG_LOAN.amount,               color:'#dde1f2'},
+                            {label:'누적 이자(연10%)', val:s.loanInterest,                  color:'#f87171'},
+                            {label:'상환 목표',        val:HYUNG_LOAN.amount+s.loanInterest,color:'#93c5fd'},
+                            {label:'상환 완료',        val:s.byCategory['loan']||0,         color:'#34d399'},
                           ].map(k=>(
                             <div key={k.label} style={{background:'#191c2b',borderRadius:6,padding:'6px 8px'}}>
                               <div style={{fontSize:9,color:'#5e6585',marginBottom:2}}>{k.label}</div>
@@ -452,6 +488,30 @@ export default function Investment() {
                             </div>
                           ))}
                         </div>
+                        {/* 이자 부과 일정 */}
+                        {s.loanSchedule.length > 0 && (
+                          <div>
+                            <div style={{fontSize:9,color:'#5e6585',fontWeight:600,marginBottom:6}}>이자 부과 일정</div>
+                            <div style={{display:'flex',flexDirection:'column',gap:4}}>
+                              {s.loanSchedule.map((item,i)=>(
+                                <div key={i} style={{display:'flex',justifyContent:'space-between',
+                                  alignItems:'center',fontSize:10,padding:'5px 8px',borderRadius:5,
+                                  background: item.upcoming ? 'rgba(249,185,52,0.06)' : 'rgba(52,211,153,0.06)',
+                                  border: `1px solid ${item.upcoming?'rgba(249,185,52,0.2)':'rgba(52,211,153,0.15)'}`,
+                                }}>
+                                  <span style={{color: item.upcoming?'#f9b934':'#5e6585'}}>
+                                    {item.upcoming ? '⏳ 다음 이자일' : `✓ ${item.date}`}
+                                    {!item.upcoming && <span style={{marginLeft:4,color:'#3d4060'}}>잔액 {wonFmt(item.balance)}</span>}
+                                  </span>
+                                  <span style={{fontFamily:'DM Mono,monospace',fontWeight:700,
+                                    color: item.upcoming?'#f9b934':'#f87171'}}>
+                                    {item.upcoming ? item.date : `+${wonFmt(item.interest)}`}
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
                       </div>
                     )}
                     {inv_cfg.startDate && (
