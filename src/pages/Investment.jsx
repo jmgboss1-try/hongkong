@@ -6,6 +6,21 @@ const pad = n => String(n).padStart(2,'0')
 const wonFmt = n => (n||0).toLocaleString('ko-KR') + '원'
 const dateFmt = d => d ? d.slice(0,10) : '—'
 
+// 오늘 날짜 (YYYY-MM-DD)
+function todayStr() {
+  const now = new Date()
+  return `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}`
+}
+
+// 금액 입력 포맷 헬퍼
+function fmtAmount(val) {
+  const num = val.replace(/[^0-9]/g, '')
+  return num ? Number(num).toLocaleString('ko-KR') : ''
+}
+function parseAmount(val) {
+  return +val.replace(/[^0-9]/g, '') || 0
+}
+
 const INVESTORS = {
   terry: { name: '테리', ratio: 0.7, color: '#f9b934', emoji: '👑' },
   hyung:  { name: '형',   ratio: 0.3, color: '#93c5fd', emoji: '🤝' },
@@ -120,7 +135,7 @@ export default function Investment() {
   const [showConfig, setShowConfig]   = useState(false)
   const [editConfig, setEditConfig]   = useState({})
   const [showForm, setShowForm]       = useState(false)
-  const [form, setForm]               = useState({ date:'', amount:'', investor:'terry', category:'investment', memo:'' })
+  const [form, setForm]               = useState({ date:todayStr(), amount:'', investor:'terry', category:'investment', memo:'' })
 
   async function load() {
     setLoading(true)
@@ -154,7 +169,7 @@ export default function Investment() {
       const newRecord = {
         id:        Date.now().toString(),
         date:      form.date,
-        amount:    +form.amount,
+        amount:    parseAmount(form.amount),
         investor:  form.investor,
         category:  form.category,
         memo:      form.memo,
@@ -163,7 +178,7 @@ export default function Investment() {
       const newList = [...records, newRecord].sort((a,b)=>a.date>b.date?1:-1)
       await setDoc(doc(db,'investment','records'), { list: newList })
       setRecords(newList)
-      setForm({ date:'', amount:'', investor:'terry', category:'investment', memo:'' })
+      setForm({ date:todayStr(), amount:'', investor:'terry', category:'investment', memo:'' })
       setShowForm(false)
     } catch(e) { console.error(e) }
     setSaving(false)
@@ -237,7 +252,7 @@ export default function Investment() {
               padding:'8px 14px',fontSize:11,cursor:'pointer',fontFamily:'inherit'}}>
             ⚙️ 투자금 설정
           </button>
-          <button onClick={()=>setShowForm(v=>!v)}
+          <button onClick={()=>{setShowForm(v=>!v); setForm(f=>({...f, date:todayStr()}))}}
             style={{background:'#f9b934',color:'#000',border:'none',borderRadius:8,
               padding:'8px 16px',fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
             + 회수 입력
@@ -310,10 +325,12 @@ export default function Investment() {
             </div>
             <div>
               <label style={{fontSize:10,color:'#5e6585',display:'block',marginBottom:4}}>회수 금액 (원)</label>
-              <input type="number" value={form.amount} onChange={e=>setForm(f=>({...f,amount:e.target.value}))}
-                placeholder="0" min="0"
+              <input type="text" inputMode="numeric" value={form.amount}
+                onChange={e=>setForm(f=>({...f, amount:fmtAmount(e.target.value)}))}
+                placeholder="0"
                 style={{background:'#191c2b',border:'1px solid #272a3d',borderRadius:7,color:'#dde1f2',
-                  padding:'8px 10px',fontSize:12,outline:'none',width:'100%',fontFamily:'inherit'}}/>
+                  padding:'8px 10px',fontSize:12,outline:'none',width:'100%',
+                  fontFamily:'DM Mono,monospace',textAlign:'right'}}/>
             </div>
             {/* 투자자 선택 - 변경 시 카테고리 자동 초기화 */}
             <div>
