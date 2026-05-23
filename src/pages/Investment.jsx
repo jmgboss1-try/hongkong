@@ -300,13 +300,20 @@ export default function Investment() {
                   <span style={{fontSize:13,fontWeight:700,color:'#f9b934',fontFamily:'DM Mono,monospace',flexShrink:0}}>
                     {wonFmt(r.amount)}
                   </span>
-                  {!isInvestor && (
-                    <button onClick={()=>deleteRecord(r.id)}
-                      style={{background:'transparent',border:'1px solid #3d1f1f',color:'#f87171',
-                        padding:'3px 8px',fontSize:10,borderRadius:4,cursor:'pointer',fontFamily:'inherit',flexShrink:0}}>
-                      삭제
-                    </button>
-                  )}
+                  <button onClick={()=>deleteRecord(r.id)}
+  style={{
+    background:'transparent',
+    border:'1px solid #3d1f1f',
+    color:'#f87171',
+    padding:'3px 8px',
+    fontSize:10,
+    borderRadius:4,
+    cursor:'pointer',
+    fontFamily:'inherit',
+    flexShrink:0
+  }}>
+  삭제
+</button>
                 </div>
               )
             })}
