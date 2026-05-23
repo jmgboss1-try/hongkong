@@ -11,7 +11,19 @@ const INVESTORS = {
   hyung:  { name: '형',   ratio: 0.3, color: '#93c5fd', emoji: '🤝' },
 }
 
-const CATEGORIES = [
+// 투자자별 카테고리 분리
+const CATEGORIES_BY_INVESTOR = {
+  terry: [
+    { key: 'investment', label: '💰 투자금 회수' },
+    { key: 'loss',       label: '📉 운영 손해분 회수' },
+    { key: 'severance',  label: '📦 퇴직금 대납 회수' },
+  ],
+  hyung: [
+    { key: 'investment', label: '💰 투자금 회수' },
+  ],
+}
+// 전체 카테고리 (집계/테이블용)
+const ALL_CATEGORIES = [
   { key: 'investment', label: '💰 투자금 회수' },
   { key: 'loss',       label: '📉 운영 손해분 회수' },
   { key: 'severance',  label: '📦 퇴직금 대납 회수' },
@@ -26,7 +38,6 @@ function calcInterest(principal, fromDate, toDate, rate = 0.05) {
   return Math.round(principal * rate * (days / 365))
 }
 
-// 투자 시작일 기준 이자 계산
 function calcTotalInterest(config, toDate) {
   const results = {}
   for (const [uid, inv] of Object.entries(config)) {
@@ -65,16 +76,10 @@ export default function Investment() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving]   = useState(false)
 
-  // 설정 패널
   const [showConfig, setShowConfig]   = useState(false)
   const [editConfig, setEditConfig]   = useState({})
-
-  // 회수 입력 폼
   const [showForm, setShowForm]       = useState(false)
   const [form, setForm]               = useState({ date:'', amount:'', investor:'terry', category:'investment', memo:'' })
-
-  // 탭
-  const [tab, setTab] = useState('overview') // 'overview' | 'records'
 
   async function load() {
     setLoading(true)
@@ -91,7 +96,6 @@ export default function Investment() {
 
   useEffect(()=>{ load() },[])
 
-  // 저장
   async function saveConfig() {
     setSaving(true)
     try {
@@ -131,24 +135,22 @@ export default function Investment() {
     setRecords(newList)
   }
 
-  // 계산
   const today = new Date().toISOString().slice(0,10)
   const interests = calcTotalInterest(config, today)
 
-  // 투자자별 집계
   const summary = {}
   for (const uid of Object.keys(INVESTORS)) {
     const inv      = config[uid] || {}
     const interest = interests[uid] || 0
     const principal = inv.amount || 0
-    const totalTarget = principal + interest  // 원금 + 이자
+    const totalTarget = principal + interest
 
     const recovered = records
       .filter(r => r.investor === uid)
       .reduce((a,r) => a + (r.amount||0), 0)
 
     const byCategory = {}
-    for (const cat of CATEGORIES) {
+    for (const cat of ALL_CATEGORIES) {
       byCategory[cat.key] = records
         .filter(r => r.investor === uid && r.category === cat.key)
         .reduce((a,r) => a + (r.amount||0), 0)
@@ -243,14 +245,12 @@ export default function Investment() {
         <div style={{background:'#12141f',border:'1px solid #34d399',borderRadius:12,marginBottom:18,padding:18}}>
           <div style={{fontSize:13,fontWeight:600,color:'#34d399',marginBottom:16}}>+ 회수 입력</div>
           <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(160px,1fr))',gap:12}}>
-            {/* 날짜 */}
             <div>
               <label style={{fontSize:10,color:'#5e6585',display:'block',marginBottom:4}}>날짜</label>
               <input type="date" value={form.date} onChange={e=>setForm(f=>({...f,date:e.target.value}))}
                 style={{background:'#191c2b',border:'1px solid #272a3d',borderRadius:7,color:'#dde1f2',
                   padding:'8px 10px',fontSize:12,outline:'none',width:'100%',fontFamily:'inherit'}}/>
             </div>
-            {/* 금액 */}
             <div>
               <label style={{fontSize:10,color:'#5e6585',display:'block',marginBottom:4}}>회수 금액 (원)</label>
               <input type="number" value={form.amount} onChange={e=>setForm(f=>({...f,amount:e.target.value}))}
@@ -258,10 +258,15 @@ export default function Investment() {
                 style={{background:'#191c2b',border:'1px solid #272a3d',borderRadius:7,color:'#dde1f2',
                   padding:'8px 10px',fontSize:12,outline:'none',width:'100%',fontFamily:'inherit'}}/>
             </div>
-            {/* 대상 */}
+            {/* 투자자 선택 - 변경 시 카테고리 자동 초기화 */}
             <div>
               <label style={{fontSize:10,color:'#5e6585',display:'block',marginBottom:4}}>대상 투자자</label>
-              <select value={form.investor} onChange={e=>setForm(f=>({...f,investor:e.target.value}))}
+              <select value={form.investor}
+                onChange={e=>{
+                  const newInvestor = e.target.value
+                  const cats = CATEGORIES_BY_INVESTOR[newInvestor] || CATEGORIES_BY_INVESTOR.terry
+                  setForm(f=>({...f, investor:newInvestor, category:cats[0].key}))
+                }}
                 style={{background:'#191c2b',border:'1px solid #272a3d',borderRadius:7,color:'#dde1f2',
                   padding:'8px 10px',fontSize:12,outline:'none',width:'100%',fontFamily:'inherit'}}>
                 {Object.entries(INVESTORS).map(([uid,inv])=>(
@@ -269,18 +274,18 @@ export default function Investment() {
                 ))}
               </select>
             </div>
-            {/* 카테고리 */}
+            {/* 카테고리 - 선택된 투자자 기준으로만 표시 */}
             <div>
               <label style={{fontSize:10,color:'#5e6585',display:'block',marginBottom:4}}>카테고리</label>
-              <select value={form.category} onChange={e=>setForm(f=>({...f,category:e.target.value}))}
+              <select value={form.category}
+                onChange={e=>setForm(f=>({...f,category:e.target.value}))}
                 style={{background:'#191c2b',border:'1px solid #272a3d',borderRadius:7,color:'#dde1f2',
                   padding:'8px 10px',fontSize:12,outline:'none',width:'100%',fontFamily:'inherit'}}>
-                {CATEGORIES.map(c=>(
+                {(CATEGORIES_BY_INVESTOR[form.investor]||CATEGORIES_BY_INVESTOR.terry).map(c=>(
                   <option key={c.key} value={c.key}>{c.label}</option>
                 ))}
               </select>
             </div>
-            {/* 메모 */}
             <div style={{gridColumn:'1/-1'}}>
               <label style={{fontSize:10,color:'#5e6585',display:'block',marginBottom:4}}>메모 (선택)</label>
               <input type="text" value={form.memo} onChange={e=>setForm(f=>({...f,memo:e.target.value}))}
@@ -352,7 +357,6 @@ export default function Investment() {
                 <div key={uid} style={{background:'#12141f',
                   border:`1px solid ${isDone?'rgba(52,211,153,0.4)':inv.color+'44'}`,
                   borderRadius:12,overflow:'hidden'}}>
-                  {/* 카드 헤더 */}
                   <div style={{padding:'14px 16px',borderBottom:'1px solid #272a3d',
                     display:'flex',justifyContent:'space-between',alignItems:'center'}}>
                     <div style={{display:'flex',alignItems:'center',gap:8}}>
@@ -368,15 +372,13 @@ export default function Investment() {
                     )}
                   </div>
 
-                  {/* 카드 바디 */}
                   <div style={{padding:'14px 16px'}}>
-                    {/* 금액 정보 */}
                     <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:14}}>
                       {[
-                        {label:'투자 원금',   val:s.principal,   color:'#dde1f2'},
-                        {label:'누적 이자(5%)',val:s.interest,    color:'#f87171'},
-                        {label:'총 회수 목표', val:s.totalTarget, color:inv.color},
-                        {label:'회수 완료',    val:s.recovered,   color:'#34d399'},
+                        {label:'투자 원금',    val:s.principal,   color:'#dde1f2'},
+                        {label:'누적 이자(5%)', val:s.interest,    color:'#f87171'},
+                        {label:'총 회수 목표',  val:s.totalTarget, color:inv.color},
+                        {label:'회수 완료',     val:s.recovered,   color:'#34d399'},
                       ].map(k=>(
                         <div key={k.label} style={{background:'#191c2b',borderRadius:7,padding:'8px 10px'}}>
                           <div style={{fontSize:9,color:'#5e6585',marginBottom:2}}>{k.label}</div>
@@ -387,13 +389,12 @@ export default function Investment() {
                       ))}
                     </div>
 
-                    {/* 프로그레스바 */}
                     <ProgressBar value={s.recovered} max={s.totalTarget} color={inv.color}/>
 
-                    {/* 카테고리별 회수 */}
+                    {/* 카테고리별 회수 — 투자자별로 해당 카테고리만 표시 */}
                     <div style={{marginTop:14,display:'flex',flexDirection:'column',gap:6}}>
                       <div style={{fontSize:10,color:'#5e6585',fontWeight:600,marginBottom:2}}>카테고리별 회수 현황</div>
-                      {CATEGORIES.map(cat=>{
+                      {(CATEGORIES_BY_INVESTOR[uid]||CATEGORIES_BY_INVESTOR.terry).map(cat=>{
                         const val = s.byCategory[cat.key] || 0
                         return (
                           <div key={cat.key} style={{display:'flex',justifyContent:'space-between',
@@ -408,7 +409,6 @@ export default function Investment() {
                       })}
                     </div>
 
-                    {/* 이자 시작일 */}
                     {inv_cfg.startDate && (
                       <div style={{marginTop:10,fontSize:10,color:'#5e6585',textAlign:'right'}}>
                         이자 산정 시작: {inv_cfg.startDate} (연 5% 단리)
@@ -443,7 +443,7 @@ export default function Investment() {
                   <tbody>
                     {[...records].reverse().map(r=>{
                       const inv = INVESTORS[r.investor]
-                      const cat = CATEGORIES.find(c=>c.key===r.category)
+                      const cat = ALL_CATEGORIES.find(c=>c.key===r.category)
                       return (
                         <tr key={r.id}>
                           <td style={{padding:'9px 14px',...bdBot,fontFamily:'DM Mono,monospace',color:'#5e6585'}}>{dateFmt(r.date)}</td>
