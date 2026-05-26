@@ -10,6 +10,13 @@ const wonCell = n => (n != null && n !== 0) ? n.toLocaleString('ko-KR') : '—'
 const DAYS = ['일','월','화','수','목','금','토']
 const SPLIT_FROM = '2025-05'
 
+const DELIVERY_PLATFORMS = [
+  { key:'baemin',   label:'배달의민족', color:'#34d399' },
+  { key:'coupang',  label:'쿠팡이츠',   color:'#f87171' },
+  { key:'yogiyo',   label:'요기요',     color:'#f9b934' },
+  { key:'ddangyeo', label:'땡겨요',     color:'#93c5fd' },
+]
+
 const getNowDD = () => pad(new Date().getDate())
 
 export default function Revenue() {
@@ -25,6 +32,12 @@ export default function Revenue() {
   const [day, setDay] = useState(getNowDD)
   const [kiosk, setKiosk] = useState('')
   const [del, setDel] = useState('')
+  const [baemin,   setBaemin]   = useState('')
+  const [coupang,  setCoupang]  = useState('')
+  const [yogiyo,   setYogiyo]   = useState('')
+  const [ddangyeo, setDdangyeo] = useState('')
+  const [showDelDetail, setShowDelDetail] = useState(false)
+  const delTotal = (+baemin||0)+(+coupang||0)+(+yogiyo||0)+(+ddangyeo||0)
   const [pos, setPos] = useState('')
   const [editDay, setEditDay] = useState(null)
   const [editType, setEditType] = useState(null)
@@ -109,19 +122,36 @@ export default function Revenue() {
     try {
       const existing = data[targetDay] || {}
       let newRow
+      const deliverySum = showDelDetail
+        ? (+baemin||0)+(+coupang||0)+(+yogiyo||0)+(+ddangyeo||0)
+        : +del||0
       if (isNewMonth) {
         if (targetType === 'morning') {
-          newRow = { ...existing, morningKiosk:+kiosk||0, morningDel:+del||0, morningPos:+pos||0 }
+          newRow = { ...existing, morningKiosk:+kiosk||0, morningDel:deliverySum, morningPos:+pos||0,
+            ...(showDelDetail ? {
+              morningBaemin:+baemin||0, morningCoupang:+coupang||0,
+              morningYogiyo:+yogiyo||0, morningDdangyeo:+ddangyeo||0
+            } : {}) }
         } else {
-          newRow = { ...existing, kiosk:+kiosk||0, del:+del||0, pos:+pos||0 }
+          newRow = { ...existing, kiosk:+kiosk||0, del:deliverySum, pos:+pos||0,
+            ...(showDelDetail ? {
+              baemin:+baemin||0, coupang:+coupang||0,
+              yogiyo:+yogiyo||0, ddangyeo:+ddangyeo||0
+            } : {}) }
         }
       } else {
-        newRow = { kiosk:+kiosk||0, del:+del||0, pos:+pos||0 }
+        newRow = { kiosk:+kiosk||0, del:deliverySum, pos:+pos||0,
+          ...(showDelDetail ? {
+            baemin:+baemin||0, coupang:+coupang||0,
+            yogiyo:+yogiyo||0, ddangyeo:+ddangyeo||0
+          } : {}) }
       }
       const newData = { ...data, [targetDay]: newRow }
       await setDoc(doc(db,'revenue',curMonth), newData)
       setData(newData)
       setKiosk(''); setDel(''); setPos('')
+      setBaemin(''); setCoupang(''); setYogiyo(''); setDdangyeo('')
+      setShowDelDetail(false)
       setEditDay(null); setEditType(null)
       if (!editDay) {
         const nextDay = Array.from({length:days},(_,i)=>pad(i+1)).find(dd => {
@@ -140,16 +170,23 @@ export default function Revenue() {
     if (type === 'morning') {
       const m = getMorning(r)
       setKiosk(m.kiosk||''); setDel(m.del||''); setPos(m.pos||'')
+      setBaemin(r.morningBaemin||''); setCoupang(r.morningCoupang||'')
+      setYogiyo(r.morningYogiyo||''); setDdangyeo(r.morningDdangyeo||'')
     } else {
       const t = getTotal(r)
       setKiosk(t.kiosk||''); setDel(t.del||''); setPos(t.pos||'')
+      setBaemin(r.baemin||''); setCoupang(r.coupang||'')
+      setYogiyo(r.yogiyo||''); setDdangyeo(r.ddangyeo||'')
     }
+    if((r.baemin||r.coupang||r.yogiyo||r.ddangyeo||r.morningBaemin)) setShowDelDetail(true)
     window.scrollTo({top:0, behavior:'smooth'})
   }
 
   function cancelEdit() {
     setEditDay(null); setEditType(null)
     setKiosk(''); setDel(''); setPos('')
+    setBaemin(''); setCoupang(''); setYogiyo(''); setDdangyeo('')
+    setShowDelDetail(false)
   }
 
   async function delRow(dd, type) {
@@ -297,15 +334,65 @@ export default function Revenue() {
                 </div>
               )}
             </div>
-            {[['🖥️ 키오스크',kiosk,setKiosk],['🛵 배달',del,setDel],['🧾 포스/현장',pos,setPos]].map(([label,val,set])=>(
-              <div key={label} style={{display:'flex',flexDirection:'column',gap:4}}>
-                <label style={{fontSize:10,fontWeight:600,color:isNewMonth?typeColor:'#5e6585'}}>{label} (원)</label>
-                <input type="number" value={val} onChange={e=>set(e.target.value)}
+            {/* 키오스크 */}
+            <div style={{display:'flex',flexDirection:'column',gap:4}}>
+              <label style={{fontSize:10,fontWeight:600,color:isNewMonth?typeColor:'#5e6585'}}>🖥️ 키오스크 (원)</label>
+              <input type="number" value={kiosk} onChange={e=>setKiosk(e.target.value)}
+                placeholder="0" min="0"
+                style={{background:'#191c2b',border:`1px solid ${isNewMonth?typeBorder:'#272a3d'}`,
+                  borderRadius:7,color:'#dde1f2',padding:'8px 10px',fontSize:12,outline:'none',width:'100%'}}/>
+            </div>
+            {/* 배달 - 토글 */}
+            <div style={{display:'flex',flexDirection:'column',gap:4}}>
+              <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+                <label style={{fontSize:10,fontWeight:600,color:isNewMonth?typeColor:'#5e6585'}}>🛵 배달 (원)</label>
+                <button onClick={()=>setShowDelDetail(v=>!v)}
+                  style={{fontSize:9,color:showDelDetail?typeColor:'#5e6585',background:'transparent',
+                    border:`1px solid ${showDelDetail?typeBorder:'#272a3d'}`,borderRadius:4,
+                    padding:'2px 7px',cursor:'pointer',fontFamily:'inherit'}}>
+                  {showDelDetail ? '▲ 합계 입력' : '▼ 플랫폼별 입력'}
+                </button>
+              </div>
+              {!showDelDetail ? (
+                <input type="number" value={del} onChange={e=>setDel(e.target.value)}
                   placeholder="0" min="0"
                   style={{background:'#191c2b',border:`1px solid ${isNewMonth?typeBorder:'#272a3d'}`,
                     borderRadius:7,color:'#dde1f2',padding:'8px 10px',fontSize:12,outline:'none',width:'100%'}}/>
-              </div>
-            ))}
+              ) : (
+                <div style={{display:'flex',flexDirection:'column',gap:6}}>
+                  <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:6}}>
+                    {[
+                      [baemin,setBaemin,'배달의민족','#34d399'],
+                      [coupang,setCoupang,'쿠팡이츠','#f87171'],
+                      [yogiyo,setYogiyo,'요기요','#f9b934'],
+                      [ddangyeo,setDdangyeo,'땡겨요','#93c5fd'],
+                    ].map(([val,set,label,color])=>(
+                      <div key={label}>
+                        <label style={{fontSize:9,color:color,fontWeight:600,display:'block',marginBottom:3}}>{label}</label>
+                        <input type="number" value={val} onChange={e=>set(e.target.value)}
+                          placeholder="0" min="0"
+                          style={{background:'#191c2b',border:`1px solid ${color}33`,
+                            borderRadius:6,color:'#dde1f2',padding:'7px 8px',fontSize:12,
+                            outline:'none',width:'100%',fontFamily:'DM Mono,monospace'}}/>
+                      </div>
+                    ))}
+                  </div>
+                  {delTotal > 0 && (
+                    <div style={{textAlign:'right',fontSize:11,color:typeColor,fontFamily:'DM Mono,monospace',fontWeight:700}}>
+                      배달 합계: {delTotal.toLocaleString()}원
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+            {/* 포스 */}
+            <div style={{display:'flex',flexDirection:'column',gap:4}}>
+              <label style={{fontSize:10,fontWeight:600,color:isNewMonth?typeColor:'#5e6585'}}>🧾 포스/현장 (원)</label>
+              <input type="number" value={pos} onChange={e=>setPos(e.target.value)}
+                placeholder="0" min="0"
+                style={{background:'#191c2b',border:`1px solid ${isNewMonth?typeBorder:'#272a3d'}`,
+                  borderRadius:7,color:'#dde1f2',padding:'8px 10px',fontSize:12,outline:'none',width:'100%'}}/>
+            </div>
           </div>
           <div style={{padding:'0 18px 18px'}}>
             <button onClick={save} disabled={saving}
@@ -362,7 +449,19 @@ export default function Revenue() {
                         <td style={{padding:'9px 14px',...borderFull,color:'#dde1f2',fontFamily:'DM Mono, monospace'}}>{+dd}일</td>
                         <td style={{padding:'9px 14px',...borderFull,color:getDowColor(curMonth,dd),fontWeight:600}}>{getDow(curMonth,dd)}</td>
                         <td style={{padding:'9px 14px',...borderFull,...cellBase}}>{wonCell(t.kiosk)}</td>
-                        <td style={{padding:'9px 14px',...borderFull,...cellBase}}>{wonCell(t.del)}</td>
+                        <td style={{padding:'9px 14px',...borderFull,...cellBase}}>
+                          {wonCell(t.del)}
+                          {DELIVERY_PLATFORMS.some(p=>(r[p.key]||0)>0) && (
+                            <div style={{marginTop:3}}>
+                              {DELIVERY_PLATFORMS.filter(p=>(r[p.key]||0)>0).map(p=>(
+                                <div key={p.key} style={{display:'flex',justifyContent:'space-between',fontSize:9,color:'#5e6585'}}>
+                                  <span style={{color:p.color}}>{p.label}</span>
+                                  <span style={{fontFamily:'DM Mono,monospace'}}>{(r[p.key]||0).toLocaleString()}</span>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </td>
                         <td style={{padding:'9px 14px',...borderFull,...cellBase}}>{wonCell(t.pos)}</td>
                         <td style={{padding:'9px 14px',...borderFull,...cellBase,color:'#f9b934',fontWeight:700}}>{s.toLocaleString()}</td>
                         {isOwner && (
@@ -440,12 +539,27 @@ export default function Revenue() {
                             ? <span style={{fontSize:9,color:'#3d4060',marginLeft:4,fontWeight:400}}>자동</span>
                             : null}
                         </td>
-                        {[row.k, row.d, row.p].map((v, ci) => (
+                        {[row.k, row.d, row.p].map((v, ci) => {
+                          const isDel = ci === 1
+                          const delPlatformKeys = row.id==='morning'
+                            ? {baemin:'morningBaemin',coupang:'morningCoupang',yogiyo:'morningYogiyo',ddangyeo:'morningDdangyeo'}
+                            : {baemin:'baemin',coupang:'coupang',yogiyo:'yogiyo',ddangyeo:'ddangyeo'}
+                          return (
                           <td key={ci} style={{padding:'6px 14px',...bStyle,...cellBase,
                             color:row.isNeg&&row.id==='afternoon'?'#f87171':'#dde1f2'}}>
                             {v !== null ? wonCell(v) : '—'}
+                            {isDel && row.id!=='afternoon' && DELIVERY_PLATFORMS.some(p=>(r[delPlatformKeys[p.key]]||0)>0) && (
+                              <div style={{marginTop:3}}>
+                                {DELIVERY_PLATFORMS.filter(p=>(r[delPlatformKeys[p.key]]||0)>0).map(p=>(
+                                  <div key={p.key} style={{display:'flex',justifyContent:'space-between',fontSize:9,color:'#5e6585'}}>
+                                    <span style={{color:p.color}}>{p.label}</span>
+                                    <span style={{fontFamily:'DM Mono,monospace'}}>{(r[delPlatformKeys[p.key]]||0).toLocaleString()}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
                           </td>
-                        ))}
+                        )})}
                         <td style={{padding:'6px 14px',...bStyle,...cellBase,
                           fontWeight:row.id==='total'?700:500,
                           color:row.id==='total'?'#34d399':row.id==='morning'?'#f9b934':
