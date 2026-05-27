@@ -97,10 +97,7 @@ function TaxReportModal({ month, employees, payroll, getComputed, ssnMap, ownerC
   const [showOwnerConfig, setShowOwnerConfig] = useState(false)
   const [editOwner, setEditOwner] = useState(ownerConfig)
 
-  // 인쇄
-  function handlePrint() {
-    window.print()
-  }
+  function handlePrint() { window.print() }
 
   const rows = employees.map(emp => {
     const p       = payroll[emp.uid]
@@ -108,10 +105,9 @@ function TaxReportModal({ month, employees, payroll, getComputed, ssnMap, ownerC
     const salary   = p?.confirmedByOwner ? p.totalPay : computed.totalPay
     const tax      = Math.round(salary * 0.033)
     const net      = salary - tax
-    return { name: emp.name, ssn: ssnMap[emp.uid] || '—', salary, tax, net }
+    return { uid: emp.uid, name: emp.name, ssn: ssnMap[emp.uid] || '—', salary, tax, net }
   })
 
-  // 정민규 행 추가
   const ownerRow = ownerConfig.salary > 0 ? {
     name:   '정민규',
     ssn:    ownerConfig.ssn || '—',
@@ -126,34 +122,24 @@ function TaxReportModal({ month, employees, payroll, getComputed, ssnMap, ownerC
   const totalTax    = allRows.reduce((a,r)=>a+r.tax,0)
   const totalNet    = allRows.reduce((a,r)=>a+r.net,0)
 
-  const tdStyle = {
-    border:'1px solid #999',
-    padding:'6px 10px',
-    fontSize:13,
-    textAlign:'right',
-    fontFamily:'monospace',
-    background:'#fff',
-    color:'#000',
-  }
-  const thStyle = {
+  const tdBase = {
     border:'1px solid #999',
     padding:'7px 10px',
-    fontSize:12,
-    fontWeight:700,
-    background:'#dce6f1',
+    fontSize:13,
+    background:'#fff',
     color:'#000',
-    textAlign:'center',
+    whiteSpace:'nowrap',
   }
 
   return (
     <div style={{position:'fixed',inset:0,zIndex:1000,background:'rgba(0,0,0,0.7)',
       display:'flex',alignItems:'flex-start',justifyContent:'center',
       overflowY:'auto',padding:'30px 16px'}}>
-      <div style={{background:'#fff',borderRadius:12,width:'100%',maxWidth:760,
+      <div style={{background:'#fff',borderRadius:12,width:'100%',maxWidth:800,
         boxShadow:'0 20px 60px rgba(0,0,0,0.4)'}}>
 
-        {/* 모달 헤더 */}
-        <div style={{padding:'16px 20px',borderBottom:'1px solid #e0e0e0',
+        {/* 모달 헤더 — 인쇄 시 숨김 */}
+        <div className="no-print" style={{padding:'16px 20px',borderBottom:'1px solid #e0e0e0',
           display:'flex',justifyContent:'space-between',alignItems:'center',
           background:'#f8f9fa',borderRadius:'12px 12px 0 0'}}>
           <div>
@@ -181,9 +167,9 @@ function TaxReportModal({ month, employees, payroll, getComputed, ssnMap, ownerC
           </div>
         </div>
 
-        {/* 정민규 급여 설정 */}
+        {/* 내 급여 설정 — 인쇄 시 숨김 */}
         {showOwnerConfig && (
-          <div style={{padding:'14px 20px',background:'#f0f7ff',borderBottom:'1px solid #cce0f5'}}>
+          <div className="no-print" style={{padding:'14px 20px',background:'#f0f7ff',borderBottom:'1px solid #cce0f5'}}>
             <div style={{fontSize:12,fontWeight:700,color:'#336',marginBottom:10}}>
               ⚙️ 정민규 급여 설정 (매달 수동 입력)
             </div>
@@ -215,65 +201,75 @@ function TaxReportModal({ month, employees, payroll, getComputed, ssnMap, ownerC
           </div>
         )}
 
-        {/* 보고서 본문 */}
-        <div id="tax-report-print" style={{padding:'24px'}}>
-          <div style={{textAlign:'center',marginBottom:20}}>
-            <div style={{fontSize:16,fontWeight:700,color:'#000',marginBottom:4}}>
+        {/* 보고서 본문 — 인쇄 시 이것만 출력 */}
+        <div id="tax-report-print" style={{padding:'28px 32px'}}>
+          <div style={{textAlign:'center',marginBottom:22}}>
+            <div style={{fontSize:17,fontWeight:700,color:'#000',marginBottom:4}}>
               홍콩반점 중앙대점 — {mLabel(month)} 임금내역
             </div>
-            <div style={{fontSize:12,color:'#555'}}>
-              근로소득 원천징수 내역서
-            </div>
+            <div style={{fontSize:12,color:'#555'}}>근로소득 원천징수 내역서</div>
           </div>
 
-          <table style={{width:'100%',borderCollapse:'collapse',marginBottom:16}}>
+          <table style={{width:'100%',borderCollapse:'collapse',marginBottom:16,tableLayout:'fixed'}}>
+            <colgroup>
+              <col style={{width:'12%'}}/>
+              <col style={{width:'22%'}}/>
+              <col style={{width:'22%'}}/>
+              <col style={{width:'22%'}}/>
+              <col style={{width:'22%'}}/>
+            </colgroup>
             <thead>
-              <tr>
-                <th style={{...thStyle,textAlign:'left',width:'12%'}}>이름</th>
-                <th style={{...thStyle,textAlign:'left',width:'20%'}}>주민등록번호</th>
-                <th style={{...thStyle,width:'22%'}}>급여</th>
-                <th style={{...thStyle,width:'22%'}}>원천징수</th>
-                <th style={{...thStyle,width:'24%'}}>최종급여</th>
+              <tr style={{background:'#dce6f1'}}>
+                {['이름','주민등록번호','급여','원천징수','최종급여'].map((h,i)=>(
+                  <th key={h} style={{...tdBase,fontWeight:700,fontSize:12,
+                    textAlign: i<=1 ? 'left' : 'right',
+                    background:'#dce6f1'}}>
+                    {h}
+                  </th>
+                ))}
               </tr>
             </thead>
             <tbody>
               {allRows.map((row, i) => (
-                <tr key={i}>
-                  <td style={{...tdStyle,textAlign:'left',fontWeight:600,background:row.isOwner?'#fffde7':'#fff'}}>
+                <tr key={i} style={{background: row.isOwner ? '#fffde7' : (i%2===0?'#fff':'#fafafa')}}>
+                  <td style={{...tdBase,textAlign:'left',fontWeight:600,
+                    background: row.isOwner?'#fffde7':(i%2===0?'#fff':'#fafafa')}}>
                     {row.name}
                   </td>
-                  <td style={{...tdStyle,textAlign:'left',letterSpacing:1,background:row.isOwner?'#fffde7':'#fff'}}>
+                  <td style={{...tdBase,textAlign:'left',letterSpacing:0.5,
+                    background: row.isOwner?'#fffde7':(i%2===0?'#fff':'#fafafa')}}>
                     {row.ssn}
                   </td>
-                  <td style={{...tdStyle,background:row.isOwner?'#fffde7':'#fff'}}>
-                    {wonFmt(row.salary)}
+                  <td style={{...tdBase,textAlign:'right',
+                    background: row.isOwner?'#fffde7':(i%2===0?'#fff':'#fafafa')}}>
+                    {row.salary.toLocaleString()}
                   </td>
-                  <td style={{...tdStyle,color:'#c00',background:row.isOwner?'#fffde7':'#fff'}}>
-                    {row.tax > 0 ? wonFmt(row.tax) : '—'}
-                    {!row.isOwner && row.tax > 0 && (
-                      <span style={{fontSize:10,color:'#999',marginLeft:4}}>(3.3%)</span>
-                    )}
+                  <td style={{...tdBase,textAlign:'right',color:'#c00',
+                    background: row.isOwner?'#fffde7':(i%2===0?'#fff':'#fafafa')}}>
+                    {row.tax > 0
+                      ? <>{row.tax.toLocaleString()}{!row.isOwner && <span style={{fontSize:10,color:'#999',marginLeft:4}}>(3.3%)</span>}</>
+                      : '—'}
                   </td>
-                  <td style={{...tdStyle,fontWeight:700,color:'#003399',
-                    background:row.isOwner?'#e8f4fd':'#f0f8ff'}}>
-                    {wonFmt(row.net)}
+                  <td style={{...tdBase,textAlign:'right',fontWeight:700,color:'#003399',
+                    background: row.isOwner?'#e8f4fd':(i%2===0?'#f0f8ff':'#e8f4fd')}}>
+                    {row.net.toLocaleString()}
                   </td>
                 </tr>
               ))}
             </tbody>
             <tfoot>
               <tr style={{background:'#dce6f1'}}>
-                <td colSpan={2} style={{...tdStyle,textAlign:'center',fontWeight:700,background:'#dce6f1',color:'#000'}}>
+                <td colSpan={2} style={{...tdBase,textAlign:'center',fontWeight:700,background:'#dce6f1'}}>
                   합 계
                 </td>
-                <td style={{...tdStyle,fontWeight:700,background:'#dce6f1',color:'#000'}}>
-                  {wonFmt(totalSalary)}
+                <td style={{...tdBase,textAlign:'right',fontWeight:700,background:'#dce6f1'}}>
+                  {totalSalary.toLocaleString()}
                 </td>
-                <td style={{...tdStyle,fontWeight:700,color:'#c00',background:'#dce6f1'}}>
-                  {wonFmt(totalTax)}
+                <td style={{...tdBase,textAlign:'right',fontWeight:700,color:'#c00',background:'#dce6f1'}}>
+                  {totalTax.toLocaleString()}
                 </td>
-                <td style={{...tdStyle,fontWeight:700,color:'#003399',background:'#dce6f1'}}>
-                  {wonFmt(totalNet)}
+                <td style={{...tdBase,textAlign:'right',fontWeight:700,color:'#003399',background:'#dce6f1'}}>
+                  {totalNet.toLocaleString()}
                 </td>
               </tr>
             </tfoot>
@@ -287,29 +283,44 @@ function TaxReportModal({ month, employees, payroll, getComputed, ssnMap, ownerC
         </div>
       </div>
 
-      {/* 인쇄 전용 스타일 */}
       <style>{`
-  @media print {
-    body * { visibility: hidden; }
-    #tax-report-print, #tax-report-print * { visibility: visible; }
-    #tax-report-print {
-      position: fixed;
-      top: 0; left: 0;
-      width: 100%;
-      padding: 24px;
-      background: white;
-    }
-    table { border-collapse: collapse !important; }
-    td, th {
-      border: 1px solid #999 !important;
-      -webkit-print-color-adjust: exact !important;
-      print-color-adjust: exact !important;
-    }
-  }
-`}</style>
+        .no-print { }
+        @media print {
+          /* 화면의 모든 요소 숨기기 */
+          body * { visibility: hidden !important; }
+          /* 보고서 본문만 표시 */
+          #tax-report-print,
+          #tax-report-print * { visibility: visible !important; }
+          #tax-report-print {
+            position: fixed !important;
+            top: 0 !important;
+            left: 0 !important;
+            width: 100% !important;
+            padding: 20px 28px !important;
+            background: white !important;
+          }
+          /* 표 테두리/배경색 강제 인쇄 */
+          table { border-collapse: collapse !important; width: 100% !important; }
+          td, th {
+            border: 1px solid #999 !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+            color-adjust: exact !important;
+            white-space: nowrap !important;
+          }
+          /* 페이지 나눔 방지 */
+          table { page-break-inside: avoid !important; }
+          @page {
+            margin: 10mm;
+            size: A4 landscape;
+          }
+        }
+      `}</style>
     </div>
   )
 }
+
+
 
 export default function Payroll() {
   const [curMonth, setCurMonth] = useState(()=>{
@@ -346,8 +357,7 @@ export default function Payroll() {
         const isActive  = data.status === 'approved'
         const isRetired = data.status === 'retired'
         if(isRetired && (!data.leaveDate || data.leaveDate < curMonth+'-01')) return
-        if(data.role === 'investor' || data.role === 'store') return
-if(!isActive && !isRetired) return
+        if(!isActive && !isRetired) return
         emps.push({uid:d.id, name:data.name, wage:data.wage||10030,
             wageHistory:data.wageHistory||[], workDays:data.workDays||[1,2,3,4,5],
             avgHours:data.avgHours||8, employType:data.employType||'part',
