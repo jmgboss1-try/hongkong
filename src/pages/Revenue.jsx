@@ -548,16 +548,30 @@ export default function Revenue() {
                           <td key={ci} style={{padding:'6px 14px',...bStyle,...cellBase,
                             color:row.isNeg&&row.id==='afternoon'?'#f87171':'#dde1f2'}}>
                             {v !== null ? wonCell(v) : '—'}
-                            {isDel && row.id!=='afternoon' && DELIVERY_PLATFORMS.some(p=>(r[delPlatformKeys[p.key]]||0)>0) && (
-                              <div style={{marginTop:3}}>
-                                {DELIVERY_PLATFORMS.filter(p=>(r[delPlatformKeys[p.key]]||0)>0).map(p=>(
-                                  <div key={p.key} style={{display:'flex',justifyContent:'space-between',fontSize:9,color:'#5e6585'}}>
-                                    <span style={{color:p.color}}>{p.label}</span>
-                                    <span style={{fontFamily:'DM Mono,monospace'}}>{(r[delPlatformKeys[p.key]]||0).toLocaleString()}</span>
-                                  </div>
-                                ))}
-                              </div>
-                            )}
+                            {isDel && row.id==='morning' && DELIVERY_PLATFORMS.some(p=>(r[delPlatformKeys[p.key]]||0)>0) && (
+  <div style={{marginTop:3}}>
+    {DELIVERY_PLATFORMS.filter(p=>(r[delPlatformKeys[p.key]]||0)>0).map(p=>(
+      <div key={p.key} style={{display:'flex',justifyContent:'space-between',fontSize:9,color:'#5e6585'}}>
+        <span style={{color:p.color}}>{p.label}</span>
+        <span style={{fontFamily:'DM Mono,monospace'}}>{(r[delPlatformKeys[p.key]]||0).toLocaleString()}</span>
+      </div>
+    ))}
+  </div>
+)}
+{isDel && row.id==='afternoon' && DELIVERY_PLATFORMS.some(p=>(r[p.key]||0)-(r[`morning${p.key.charAt(0).toUpperCase()+p.key.slice(1)}`]||0)!==0) && (
+  <div style={{marginTop:3}}>
+    {DELIVERY_PLATFORMS.map(p=>{
+      const val = (r[p.key]||0)-(r[`morning${p.key.charAt(0).toUpperCase()+p.key.slice(1)}`]||0)
+      if(!val) return null
+      return (
+        <div key={p.key} style={{display:'flex',justifyContent:'space-between',fontSize:9,color:'#5e6585'}}>
+          <span style={{color:p.color}}>{p.label}</span>
+          <span style={{fontFamily:'DM Mono,monospace'}}>{val.toLocaleString()}</span>
+        </div>
+      )
+    })}
+  </div>
+)}
                           </td>
                         )})}
                         <td style={{padding:'6px 14px',...bStyle,...cellBase,
