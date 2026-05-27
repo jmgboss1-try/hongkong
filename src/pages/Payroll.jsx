@@ -333,7 +333,8 @@ export default function Payroll() {
         const isActive  = data.status === 'approved'
         const isRetired = data.status === 'retired'
         if(isRetired && (!data.leaveDate || data.leaveDate < curMonth+'-01')) return
-        if(!isActive && !isRetired) return
+        if(data.role === 'investor' || data.role === 'store') return
+if(!isActive && !isRetired) return
         emps.push({uid:d.id, name:data.name, wage:data.wage||10030,
             wageHistory:data.wageHistory||[], workDays:data.workDays||[1,2,3,4,5],
             avgHours:data.avgHours||8, employType:data.employType||'part',
