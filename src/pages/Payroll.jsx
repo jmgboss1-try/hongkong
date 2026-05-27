@@ -289,11 +289,24 @@ function TaxReportModal({ month, employees, payroll, getComputed, ssnMap, ownerC
 
       {/* 인쇄 전용 스타일 */}
       <style>{`
-        @media print {
-          body > * { display: none !important; }
-          #tax-report-print { display: block !important; position: fixed; top:0; left:0; width:100%; }
-        }
-      `}</style>
+  @media print {
+    body * { visibility: hidden; }
+    #tax-report-print, #tax-report-print * { visibility: visible; }
+    #tax-report-print {
+      position: fixed;
+      top: 0; left: 0;
+      width: 100%;
+      padding: 24px;
+      background: white;
+    }
+    table { border-collapse: collapse !important; }
+    td, th {
+      border: 1px solid #999 !important;
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+    }
+  }
+`}</style>
     </div>
   )
 }
