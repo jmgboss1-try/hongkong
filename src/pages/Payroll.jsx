@@ -189,7 +189,11 @@ function TaxReportModal({ month, employees, payroll, getComputed, ssnMap, ownerC
               ))}
             </div>
             <div style={{marginTop:10,display:'flex',gap:8,alignItems:'center'}}>
-              <button onClick={()=>{ Object.assign(ownerConfig, editOwner); setShowOwnerConfig(false) }}
+              <button onClick={async ()=>{
+  Object.assign(ownerConfig, editOwner)
+  await setDoc(doc(db,'payroll','ownerConfig'), editOwner)
+  setShowOwnerConfig(false)
+}}
                 style={{background:'#1a56db',color:'#fff',border:'none',borderRadius:5,
                   padding:'6px 14px',fontSize:11,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
                 적용
@@ -380,6 +384,7 @@ if(!isActive && !isRetired) return
         getDoc(doc(db,'workextra',prev)),
         getDoc(doc(db,'workmemos',prev)),
         getDoc(doc(db,'payroll',curMonth)),
+        getDoc(doc(db,'payroll','ownerConfig')),
       ])
       setWorkHours(wh.exists()?wh.data():{})
       setWorkExtra(ex.exists()?ex.data():{})
@@ -388,6 +393,7 @@ if(!isActive && !isRetired) return
       setPrevWorkExtra(pex.exists()?pex.data():{})
       setPrevMemos(pme.exists()?pme.data():{})
       setPayroll(pr.exists()?pr.data():{})
+      if(ownerCfg.exists()) setOwnerConfig(ownerCfg.data())
     } catch(e){ console.error(e) }
     setLoading(false)
   }
