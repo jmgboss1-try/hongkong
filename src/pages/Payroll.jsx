@@ -93,7 +93,7 @@ const STATUS = {
 }
 
 // 세무 보고서 모달
-function TaxReportModal({ month, employees, payroll, getComputed, ssnMap, ownerConfig, onClose }) {
+function TaxReportModal({ month, employees, payroll, getComputed, ssnMap, ownerConfig, setOwnerConfig, onClose }) {
   const [showOwnerConfig, setShowOwnerConfig] = useState(false)
   const [editOwner, setEditOwner] = useState(ownerConfig)
 
@@ -190,7 +190,7 @@ function TaxReportModal({ month, employees, payroll, getComputed, ssnMap, ownerC
             </div>
             <div style={{marginTop:10,display:'flex',gap:8,alignItems:'center'}}>
               <button onClick={async ()=>{
-  Object.assign(ownerConfig, editOwner)
+  setOwnerConfig(editOwner)
   await setDoc(doc(db,'payroll','ownerConfig'), editOwner)
   setShowOwnerConfig(false)
 }}
@@ -734,6 +734,7 @@ if(!isActive && !isRetired) return
           getComputed={getComputed}
           ssnMap={ssnMap}
           ownerConfig={ownerConfig}
+setOwnerConfig={setOwnerConfig}
           onClose={()=>setShowTaxReport(false)}
         />
       )}
