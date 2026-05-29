@@ -95,7 +95,11 @@ const STATUS = {
 // 세무 보고서 모달
 function TaxReportModal({ month, curMonth, employees, payroll, getComputed, ssnMap, ownerConfig, setOwnerConfig, onClose }) {
   const [showOwnerConfig, setShowOwnerConfig] = useState(false)
-  const [editOwner, setEditOwner] = useState(ownerConfig)
+const [editOwner, setEditOwner] = useState(ownerConfig)
+
+useEffect(() => {
+  setEditOwner(ownerConfig)
+}, [ownerConfig])
 
   function handlePrint() { window.print() }
 
