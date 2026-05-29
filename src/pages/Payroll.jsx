@@ -93,7 +93,7 @@ const STATUS = {
 }
 
 // 세무 보고서 모달
-function TaxReportModal({ month, employees, payroll, getComputed, ssnMap, ownerConfig, setOwnerConfig, onClose }) {
+function TaxReportModal({ month, curMonth, employees, payroll, getComputed, ssnMap, ownerConfig, setOwnerConfig, onClose }) {
   const [showOwnerConfig, setShowOwnerConfig] = useState(false)
   const [editOwner, setEditOwner] = useState(ownerConfig)
 
@@ -191,7 +191,7 @@ function TaxReportModal({ month, employees, payroll, getComputed, ssnMap, ownerC
             <div style={{marginTop:10,display:'flex',gap:8,alignItems:'center'}}>
               <button onClick={async ()=>{
   setOwnerConfig(editOwner)
-  await setDoc(doc(db,'payroll','ownerConfig'), editOwner)
+  await setDoc(doc(db,'payrollOwner', curMonth), editOwner)
   setShowOwnerConfig(false)
 }}
                 style={{background:'#1a56db',color:'#fff',border:'none',borderRadius:5,
@@ -376,16 +376,16 @@ if(!isActive && !isRetired) return
       const [cy,cm] = curMonth.split('-').map(Number)
       const prev = cm===1?`${cy-1}-12`:`${cy}-${pad(cm-1)}`
 
-      const [wh,ex,me,pwh,pex,pme,pr] = await Promise.all([
-        getDoc(doc(db,'workhours',curMonth)),
-        getDoc(doc(db,'workextra',curMonth)),
-        getDoc(doc(db,'workmemos',curMonth)),
-        getDoc(doc(db,'workhours',prev)),
-        getDoc(doc(db,'workextra',prev)),
-        getDoc(doc(db,'workmemos',prev)),
-        getDoc(doc(db,'payroll',curMonth)),
-        getDoc(doc(db,'payroll','ownerConfig')),
-      ])
+      const [wh,ex,me,pwh,pex,pme,pr,ownerCfg] = await Promise.all([
+  getDoc(doc(db,'workhours',curMonth)),
+  getDoc(doc(db,'workextra',curMonth)),
+  getDoc(doc(db,'workmemos',curMonth)),
+  getDoc(doc(db,'workhours',prev)),
+  getDoc(doc(db,'workextra',prev)),
+  getDoc(doc(db,'workmemos',prev)),
+  getDoc(doc(db,'payroll',curMonth)),
+  getDoc(doc(db,'payrollOwner', curMonth)),
+])
       setWorkHours(wh.exists()?wh.data():{})
       setWorkExtra(ex.exists()?ex.data():{})
       setMemos(me.exists()?me.data():{})
@@ -728,7 +728,8 @@ if(!isActive && !isRetired) return
       {/* 세무 보고서 모달 */}
       {showTaxReport && (
         <TaxReportModal
-          month={curMonth}
+  month={curMonth}
+  curMonth={curMonth}
           employees={employees}
           payroll={payroll}
           getComputed={getComputed}
