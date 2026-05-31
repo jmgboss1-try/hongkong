@@ -39,7 +39,14 @@ const [rev, setRev] = useState({kiosk:0,del:0,pos:0,total:0})
         if(revSnap.exists()) {
           const d = revSnap.data()
           let k=0,dl=0,p=0
-          Object.values(d).forEach(r=>{k+=r.kiosk||0;dl+=r.del||0;p+=r.pos||0})
+          Object.values(d).forEach(r=>{
+  if(typeof r !== 'object' || r === null) return
+  // 구버전(close 서브객체) / 신버전(kiosk 직접) 통합
+  const kk = (r.close?.kiosk||0) > 0 ? r.close.kiosk : (r.kiosk||0)
+  const dd = (r.close?.del||0)   > 0 ? r.close.del   : (r.del||0)
+  const pp = (r.close?.pos||0)   > 0 ? r.close.pos   : (r.pos||0)
+  k+=kk; dl+=dd; p+=pp
+})
           setRev({kiosk:k,del:dl,pos:p,total:k+dl+p})
         } else setRev({kiosk:0,del:0,pos:0,total:0})
 
