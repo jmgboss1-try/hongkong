@@ -444,6 +444,14 @@ export default function Expenses() {
                 <div style={{fontSize:12,fontWeight:600,color:'#34d399',marginBottom:10}}>
                   ✅ {extracted.length}건 추출됨 — 카테고리를 선택하고 저장하세요
                 </div>
+                {imagePreview && (
+  <a href={imagePreview} download={`지출내역_${curMonth}_${day}.png`}
+    style={{display:'inline-block',marginBottom:12,background:'#191c2b',
+      border:'1px solid rgba(52,211,153,0.3)',color:'#34d399',borderRadius:7,
+      padding:'7px 14px',fontSize:11,fontWeight:600,textDecoration:'none',fontFamily:'inherit'}}>
+    💾 이미지 PC 저장
+  </a>
+)}
                 <div style={{display:'flex',flexDirection:'column',gap:8,marginBottom:14}}>
                   {extracted.map((t,i)=>(
                     <div key={i} style={{background:'#191c2b',borderRadius:8,padding:'10px 14px',
