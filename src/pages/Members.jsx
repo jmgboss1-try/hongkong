@@ -59,8 +59,13 @@ function MemberCard({ m, onEdit, onRetire }) {
               ['✉️ 이메일', m.email||'—'],
               ['🏦 계좌번호', m.account||'—'],
               ['🔐 주민번호', maskSSN(m.ssn)],
-              ['💰 시급', `${(m.wage||10030).toLocaleString()}원`],
-              ['⏱ 평균 근무시간', `${m.avgHours||8}h/일`],
+              ...(m.payType==='fixed'
+                ? [['💰 월 고정급', `${(m.fixedSalary||0).toLocaleString()}원`]]
+                : [
+                    ['💰 시급', `${(m.wage||10030).toLocaleString()}원`],
+                    ['⏱ 평균 근무시간', `${m.avgHours||8}h/일`],
+                  ]
+              ),
             ].map(([label,val])=>(
               <div key={label} style={{background:'#12141f',borderRadius:8,padding:'10px 12px'}}>
                 <div style={{fontSize:10,color:'#5e6585',marginBottom:3}}>{label}</div>
@@ -211,6 +216,8 @@ export default function Members() {
         workDays: form.workDays || [1,2,3,4,5],
         holidayBase: form.holidayBase || 'contract',
         employType: form.employType || 'part',
+        payType: form.payType || 'hourly',
+        fixedSalary: +form.fixedSalary || 0,
         wageHistory: newHistory,
       }, {merge:true})
 
@@ -311,15 +318,42 @@ export default function Members() {
             <button onClick={()=>setShowForm(false)}
               style={{background:'transparent',border:'none',color:'#5e6585',fontSize:18,cursor:'pointer'}}>✕</button>
           </div>
-          <div style={{padding:18,display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(180px,1fr))',gap:12}}>
+          {/* 급여 방식 선택 */}
+          <div style={{padding:'0 18px 14px'}}>
+            <label style={{fontSize:10,color:'#5e6585',fontWeight:600,display:'block',marginBottom:8}}>급여 방식</label>
+            <div style={{display:'flex',gap:8}}>
+              {[
+                {key:'hourly', label:'⏱ 시급제', desc:'근무시간 기반 계산'},
+                {key:'fixed',  label:'📅 고정급제', desc:'매달 고정 금액 지급'},
+              ].map(opt=>{
+                const selected = (form.payType||'hourly') === opt.key
+                return (
+                  <div key={opt.key} onClick={()=>setF('payType', opt.key)}
+                    style={{flex:1,padding:'10px 14px',borderRadius:8,cursor:'pointer',
+                      background:selected?'rgba(249,185,52,0.12)':'#191c2b',
+                      border:selected?'1px solid #f9b934':'1px solid #272a3d'}}>
+                    <div style={{fontSize:12,fontWeight:600,color:selected?'#f9b934':'#5e6585',marginBottom:3}}>{opt.label}</div>
+                    <div style={{fontSize:10,color:'#5e6585'}}>{opt.desc}</div>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+
+          <div style={{padding:'0 18px 14px',display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(180px,1fr))',gap:12}}>
             {[
               ['이름','text','name',form.name||''],
               ['입사일','date','joinDate',form.joinDate||''],
               ['연락처','text','phone',form.phone||''],
               ['계좌번호','text','account',form.account||''],
               ['주민등록번호','text','ssn',form.ssn||''],
-              ['시급','number','wage',form.wage||10030],
-              ['평균근무시간(h/일)','number','avgHours',form.avgHours||8],
+              ...((form.payType||'hourly')==='fixed'
+                ? [['월 고정급 (원)','number','fixedSalary',form.fixedSalary||0]]
+                : [
+                    ['시급','number','wage',form.wage||10030],
+                    ['평균근무시간(h/일)','number','avgHours',form.avgHours||8],
+                  ]
+              ),
             ].map(([label,type,key,val])=>(
               <div key={key} style={{display:'flex',flexDirection:'column',gap:4}}>
                 <label style={{fontSize:10,color:'#5e6585',fontWeight:600}}>{label}</label>
