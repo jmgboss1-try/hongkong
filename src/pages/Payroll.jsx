@@ -38,6 +38,15 @@ function calcWeeklyHoliday(weekHours, wage, workDays, weekAttendance, weekMemos,
 }
 
 function computeSalary(emp, wh, ex, empMemos, prevWh, prevEx, prevEmpMemos, curMonth) {
+  // 고정급 직원 처리
+  if (emp.payType === 'fixed') {
+    const totalPay = emp.fixedSalary || 0
+    const deduction = calcDeduction(totalPay, emp.employType || 'part')
+    const netPay = totalPay - deduction.total
+    return { basePay: totalPay, weeklyHoliday: 0, totalPay, netPay, deduction,
+             totalHours: 0, totalMins: 0, wage: 0, isFixed: true }
+  }
+
   const wage = getWageForMonth(emp, curMonth)
   const workDays = emp.workDays || [1,2,3,4,5]
   const avgHours = emp.avgHours || 8
@@ -371,6 +380,7 @@ if(!isActive && !isRetired) return
             wageHistory:data.wageHistory||[], workDays:data.workDays||[1,2,3,4,5],
             avgHours:data.avgHours||8, employType:data.employType||'part',
             holidayBase:data.holidayBase||'contract',
+            payType:data.payType||'hourly', fixedSalary:data.fixedSalary||0,
             isRetired, leaveDate:data.leaveDate||null})
         if(data.ssn) ssnData[d.id] = data.ssn
       })
@@ -601,12 +611,20 @@ if(!isActive && !isRetired) return
                   </div>
                   <div style={{display:'flex',alignItems:'center',gap:14,flexWrap:'wrap'}}>
                     <div style={{textAlign:'right'}}>
-                      <div style={{fontSize:10,color:'#5e6585',marginBottom:2}}>
-                        {display.totalHours}h {display.totalMins>0?display.totalMins+'m':''} · 시급 {(display.wage||10030).toLocaleString()}원
-                      </div>
-                      <div style={{fontSize:10,color:'#5e6585',marginBottom:2}}>
-                        기본 {(display.basePay||0).toLocaleString()} + 주휴 {(display.weeklyHoliday||0).toLocaleString()}
-                      </div>
+                      {display.isFixed ? (
+                        <div style={{fontSize:10,color:'#93c5fd',marginBottom:2,fontWeight:600}}>
+                          📅 고정급 직원
+                        </div>
+                      ) : (
+                        <>
+                          <div style={{fontSize:10,color:'#5e6585',marginBottom:2}}>
+                            {display.totalHours}h {display.totalMins>0?display.totalMins+'m':''} · 시급 {(display.wage||10030).toLocaleString()}원
+                          </div>
+                          <div style={{fontSize:10,color:'#5e6585',marginBottom:2}}>
+                            기본 {(display.basePay||0).toLocaleString()} + 주휴 {(display.weeklyHoliday||0).toLocaleString()}
+                          </div>
+                        </>
+                      )}
                       <div style={{fontSize:11,color:'#5e6585',marginBottom:2}}>
                         세전 {(display.totalPay||0).toLocaleString()}원
                         {(display.deduction?.total||0)>0 && (
