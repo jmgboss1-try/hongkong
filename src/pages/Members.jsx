@@ -163,6 +163,9 @@ export default function Members() {
   const [form, setForm] = useState({})
   const [saving, setSaving] = useState(false)
   const [retireForm, setRetireForm] = useState(null) // 퇴직 처리 중인 직원
+  const [showAddForm, setShowAddForm] = useState(false)
+  const [addForm, setAddForm] = useState({})
+  const [addSaving, setAddSaving] = useState(false)
 
   async function load() {
     setLoading(true)
@@ -242,6 +245,36 @@ export default function Members() {
     setSaving(false)
   }
 
+  async function addMember() {
+    if(!addForm.name?.trim()) return alert('이름을 입력해주세요')
+    setAddSaving(true)
+    try {
+      const newUid = 'manual_' + Date.now()
+      await setDoc(doc(db,'users',newUid), {
+        name:         addForm.name.trim(),
+        role:         'staff',
+        status:       'approved',
+        joinDate:     addForm.joinDate || '',
+        phone:        addForm.phone || '',
+        account:      addForm.account || '',
+        ssn:          addForm.ssn || '',
+        wage:         +addForm.wage || 10030,
+        avgHours:     +addForm.avgHours || 8,
+        workDays:     addForm.workDays || [1,2,3,4,5],
+        holidayBase:  addForm.holidayBase || 'contract',
+        employType:   addForm.employType || 'part',
+        payType:      addForm.payType || 'hourly',
+        fixedSalary:  +addForm.fixedSalary || 0,
+        wageHistory:  [{ month: (addForm.joinDate||'').slice(0,7) || '2022-10', wage: +addForm.wage||10030 }],
+        manualEntry:  true,
+      })
+      setShowAddForm(false)
+      setAddForm({})
+      await load()
+    } catch(e) { console.error(e) }
+    setAddSaving(false)
+  }
+
   function editMember(m) {
     setForm({...m, workDays: Array.isArray(m.workDays) ? m.workDays : [1,2,3,4,5]})
     setShowForm(true)
@@ -258,6 +291,11 @@ export default function Members() {
           <div style={{fontSize:20,fontWeight:700}}>📁 인원관리</div>
           <div style={{fontSize:12,color:'#5e6585',marginTop:2}}>사장 전용 — 승인된 직원 정보</div>
         </div>
+        <button onClick={()=>{ setShowAddForm(v=>!v); setAddForm({payType:'hourly',employType:'part',workDays:[1,2,3,4,5]}) }}
+          style={{background:'#f9b934',color:'#000',border:'none',borderRadius:8,
+            padding:'8px 16px',fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
+          + 직원 추가
+        </button>
       </div>
 
       {/* 총 퇴직금 */}
@@ -268,6 +306,103 @@ export default function Members() {
         </div>
         <div style={{fontSize:11,color:'#5e6585'}}>재직 {members.length}명 · 퇴직 {retired.length}명</div>
       </div>
+
+      {/* 직원 추가 폼 */}
+      {showAddForm && (
+        <div style={{background:'#12141f',border:'1px solid #34d399',borderRadius:12,marginBottom:18}}>
+          <div style={{padding:'14px 18px',borderBottom:'1px solid #272a3d',fontSize:13,fontWeight:600,
+            color:'#34d399',display:'flex',justifyContent:'space-between'}}>
+            <span>➕ 새 직원 추가</span>
+            <button onClick={()=>setShowAddForm(false)}
+              style={{background:'transparent',border:'none',color:'#5e6585',fontSize:18,cursor:'pointer'}}>✕</button>
+          </div>
+
+          {/* 급여 방식 */}
+          <div style={{padding:'14px 18px 0'}}>
+            <label style={{fontSize:10,color:'#5e6585',fontWeight:600,display:'block',marginBottom:8}}>급여 방식</label>
+            <div style={{display:'flex',gap:8,marginBottom:14}}>
+              {[
+                {key:'hourly', label:'⏱ 시급제',   desc:'근무시간 기반 계산'},
+                {key:'fixed',  label:'📅 고정급제', desc:'매달 고정 금액 지급'},
+              ].map(opt=>{
+                const selected = (addForm.payType||'hourly') === opt.key
+                return (
+                  <div key={opt.key} onClick={()=>setAddForm(f=>({...f,payType:opt.key}))}
+                    style={{flex:1,padding:'10px 14px',borderRadius:8,cursor:'pointer',
+                      background:selected?'rgba(52,211,153,0.12)':'#191c2b',
+                      border:selected?'1px solid #34d399':'1px solid #272a3d'}}>
+                    <div style={{fontSize:12,fontWeight:600,color:selected?'#34d399':'#5e6585',marginBottom:3}}>{opt.label}</div>
+                    <div style={{fontSize:10,color:'#5e6585'}}>{opt.desc}</div>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+
+          {/* 기본 정보 */}
+          <div style={{padding:'0 18px 14px',display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(180px,1fr))',gap:12}}>
+            {[
+              ['이름 *','text','name'],
+              ['입사일','date','joinDate'],
+              ['연락처','text','phone'],
+              ['계좌번호','text','account'],
+              ['주민등록번호','text','ssn'],
+              ...((addForm.payType||'hourly')==='fixed'
+                ? [['월 고정급 (원)','number','fixedSalary']]
+                : [
+                    ['시급 (원)','number','wage'],
+                    ['평균근무시간(h/일)','number','avgHours'],
+                  ]
+              ),
+            ].map(([label,type,key])=>(
+              <div key={key} style={{display:'flex',flexDirection:'column',gap:4}}>
+                <label style={{fontSize:10,color:'#5e6585',fontWeight:600}}>{label}</label>
+                <input type={type} value={addForm[key]||''}
+                  onChange={e=>setAddForm(f=>({...f,[key]:e.target.value}))}
+                  style={{background:'#191c2b',border:'1px solid #272a3d',borderRadius:7,color:'#dde1f2',
+                    padding:'8px 10px',fontSize:12,outline:'none',width:'100%',fontFamily:'inherit'}}/>
+              </div>
+            ))}
+          </div>
+
+          {/* 고용 유형 */}
+          <div style={{padding:'0 18px 14px'}}>
+            <label style={{fontSize:10,color:'#5e6585',fontWeight:600,display:'block',marginBottom:8}}>고용 유형 (공제 기준)</label>
+            <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
+              {[
+                {key:'part', label:'🕐 아르바이트', desc:'3.3% 원천징수'},
+                {key:'full', label:'💼 정직원',     desc:'4대보험 적용'},
+                {key:'none', label:'✕ 공제없음',   desc:'세전 지급'},
+              ].map(opt=>{
+                const selected = (addForm.employType||'part') === opt.key
+                return (
+                  <div key={opt.key} onClick={()=>setAddForm(f=>({...f,employType:opt.key}))}
+                    style={{flex:1,padding:'10px 14px',borderRadius:8,cursor:'pointer',
+                      background:selected?'rgba(52,211,153,0.12)':'#191c2b',
+                      border:selected?'1px solid #34d399':'1px solid #272a3d',minWidth:100}}>
+                    <div style={{fontSize:12,fontWeight:600,color:selected?'#34d399':'#5e6585',marginBottom:3}}>{opt.label}</div>
+                    <div style={{fontSize:10,color:'#5e6585'}}>{opt.desc}</div>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+
+          <div style={{padding:'0 18px 18px',display:'flex',gap:8,alignItems:'center'}}>
+            <button onClick={addMember} disabled={addSaving}
+              style={{background:'#34d399',color:'#000',border:'none',borderRadius:8,
+                padding:'9px 20px',fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
+              {addSaving?'추가 중...':'직원 추가'}
+            </button>
+            <button onClick={()=>setShowAddForm(false)}
+              style={{background:'#191c2b',color:'#5e6585',border:'1px solid #272a3d',borderRadius:8,
+                padding:'9px 20px',fontSize:12,cursor:'pointer',fontFamily:'inherit'}}>
+              취소
+            </button>
+            <span style={{fontSize:10,color:'#5e6585'}}>* 이 직원은 앱 로그인 없이 급여관리에만 반영돼요</span>
+          </div>
+        </div>
+      )}
 
       {/* 퇴직 처리 모달 */}
       {retireForm && (
@@ -318,29 +453,7 @@ export default function Members() {
             <button onClick={()=>setShowForm(false)}
               style={{background:'transparent',border:'none',color:'#5e6585',fontSize:18,cursor:'pointer'}}>✕</button>
           </div>
-          {/* 급여 방식 선택 */}
-          <div style={{padding:'0 18px 14px'}}>
-            <label style={{fontSize:10,color:'#5e6585',fontWeight:600,display:'block',marginBottom:8}}>급여 방식</label>
-            <div style={{display:'flex',gap:8}}>
-              {[
-                {key:'hourly', label:'⏱ 시급제', desc:'근무시간 기반 계산'},
-                {key:'fixed',  label:'📅 고정급제', desc:'매달 고정 금액 지급'},
-              ].map(opt=>{
-                const selected = (form.payType||'hourly') === opt.key
-                return (
-                  <div key={opt.key} onClick={()=>setF('payType', opt.key)}
-                    style={{flex:1,padding:'10px 14px',borderRadius:8,cursor:'pointer',
-                      background:selected?'rgba(249,185,52,0.12)':'#191c2b',
-                      border:selected?'1px solid #f9b934':'1px solid #272a3d'}}>
-                    <div style={{fontSize:12,fontWeight:600,color:selected?'#f9b934':'#5e6585',marginBottom:3}}>{opt.label}</div>
-                    <div style={{fontSize:10,color:'#5e6585'}}>{opt.desc}</div>
-                  </div>
-                )
-              })}
-            </div>
-          </div>
-
-          <div style={{padding:'0 18px 14px',display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(180px,1fr))',gap:12}}>
+          <div style={{padding:18,display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(180px,1fr))',gap:12}}>
             {[
               ['이름','text','name',form.name||''],
               ['입사일','date','joinDate',form.joinDate||''],
@@ -361,6 +474,28 @@ export default function Members() {
                   style={{background:'#191c2b',border:'1px solid #272a3d',borderRadius:7,color:'#dde1f2',padding:'8px 10px',fontSize:12,outline:'none',width:'100%',fontFamily:'inherit'}}/>
               </div>
             ))}
+          </div>
+
+          {/* 급여 방식 */}
+          <div style={{padding:'0 18px 14px'}}>
+            <label style={{fontSize:10,color:'#5e6585',fontWeight:600,display:'block',marginBottom:8}}>급여 방식</label>
+            <div style={{display:'flex',gap:8}}>
+              {[
+                {key:'hourly', label:'⏱ 시급제',   desc:'근무시간 기반 계산'},
+                {key:'fixed',  label:'📅 고정급제', desc:'매달 고정 금액 지급'},
+              ].map(opt=>{
+                const selected = (form.payType||'hourly') === opt.key
+                return (
+                  <div key={opt.key} onClick={()=>setF('payType', opt.key)}
+                    style={{flex:1,padding:'10px 14px',borderRadius:8,cursor:'pointer',
+                      background:selected?'rgba(249,185,52,0.12)':'#191c2b',
+                      border:selected?'1px solid #f9b934':'1px solid #272a3d'}}>
+                    <div style={{fontSize:12,fontWeight:600,color:selected?'#f9b934':'#5e6585',marginBottom:3}}>{opt.label}</div>
+                    <div style={{fontSize:10,color:'#5e6585'}}>{opt.desc}</div>
+                  </div>
+                )
+              })}
+            </div>
           </div>
 
           {/* 소정근로일 */}
