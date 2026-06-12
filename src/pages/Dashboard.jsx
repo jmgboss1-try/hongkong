@@ -54,14 +54,17 @@ const [rev, setRev] = useState({kiosk:0,del:0,pos:0,total:0})
         const expSnap = await getDoc(doc(db,'expenses',curMonth))
         if(expSnap.exists()) {
           const d = expSnap.data()
-          let hq=0,veg=0,oil=0,box=0,gas=0,elec=0,omg=0,rent=0,dfee=0,meal=0,sal=0,dep=0
-          const carryover = d.carryover || 0
-          Object.values(d).forEach(e=>{
-            if(typeof e !== 'object' || e===null) return
-            hq+=e.hq||0;veg+=e.veg||0;oil+=e.oil||0;box+=e.box||0;gas+=e.gas||0;elec+=e.elec||0;omg+=e.omg||0;rent+=e.rent||0;dfee+=e.dfee||0;meal+=e.meal||0;sal+=e.sal||0;dep+=e.deposit||0
-          })
-          const expTotal = hq+veg+oil+box+gas+elec+omg+rent+dfee+meal+sal
-          setExp({total:expTotal, mat:hq+veg+oil+box, mgmt:gas+elec+omg+rent+dfee, sal, deposit:dep, carryover, balance:carryover+dep-expTotal})
+          let expTotal=0, dep=0
+const carryover = d.carryover || 0
+          const SKIP_KEYS = new Set(['deposit','carryover'])
+Object.values(d).forEach(e=>{
+  if(typeof e !== 'object' || e===null) return
+  dep += e.deposit||0
+  Object.entries(e).forEach(([k,v])=>{
+    if(!SKIP_KEYS.has(k) && typeof v === 'number') expTotal += v
+  })
+})
+setExp({total:expTotal, mat:0, mgmt:0, sal:0, deposit:dep, carryover, balance:carryover+dep-expTotal})
         } else setExp({total:0,mat:0,mgmt:0,sal:0,deposit:0,carryover:0,balance:0})
 
         // 직원 목록 — users 컬렉션 기반
