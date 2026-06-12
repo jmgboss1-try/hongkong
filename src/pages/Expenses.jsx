@@ -177,8 +177,8 @@ const [payingDate, setPayingDate]     = useState('')
   }
 
   // ── 고정지출 납부 처리 ──
-  async function payFixed(item, dateDD) {
-  const todayDD = dateDD || getNowDD()
+  async function payFixed(item, dateStr) {
+  const todayDD = dateStr ? pad(+dateStr.split('-')[2]) : getNowDD()
     const newPayments = {
       ...fixedPayments,
       [item.id]: { paid:true, paidDate:todayDD, amount:item.amount }
@@ -201,12 +201,28 @@ const [payingDate, setPayingDate]     = useState('')
   }
 
   async function unpayFixed(itemId) {
-    if(!window.confirm('납부 취소하시겠습니까?')) return
-    const newPayments = { ...fixedPayments }
-    delete newPayments[itemId]
-    await setDoc(doc(db,'fixedExpenses',curMonth), newPayments)
-    setFixedPayments(newPayments)
+  if(!window.confirm('납부 취소하시겠습니까?')) return
+  const payment = fixedPayments[itemId]
+  const item = fixedItems.find(i=>i.id===itemId)
+
+  // 고정지출 납부 기록 삭제
+  const newPayments = { ...fixedPayments }
+  delete newPayments[itemId]
+  await setDoc(doc(db,'fixedExpenses',curMonth), newPayments)
+  setFixedPayments(newPayments)
+
+  // 지출 내역에서도 해당 금액 차감
+  if(payment?.paidDate && item) {
+    const dd = payment.paidDate
+    const existing = data[dd]
+    if(existing && item.categoryId && (existing[item.categoryId]||0) >= item.amount) {
+      const entry = { ...existing, [item.categoryId]: existing[item.categoryId] - item.amount }
+      const newData = { ...data, [dd]: entry }
+      await setDoc(doc(db,'expenses',curMonth), newData)
+      setData(newData)
+    }
   }
+}
 
   // ── 직접 입력 저장 ──
   async function save() {
@@ -580,7 +596,7 @@ const [payingDate, setPayingDate]     = useState('')
       </button>
     </div>
   ) : (
-    <button onClick={()=>{ setPayingItemId(item.id); setPayingDate(getNowDD().padStart(2,'0')); }}
+    <button onClick={()=>{ setPayingItemId(item.id); setPayingDate(`${curMonth}-${getNowDD()}`); }}
       style={{background:'#34d399',color:'#000',border:'none',
         borderRadius:6,padding:'5px 12px',fontSize:11,fontWeight:700,
         cursor:'pointer',fontFamily:'inherit',flexShrink:0,whiteSpace:'nowrap'}}>
