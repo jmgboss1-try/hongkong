@@ -76,6 +76,8 @@ export default function Expenses() {
   const [fixedItems, setFixedItems]       = useState([]) // [{id,label,dueDay,amount,categoryId}]
   const [fixedPayments, setFixedPayments] = useState({}) // {itemId:{paid,paidDate,amount}}
   const [showFixedMgr, setShowFixedMgr]  = useState(false)
+  const [payingItemId, setPayingItemId] = useState(null)
+const [payingDate, setPayingDate]     = useState('')
   const [newFixed, setNewFixed]           = useState({label:'',dueDay:'',amount:'',categoryId:''})
   const [editFixedId, setEditFixedId]     = useState(null)
   const [editFixed, setEditFixed]         = useState({})
@@ -175,8 +177,8 @@ export default function Expenses() {
   }
 
   // ── 고정지출 납부 처리 ──
-  async function payFixed(item) {
-    const todayDD = getNowDD()
+  async function payFixed(item, dateDD) {
+  const todayDD = dateDD || getNowDD()
     const newPayments = {
       ...fixedPayments,
       [item.id]: { paid:true, paidDate:todayDD, amount:item.amount }
@@ -555,22 +557,37 @@ export default function Expenses() {
                   </div>
                   {/* 납부 버튼 */}
                   {isThisMonth && (
-                    isPaid ? (
-                      <button onClick={()=>unpayFixed(item.id)}
-                        style={{background:'transparent',border:'1px solid #272a3d',color:'#5e6585',
-                          borderRadius:6,padding:'5px 10px',fontSize:10,cursor:'pointer',
-                          fontFamily:'inherit',flexShrink:0,whiteSpace:'nowrap'}}>
-                        취소
-                      </button>
-                    ) : (
-                      <button onClick={()=>payFixed(item)}
-                        style={{background:'#34d399',color:'#000',border:'none',
-                          borderRadius:6,padding:'5px 12px',fontSize:11,fontWeight:700,
-                          cursor:'pointer',fontFamily:'inherit',flexShrink:0,whiteSpace:'nowrap'}}>
-                        납부 ✓
-                      </button>
-                    )
-                  )}
+  isPaid ? (
+    <button onClick={()=>unpayFixed(item.id)}
+      style={{background:'transparent',border:'1px solid #272a3d',color:'#5e6585',
+        borderRadius:6,padding:'5px 10px',fontSize:10,cursor:'pointer',
+        fontFamily:'inherit',flexShrink:0,whiteSpace:'nowrap'}}>
+      취소
+    </button>
+  ) : payingItemId === item.id ? (
+    <div style={{display:'flex',alignItems:'center',gap:6,flexShrink:0}}>
+      <input type="date" value={payingDate} onChange={e=>setPayingDate(e.target.value)}
+        style={{background:'#191c2b',border:'1px solid #34d399',borderRadius:6,
+          color:'#dde1f2',padding:'4px 8px',fontSize:11,outline:'none',fontFamily:'inherit'}}/>
+      <button onClick={async()=>{ await payFixed(item, payingDate); setPayingItemId(null); setPayingDate('') }}
+        style={{background:'#34d399',color:'#000',border:'none',borderRadius:6,
+          padding:'5px 10px',fontSize:11,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
+        확인
+      </button>
+      <button onClick={()=>{ setPayingItemId(null); setPayingDate('') }}
+        style={{background:'transparent',border:'none',color:'#5e6585',fontSize:12,cursor:'pointer'}}>
+        ✕
+      </button>
+    </div>
+  ) : (
+    <button onClick={()=>{ setPayingItemId(item.id); setPayingDate(getNowDD().padStart(2,'0')); }}
+      style={{background:'#34d399',color:'#000',border:'none',
+        borderRadius:6,padding:'5px 12px',fontSize:11,fontWeight:700,
+        cursor:'pointer',fontFamily:'inherit',flexShrink:0,whiteSpace:'nowrap'}}>
+      납부 ✓
+    </button>
+  )
+)}
                 </div>
               )
             })}
