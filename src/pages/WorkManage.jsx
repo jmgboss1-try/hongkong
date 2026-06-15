@@ -103,8 +103,10 @@ const memoSnap = await getDoc(doc(db,'workmemos',curMonth))
       const prevWhSnap = await getDoc(doc(db,'workhours',prevMonth))
       setPrevWorkHours(prevWhSnap.exists() ? prevWhSnap.data() : {})
       const prevExSnap = await getDoc(doc(db,'workextra',prevMonth))
-      setPrevWorkExtra(prevExSnap.exists() ? prevExSnap.data() : {})
-      setPrevMemos(prevMemoSnap.exists() ? prevMemoSnap.data() : {})
+setPrevWorkExtra(prevExSnap.exists() ? prevExSnap.data() : {})
+
+const prevMemoSnap = await getDoc(doc(db,'workmemos',prevMonth))
+setPrevMemos(prevMemoSnap.exists() ? prevMemoSnap.data() : {})
 
     } catch(e) { console.error(e) }
     setLoading(false)
@@ -235,7 +237,7 @@ function getEmpStats(emp) {
             const wh = workHours[emp.uid]||{}
             const ex = workExtra[emp.uid]||{}
             const empMemos = memos[emp.uid]||{}
-            const missing = getMissingDays(emp)
+            const missing = []
             const hasMissing = missing.length > 0
             const hasToday = (wh[todayDD]||0) > 0
             return (
