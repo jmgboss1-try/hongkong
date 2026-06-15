@@ -18,8 +18,11 @@ const daysIn = ym => { const[y,m]=ym.split('-').map(Number); return new Date(y,m
 const mLabel = ym => { const[y,m]=ym.split('-'); return `${y}년 ${+m}월` }
 const DAYS_KR = ['일','월','화','수','목','금','토']
 
-function calcWeeklyHoliday(weekHours, wage, workDays, weekAttendance, weekMemos, holidayHours) {
-  // 15시간 미만이면 무조건 미지급
+function calcWeeklyHoliday(weekHours, wage, workDays, weekAttendance, weekMemos, avgHours) {
+  const dailyHours = avgHours || 8
+  const weeklyContract = workDays.length * dailyHours // 소정근로시간
+
+  // 소정근로시간 미만이면 미지급
   if(weekHours < 15) return 0
 
   // 소정근로일 중 결근일 계산
@@ -30,8 +33,8 @@ function calcWeeklyHoliday(weekHours, wage, workDays, weekAttendance, weekMemos,
 
   if(absentDays.length === 0) {
     // 개근 → 주휴 지급
-    // 주휴수당 = (소정or실제 근로시간 / 40) × 8 × 시급
-    return Math.round((holidayHours / 40) * 8 * wage)
+    // 주휴수당 = 1일 소정근로시간 * 시급
+    return Math.round(dailyHours * wage)
   }
 
   // 결근이 있는 경우 → 대타로 메꿨는지 확인
@@ -40,27 +43,10 @@ function calcWeeklyHoliday(weekHours, wage, workDays, weekAttendance, weekMemos,
   ).length
 
   if(subCount >= absentDays.length) {
-    return Math.round((holidayHours / 40) * 8 * wage)
+    return Math.round(dailyHours * wage)
   }
 
   return 0
-}
-
-function calcDeduction(totalPay, employType) {
-  if(employType === 'none') return { tax:0, pension:0, health:0, employ:0, care:0, total:0 }
-
-  if(employType === 'part') {
-    const tax = Math.round(totalPay * 0.033)
-    return { tax, pension:0, health:0, employ:0, care:0, total:tax }
-  }
-
-  // 정직원 4대보험
-  const pension = Math.round(totalPay * 0.045)   // 국민연금 4.5%
-  const health  = Math.round(totalPay * 0.03545) // 건강보험 3.545%
-  const employ  = Math.round(totalPay * 0.009)   // 고용보험 0.9%
-  const care    = Math.round(health   * 0.1295)  // 장기요양 건강보험의 12.95%
-  const total   = pension + health + employ + care
-  return { tax:0, pension, health, employ, care, total }
 }
 
 export default function WorkManage() {
@@ -77,6 +63,7 @@ export default function WorkManage() {
   const [prevMemos, setPrevMemos] = useState({})
   const [loading, setLoading] = useState(true)
   const [activeEmp, setActiveEmp] = useState(null)
+  const [showTodayOnly, setShowTodayOnly] = useState(false)
 
   const monthOpts = []
   for(let y=2022;y<=2026;y++){const sm=y===2022?10:1;for(let m=sm;m<=12;m++){monthOpts.push(`${y}-${pad(m)}`)}}
@@ -88,22 +75,16 @@ export default function WorkManage() {
       const finalEmps = []
 usersSnap.forEach(d => {
         const data = d.data()
-        if(data.status==='approved'
-  && data.role!=='owner'
-  && data.role!=='store'
-  && data.role!=='investor'
-  && data.payType!=='fixed') {
-  finalEmps.push({
-    uid:d.id,
-    name:data.name,
-    wage:data.wage||10030,
-    wageHistory:data.wageHistory||[],
-    workDays:data.workDays||[1,2,3,4,5],
-    avgHours:data.avgHours||8,
-    holidayBase:data.holidayBase||'contract',
-    employType:data.employType||'part'
-  })
-}
+        if(data.status==='approved' && data.role!=='owner') {
+          finalEmps.push({
+            uid:d.id,
+            name:data.name,
+            wage:data.wage||10030,
+            wageHistory:data.wageHistory||[],
+            workDays:data.workDays||[1,2,3,4,5],
+            avgHours:data.avgHours||8
+          })
+        }
       })
       setEmployees(finalEmps)
 
@@ -123,7 +104,6 @@ const memoSnap = await getDoc(doc(db,'workmemos',curMonth))
       setPrevWorkHours(prevWhSnap.exists() ? prevWhSnap.data() : {})
       const prevExSnap = await getDoc(doc(db,'workextra',prevMonth))
       setPrevWorkExtra(prevExSnap.exists() ? prevExSnap.data() : {})
-      const prevMemoSnap = await getDoc(doc(db,'workmemos',prevMonth))
       setPrevMemos(prevMemoSnap.exists() ? prevMemoSnap.data() : {})
 
     } catch(e) { console.error(e) }
@@ -155,22 +135,6 @@ const memoSnap = await getDoc(doc(db,'workmemos',curMonth))
     setMemos(newMemos)
   }
 
-  function getMissingDays(emp) {
-  const wh = workHours[emp.uid] || {}
-  const [cy, cm] = curMonth.split('-').map(Number)
-  const today = new Date()
-  const isCurrentMonth = curMonth === `${today.getFullYear()}-${pad(today.getMonth()+1)}`
-  const lastDay = isCurrentMonth ? today.getDate() - 1 : daysIn(curMonth)
-  const missing = []
-  for(let d=1; d<=lastDay; d++) {
-    const dow = new Date(cy,cm-1,d).getDay()
-    if(emp.workDays.includes(dow)) {
-      if(!(wh[pad(d)] > 0)) missing.push(d)
-    }
-  }
-  return missing
-}
-
 function getEmpStats(emp) {
     const wh = workHours[emp.uid] || {}
     const ex = workExtra[emp.uid] || {}
@@ -181,7 +145,6 @@ function getEmpStats(emp) {
     const wage = getWageForMonth(emp, curMonth)
     const workDays = emp.workDays || [1,2,3,4,5]
     const avgHours = emp.avgHours || 8
-    const holidayBase = emp.holidayBase || 'contract'
     const days = daysIn(curMonth)
     const [cy,cm] = curMonth.split('-').map(Number)
 
@@ -232,13 +195,7 @@ function getEmpStats(emp) {
           }
         }
 
-        // 실제근무 기준이면 실제 근무시간으로 주휴 계산
-        // 소정근로 기준: avgHours × workDays.length (계약 주 근무시간)
-        // 실제근무 기준: weekH (실제 일한 시간)
-        const holidayHours = holidayBase==='actual'
-          ? weekH
-          : avgHours * workDays.length
-        weeklyHoliday = calcWeeklyHoliday(weekH, wage, workDays, weekAttendance, weekMemos, holidayHours)
+        weeklyHoliday = calcWeeklyHoliday(weekH, wage, workDays, weekAttendance, weekMemos, avgHours)
         totalWeeklyHoliday += weeklyHoliday
       }
 
@@ -248,18 +205,14 @@ function getEmpStats(emp) {
     const totalH = totalHours + totalMins/60
     const basePay = Math.round(totalH * wage)
     const totalPay = basePay + totalWeeklyHoliday
-    const deduction = calcDeduction(totalPay, emp.employType||'part')
-    const netPay = totalPay - deduction.total
 
-    return { totalHours, totalMins, totalH, basePay, totalWeeklyHoliday, totalPay, deduction, netPay, rows }
+    return { totalHours, totalMins, totalH, basePay, totalWeeklyHoliday, totalPay, rows }
   }
 
   const allStats = employees.map(e => ({ emp:e, ...getEmpStats(e) }))
   const grandBase = allStats.reduce((a,s)=>a+s.basePay,0)
   const grandHoliday = allStats.reduce((a,s)=>a+s.totalWeeklyHoliday,0)
   const grandTotal = allStats.reduce((a,s)=>a+s.totalPay,0)
-  const grandNet = allStats.reduce((a,s)=>a+(s.netPay||s.totalPay),0)
-  const grandDeduction = allStats.reduce((a,s)=>a+(s.deduction?.total||0),0)
 
   return (
     <div>
@@ -275,12 +228,11 @@ function getEmpStats(emp) {
       </div>
 
       {/* 월 합계 */}
-      <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:14,marginBottom:20}}>
+      <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:14,marginBottom:20}}>
         {[
           {label:'기본급 합계', val:grandBase, color:'#f9b934'},
           {label:'주휴수당 합계', val:grandHoliday, color:'#93c5fd'},
-          {label:'총 세전 인건비', val:grandTotal, color:'#5e6585'},
-          {label:'총 세후 인건비', val:grandNet, color:'#34d399'},
+          {label:'총 인건비', val:grandTotal, color:'#34d399'},
         ].map(k=>(
           <div key={k.label} style={{background:'#12141f',border:'1px solid #272a3d',borderRadius:12,padding:'18px 20px',position:'relative',overflow:'hidden'}}>
             <div style={{position:'absolute',top:0,left:0,right:0,height:3,background:k.color}}></div>
@@ -292,45 +244,113 @@ function getEmpStats(emp) {
 
       {/* 직원 탭 */}
       <div style={{display:'flex',gap:8,marginBottom:14,flexWrap:'wrap'}}>
-        <button onClick={()=>setActiveEmp(null)}
+        <button onClick={()=>{ setShowTodayOnly(v=>!v); setActiveEmp(null) }}
+          style={{padding:'7px 14px',borderRadius:7,border:'none',fontSize:12,fontWeight:600,cursor:'pointer',fontFamily:'inherit',
+            background:showTodayOnly?'#34d399':'#191c2b',color:showTodayOnly?'#000':'#5e6585'}}>
+          📅 오늘 근무
+        </button>
+        <button onClick={()=>{ setActiveEmp(null); setShowTodayOnly(false) }}
           style={{padding:'7px 14px',borderRadius:7,border:'none',fontSize:12,fontWeight:600,cursor:'pointer',fontFamily:'inherit',
             background:activeEmp===null?'#f9b934':'#191c2b',color:activeEmp===null?'#000':'#5e6585'}}>
           전체 요약
         </button>
-        {employees.map(e=>{
-  const missing = getMissingDays(e)
-  const hasMissing = missing.length > 0
-  return (
-    <button key={e.uid} onClick={()=>setActiveEmp(e.uid)}
-      style={{padding:'7px 14px',borderRadius:7,fontSize:12,fontWeight:600,cursor:'pointer',fontFamily:'inherit',
-        background: activeEmp===e.uid ? '#f9b934' : hasMissing ? 'rgba(248,113,113,0.12)' : '#191c2b',
-        color: activeEmp===e.uid ? '#000' : hasMissing ? '#f87171' : '#5e6585',
-        border: hasMissing && activeEmp!==e.uid ? '1px solid rgba(248,113,113,0.3)' : 'none'}}>
-      {e.name}
-      {hasMissing && <span style={{fontSize:9,marginLeft:4,opacity:0.8}}>⚠{missing.length}</span>}
-    </button>
-  )
-})}
+        {employees.map(e=>(
+          <button key={e.uid} onClick={()=>setActiveEmp(e.uid)}
+            style={{padding:'7px 14px',borderRadius:7,border:'none',fontSize:12,fontWeight:600,cursor:'pointer',fontFamily:'inherit',
+              background:activeEmp===e.uid?'#f9b934':'#191c2b',color:activeEmp===e.uid?'#000':'#5e6585'}}>
+            {e.name}
+          </button>
+        ))}
       </div>
 
       {loading ? <div style={{textAlign:'center',color:'#5e6585',padding:60}}>로딩 중...</div> : (
         <>
+          {/* 오늘 근무 인원 */}
+          {showTodayOnly && (()=>{
+            const todayDow = new Date().getDay()
+            const todayDD = pad(new Date().getDate())
+            const todayEmps = allStats.filter(s=>s.emp.workDays.includes(todayDow))
+            return (
+              <div style={{background:'#12141f',border:'1px solid #34d399',borderRadius:12,overflow:'hidden',marginBottom:18}}>
+                <div style={{padding:'14px 18px',borderBottom:'1px solid #272a3d',fontSize:13,fontWeight:600,color:'#34d399'}}>
+                  📅 오늘 ({+todayDD}일) 근무 인원 — {todayEmps.length}명
+                </div>
+                {todayEmps.length === 0 ? (
+                  <div style={{padding:24,textAlign:'center',color:'#5e6585',fontSize:12}}>오늘 근무 예정 인원이 없습니다</div>
+                ) : (
+                  <div>
+                    {/* 컬럼 헤더 */}
+                    <div style={{display:'flex',alignItems:'center',gap:14,padding:'8px 18px',
+                      background:'#191c2b',fontSize:10,fontWeight:600,color:'#5e6585'}}>
+                      <div style={{minWidth:70}}>이름</div>
+                      <div style={{minWidth:120}}>근무시간 (h)</div>
+                      <div style={{minWidth:120}}>추가근무 (분)</div>
+                      <div style={{flex:1}}>비고</div>
+                    </div>
+                    {todayEmps.map(({emp})=>{
+                      const wh = workHours[emp.uid]||{}
+                      const ex = workExtra[emp.uid]||{}
+                      const empMemos = memos[emp.uid]||{}
+                      const missing = getMissingDays(emp)
+                      const hasMissing = missing.length > 0
+                      const hasToday = (wh[todayDD]||0) > 0
+                      return (
+                        <div key={emp.uid} style={{display:'flex',alignItems:'center',gap:14,padding:'10px 18px',
+                          borderBottom:'1px solid #1a1d2e',
+                          background:hasToday?'rgba(249,185,52,0.04)':'transparent'}}>
+                          <div style={{minWidth:70,fontSize:13,fontWeight:700,
+                            color:hasMissing?'#f87171':hasToday?'#f9b934':'#dde1f2'}}>
+                            {emp.name}
+                            {hasMissing && <span style={{fontSize:9,marginLeft:4}}>⚠{missing.length}</span>}
+                          </div>
+                          <input type="number" defaultValue={wh[todayDD]||''} min="0" max="24" step="0.5" placeholder="0"
+                            onBlur={e=>saveWorkHours(emp.uid,todayDD,e.target.value)}
+                            onKeyDown={e=>e.key==='Enter'&&e.target.blur()}
+                            style={{width:100,background:wh[todayDD]>0?'rgba(249,185,52,0.15)':'#191c2b',
+                              border:wh[todayDD]>0?'1px solid #f9b934':'1px solid #272a3d',
+                              borderRadius:6,color:wh[todayDD]>0?'#f9b934':'#dde1f2',
+                              padding:'7px 8px',fontSize:13,fontWeight:wh[todayDD]>0?700:400,
+                              textAlign:'center',outline:'none',fontFamily:'DM Mono,monospace'}}/>
+                          <input type="number" defaultValue={ex[todayDD]||''} min="0" max="180" step="5" placeholder="0"
+                            onBlur={e=>saveWorkExtra(emp.uid,todayDD,e.target.value)}
+                            onKeyDown={e=>e.key==='Enter'&&e.target.blur()}
+                            style={{width:100,background:ex[todayDD]>0?'rgba(249,185,52,0.15)':'#191c2b',
+                              border:ex[todayDD]>0?'1px solid #f9b934':'1px solid #272a3d',
+                              borderRadius:6,color:ex[todayDD]>0?'#f9b934':'#dde1f2',
+                              padding:'7px 8px',fontSize:13,fontWeight:ex[todayDD]>0?700:400,
+                              textAlign:'center',outline:'none',fontFamily:'DM Mono,monospace'}}/>
+                          <input type="text" defaultValue={empMemos[todayDD]||''} placeholder="비고..."
+                            onBlur={e=>saveMemo(emp.uid,todayDD,e.target.value)}
+                            onKeyDown={e=>e.key==='Enter'&&e.target.blur()}
+                            style={{flex:1,background:'transparent',border:'none',
+                              borderBottom:empMemos[todayDD]?'1px solid #272a3d':'1px solid transparent',
+                              color:empMemos[todayDD]?'#f87171':'#3d4060',
+                              padding:'4px 2px',fontSize:11,outline:'none',fontFamily:'inherit'}}/>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+              </div>
+            )
+          })()}
+
           {/* 전체 요약 */}
-          {activeEmp===null && (
+          {activeEmp===null && !showTodayOnly && (
             <div style={{background:'#12141f',border:'1px solid #272a3d',borderRadius:12,overflow:'hidden',marginBottom:18}}>
               <div style={{padding:'14px 18px',borderBottom:'1px solid #272a3d',fontSize:13,fontWeight:600}}>직원별 급여 요약</div>
               <div style={{overflowX:'auto'}}>
                 <table style={{width:'100%',borderCollapse:'collapse',fontSize:12}}>
                   <thead>
                     <tr style={{background:'#191c2b'}}>
-                      {['직원','시급','근무시간','추가(분)','기본급','주휴수당','세전','공제','실수령'].map(h=>(
+                      {['직원','시급','근무시간','추가(분)','기본급','주휴수당','총 지급액'].map(h=>(
                         <th key={h} style={{padding:'8px 14px',fontSize:10,fontWeight:600,color:'#5e6585',
                           textAlign:h==='직원'?'left':'right',whiteSpace:'nowrap'}}>{h}</th>
                       ))}
                     </tr>
                   </thead>
                   <tbody>
-                    {allStats.map(({emp,totalHours,totalMins,basePay,totalWeeklyHoliday,totalPay,deduction,netPay})=>(
+                    {allStats.map(({emp,totalHours,totalMins,basePay,totalWeeklyHoliday,totalPay})=>(
                       <tr key={emp.uid} onClick={()=>setActiveEmp(emp.uid)} style={{cursor:'pointer'}}>
                         <td style={{padding:'10px 14px',borderBottom:'1px solid #272a3d',color:'#dde1f2',fontWeight:600}}>{emp.name}</td>
                         <td style={{padding:'10px 14px',borderBottom:'1px solid #272a3d',textAlign:'right',fontFamily:'DM Mono,monospace',color:'#dde1f2'}}>{(emp.wage||10030).toLocaleString()}</td>
@@ -338,9 +358,7 @@ function getEmpStats(emp) {
                         <td style={{padding:'10px 14px',borderBottom:'1px solid #272a3d',textAlign:'right',fontFamily:'DM Mono,monospace',color:totalMins>0?'#f9b934':'#5e6585'}}>{totalMins>0?`${totalMins}m`:'—'}</td>
                         <td style={{padding:'10px 14px',borderBottom:'1px solid #272a3d',textAlign:'right',fontFamily:'DM Mono,monospace',color:'#dde1f2'}}>{basePay.toLocaleString()}</td>
                         <td style={{padding:'10px 14px',borderBottom:'1px solid #272a3d',textAlign:'right',fontFamily:'DM Mono,monospace',color:'#93c5fd'}}>{totalWeeklyHoliday.toLocaleString()}</td>
-                        <td style={{padding:'10px 14px',borderBottom:'1px solid #272a3d',textAlign:'right',fontFamily:'DM Mono,monospace',color:'#5e6585'}}>{totalPay.toLocaleString()}</td>
-                        <td style={{padding:'10px 14px',borderBottom:'1px solid #272a3d',textAlign:'right',fontFamily:'DM Mono,monospace',color:'#f87171'}}>-{deduction.total.toLocaleString()}</td>
-                        <td style={{padding:'10px 14px',borderBottom:'1px solid #272a3d',textAlign:'right',fontFamily:'DM Mono,monospace',color:'#34d399',fontWeight:700}}>{netPay.toLocaleString()}</td>
+                        <td style={{padding:'10px 14px',borderBottom:'1px solid #272a3d',textAlign:'right',fontFamily:'DM Mono,monospace',color:'#34d399',fontWeight:700}}>{totalPay.toLocaleString()}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -352,9 +370,7 @@ function getEmpStats(emp) {
                       <td style={{padding:'10px 14px',textAlign:'right',fontWeight:700,color:'#f9b934',fontFamily:'DM Mono,monospace'}}>{allStats.reduce((a,s)=>a+s.totalMins,0)}m</td>
                       <td style={{padding:'10px 14px',textAlign:'right',fontWeight:700,color:'#f9b934',fontFamily:'DM Mono,monospace'}}>{grandBase.toLocaleString()}</td>
                       <td style={{padding:'10px 14px',textAlign:'right',fontWeight:700,color:'#f9b934',fontFamily:'DM Mono,monospace'}}>{grandHoliday.toLocaleString()}</td>
-                      <td style={{padding:'10px 14px',textAlign:'right',fontWeight:700,color:'#5e6585',fontFamily:'DM Mono,monospace'}}>{grandTotal.toLocaleString()}</td>
-                      <td style={{padding:'10px 14px',textAlign:'right',fontWeight:700,color:'#f87171',fontFamily:'DM Mono,monospace'}}>-{grandDeduction.toLocaleString()}</td>
-                      <td style={{padding:'10px 14px',textAlign:'right',fontWeight:700,color:'#34d399',fontFamily:'DM Mono,monospace'}}>{grandNet.toLocaleString()}</td>
+                      <td style={{padding:'10px 14px',textAlign:'right',fontWeight:700,color:'#f9b934',fontFamily:'DM Mono,monospace'}}>{grandTotal.toLocaleString()}</td>
                     </tr>
                   </tfoot>
                 </table>
@@ -366,7 +382,8 @@ function getEmpStats(emp) {
 {activeEmp!==null && (()=>{
   const empData = allStats.find(s=>s.emp.uid===activeEmp)
   if(!empData) return null
-            const {emp, totalHours, totalMins, totalH, basePay, totalWeeklyHoliday, totalPay, deduction, netPay, rows} = empData
+            if(!empData) return null
+            const {emp, totalHours, totalMins, totalH, basePay, totalWeeklyHoliday, totalPay, rows} = empData
             const empMemos = memos[emp.uid] || {}
 
             return (
@@ -382,43 +399,13 @@ function getEmpStats(emp) {
                     {label:'총 근무시간', val:`${totalHours}h ${totalMins>0?totalMins+'m':''}`, color:'#f9b934'},
                     {label:'기본급', val:`${basePay.toLocaleString()}원`, color:'#dde1f2'},
                     {label:'주휴수당', val:`${totalWeeklyHoliday.toLocaleString()}원`, color:'#93c5fd'},
-                    {label:'세전 총액', val:`${totalPay.toLocaleString()}원`, color:'#34d399'},
+                    {label:'이달 월급', val:`${totalPay.toLocaleString()}원`, color:'#34d399'},
                   ].map(k=>(
                     <div key={k.label} style={{background:'#191c2b',borderRadius:8,padding:'10px 12px'}}>
                       <div style={{fontSize:10,color:'#5e6585',marginBottom:3}}>{k.label}</div>
                       <div style={{fontSize:13,fontWeight:700,color:k.color,fontFamily:'DM Mono,monospace'}}>{k.val}</div>
                     </div>
                   ))}
-                </div>
-
-                {/* 공제 및 실수령액 */}
-                <div style={{padding:'14px 18px',borderBottom:'1px solid #272a3d'}}>
-                  <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',flexWrap:'wrap',gap:10}}>
-                    <div style={{display:'flex',flexDirection:'column',gap:6}}>
-                      <div style={{fontSize:11,fontWeight:600,color:'#5e6585',marginBottom:4}}>
-                        공제 내역 ({emp.employType==='part'?'3.3% 원천징수':emp.employType==='full'?'4대보험':'공제없음'})
-                      </div>
-                      {emp.employType==='part' && (
-                        <div style={{fontSize:12,color:'#f87171'}}>원천징수세: -{deduction.tax.toLocaleString()}원</div>
-                      )}
-                      {emp.employType==='full' && (
-                        <>
-                          <div style={{fontSize:12,color:'#f87171'}}>국민연금 (4.5%): -{deduction.pension.toLocaleString()}원</div>
-                          <div style={{fontSize:12,color:'#f87171'}}>건강보험 (3.545%): -{deduction.health.toLocaleString()}원</div>
-                          <div style={{fontSize:12,color:'#f87171'}}>고용보험 (0.9%): -{deduction.employ.toLocaleString()}원</div>
-                          <div style={{fontSize:12,color:'#f87171'}}>장기요양 (건강보험×12.95%): -{deduction.care.toLocaleString()}원</div>
-                        </>
-                      )}
-                      {emp.employType==='none' && (
-                        <div style={{fontSize:12,color:'#5e6585'}}>공제 없음</div>
-                      )}
-                    </div>
-                    <div style={{background:'rgba(52,211,153,0.08)',border:'1px solid rgba(52,211,153,0.2)',borderRadius:10,padding:'14px 20px',textAlign:'right'}}>
-                      <div style={{fontSize:11,color:'#5e6585',marginBottom:4}}>실수령액</div>
-                      <div style={{fontSize:22,fontWeight:700,color:'#34d399',fontFamily:'DM Mono,monospace'}}>{netPay.toLocaleString()}원</div>
-                      <div style={{fontSize:10,color:'#5e6585',marginTop:4}}>공제 합계: -{deduction.total.toLocaleString()}원</div>
-                    </div>
-                  </div>
                 </div>
 
                 {/* 테이블 */}
@@ -525,17 +512,12 @@ function getEmpStats(emp) {
                         <td style={{padding:'12px 10px',textAlign:'center',fontWeight:700,color:'#f9b934',fontFamily:'DM Mono,monospace'}}>{totalMins>0?`${totalMins}m`:'—'}</td>
                         <td style={{padding:'12px 10px',textAlign:'center',fontWeight:700,color:'#93c5fd',fontFamily:'DM Mono,monospace'}}>{totalWeeklyHoliday.toLocaleString()}원</td>
                         <td style={{padding:'12px 10px'}}>
-                          <div style={{display:'flex',flexDirection:'column',gap:2}}>
-                            <span style={{color:'#5e6585',fontSize:11}}>
-                              세전 {totalPay.toLocaleString()}원
-                            </span>
-                            <span style={{color:'#34d399',fontWeight:700,fontFamily:'DM Mono,monospace',fontSize:14}}>
-                              실수령 {netPay.toLocaleString()}원
-                            </span>
-                            <span style={{color:'#f87171',fontSize:10}}>
-                              공제 -{deduction.total.toLocaleString()}원
-                            </span>
-                          </div>
+                          <span style={{color:'#34d399',fontWeight:700,fontFamily:'DM Mono,monospace',fontSize:14}}>
+                            월급 {totalPay.toLocaleString()}원
+                          </span>
+                          <span style={{color:'#5e6585',fontSize:10,marginLeft:8}}>
+                            (기본급 {basePay.toLocaleString()} + 주휴 {totalWeeklyHoliday.toLocaleString()})
+                          </span>
                         </td>
                       </tr>
                     </tfoot>
