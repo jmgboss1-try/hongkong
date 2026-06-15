@@ -210,6 +210,74 @@ function getEmpStats(emp) {
   }
 
   const allStats = employees.map(e => ({ emp:e, ...getEmpStats(e) }))
+  // 오늘 근무 인원 계산
+  const todayDow = new Date().getDay()
+  const todayDD  = pad(new Date().getDate())
+  const todayEmps = allStats.filter(s => s.emp.workDays.includes(todayDow))
+
+  const todayContent = (
+    <div style={{background:'#12141f',border:'1px solid #34d399',borderRadius:12,overflow:'hidden',marginBottom:18}}>
+      <div style={{padding:'14px 18px',borderBottom:'1px solid #272a3d',fontSize:13,fontWeight:600,color:'#34d399'}}>
+        📅 오늘 ({+todayDD}일) 근무 인원 — {todayEmps.length}명
+      </div>
+      {todayEmps.length === 0 ? (
+        <div style={{padding:24,textAlign:'center',color:'#5e6585',fontSize:12}}>오늘 근무 예정 인원이 없습니다</div>
+      ) : (
+        <div>
+          <div style={{display:'flex',alignItems:'center',gap:14,padding:'8px 18px',
+            background:'#191c2b',fontSize:10,fontWeight:600,color:'#5e6585'}}>
+            <div style={{minWidth:80}}>이름</div>
+            <div style={{minWidth:120}}>근무시간 (h)</div>
+            <div style={{minWidth:120}}>추가근무 (분)</div>
+            <div style={{flex:1}}>비고</div>
+          </div>
+          {todayEmps.map(({emp})=>{
+            const wh = workHours[emp.uid]||{}
+            const ex = workExtra[emp.uid]||{}
+            const empMemos = memos[emp.uid]||{}
+            const missing = getMissingDays(emp)
+            const hasMissing = missing.length > 0
+            const hasToday = (wh[todayDD]||0) > 0
+            return (
+              <div key={emp.uid} style={{display:'flex',alignItems:'center',gap:14,padding:'10px 18px',
+                borderBottom:'1px solid #1a1d2e',
+                background:hasToday?'rgba(249,185,52,0.04)':'transparent'}}>
+                <div style={{minWidth:80,fontSize:13,fontWeight:700,
+                  color:hasMissing?'#f87171':hasToday?'#f9b934':'#dde1f2'}}>
+                  {emp.name}
+                  {hasMissing && <span style={{fontSize:9,marginLeft:4}}>⚠{missing.length}</span>}
+                </div>
+                <input type="number" defaultValue={wh[todayDD]||''} min="0" max="24" step="0.5" placeholder="0"
+                  onBlur={e=>saveWorkHours(emp.uid,todayDD,e.target.value)}
+                  onKeyDown={e=>e.key==='Enter'&&e.target.blur()}
+                  style={{width:100,background:wh[todayDD]>0?'rgba(249,185,52,0.15)':'#191c2b',
+                    border:wh[todayDD]>0?'1px solid #f9b934':'1px solid #272a3d',
+                    borderRadius:6,color:wh[todayDD]>0?'#f9b934':'#dde1f2',
+                    padding:'7px 8px',fontSize:13,fontWeight:wh[todayDD]>0?700:400,
+                    textAlign:'center',outline:'none',fontFamily:'DM Mono,monospace'}}/>
+                <input type="number" defaultValue={ex[todayDD]||''} min="0" max="180" step="5" placeholder="0"
+                  onBlur={e=>saveWorkExtra(emp.uid,todayDD,e.target.value)}
+                  onKeyDown={e=>e.key==='Enter'&&e.target.blur()}
+                  style={{width:100,background:ex[todayDD]>0?'rgba(249,185,52,0.15)':'#191c2b',
+                    border:ex[todayDD]>0?'1px solid #f9b934':'1px solid #272a3d',
+                    borderRadius:6,color:ex[todayDD]>0?'#f9b934':'#dde1f2',
+                    padding:'7px 8px',fontSize:13,fontWeight:ex[todayDD]>0?700:400,
+                    textAlign:'center',outline:'none',fontFamily:'DM Mono,monospace'}}/>
+                <input type="text" defaultValue={empMemos[todayDD]||''} placeholder="비고..."
+                  onBlur={e=>saveMemo(emp.uid,todayDD,e.target.value)}
+                  onKeyDown={e=>e.key==='Enter'&&e.target.blur()}
+                  style={{flex:1,background:'transparent',border:'none',
+                    borderBottom:empMemos[todayDD]?'1px solid #272a3d':'1px solid transparent',
+                    color:empMemos[todayDD]?'#f87171':'#3d4060',
+                    padding:'4px 2px',fontSize:11,outline:'none',fontFamily:'inherit'}}/>
+              </div>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+
   const grandBase = allStats.reduce((a,s)=>a+s.basePay,0)
   const grandHoliday = allStats.reduce((a,s)=>a+s.totalWeeklyHoliday,0)
   const grandTotal = allStats.reduce((a,s)=>a+s.totalPay,0)
@@ -251,7 +319,7 @@ function getEmpStats(emp) {
         </button>
         <button onClick={()=>{ setActiveEmp(null); setShowTodayOnly(false) }}
           style={{padding:'7px 14px',borderRadius:7,border:'none',fontSize:12,fontWeight:600,cursor:'pointer',fontFamily:'inherit',
-            background:activeEmp===null?'#f9b934':'#191c2b',color:activeEmp===null?'#000':'#5e6585'}}>
+            background:activeEmp===null&&!showTodayOnly?'#f9b934':'#191c2b',color:activeEmp===null&&!showTodayOnly?'#000':'#5e6585'}}>
           전체 요약
         </button>
         {employees.map(e=>(
@@ -265,75 +333,7 @@ function getEmpStats(emp) {
 
       {loading ? <div style={{textAlign:'center',color:'#5e6585',padding:60}}>로딩 중...</div> : (
         <>
-          {/* 오늘 근무 인원 */}
-          {showTodayOnly && (()=>{
-            const todayDow = new Date().getDay()
-            const todayDD = pad(new Date().getDate())
-            const todayEmps = allStats.filter(s=>s.emp.workDays.includes(todayDow))
-            return (
-              <div style={{background:'#12141f',border:'1px solid #34d399',borderRadius:12,overflow:'hidden',marginBottom:18}}>
-                <div style={{padding:'14px 18px',borderBottom:'1px solid #272a3d',fontSize:13,fontWeight:600,color:'#34d399'}}>
-                  📅 오늘 ({+todayDD}일) 근무 인원 — {todayEmps.length}명
-                </div>
-                {todayEmps.length === 0 ? (
-                  <div style={{padding:24,textAlign:'center',color:'#5e6585',fontSize:12}}>오늘 근무 예정 인원이 없습니다</div>
-                ) : (
-                  <div>
-                    {/* 컬럼 헤더 */}
-                    <div style={{display:'flex',alignItems:'center',gap:14,padding:'8px 18px',
-                      background:'#191c2b',fontSize:10,fontWeight:600,color:'#5e6585'}}>
-                      <div style={{minWidth:70}}>이름</div>
-                      <div style={{minWidth:120}}>근무시간 (h)</div>
-                      <div style={{minWidth:120}}>추가근무 (분)</div>
-                      <div style={{flex:1}}>비고</div>
-                    </div>
-                    {todayEmps.map(({emp})=>{
-                      const wh = workHours[emp.uid]||{}
-                      const ex = workExtra[emp.uid]||{}
-                      const empMemos = memos[emp.uid]||{}
-                      const missing = getMissingDays(emp)
-                      const hasMissing = missing.length > 0
-                      const hasToday = (wh[todayDD]||0) > 0
-                      return (
-                        <div key={emp.uid} style={{display:'flex',alignItems:'center',gap:14,padding:'10px 18px',
-                          borderBottom:'1px solid #1a1d2e',
-                          background:hasToday?'rgba(249,185,52,0.04)':'transparent'}}>
-                          <div style={{minWidth:70,fontSize:13,fontWeight:700,
-                            color:hasMissing?'#f87171':hasToday?'#f9b934':'#dde1f2'}}>
-                            {emp.name}
-                            {hasMissing && <span style={{fontSize:9,marginLeft:4}}>⚠{missing.length}</span>}
-                          </div>
-                          <input type="number" defaultValue={wh[todayDD]||''} min="0" max="24" step="0.5" placeholder="0"
-                            onBlur={e=>saveWorkHours(emp.uid,todayDD,e.target.value)}
-                            onKeyDown={e=>e.key==='Enter'&&e.target.blur()}
-                            style={{width:100,background:wh[todayDD]>0?'rgba(249,185,52,0.15)':'#191c2b',
-                              border:wh[todayDD]>0?'1px solid #f9b934':'1px solid #272a3d',
-                              borderRadius:6,color:wh[todayDD]>0?'#f9b934':'#dde1f2',
-                              padding:'7px 8px',fontSize:13,fontWeight:wh[todayDD]>0?700:400,
-                              textAlign:'center',outline:'none',fontFamily:'DM Mono,monospace'}}/>
-                          <input type="number" defaultValue={ex[todayDD]||''} min="0" max="180" step="5" placeholder="0"
-                            onBlur={e=>saveWorkExtra(emp.uid,todayDD,e.target.value)}
-                            onKeyDown={e=>e.key==='Enter'&&e.target.blur()}
-                            style={{width:100,background:ex[todayDD]>0?'rgba(249,185,52,0.15)':'#191c2b',
-                              border:ex[todayDD]>0?'1px solid #f9b934':'1px solid #272a3d',
-                              borderRadius:6,color:ex[todayDD]>0?'#f9b934':'#dde1f2',
-                              padding:'7px 8px',fontSize:13,fontWeight:ex[todayDD]>0?700:400,
-                              textAlign:'center',outline:'none',fontFamily:'DM Mono,monospace'}}/>
-                          <input type="text" defaultValue={empMemos[todayDD]||''} placeholder="비고..."
-                            onBlur={e=>saveMemo(emp.uid,todayDD,e.target.value)}
-                            onKeyDown={e=>e.key==='Enter'&&e.target.blur()}
-                            style={{flex:1,background:'transparent',border:'none',
-                              borderBottom:empMemos[todayDD]?'1px solid #272a3d':'1px solid transparent',
-                              color:empMemos[todayDD]?'#f87171':'#3d4060',
-                              padding:'4px 2px',fontSize:11,outline:'none',fontFamily:'inherit'}}/>
-                        </div>
-                      )
-                    })}
-                  </div>
-                )}
-              </div>
-            )
-          })()}
+          {showTodayOnly && todayContent}
 
           {/* 전체 요약 */}
           {activeEmp===null && !showTodayOnly && (
