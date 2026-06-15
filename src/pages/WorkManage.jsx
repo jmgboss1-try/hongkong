@@ -75,7 +75,11 @@ export default function WorkManage() {
       const finalEmps = []
 usersSnap.forEach(d => {
         const data = d.data()
-        if(data.status==='approved' && data.role!=='owner') {
+        if(data.status==='approved'
+  && data.role!=='owner'
+  && data.role!=='store'
+  && data.role!=='investor'
+  && data.payType!=='fixed') {
           finalEmps.push({
             uid:d.id,
             name:data.name,
