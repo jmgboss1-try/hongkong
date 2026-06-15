@@ -88,18 +88,22 @@ export default function WorkManage() {
       const finalEmps = []
 usersSnap.forEach(d => {
         const data = d.data()
-        if(data.status==='approved' && data.role!=='owner') {
-          finalEmps.push({
-            uid:d.id,
-            name:data.name,
-            wage:data.wage||10030,
-            wageHistory:data.wageHistory||[],
-            workDays:data.workDays||[1,2,3,4,5],
-            avgHours:data.avgHours||8,
-            holidayBase:data.holidayBase||'contract',
-            employType:data.employType||'part'
-          })
-        }
+        if(data.status==='approved'
+  && data.role!=='owner'
+  && data.role!=='store'
+  && data.role!=='investor'
+  && data.payType!=='fixed') {
+  finalEmps.push({
+    uid:d.id,
+    name:data.name,
+    wage:data.wage||10030,
+    wageHistory:data.wageHistory||[],
+    workDays:data.workDays||[1,2,3,4,5],
+    avgHours:data.avgHours||8,
+    holidayBase:data.holidayBase||'contract',
+    employType:data.employType||'part'
+  })
+}
       })
       setEmployees(finalEmps)
 
