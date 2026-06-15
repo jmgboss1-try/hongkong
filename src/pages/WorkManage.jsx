@@ -168,7 +168,6 @@ const memoSnap = await getDoc(doc(db,'workmemos',curMonth))
 }
 
 function getEmpStats(emp) {
-function getEmpStats(emp) {
     const wh = workHours[emp.uid] || {}
     const ex = workExtra[emp.uid] || {}
     const empMemos = memos[emp.uid] || {}
