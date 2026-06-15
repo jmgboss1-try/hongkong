@@ -151,6 +151,23 @@ const memoSnap = await getDoc(doc(db,'workmemos',curMonth))
     setMemos(newMemos)
   }
 
+  function getMissingDays(emp) {
+  const wh = workHours[emp.uid] || {}
+  const [cy, cm] = curMonth.split('-').map(Number)
+  const today = new Date()
+  const isCurrentMonth = curMonth === `${today.getFullYear()}-${pad(today.getMonth()+1)}`
+  const lastDay = isCurrentMonth ? today.getDate() - 1 : daysIn(curMonth)
+  const missing = []
+  for(let d=1; d<=lastDay; d++) {
+    const dow = new Date(cy,cm-1,d).getDay()
+    if(emp.workDays.includes(dow)) {
+      if(!(wh[pad(d)] > 0)) missing.push(d)
+    }
+  }
+  return missing
+}
+
+function getEmpStats(emp) {
 function getEmpStats(emp) {
     const wh = workHours[emp.uid] || {}
     const ex = workExtra[emp.uid] || {}
@@ -277,13 +294,20 @@ function getEmpStats(emp) {
             background:activeEmp===null?'#f9b934':'#191c2b',color:activeEmp===null?'#000':'#5e6585'}}>
           전체 요약
         </button>
-        {employees.map(e=>(
-          <button key={e.uid} onClick={()=>setActiveEmp(e.uid)}
-            style={{padding:'7px 14px',borderRadius:7,border:'none',fontSize:12,fontWeight:600,cursor:'pointer',fontFamily:'inherit',
-              background:activeEmp===e.uid?'#f9b934':'#191c2b',color:activeEmp===e.uid?'#000':'#5e6585'}}>
-            {e.name}
-          </button>
-        ))}
+        {employees.map(e=>{
+  const missing = getMissingDays(e)
+  const hasMissing = missing.length > 0
+  return (
+    <button key={e.uid} onClick={()=>setActiveEmp(e.uid)}
+      style={{padding:'7px 14px',borderRadius:7,fontSize:12,fontWeight:600,cursor:'pointer',fontFamily:'inherit',
+        background: activeEmp===e.uid ? '#f9b934' : hasMissing ? 'rgba(248,113,113,0.12)' : '#191c2b',
+        color: activeEmp===e.uid ? '#000' : hasMissing ? '#f87171' : '#5e6585',
+        border: hasMissing && activeEmp!==e.uid ? '1px solid rgba(248,113,113,0.3)' : 'none'}}>
+      {e.name}
+      {hasMissing && <span style={{fontSize:9,marginLeft:4,opacity:0.8}}>⚠{missing.length}</span>}
+    </button>
+  )
+})}
       </div>
 
       {loading ? <div style={{textAlign:'center',color:'#5e6585',padding:60}}>로딩 중...</div> : (
