@@ -24,6 +24,7 @@ const DEFAULT_CATEGORIES = [
 
 const getNowDD  = () => pad(new Date().getDate())
 const getYestDD = () => { const d=new Date(); d.setDate(d.getDate()-1); return pad(d.getDate()) }
+const todayFullStr = () => { const n=new Date(); return `${n.getFullYear()}-${pad(n.getMonth()+1)}-${pad(n.getDate())}` }
 
 async function extractFromImage(base64, mediaType) {
   const response = await fetch('https://api.anthropic.com/v1/messages', {
@@ -82,6 +83,13 @@ const [payingDate, setPayingDate]     = useState('')
   const [editFixedId, setEditFixedId]     = useState(null)
   const [editFixed, setEditFixed]         = useState({})
 
+  // 단기 대여금 (형)
+  const [loanRecords, setLoanRecords]   = useState([])
+  const [showLoanMgr, setShowLoanMgr]   = useState(false)
+  const [loanForm, setLoanForm]         = useState({ date:'', type:'lent', amount:'', memo:'' })
+  const [showConvert, setShowConvert]   = useState(false)
+  const [convertAmount, setConvertAmount] = useState('')
+
   // 입력 모드
   const [inputMode, setInputMode] = useState('manual')
 
@@ -123,6 +131,16 @@ const [payingDate, setPayingDate]     = useState('')
   useEffect(()=>{ load() },[curMonth])
 
   useEffect(()=>{
+    async function loadLoans() {
+      try {
+        const snap = await getDoc(doc(db,'loans','hyung'))
+        if(snap.exists()) setLoanRecords(snap.data().list || [])
+      } catch(e) { console.error(e) }
+    }
+    loadLoans()
+  },[])
+
+  useEffect(()=>{
     const existing = data[day]
     if(existing) {
       const newForm = {}
@@ -130,6 +148,61 @@ const [payingDate, setPayingDate]     = useState('')
       setForm(newForm); setDeposit(existing.deposit||'')
     } else { setForm({}); setDeposit('') }
   },[day, data, categories])
+
+  // ── 단기 대여금 (형) ──
+  async function saveLoanRecords(newList) {
+    await setDoc(doc(db,'loans','hyung'), { list: newList })
+    setLoanRecords(newList)
+  }
+  function addLoanRecord() {
+    if(!loanForm.date || !loanForm.amount) return alert('날짜와 금액을 입력해주세요')
+    const newRec = {
+      id: Date.now().toString(),
+      date: loanForm.date,
+      type: loanForm.type,
+      amount: +String(loanForm.amount).replace(/[^0-9]/g,'') || 0,
+      memo: loanForm.memo || '',
+    }
+    saveLoanRecords([...loanRecords, newRec])
+    setLoanForm({ date:'', type:'lent', amount:'', memo:'' })
+  }
+  function deleteLoanRecord(id) {
+    if(!window.confirm('이 기록을 삭제하시겠습니까?')) return
+    saveLoanRecords(loanRecords.filter(r=>r.id!==id))
+  }
+  async function convertToInvestment() {
+    const amt = +String(convertAmount).replace(/[^0-9]/g,'') || 0
+    if(amt<=0) return alert('전환할 금액을 입력해주세요')
+    if(amt>loanBalance) return alert(`잔액(${loanBalance.toLocaleString()}원)보다 큰 금액은 전환할 수 없습니다`)
+    setSaving(true)
+    try {
+      const today = todayFullStr()
+      // 1. 대여금 기록에 전환 항목 추가 (잔액 차감)
+      const loanRec = { id:Date.now().toString(), date:today, type:'converted', amount:amt, memo:'투자금 회수로 전환' }
+      const newLoanList = [...loanRecords, loanRec]
+      await setDoc(doc(db,'loans','hyung'), { list:newLoanList })
+      setLoanRecords(newLoanList)
+
+      // 2. 투자관리 회수내역에 형 "대출금 상환 회수"로 자동 기록
+      const invSnap = await getDoc(doc(db,'investment','records'))
+      const invList = invSnap.exists() ? (invSnap.data().list||[]) : []
+      const invRec = {
+        id: (Date.now()+1).toString(),
+        date: today,
+        amount: amt,
+        investor: 'hyung',
+        category: 'loan',
+        memo: '단기 대여금 전환',
+        createdAt: new Date().toISOString(),
+      }
+      const newInvList = [...invList, invRec].sort((a,b)=>a.date>b.date?1:-1)
+      await setDoc(doc(db,'investment','records'), { list:newInvList })
+
+      setConvertAmount(''); setShowConvert(false)
+      alert('투자금 회수로 전환됐습니다! 투자관리 탭에서 확인하실 수 있어요.')
+    } catch(e) { console.error(e) }
+    setSaving(false)
+  }
 
   // ── 카테고리 ──
   async function saveCategories(newCats) {
@@ -317,6 +390,8 @@ const [payingDate, setPayingDate]     = useState('')
   const realProfit      = totalDeposit - grand
   const carryoverAmt    = data.carryover || 0
   const currentBalance  = carryoverAmt + totalDeposit - grand
+
+  const loanBalance = loanRecords.reduce((a,r)=> r.type==='lent' ? a+r.amount : a-r.amount, 0)
 
   const unpaidFixed = fixedItems.filter(i=>!fixedPayments[i.id]?.paid)
   const totalFixedAmt = fixedItems.reduce((a,i)=>a+i.amount,0)
@@ -613,6 +688,136 @@ const [payingDate, setPayingDate]     = useState('')
               <span style={{fontSize:11,color:'#5e6585'}}>고정지출 합계</span>
               <span style={{fontSize:13,fontWeight:700,color:'#f87171',fontFamily:'DM Mono,monospace'}}>
                 {paidFixedAmt.toLocaleString()}원 납부 / {totalFixedAmt.toLocaleString()}원
+              </span>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* ── 형과의 단기 대여금 ── */}
+      <div style={{background:'#12141f',border:'1px solid rgba(147,197,253,0.3)',borderRadius:12,marginBottom:18,overflow:'hidden'}}>
+        <div style={{padding:'14px 18px',borderBottom:'1px solid #272a3d',
+          display:'flex',justifyContent:'space-between',alignItems:'center',flexWrap:'wrap',gap:8}}>
+          <div>
+            <span style={{fontSize:13,fontWeight:600}}>💸 형과의 단기 대여금</span>
+            <span style={{fontSize:11,color:'#5e6585',marginLeft:10}}>
+              {loanBalance>0 ? `형이 ${loanBalance.toLocaleString()}원 빚진 상태` :
+               loanBalance<0 ? `내가 ${Math.abs(loanBalance).toLocaleString()}원 빚진 상태` : '잔액 없음'}
+            </span>
+          </div>
+          <div style={{display:'flex',gap:8}}>
+            {loanBalance > 0 && (
+              <button onClick={()=>{ setShowConvert(v=>!v); setConvertAmount(String(loanBalance)) }}
+                style={{background:'rgba(249,185,52,0.12)',border:'1px solid rgba(249,185,52,0.3)',color:'#f9b934',
+                  borderRadius:7,padding:'6px 12px',fontSize:11,fontWeight:600,cursor:'pointer',fontFamily:'inherit'}}>
+                💰 투자금 회수로 전환
+              </button>
+            )}
+            <button onClick={()=>setShowLoanMgr(v=>!v)}
+              style={{background:'#191c2b',border:'1px solid #272a3d',color:'#dde1f2',borderRadius:7,
+                padding:'6px 10px',fontSize:11,cursor:'pointer',fontFamily:'inherit'}}>
+              {showLoanMgr ? '▲ 접기' : '+ 기록 추가'}
+            </button>
+          </div>
+        </div>
+
+        {/* 전환 폼 */}
+        {showConvert && (
+          <div style={{padding:'14px 18px',borderBottom:'1px solid #272a3d',background:'rgba(249,185,52,0.04)'}}>
+            <div style={{fontSize:11,fontWeight:600,color:'#f9b934',marginBottom:10}}>
+              💰 잔액 중 일부(또는 전체)를 투자금 회수로 전환
+            </div>
+            <div style={{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap'}}>
+              <input type="number" value={convertAmount} onChange={e=>setConvertAmount(e.target.value)}
+                placeholder="전환할 금액" max={loanBalance}
+                style={{width:160,background:'#191c2b',border:'1px solid rgba(249,185,52,0.3)',borderRadius:7,
+                  color:'#f9b934',padding:'8px 10px',fontSize:13,outline:'none',fontFamily:'DM Mono,monospace',fontWeight:700}}/>
+              <span style={{fontSize:11,color:'#5e6585'}}>/ 잔액 {loanBalance.toLocaleString()}원</span>
+              <button onClick={convertToInvestment} disabled={saving}
+                style={{background:'#f9b934',color:'#000',border:'none',borderRadius:7,padding:'8px 16px',
+                  fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
+                {saving?'처리 중...':'전환 확정'}
+              </button>
+              <button onClick={()=>setShowConvert(false)}
+                style={{background:'transparent',border:'1px solid #272a3d',color:'#5e6585',borderRadius:7,
+                  padding:'8px 14px',fontSize:11,cursor:'pointer',fontFamily:'inherit'}}>
+                취소
+              </button>
+            </div>
+            <div style={{fontSize:10,color:'#5e6585',marginTop:8}}>
+              전환하면 대여금 잔액이 줄고, 투자관리 탭의 형 "🏦 대출금 상환 회수"에 자동 기록돼요.
+            </div>
+          </div>
+        )}
+
+        {/* 기록 추가 폼 */}
+        {showLoanMgr && (
+          <div style={{padding:'14px 18px',borderBottom:'1px solid #272a3d',background:'rgba(147,197,253,0.04)'}}>
+            <div style={{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap'}}>
+              <input type="date" value={loanForm.date} onChange={e=>setLoanForm(f=>({...f,date:e.target.value}))}
+                style={{background:'#191c2b',border:'1px solid #272a3d',borderRadius:7,color:'#dde1f2',
+                  padding:'7px 10px',fontSize:12,outline:'none',fontFamily:'inherit'}}/>
+              <div style={{display:'flex',gap:4}}>
+                {[['lent','빌려줌'],['received','받음']].map(([k,l])=>(
+                  <button key={k} onClick={()=>setLoanForm(f=>({...f,type:k}))}
+                    style={{padding:'7px 12px',borderRadius:6,border:'none',fontSize:11,fontWeight:600,cursor:'pointer',fontFamily:'inherit',
+                      background:loanForm.type===k?(k==='lent'?'#f87171':'#34d399'):'#191c2b',
+                      color:loanForm.type===k?'#000':'#5e6585'}}>
+                    {l}
+                  </button>
+                ))}
+              </div>
+              <input type="number" value={loanForm.amount} onChange={e=>setLoanForm(f=>({...f,amount:e.target.value}))}
+                placeholder="금액"
+                style={{width:120,background:'#191c2b',border:'1px solid #272a3d',borderRadius:7,color:'#dde1f2',
+                  padding:'7px 10px',fontSize:12,outline:'none',fontFamily:'DM Mono,monospace'}}/>
+              <input value={loanForm.memo} onChange={e=>setLoanForm(f=>({...f,memo:e.target.value}))}
+                placeholder="메모 (선택)"
+                style={{flex:1,minWidth:100,background:'#191c2b',border:'1px solid #272a3d',borderRadius:7,color:'#dde1f2',
+                  padding:'7px 10px',fontSize:12,outline:'none',fontFamily:'inherit'}}/>
+              <button onClick={addLoanRecord}
+                style={{background:'#93c5fd',color:'#000',border:'none',borderRadius:7,padding:'7px 16px',
+                  fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'inherit',whiteSpace:'nowrap'}}>
+                + 추가
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* 내역 */}
+        {loanRecords.length === 0 ? (
+          <div style={{padding:'20px',textAlign:'center',color:'#5e6585',fontSize:12}}>
+            + 기록 추가에서 대여/상환 내역을 입력하세요
+          </div>
+        ) : (
+          <div style={{padding:'8px 0'}}>
+            {[...loanRecords].sort((a,b)=>b.date.localeCompare(a.date)).map(r=>(
+              <div key={r.id} style={{display:'flex',alignItems:'center',gap:12,padding:'9px 18px',
+                borderBottom:'1px solid #1a1d2e',flexWrap:'wrap'}}>
+                <div style={{fontSize:11,color:'#5e6585',fontFamily:'DM Mono,monospace',minWidth:75}}>{r.date}</div>
+                <span style={{fontSize:11,fontWeight:700,padding:'2px 8px',borderRadius:4,
+                  background: r.type==='lent'?'rgba(248,113,113,0.15)':r.type==='converted'?'rgba(249,185,52,0.15)':'rgba(52,211,153,0.15)',
+                  color: r.type==='lent'?'#f87171':r.type==='converted'?'#f9b934':'#34d399'}}>
+                  {r.type==='lent'?'빌려줌':r.type==='converted'?'투자전환':'받음'}
+                </span>
+                <span style={{flex:1,fontSize:11,color:'#5e6585'}}>{r.memo||'—'}</span>
+                <span style={{fontSize:13,fontWeight:700,fontFamily:'DM Mono,monospace',
+                  color:r.type==='lent'?'#f87171':r.type==='converted'?'#f9b934':'#34d399'}}>
+                  {r.type==='lent'?'+':'-'}{r.amount.toLocaleString()}원
+                </span>
+                <button onClick={()=>deleteLoanRecord(r.id)}
+                  style={{background:'transparent',border:'1px solid #3d1f1f',color:'#f87171',
+                    padding:'3px 8px',fontSize:10,borderRadius:4,cursor:'pointer',fontFamily:'inherit'}}>
+                  삭제
+                </button>
+              </div>
+            ))}
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',
+              padding:'10px 18px',background:'rgba(255,255,255,0.02)'}}>
+              <span style={{fontSize:11,color:'#5e6585'}}>현재 잔액</span>
+              <span style={{fontSize:13,fontWeight:700,fontFamily:'DM Mono,monospace',
+                color:loanBalance>0?'#f87171':loanBalance<0?'#34d399':'#5e6585'}}>
+                {loanBalance.toLocaleString()}원
               </span>
             </div>
           </div>
