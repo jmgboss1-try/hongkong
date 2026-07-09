@@ -64,6 +64,8 @@ export default function WorkManage() {
   const [loading, setLoading] = useState(true)
   const [activeEmp, setActiveEmp] = useState(null)
   const [showTodayOnly, setShowTodayOnly] = useState(false)
+  const [severance, setSeverance] = useState({}) // {uid:{amount,tax,net,paidDate}}
+  const [nameMap, setNameMap] = useState({}) // uid → name (퇴직자 포함)
 
   const monthOpts = []
   for(let y=2022;y<=2026;y++){const sm=y===2022?10:1;for(let m=sm;m<=12;m++){monthOpts.push(`${y}-${pad(m)}`)}}
@@ -73,8 +75,10 @@ export default function WorkManage() {
     try {
       const usersSnap = await getDocs(collection(db,'users'))
       const finalEmps = []
+      const nameData = {}
 usersSnap.forEach(d => {
         const data = d.data()
+        nameData[d.id] = data.name
         if(data.status==='approved'
   && data.role!=='owner'
   && data.role!=='store'
@@ -91,6 +95,10 @@ usersSnap.forEach(d => {
         }
       })
       setEmployees(finalEmps)
+      setNameMap(nameData)
+
+      const sevSnap = await getDoc(doc(db,'severance',curMonth))
+      setSeverance(sevSnap.exists() ? sevSnap.data() : {})
 
 const whSnap = await getDoc(doc(db,'workhours',curMonth))
       setWorkHours(whSnap.exists() ? whSnap.data() : {})
@@ -315,6 +323,39 @@ function getEmpStats(emp) {
           </div>
         ))}
       </div>
+
+      {/* 이번달 퇴직금 지급 내역 */}
+      {Object.keys(severance).length > 0 && (
+        <div style={{background:'#12141f',border:'1px solid rgba(251,146,60,0.3)',borderRadius:12,
+          overflow:'hidden',marginBottom:18}}>
+          <div style={{padding:'14px 18px',borderBottom:'1px solid #272a3d',fontSize:13,fontWeight:600,color:'#fb923c'}}>
+            📤 {mLabel(curMonth)} 퇴직금 지급 내역
+          </div>
+          <div style={{padding:'8px 0'}}>
+            {Object.entries(severance).map(([uid,s])=>(
+              <div key={uid} style={{display:'flex',alignItems:'center',gap:14,padding:'10px 18px',
+                borderBottom:'1px solid #1a1d2e',flexWrap:'wrap'}}>
+                <div style={{minWidth:80,fontSize:13,fontWeight:700,color:'#dde1f2'}}>
+                  {nameMap[uid]||'—'}
+                </div>
+                <div style={{fontSize:11,color:'#5e6585'}}>
+                  {s.paidDate?.slice(0,10)} 지급
+                </div>
+                <div style={{flex:1}}/>
+                <div style={{fontSize:11,color:'#5e6585'}}>
+                  총액 {s.amount.toLocaleString()}원
+                </div>
+                <div style={{fontSize:11,color:'#f87171'}}>
+                  원천징수 -{s.tax.toLocaleString()}원
+                </div>
+                <div style={{fontSize:13,fontWeight:700,color:'#34d399',fontFamily:'DM Mono,monospace'}}>
+                  실지급 {s.net.toLocaleString()}원
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* 직원 탭 */}
       <div style={{display:'flex',gap:8,marginBottom:14,flexWrap:'wrap'}}>
