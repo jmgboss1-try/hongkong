@@ -102,7 +102,7 @@ const STATUS = {
 }
 
 // 세무 보고서 모달
-function TaxReportModal({ month, curMonth, employees, payroll, getComputed, ssnMap, ownerConfig, setOwnerConfig, onClose }) {
+function TaxReportModal({ month, curMonth, employees, payroll, getComputed, ssnMap, ownerConfig, setOwnerConfig, severance, nameMap, onClose }) {
   const [showOwnerConfig, setShowOwnerConfig] = useState(false)
 const [editOwner, setEditOwner] = useState(ownerConfig)
 
@@ -121,6 +121,14 @@ useEffect(() => {
     return { uid: emp.uid, name: emp.name, ssn: ssnMap[emp.uid] || '—', salary, tax, net }
   })
 
+  // 이달 퇴직금 지급 내역 (별도 행으로 추가)
+  const severanceRows = Object.entries(severance||{}).map(([uid,s])=>({
+    uid, name: (nameMap?.[uid]||'—') + ' (퇴직금)',
+    ssn: ssnMap[uid] || '—',
+    salary: s.amount, tax: s.tax, net: s.net,
+    isSeverance: true,
+  }))
+
   const ownerRow = ownerConfig.salary > 0 ? {
     name:   '정민규',
     ssn:    ownerConfig.ssn || '—',
@@ -130,7 +138,7 @@ useEffect(() => {
     isOwner: true,
   } : null
 
-  const allRows = ownerRow ? [ownerRow, ...rows] : rows
+  const allRows = [...(ownerRow ? [ownerRow] : []), ...rows, ...severanceRows]
   const totalSalary = allRows.reduce((a,r)=>a+r.salary,0)
   const totalTax    = allRows.reduce((a,r)=>a+r.tax,0)
   const totalNet    = allRows.reduce((a,r)=>a+r.net,0)
@@ -247,32 +255,30 @@ useEffect(() => {
               </tr>
             </thead>
             <tbody>
-              {allRows.map((row, i) => (
-                <tr key={i} style={{background: row.isOwner ? '#fffde7' : (i%2===0?'#fff':'#fafafa')}}>
-                  <td style={{...tdBase,textAlign:'left',fontWeight:600,
-                    background: row.isOwner?'#fffde7':(i%2===0?'#fff':'#fafafa')}}>
+              {allRows.map((row, i) => {
+                const rowBg = row.isOwner ? '#fffde7' : row.isSeverance ? '#fff3e0' : (i%2===0?'#fff':'#fafafa')
+                return (
+                <tr key={i} style={{background: rowBg}}>
+                  <td style={{...tdBase,textAlign:'left',fontWeight:600, background: rowBg}}>
                     {row.name}
                   </td>
-                  <td style={{...tdBase,textAlign:'left',letterSpacing:0.5,
-                    background: row.isOwner?'#fffde7':(i%2===0?'#fff':'#fafafa')}}>
+                  <td style={{...tdBase,textAlign:'left',letterSpacing:0.5, background: rowBg}}>
                     {row.ssn}
                   </td>
-                  <td style={{...tdBase,textAlign:'right',
-                    background: row.isOwner?'#fffde7':(i%2===0?'#fff':'#fafafa')}}>
+                  <td style={{...tdBase,textAlign:'right', background: rowBg}}>
                     {row.salary.toLocaleString()}
                   </td>
-                  <td style={{...tdBase,textAlign:'right',color:'#c00',
-                    background: row.isOwner?'#fffde7':(i%2===0?'#fff':'#fafafa')}}>
+                  <td style={{...tdBase,textAlign:'right',color:'#c00', background: rowBg}}>
                     {row.tax > 0
                       ? <>{row.tax.toLocaleString()}{!row.isOwner && <span style={{fontSize:10,color:'#999',marginLeft:4}}>(3.3%)</span>}</>
                       : '—'}
                   </td>
                   <td style={{...tdBase,textAlign:'right',fontWeight:700,color:'#003399',
-                    background: row.isOwner?'#e8f4fd':(i%2===0?'#f0f8ff':'#e8f4fd')}}>
+                    background: row.isOwner?'#e8f4fd':row.isSeverance?'#ffe8cc':(i%2===0?'#f0f8ff':'#e8f4fd')}}>
                     {row.net.toLocaleString()}
                   </td>
                 </tr>
-              ))}
+              )})}
             </tbody>
             <tfoot>
               <tr style={{background:'#dce6f1'}}>
@@ -358,6 +364,9 @@ export default function Payroll() {
   const [saving, setSaving]               = useState(false)
   const [showTaxReport, setShowTaxReport] = useState(false)
   const [ownerConfig, setOwnerConfig]     = useState({ ssn:'', salary:0, deduction:0 })
+  const [severance, setSeverance]         = useState({}) // {uid:{amount,tax,net,paidDate}}
+  const [nameMap, setNameMap]             = useState({}) // uid → name (퇴직자 포함 전체)
+  const [severanceInput, setSeveranceInput] = useState({}) // uid → 입력중인 금액
 
   const monthOpts=[]
   for(let y=2022;y<=2026;y++){const sm=y===2022?10:1;for(let m=sm;m<=12;m++){monthOpts.push(`${y}-${pad(m)}`)}}
@@ -368,8 +377,10 @@ export default function Payroll() {
       const usersSnap = await getDocs(collection(db,'users'))
       const emps = []
       const ssnData = {}
+      const nameData = {}
       usersSnap.forEach(d=>{
         const data=d.data()
+        nameData[d.id] = data.name
         if(data.role==='owner') return
         const isActive  = data.status === 'approved'
         const isRetired = data.status === 'retired'
@@ -386,11 +397,12 @@ if(!isActive && !isRetired) return
       })
       setEmployees(emps)
       setSsnMap(ssnData)
+      setNameMap(nameData)
 
       const [cy,cm] = curMonth.split('-').map(Number)
       const prev = cm===1?`${cy-1}-12`:`${cy}-${pad(cm-1)}`
 
-      const [wh,ex,me,pwh,pex,pme,pr,ownerCfg] = await Promise.all([
+      const [wh,ex,me,pwh,pex,pme,pr,ownerCfg,sevSnap] = await Promise.all([
   getDoc(doc(db,'workhours',curMonth)),
   getDoc(doc(db,'workextra',curMonth)),
   getDoc(doc(db,'workmemos',curMonth)),
@@ -399,6 +411,7 @@ if(!isActive && !isRetired) return
   getDoc(doc(db,'workmemos',prev)),
   getDoc(doc(db,'payroll',curMonth)),
   getDoc(doc(db,'payrollOwner', curMonth)),
+  getDoc(doc(db,'severance', curMonth)),
 ])
       setWorkHours(wh.exists()?wh.data():{})
       setWorkExtra(ex.exists()?ex.data():{})
@@ -408,6 +421,7 @@ if(!isActive && !isRetired) return
       setPrevMemos(pme.exists()?pme.data():{})
       setPayroll(pr.exists()?pr.data():{})
       if(ownerCfg.exists()) setOwnerConfig(ownerCfg.data())
+      setSeverance(sevSnap.exists()?sevSnap.data():{})
     } catch(e){ console.error(e) }
     setLoading(false)
   }
@@ -509,6 +523,35 @@ if(!isActive && !isRetired) return
     setSaving(false)
   }
 
+  // ── 퇴직금 지급 처리 ──
+  async function saveSeverance(uid) {
+    const raw = severanceInput[uid]
+    const amount = +String(raw||'').replace(/[^0-9]/g,'') || 0
+    if(amount <= 0) return alert('퇴직금 금액을 입력해주세요')
+    setSaving(true)
+    try {
+      const tax = Math.round(amount * 0.033)
+      const net = amount - tax
+      const newSev = { ...severance, [uid]: { amount, tax, net, paidDate: new Date().toISOString() } }
+      await setDoc(doc(db,'severance',curMonth), newSev)
+      setSeverance(newSev)
+      setSeveranceInput(prev=>({ ...prev, [uid]: '' }))
+    } catch(e){ console.error(e) }
+    setSaving(false)
+  }
+
+  async function deleteSeverance(uid) {
+    if(!window.confirm('퇴직금 지급 기록을 삭제하시겠습니까?')) return
+    setSaving(true)
+    try {
+      const newSev = { ...severance }
+      delete newSev[uid]
+      await setDoc(doc(db,'severance',curMonth), newSev)
+      setSeverance(newSev)
+    } catch(e){ console.error(e) }
+    setSaving(false)
+  }
+
   const inquiryCount = employees.filter(e=>getStatus(e.uid)==='inquiry').length
   const paidCount    = employees.filter(e=>getStatus(e.uid)==='paid').length
   const checkedCount = employees.filter(e=>['checked','paid'].includes(getStatus(e.uid))).length
@@ -518,6 +561,7 @@ if(!isActive && !isRetired) return
     const netPay = p?.netPay || computed.netPay
     return a + netPay
   },0)
+  const severanceTotal = Object.values(severance).reduce((a,s)=>a+s.net,0)
 
   return (
     <div>
@@ -555,12 +599,13 @@ if(!isActive && !isRetired) return
       </div>
 
       {/* 요약 카드 */}
-      <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:12,marginBottom:20}}>
+      <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(160px,1fr))',gap:12,marginBottom:20}}>
         {[
           {label:'이달 인건비 합계', val:`${grandTotal.toLocaleString()}원`,       color:'#f9b934'},
           {label:'직원 확인 완료',   val:`${checkedCount} / ${employees.length}명`, color:'#34d399'},
           {label:'문의 건수',        val:`${inquiryCount}건`,                       color:'#f87171'},
           {label:'지급 완료',        val:`${paidCount}명`,                          color:'#93c5fd'},
+          ...(severanceTotal>0 ? [{label:'이달 퇴직금 지급액', val:`${severanceTotal.toLocaleString()}원`, color:'#fb923c'}] : []),
         ].map(k=>(
           <div key={k.label} style={{background:'#12141f',border:'1px solid #272a3d',borderRadius:12,padding:'14px 16px',position:'relative',overflow:'hidden'}}>
             <div style={{position:'absolute',top:0,left:0,right:0,height:2,background:k.color,opacity:.5}}/>
@@ -673,6 +718,54 @@ if(!isActive && !isRetired) return
                   </div>
                 </div>
 
+                {/* 퇴직금 처리 (퇴직자 전용) */}
+                {emp.isRetired && (
+                  <div style={{padding:'12px 18px',borderTop:'1px solid #272a3d',background:'rgba(251,146,60,0.04)'}}>
+                    {severance[emp.uid] ? (
+                      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',flexWrap:'wrap',gap:10}}>
+                        <div style={{fontSize:11,color:'#fb923c',fontWeight:600}}>
+                          📤 퇴직금 지급완료 · {severance[emp.uid].paidDate?.slice(0,10)}
+                        </div>
+                        <div style={{display:'flex',alignItems:'center',gap:14,fontSize:11}}>
+                          <span style={{color:'#5e6585'}}>
+                            지급액 {severance[emp.uid].amount.toLocaleString()}원
+                          </span>
+                          <span style={{color:'#f87171'}}>
+                            원천징수(3.3%) -{severance[emp.uid].tax.toLocaleString()}원
+                          </span>
+                          <span style={{color:'#34d399',fontWeight:700,fontFamily:'DM Mono,monospace'}}>
+                            최종 {severance[emp.uid].net.toLocaleString()}원
+                          </span>
+                          <button onClick={()=>deleteSeverance(emp.uid)}
+                            style={{background:'transparent',border:'1px solid #3d1f1f',color:'#f87171',
+                              padding:'3px 8px',fontSize:10,borderRadius:4,cursor:'pointer',fontFamily:'inherit'}}>
+                            취소
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}>
+                        <span style={{fontSize:11,color:'#fb923c',fontWeight:600,whiteSpace:'nowrap'}}>📤 퇴직금 지급 처리</span>
+                        <input type="number" placeholder="퇴직금 총액 입력"
+                          value={severanceInput[emp.uid]||''}
+                          onChange={e=>setSeveranceInput(prev=>({...prev,[emp.uid]:e.target.value}))}
+                          style={{width:160,background:'#191c2b',border:'1px solid #272a3d',borderRadius:7,
+                            color:'#dde1f2',padding:'6px 10px',fontSize:12,outline:'none',fontFamily:'DM Mono,monospace'}}/>
+                        {(+severanceInput[emp.uid]||0) > 0 && (
+                          <span style={{fontSize:10,color:'#5e6585'}}>
+                            3.3% 제외 → 최종 {Math.round((+severanceInput[emp.uid])*(1-0.033)).toLocaleString()}원
+                          </span>
+                        )}
+                        <button onClick={()=>saveSeverance(emp.uid)} disabled={saving}
+                          style={{background:'#fb923c',color:'#000',border:'none',borderRadius:7,
+                            padding:'6px 14px',fontSize:11,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
+                          지급 기록
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 {isOpen && p?.inquiry && (
                   <div style={{borderTop:'1px solid rgba(248,113,113,0.2)',
                     background:'rgba(248,113,113,0.03)',padding:'16px 18px',
@@ -758,6 +851,8 @@ if(!isActive && !isRetired) return
           ssnMap={ssnMap}
           ownerConfig={ownerConfig}
 setOwnerConfig={setOwnerConfig}
+          severance={severance}
+          nameMap={nameMap}
           onClose={()=>setShowTaxReport(false)}
         />
       )}
