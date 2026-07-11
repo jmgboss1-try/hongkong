@@ -18,11 +18,8 @@ const daysIn = ym => { const[y,m]=ym.split('-').map(Number); return new Date(y,m
 const mLabel = ym => { const[y,m]=ym.split('-'); return `${y}년 ${+m}월` }
 const DAYS_KR = ['일','월','화','수','목','금','토']
 
-function calcWeeklyHoliday(weekHours, wage, workDays, weekAttendance, weekMemos, avgHours) {
-  const dailyHours = avgHours || 8
-  const weeklyContract = workDays.length * dailyHours // 소정근로시간
-
-  // 소정근로시간 미만이면 미지급
+function calcWeeklyHoliday(weekHours, wage, workDays, weekAttendance, weekMemos) {
+  // 그 주 실제 근무시간이 15시간 미만이면 미지급 (매주 독립 판단)
   if(weekHours < 15) return 0
 
   // 소정근로일 중 결근일 계산
@@ -33,8 +30,8 @@ function calcWeeklyHoliday(weekHours, wage, workDays, weekAttendance, weekMemos,
 
   if(absentDays.length === 0) {
     // 개근 → 주휴 지급
-    // 주휴수당 = 1일 소정근로시간 * 시급
-    return Math.round(dailyHours * wage)
+    // 주휴수당 = (그 주 실제근무시간 / 40) × 8 × 시급
+    return Math.round((weekHours / 40) * 8 * wage)
   }
 
   // 결근이 있는 경우 → 대타로 메꿨는지 확인
@@ -43,7 +40,7 @@ function calcWeeklyHoliday(weekHours, wage, workDays, weekAttendance, weekMemos,
   ).length
 
   if(subCount >= absentDays.length) {
-    return Math.round(dailyHours * wage)
+    return Math.round((weekHours / 40) * 8 * wage)
   }
 
   return 0
@@ -209,7 +206,7 @@ function getEmpStats(emp) {
           }
         }
 
-        weeklyHoliday = calcWeeklyHoliday(weekH, wage, workDays, weekAttendance, weekMemos, avgHours)
+        weeklyHoliday = calcWeeklyHoliday(weekH, wage, workDays, weekAttendance, weekMemos)
         totalWeeklyHoliday += weeklyHoliday
       }
 
