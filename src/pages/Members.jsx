@@ -100,7 +100,7 @@ function MemberCard({ m, onEdit, onRetire }) {
   )
 }
 
-function RetiredCard({ m }) {
+function RetiredCard({ m, onRestore }) {
   const [showDetail, setShowDetail] = useState(false)
   const tenure = calcTenure(m.joinDate, m.leaveDate)
   const severance = calcSeverance(m.joinDate, m.leaveDate, m.wage||10030, m.avgHours||8)
@@ -148,6 +148,11 @@ function RetiredCard({ m }) {
               근속 {tenure}<br/>시급 {(m.wage||10030).toLocaleString()}원
             </div>
           </div>
+          <button onClick={()=>onRestore(m)}
+            style={{background:'transparent',border:'1px solid #34d399',color:'#34d399',borderRadius:7,
+              padding:'8px 16px',fontSize:11,cursor:'pointer',fontFamily:'inherit'}}>
+            🔄 복직 처리
+          </button>
         </div>
       )}
     </div>
@@ -240,6 +245,19 @@ export default function Members() {
         leaveDate: retireForm.leaveDate,
       }, {merge:true})
       setRetireForm(null)
+      await load()
+    } catch(e) { console.error(e) }
+    setSaving(false)
+  }
+
+  async function restoreMember(m) {
+    if(!window.confirm(`${m.name}님을 다시 재직 상태로 복직 처리하시겠습니까?`)) return
+    setSaving(true)
+    try {
+      await setDoc(doc(db,'users',m.uid), {
+        status: 'approved',
+        leaveDate: '',
+      }, {merge:true})
       await load()
     } catch(e) { console.error(e) }
     setSaving(false)
@@ -614,7 +632,7 @@ export default function Members() {
             {retired.length===0 ? (
               <div style={{textAlign:'center',color:'#5e6585',padding:20}}>퇴직자 기록이 없습니다</div>
             ) : (
-              retired.map(m=><RetiredCard key={m.uid} m={m}/>)
+              retired.map(m=><RetiredCard key={m.uid} m={m} onRestore={restoreMember}/>)
             )}
           </div>
         )}
