@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { db } from '../firebase'
 import { doc, getDoc, getDocs, collection } from 'firebase/firestore'
-import { BarChart, Bar, LineChart, Line, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, CartesianGrid } from 'recharts'
+import { ComposedChart, Bar, Line, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts'
 
 const pad = n => String(n).padStart(2,'0')
 const mLabel = ym => { const[y,m]=ym.split('-'); return `${y}년 ${+m}월` }
@@ -26,6 +26,12 @@ const CHANNELS = [
   { key:'yogiyo',   label:'요기요',    color:'#f9b934' },
   { key:'ddangyeo', label:'땡겨요',    color:'#a78bfa' },
   { key:'pos',      label:'포스',      color:'#fb923c' },
+]
+
+const CHART_TYPES = [
+  { key:'bar',  label:'막대' },
+  { key:'line', label:'라인' },
+  { key:'area', label:'누적영역' },
 ]
 
 function getRevValue(r, channel) {
@@ -53,7 +59,7 @@ const CustomTooltip = ({active,payload,label}) => {
       <div style={{color:'#5e6585',marginBottom:6,fontWeight:600}}>{label}</div>
       {payload.map((p,i)=>(
         <div key={i} style={{color:p.color,marginBottom:2}}>
-          {p.name}: {p.value.toLocaleString()}원
+          {p.name}: {(p.value||0).toLocaleString()}원
         </div>
       ))}
     </div>
@@ -76,16 +82,18 @@ export default function Dashboard() {
 
   // 차트 관련
   const [chartTab, setChartTab]         = useState('daily')   // 'daily' | 'monthly'
+  const [chartType, setChartType]       = useState('bar')     // 'bar' | 'line' | 'area'
   const [chartChannel, setChartChannel] = useState('total')
-  const [dailyData, setDailyData]       = useState([])        // [{day, value}]
-  const [monthlyData, setMonthlyData]   = useState([])        // [{month, value}]
+  const [showCompare, setShowCompare]   = useState(false)     // 전월/전년 비교
+  const [chartData, setChartData]       = useState([])        // [{label, value, compareValue}]
   const [chartLoading, setChartLoading] = useState(false)
+  const [compareSummary, setCompareSummary] = useState(null)  // {curTotal, prevTotal, diffPct}
 
   useEffect(() => { load() }, [curMonth])
   useEffect(() => {
     if(chartTab==='daily') loadDailyChart()
     else loadMonthlyChart()
-  }, [chartTab, chartChannel, curMonth])
+  }, [chartTab, chartChannel, curMonth, showCompare])
 
   async function load() {
     setLoading(true)
@@ -198,25 +206,46 @@ export default function Dashboard() {
     setLoading(false)
   }
 
+  // 일별 차트: 이번달 vs 전월 (일자 정렬)
   async function loadDailyChart() {
     setChartLoading(true)
     try {
-      const snap = await getDoc(doc(db,'revenue',curMonth))
-      if(!snap.exists()) { setDailyData([]); setChartLoading(false); return }
-      const d = snap.data()
-      const [,cm] = curMonth.split('-').map(Number)
-      const days = new Date(curMonth.split('-')[0], cm, 0).getDate()
+      const [cy,cm] = curMonth.split('-').map(Number)
+      const prevYm = cm===1 ? `${cy-1}-12` : `${cy}-${pad(cm-1)}`
+      const days = new Date(cy, cm, 0).getDate()
+
+      const promises = [getDoc(doc(db,'revenue',curMonth))]
+      if(showCompare) promises.push(getDoc(doc(db,'revenue',prevYm)))
+      const [snap, prevSnap] = await Promise.all(promises)
+
+      const d = snap.exists() ? snap.data() : {}
+      const pd = (showCompare && prevSnap?.exists()) ? prevSnap.data() : {}
+
       const result = []
+      let curTotal=0, prevTotal=0
       for(let i=1;i<=days;i++){
         const dd = pad(i)
-        const r = d[dd]
-        result.push({ day:`${i}일`, value: getRevValue(r, chartChannel) })
+        const v = getRevValue(d[dd], chartChannel)
+        curTotal += v
+        const row = { label:`${i}일`, value:v }
+        if(showCompare) {
+          const pv = getRevValue(pd[dd], chartChannel)
+          prevTotal += pv
+          row.compareValue = pv
+        }
+        result.push(row)
       }
-      setDailyData(result)
+      setChartData(result)
+      setCompareSummary(showCompare ? {
+        curTotal, prevTotal,
+        diffPct: prevTotal>0 ? Math.round((curTotal-prevTotal)/prevTotal*100) : null,
+        prevLabel: mLabelShort(prevYm)+' 동일기간',
+      } : null)
     } catch(e){ console.error(e) }
     setChartLoading(false)
   }
 
+  // 월별 차트: 최근 12개월, 비교시 전년 동월 오버레이
   async function loadMonthlyChart() {
     setChartLoading(true)
     try {
@@ -228,15 +257,38 @@ export default function Dashboard() {
         months.push(`${y}-${pad(m)}`)
       }
       const snaps = await Promise.all(months.map(ym=>getDoc(doc(db,'revenue',ym))))
+
+      let prevYearSnaps = []
+      if(showCompare) {
+        const prevYearMonths = months.map(ym=>{
+          const [y,m] = ym.split('-').map(Number)
+          return `${y-1}-${pad(m)}`
+        })
+        prevYearSnaps = await Promise.all(prevYearMonths.map(ym=>getDoc(doc(db,'revenue',ym))))
+      }
+
+      let curTotal=0, prevTotal=0
       const result = snaps.map((snap,i)=>{
         const ym = months[i]
-        if(!snap.exists()) return { month:mLabelShort(ym), value:0 }
-        const d = snap.data()
         let total=0
-        Object.values(d).forEach(r=>{ total+=getRevValue(r, chartChannel) })
-        return { month:mLabelShort(ym), value:total }
+        if(snap.exists()) Object.values(snap.data()).forEach(r=>{ total+=getRevValue(r, chartChannel) })
+        curTotal += total
+        const row = { label:mLabelShort(ym), value:total }
+        if(showCompare) {
+          let pTotal=0
+          const pSnap = prevYearSnaps[i]
+          if(pSnap?.exists()) Object.values(pSnap.data()).forEach(r=>{ pTotal+=getRevValue(r, chartChannel) })
+          prevTotal += pTotal
+          row.compareValue = pTotal
+        }
+        return row
       })
-      setMonthlyData(result)
+      setChartData(result)
+      setCompareSummary(showCompare ? {
+        curTotal, prevTotal,
+        diffPct: prevTotal>0 ? Math.round((curTotal-prevTotal)/prevTotal*100) : null,
+        prevLabel: '작년 동기간',
+      } : null)
     } catch(e){ console.error(e) }
     setChartLoading(false)
   }
@@ -247,8 +299,6 @@ export default function Dashboard() {
   for(let y=2022;y<=2026;y++){const sm=y===2022?10:1;for(let m=sm;m<=12;m++){monthOpts.push(`${y}-${pad(m)}`)}}
 
   const ch = CHANNELS.find(c=>c.key===chartChannel)
-  const chartData = chartTab==='daily' ? dailyData : monthlyData
-  const xKey = chartTab==='daily' ? 'day' : 'month'
 
   const KPI = ({label,value,note,color}) => (
     <div style={{background:'#12141f',border:'1px solid #272a3d',borderRadius:12,padding:'18px 20px',position:'relative',overflow:'hidden'}}>
@@ -289,25 +339,49 @@ export default function Dashboard() {
           {/* ── 매출 추이 그래프 ── */}
           <div style={{background:'#12141f',border:'1px solid #272a3d',borderRadius:12,padding:18,marginBottom:20}}>
             {/* 헤더 */}
-            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:14,flexWrap:'wrap',gap:10}}>
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:12,flexWrap:'wrap',gap:10}}>
               <div style={{fontSize:13,fontWeight:600}}>📈 매출 추이</div>
-              {/* 일별/월별 탭 */}
-              <div style={{display:'flex',gap:6}}>
-                {[['daily','일별'],['monthly','월별(12개월)']].map(([key,label])=>(
-                  <button key={key} onClick={()=>setChartTab(key)}
-                    style={{padding:'5px 12px',borderRadius:6,border:'none',fontSize:11,fontWeight:600,
-                      cursor:'pointer',fontFamily:'inherit',
-                      background:chartTab===key?'#f9b934':'#191c2b',
-                      color:chartTab===key?'#000':'#5e6585',
-                      outline:chartTab===key?'none':'1px solid #272a3d'}}>
-                    {label}
-                  </button>
-                ))}
+              <div style={{display:'flex',gap:14,alignItems:'center',flexWrap:'wrap'}}>
+                {/* 일별/월별 탭 */}
+                <div style={{display:'flex',gap:6}}>
+                  {[['daily','일별'],['monthly','월별(12개월)']].map(([key,label])=>(
+                    <button key={key} onClick={()=>setChartTab(key)}
+                      style={{padding:'5px 12px',borderRadius:6,border:'none',fontSize:11,fontWeight:600,
+                        cursor:'pointer',fontFamily:'inherit',
+                        background:chartTab===key?'#f9b934':'#191c2b',
+                        color:chartTab===key?'#000':'#5e6585',
+                        outline:chartTab===key?'none':'1px solid #272a3d'}}>
+                      {label}
+                    </button>
+                  ))}
+                </div>
+                {/* 차트 종류 */}
+                <div style={{display:'flex',gap:6}}>
+                  {CHART_TYPES.map(t=>(
+                    <button key={t.key} onClick={()=>setChartType(t.key)}
+                      style={{padding:'5px 12px',borderRadius:6,border:'none',fontSize:11,fontWeight:600,
+                        cursor:'pointer',fontFamily:'inherit',
+                        background:chartType===t.key?'#93c5fd':'#191c2b',
+                        color:chartType===t.key?'#000':'#5e6585',
+                        outline:chartType===t.key?'none':'1px solid #272a3d'}}>
+                      {t.label}
+                    </button>
+                  ))}
+                </div>
+                {/* 비교 토글 */}
+                <button onClick={()=>setShowCompare(v=>!v)}
+                  style={{padding:'5px 12px',borderRadius:6,border:'none',fontSize:11,fontWeight:600,
+                    cursor:'pointer',fontFamily:'inherit',
+                    background:showCompare?'#34d399':'#191c2b',
+                    color:showCompare?'#000':'#5e6585',
+                    outline:showCompare?'none':'1px solid #272a3d'}}>
+                  {chartTab==='daily' ? '📊 전월 비교' : '📊 전년 비교'}
+                </button>
               </div>
             </div>
 
             {/* 채널 필터 */}
-            <div style={{display:'flex',gap:6,flexWrap:'wrap',marginBottom:16}}>
+            <div style={{display:'flex',gap:6,flexWrap:'wrap',marginBottom:12}}>
               {CHANNELS.map(c=>(
                 <button key={c.key} onClick={()=>setChartChannel(c.key)}
                   style={{padding:'4px 10px',borderRadius:5,border:'none',fontSize:11,fontWeight:600,
@@ -320,21 +394,57 @@ export default function Dashboard() {
               ))}
             </div>
 
+            {/* 비교 요약 배지 */}
+            {showCompare && compareSummary && (
+              <div style={{display:'flex',gap:16,alignItems:'center',flexWrap:'wrap',
+                background:'#191c2b',borderRadius:8,padding:'10px 14px',marginBottom:14,fontSize:12}}>
+                <span style={{color:'#5e6585'}}>
+                  이번 기간 <b style={{color:'#f9b934'}}>{compareSummary.curTotal.toLocaleString()}원</b>
+                </span>
+                <span style={{color:'#5e6585'}}>
+                  {compareSummary.prevLabel} <b style={{color:'#93c5fd'}}>{compareSummary.prevTotal.toLocaleString()}원</b>
+                </span>
+                {compareSummary.diffPct !== null && (
+                  <span style={{fontWeight:700,
+                    color: compareSummary.diffPct>=0 ? '#34d399' : '#f87171'}}>
+                    {compareSummary.diffPct>=0?'▲':'▼'} {Math.abs(compareSummary.diffPct)}%
+                  </span>
+                )}
+              </div>
+            )}
+
             {/* 그래프 */}
             {chartLoading ? (
               <div style={{textAlign:'center',color:'#5e6585',padding:40}}>로딩 중...</div>
             ) : chartData.length === 0 ? (
               <div style={{textAlign:'center',color:'#5e6585',padding:40}}>데이터가 없습니다</div>
             ) : (
-              <ResponsiveContainer width="100%" height={260}>
-                <BarChart data={chartData} margin={{top:4,right:4,left:0,bottom:0}}>
+              <ResponsiveContainer width="100%" height={280}>
+                <ComposedChart data={chartData} margin={{top:4,right:4,left:0,bottom:0}}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#272a3d" vertical={false}/>
-                  <XAxis dataKey={xKey} tick={{fill:'#5e6585',fontSize:10}} axisLine={false} tickLine={false}
+                  <XAxis dataKey="label" tick={{fill:'#5e6585',fontSize:10}} axisLine={false} tickLine={false}
                     interval={chartTab==='daily'?3:0}/>
                   <YAxis tickFormatter={wonK} tick={{fill:'#5e6585',fontSize:10}} axisLine={false} tickLine={false} width={50}/>
                   <Tooltip content={<CustomTooltip/>}/>
-                  <Bar dataKey="value" name={ch?.label||'매출'} fill={ch?.color||'#f9b934'} radius={[4,4,0,0]}/>
-                </BarChart>
+
+                  {chartType==='bar' && (
+                    <Bar dataKey="value" name={ch?.label||'매출'} fill={ch?.color||'#f9b934'} radius={[4,4,0,0]}/>
+                  )}
+                  {chartType==='line' && (
+                    <Line type="monotone" dataKey="value" name={ch?.label||'매출'} stroke={ch?.color||'#f9b934'}
+                      strokeWidth={2.5} dot={{r:3,fill:ch?.color||'#f9b934'}}/>
+                  )}
+                  {chartType==='area' && (
+                    <Area type="monotone" dataKey="value" name={ch?.label||'매출'}
+                      stroke={ch?.color||'#f9b934'} fill={ch?.color||'#f9b934'} fillOpacity={0.25} strokeWidth={2}/>
+                  )}
+
+                  {showCompare && (
+                    <Line type="monotone" dataKey="compareValue"
+                      name={chartTab==='daily'?'전월':'전년 동월'}
+                      stroke="#5e6585" strokeWidth={1.5} strokeDasharray="5 4" dot={false}/>
+                  )}
+                </ComposedChart>
               </ResponsiveContainer>
             )}
           </div>
