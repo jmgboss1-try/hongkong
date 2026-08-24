@@ -1,40 +1,77 @@
+
+/
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Revenueinput · JSX
 import { useEffect, useState } from 'react'
 import { db } from '../firebase'
 import { doc, getDoc, setDoc } from 'firebase/firestore'
 import { useAuth } from '../AuthContext'
-
+ 
 const pad = n => String(n).padStart(2,'0')
 const DAYS_KR = ['일','월','화','수','목','금','토']
-
+ 
 const DELIVERY_PLATFORMS = [
   { key:'baemin',  label:'배달의민족', color:'#34d399', emoji:'🟢' },
   { key:'coupang', label:'쿠팡이츠',   color:'#f87171', emoji:'🔴' },
   { key:'yogiyo',  label:'요기요',     color:'#f9b934', emoji:'🟡' },
   { key:'ddangyeo',label:'땡겨요',     color:'#93c5fd', emoji:'🔵' },
 ]
-
+ 
+// 세션별 필드 접두어 매핑
+const PREFIX = { morning:'morning', middle:'middle', close:'' }
+const fieldKey = (session, base) => {
+  const p = PREFIX[session]
+  if(!p) return base // close는 접두어 없음
+  return p + base.charAt(0).toUpperCase() + base.slice(1)
+}
+ 
 export default function RevenueInput() {
   const { userData } = useAuth()
   const now = new Date()
   const today = `${now.getFullYear()}-${pad(now.getMonth()+1)}`
   const todayDD = pad(now.getDate())
   const todayLabel = `${now.getMonth()+1}월 ${now.getDate()}일 (${DAYS_KR[now.getDay()]})`
-
-  const [activeSession, setActiveSession] = useState('morning')
+ 
+  const [activeSession, setActiveSession] = useState('morning') // 'morning' | 'middle' | 'close'
   const [data, setData] = useState({})
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
-
+ 
   const [kiosk, setKiosk] = useState('')
   const [pos, setPos]     = useState('')
-  // 배달 4개 플랫폼
   const [baemin,   setBaemin]   = useState('')
   const [coupang,  setCoupang]  = useState('')
   const [yogiyo,   setYogiyo]   = useState('')
   const [ddangyeo, setDdangyeo] = useState('')
-
+ 
   const delTotal = (+baemin||0)+(+coupang||0)+(+yogiyo||0)+(+ddangyeo||0)
-
+ 
   useEffect(()=>{
     async function load() {
       setLoading(true)
@@ -46,106 +83,83 @@ export default function RevenueInput() {
     }
     load()
   },[])
-
+ 
   function resetInputs() {
     setKiosk(''); setPos('')
     setBaemin(''); setCoupang(''); setYogiyo(''); setDdangyeo('')
   }
-
+ 
   useEffect(()=>{
     const rec = data[todayDD]
     if(!rec) { resetInputs(); return }
-    if(activeSession === 'morning') {
-      setKiosk(rec.morningKiosk || '')
-      setPos(rec.morningPos || '')
-      setBaemin(rec.morningBaemin || '')
-      setCoupang(rec.morningCoupang || '')
-      setYogiyo(rec.morningYogiyo || '')
-      setDdangyeo(rec.morningDdangyeo || '')
-    } else {
-      setKiosk(rec.kiosk || '')
-      setPos(rec.pos || '')
-      setBaemin(rec.baemin || '')
-      setCoupang(rec.coupang || '')
-      setYogiyo(rec.yogiyo || '')
-      setDdangyeo(rec.ddangyeo || '')
-    }
+    setKiosk(rec[fieldKey(activeSession,'kiosk')] || '')
+    setPos(rec[fieldKey(activeSession,'pos')] || '')
+    setBaemin(rec[fieldKey(activeSession,'baemin')] || '')
+    setCoupang(rec[fieldKey(activeSession,'coupang')] || '')
+    setYogiyo(rec[fieldKey(activeSession,'yogiyo')] || '')
+    setDdangyeo(rec[fieldKey(activeSession,'ddangyeo')] || '')
   },[activeSession, data])
-
+ 
   async function save() {
     setSaving(true)
     try {
       const existing = data[todayDD] || {}
       const delSum = (+baemin||0)+(+coupang||0)+(+yogiyo||0)+(+ddangyeo||0)
-      let newRow
-
-      if (activeSession === 'morning') {
-        newRow = {
-          ...existing,
-          morningKiosk:    +kiosk||0,
-          morningDel:      delSum,
-          morningBaemin:   +baemin||0,
-          morningCoupang:  +coupang||0,
-          morningYogiyo:   +yogiyo||0,
-          morningDdangyeo: +ddangyeo||0,
-          morningPos:      +pos||0,
-          morningBy:       userData?.name || '매장전용',
-          morningAt:       new Date().toISOString(),
-        }
-      } else {
-        newRow = {
-          ...existing,
-          kiosk:    +kiosk||0,
-          del:      delSum,
-          baemin:   +baemin||0,
-          coupang:  +coupang||0,
-          yogiyo:   +yogiyo||0,
-          ddangyeo: +ddangyeo||0,
-          pos:      +pos||0,
-          closeBy:  userData?.name || '매장전용',
-          closeAt:  new Date().toISOString(),
-        }
+      const newRow = {
+        ...existing,
+        [fieldKey(activeSession,'kiosk')]:    +kiosk||0,
+        [fieldKey(activeSession,'del')]:      delSum,
+        [fieldKey(activeSession,'baemin')]:   +baemin||0,
+        [fieldKey(activeSession,'coupang')]:  +coupang||0,
+        [fieldKey(activeSession,'yogiyo')]:   +yogiyo||0,
+        [fieldKey(activeSession,'ddangyeo')]: +ddangyeo||0,
+        [fieldKey(activeSession,'pos')]:      +pos||0,
+        [activeSession==='morning'?'morningBy':activeSession==='middle'?'middleBy':'closeBy']: userData?.name || '매장전용',
+        [activeSession==='morning'?'morningAt':activeSession==='middle'?'middleAt':'closeAt']: new Date().toISOString(),
       }
-
       const newData = { ...data, [todayDD]: newRow }
       await setDoc(doc(db,'revenue',today), newData)
       setData(newData)
-      alert(`${activeSession === 'morning' ? '🌅 오전' : '🌙 마감'} 매출이 저장됐습니다!`)
+      const label = activeSession==='morning'?'🌅 오전':activeSession==='middle'?'☕ 미들타임':'🌙 마감'
+      alert(`${label} 매출이 저장됐습니다!`)
     } catch(e) { console.error(e) }
     setSaving(false)
   }
-
+ 
   const rec = data[todayDD] || {}
-
-  const hasMorning = (rec.morningKiosk||0)+(rec.morningDel||0)+(rec.morningPos||0) > 0
-  const hasClose   = (rec.kiosk||0)+(rec.del||0)+(rec.pos||0) > 0
-  const morningSum = (rec.morningKiosk||0)+(rec.morningDel||0)+(rec.morningPos||0)
-  const closeSum   = (rec.kiosk||0)+(rec.del||0)+(rec.pos||0)
-
-  const hasAfternoon   = hasMorning && hasClose
-  const afternoonKiosk = (rec.kiosk||0) - (rec.morningKiosk||0)
-  const afternoonDel   = (rec.del||0)   - (rec.morningDel||0)
-  const afternoonPos   = (rec.pos||0)   - (rec.morningPos||0)
+ 
+  const sum = (session) =>
+    (rec[fieldKey(session,'kiosk')]||0) + (rec[fieldKey(session,'del')]||0) + (rec[fieldKey(session,'pos')]||0)
+ 
+  const hasMorning = sum('morning') > 0
+  const hasMiddle  = sum('middle') > 0
+  const hasClose   = sum('close') > 0
+  const morningSum = sum('morning')
+  const middleSum  = sum('middle')
+  const closeSum   = sum('close')
+ 
+  // 오후 = 마감 - 오전 - 미들
+  const hasAfternoon   = hasClose && (hasMorning || hasMiddle)
+  const afternoonKiosk = (rec.kiosk||0) - (rec.morningKiosk||0) - (rec.middleKiosk||0)
+  const afternoonDel   = (rec.del||0)   - (rec.morningDel||0)   - (rec.middleDel||0)
+  const afternoonPos   = (rec.pos||0)   - (rec.morningPos||0)   - (rec.middlePos||0)
   const afternoonSum   = afternoonKiosk + afternoonDel + afternoonPos
   const isNegative     = afternoonKiosk < 0 || afternoonDel < 0 || afternoonPos < 0
-
+ 
   const sessionInfo = {
-    morning: { label:'🌅 오전 매출', color:'#f9b934', hint:'오전 영업 종료 후 입력' },
-    close:   { label:'🌙 마감 매출', color:'#93c5fd', hint:'하루 전체 합계를 입력 (오후 자동계산)' },
+    morning: { label:'🌅 오전 매출',     color:'#f9b934', hint:'오전 영업 종료 후 입력' },
+    middle:  { label:'☕ 미들타임 매출', color:'#a78bfa', hint:'14:30~16:30 매출 별도 입력' },
+    close:   { label:'🌙 마감 매출',     color:'#93c5fd', hint:'하루 전체 합계를 입력 (오후 자동계산)' },
   }
   const si = sessionInfo[activeSession]
-
-  // 테이블에서 배달 플랫폼 상세 표시
-  function DeliveryDetail({ morning }) {
-    const keys = morning
-      ? {baemin:'morningBaemin',coupang:'morningCoupang',yogiyo:'morningYogiyo',ddangyeo:'morningDdangyeo'}
-      : {baemin:'baemin',coupang:'coupang',yogiyo:'yogiyo',ddangyeo:'ddangyeo'}
-    const hasDetail = DELIVERY_PLATFORMS.some(p=>(rec[keys[p.key]]||0)>0)
+ 
+  function DeliveryDetail({ session }) {
+    const hasDetail = DELIVERY_PLATFORMS.some(p=>(rec[fieldKey(session,p.key)]||0)>0)
     if(!hasDetail) return null
     return (
       <div style={{marginTop:4,display:'flex',flexDirection:'column',gap:2}}>
         {DELIVERY_PLATFORMS.map(p=>{
-          const val = rec[keys[p.key]]||0
+          const val = rec[fieldKey(session,p.key)]||0
           if(!val) return null
           return (
             <div key={p.key} style={{display:'flex',justifyContent:'space-between',fontSize:9,color:'#5e6585'}}>
@@ -157,7 +171,7 @@ export default function RevenueInput() {
       </div>
     )
   }
-
+ 
   return (
     <div>
       <div style={{display:'flex',alignItems:'flex-end',justifyContent:'space-between',marginBottom:22}}>
@@ -166,11 +180,12 @@ export default function RevenueInput() {
           <div style={{fontSize:12,color:'#5e6585',marginTop:2}}>{todayLabel} 당일 매출</div>
         </div>
       </div>
-
+ 
       {/* 당일 현황 요약 */}
-      <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:12,marginBottom:18}}>
+      <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:12,marginBottom:18}}>
         {[
           { label:'오전 매출',  val:morningSum, color:'#f9b934', filled:hasMorning, by:rec.morningBy },
+          { label:'미들 매출',  val:middleSum,  color:'#a78bfa', filled:hasMiddle,  by:rec.middleBy },
           { label:'마감 매출',  val:closeSum,   color:'#93c5fd', filled:hasClose,   by:rec.closeBy },
           { label:'당일 합계',  val:closeSum,   color:'#34d399', filled:hasClose,   by:null },
         ].map(k=>(
@@ -180,7 +195,7 @@ export default function RevenueInput() {
             <div style={{position:'absolute',top:0,left:0,right:0,height:3,
               background:k.color,opacity:k.filled?1:0.2}}/>
             <div style={{fontSize:10,fontWeight:600,color:'#5e6585',marginBottom:6}}>{k.label}</div>
-            <div style={{fontSize:18,fontWeight:700,
+            <div style={{fontSize:16,fontWeight:700,
               color:k.filled?k.color:'#3d4060',fontFamily:'DM Mono,monospace'}}>
               {k.filled ? k.val.toLocaleString()+'원' : '미입력'}
             </div>
@@ -188,7 +203,7 @@ export default function RevenueInput() {
           </div>
         ))}
       </div>
-
+ 
       {/* 세션 탭 */}
       <div style={{display:'flex',border:'1px solid #272a3d',borderRadius:10,overflow:'hidden',marginBottom:16}}>
         {Object.entries(sessionInfo).map(([key,s])=>(
@@ -198,13 +213,13 @@ export default function RevenueInput() {
               background:activeSession===key?s.color:'transparent',
               color:activeSession===key?'#000':'#5e6585'}}>
             {s.label}
-            {((key==='morning'&&hasMorning)||(key==='close'&&hasClose)) && (
+            {((key==='morning'&&hasMorning)||(key==='middle'&&hasMiddle)||(key==='close'&&hasClose)) && (
               <span style={{marginLeft:6,fontSize:10}}>✅</span>
             )}
           </button>
         ))}
       </div>
-
+ 
       {/* 입력 폼 */}
       {loading ? (
         <div style={{textAlign:'center',color:'#5e6585',padding:40}}>로딩 중...</div>
@@ -214,7 +229,7 @@ export default function RevenueInput() {
             <div style={{fontSize:13,fontWeight:600,color:si.color}}>{si.label} 입력</div>
             <div style={{fontSize:11,color:'#5e6585',marginTop:3}}>{si.hint}</div>
           </div>
-
+ 
           <div style={{display:'flex',flexDirection:'column',gap:12}}>
             {/* 키오스크 */}
             <div>
@@ -227,7 +242,7 @@ export default function RevenueInput() {
                   color:'#dde1f2',padding:'10px 12px',fontSize:14,outline:'none',
                   width:'100%',fontFamily:'DM Mono,monospace'}}/>
             </div>
-
+ 
             {/* 배달 - 4개 플랫폼 */}
             <div>
               <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:8}}>
@@ -258,7 +273,7 @@ export default function RevenueInput() {
                 ))}
               </div>
             </div>
-
+ 
             {/* 포스 */}
             <div>
               <label style={{fontSize:10,color:'#5e6585',fontWeight:600,display:'block',marginBottom:6}}>
@@ -270,7 +285,7 @@ export default function RevenueInput() {
                   color:'#dde1f2',padding:'10px 12px',fontSize:14,outline:'none',
                   width:'100%',fontFamily:'DM Mono,monospace'}}/>
             </div>
-
+ 
             {/* 소계 */}
             <div style={{background:'#191c2b',borderRadius:8,padding:'12px 14px',
               display:'flex',justifyContent:'space-between',alignItems:'center'}}>
@@ -279,7 +294,7 @@ export default function RevenueInput() {
                 {((+kiosk||0)+delTotal+(+pos||0)).toLocaleString()}원
               </span>
             </div>
-
+ 
             <button onClick={save} disabled={saving}
               style={{background:si.color,color:'#000',border:'none',borderRadius:8,
                 padding:'12px',fontSize:13,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
@@ -288,9 +303,9 @@ export default function RevenueInput() {
           </div>
         </div>
       )}
-
+ 
       {/* 오늘 입력 내역 */}
-      {(hasMorning || hasClose) && (
+      {(hasMorning || hasMiddle || hasClose) && (
         <div style={{background:'#12141f',border:'1px solid #272a3d',borderRadius:12,
           overflow:'hidden',marginTop:16}}>
           <div style={{padding:'14px 18px',borderBottom:'1px solid #272a3d',fontSize:13,fontWeight:600}}>
@@ -312,14 +327,28 @@ export default function RevenueInput() {
                   <td style={{padding:'9px 14px',borderBottom:'1px solid #1a1d2e',textAlign:'right',fontFamily:'DM Mono,monospace'}}>{(rec.morningKiosk||0).toLocaleString()}</td>
                   <td style={{padding:'9px 14px',borderBottom:'1px solid #1a1d2e',textAlign:'right',fontFamily:'DM Mono,monospace'}}>
                     {(rec.morningDel||0).toLocaleString()}
-                    <DeliveryDetail morning={true}/>
+                    <DeliveryDetail session="morning"/>
                   </td>
                   <td style={{padding:'9px 14px',borderBottom:'1px solid #1a1d2e',textAlign:'right',fontFamily:'DM Mono,monospace'}}>{(rec.morningPos||0).toLocaleString()}</td>
                   <td style={{padding:'9px 14px',borderBottom:'1px solid #1a1d2e',textAlign:'right',color:'#f9b934',fontFamily:'DM Mono,monospace',fontWeight:700}}>{morningSum.toLocaleString()}</td>
                   <td style={{padding:'9px 14px',borderBottom:'1px solid #1a1d2e',color:'#5e6585',fontSize:11}}>{rec.morningBy||'—'}</td>
                 </tr>
               )}
-
+ 
+              {hasMiddle && (
+                <tr style={{background:'rgba(167,139,250,0.03)'}}>
+                  <td style={{padding:'9px 14px',borderBottom:'1px solid #1a1d2e',color:'#a78bfa',fontWeight:700,fontSize:11}}>미들</td>
+                  <td style={{padding:'9px 14px',borderBottom:'1px solid #1a1d2e',textAlign:'right',fontFamily:'DM Mono,monospace'}}>{(rec.middleKiosk||0).toLocaleString()}</td>
+                  <td style={{padding:'9px 14px',borderBottom:'1px solid #1a1d2e',textAlign:'right',fontFamily:'DM Mono,monospace'}}>
+                    {(rec.middleDel||0).toLocaleString()}
+                    <DeliveryDetail session="middle"/>
+                  </td>
+                  <td style={{padding:'9px 14px',borderBottom:'1px solid #1a1d2e',textAlign:'right',fontFamily:'DM Mono,monospace'}}>{(rec.middlePos||0).toLocaleString()}</td>
+                  <td style={{padding:'9px 14px',borderBottom:'1px solid #1a1d2e',textAlign:'right',color:'#a78bfa',fontFamily:'DM Mono,monospace',fontWeight:700}}>{middleSum.toLocaleString()}</td>
+                  <td style={{padding:'9px 14px',borderBottom:'1px solid #1a1d2e',color:'#5e6585',fontSize:11}}>{rec.middleBy||'—'}</td>
+                </tr>
+              )}
+ 
               {hasAfternoon && (
                 <tr style={{background:'rgba(147,197,253,0.03)'}}>
                   <td style={{padding:'9px 14px',borderBottom:'1px solid #1a1d2e',fontSize:11,fontWeight:700}}>
@@ -333,14 +362,14 @@ export default function RevenueInput() {
                   <td style={{padding:'9px 14px',borderBottom:'1px solid #1a1d2e',color:'#5e6585',fontSize:11}}>—</td>
                 </tr>
               )}
-
+ 
               {hasClose && (
                 <tr style={{background:'rgba(52,211,153,0.03)'}}>
                   <td style={{padding:'9px 14px',borderBottom:'1px solid #272a3d',color:'#34d399',fontWeight:700,fontSize:11}}>합계</td>
                   <td style={{padding:'9px 14px',borderBottom:'1px solid #272a3d',textAlign:'right',fontFamily:'DM Mono,monospace'}}>{(rec.kiosk||0).toLocaleString()}</td>
                   <td style={{padding:'9px 14px',borderBottom:'1px solid #272a3d',textAlign:'right',fontFamily:'DM Mono,monospace'}}>
                     {(rec.del||0).toLocaleString()}
-                    <DeliveryDetail morning={false}/>
+                    <DeliveryDetail session="close"/>
                   </td>
                   <td style={{padding:'9px 14px',borderBottom:'1px solid #272a3d',textAlign:'right',fontFamily:'DM Mono,monospace'}}>{(rec.pos||0).toLocaleString()}</td>
                   <td style={{padding:'9px 14px',borderBottom:'1px solid #272a3d',textAlign:'right',color:'#34d399',fontFamily:'DM Mono,monospace',fontWeight:700}}>{closeSum.toLocaleString()}</td>
@@ -354,3 +383,4 @@ export default function RevenueInput() {
     </div>
   )
 }
+ 
