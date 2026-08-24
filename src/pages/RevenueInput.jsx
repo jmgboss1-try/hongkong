@@ -62,28 +62,54 @@ export default function RevenueInput() {
   useEffect(()=>{
     const rec = data[todayDD]
     if(!rec) { resetInputs(); return }
-    setKiosk(rec[fieldKey(activeSession,'kiosk')] || '')
-    setPos(rec[fieldKey(activeSession,'pos')] || '')
-    setBaemin(rec[fieldKey(activeSession,'baemin')] || '')
-    setCoupang(rec[fieldKey(activeSession,'coupang')] || '')
-    setYogiyo(rec[fieldKey(activeSession,'yogiyo')] || '')
-    setDdangyeo(rec[fieldKey(activeSession,'ddangyeo')] || '')
+    if(activeSession === 'middle') {
+      // 미들타임은 "누적값" 기준으로 입력/표시 (저장은 순수값으로 되어있으므로 오전값을 더해 복원)
+      setKiosk(rec.middleKiosk!=null ? (rec.middleKiosk + (rec.morningKiosk||0)) : '')
+      setPos(rec.middlePos!=null ? (rec.middlePos + (rec.morningPos||0)) : '')
+      setBaemin(rec.middleBaemin!=null ? (rec.middleBaemin + (rec.morningBaemin||0)) : '')
+      setCoupang(rec.middleCoupang!=null ? (rec.middleCoupang + (rec.morningCoupang||0)) : '')
+      setYogiyo(rec.middleYogiyo!=null ? (rec.middleYogiyo + (rec.morningYogiyo||0)) : '')
+      setDdangyeo(rec.middleDdangyeo!=null ? (rec.middleDdangyeo + (rec.morningDdangyeo||0)) : '')
+    } else {
+      setKiosk(rec[fieldKey(activeSession,'kiosk')] || '')
+      setPos(rec[fieldKey(activeSession,'pos')] || '')
+      setBaemin(rec[fieldKey(activeSession,'baemin')] || '')
+      setCoupang(rec[fieldKey(activeSession,'coupang')] || '')
+      setYogiyo(rec[fieldKey(activeSession,'yogiyo')] || '')
+      setDdangyeo(rec[fieldKey(activeSession,'ddangyeo')] || '')
+    }
   },[activeSession, data])
 
   async function save() {
     setSaving(true)
     try {
       const existing = data[todayDD] || {}
-      const delSum = (+baemin||0)+(+coupang||0)+(+yogiyo||0)+(+ddangyeo||0)
+
+      let kioskVal, posVal, baeminVal, coupangVal, yogiyoVal, ddangyeoVal
+
+      if (activeSession === 'middle') {
+        // 미들타임: 입력값(누적)에서 오전값을 빼서 순수 미들타임 매출로 저장
+        kioskVal    = Math.max(0, (+kiosk||0)    - (existing.morningKiosk||0))
+        posVal      = Math.max(0, (+pos||0)      - (existing.morningPos||0))
+        baeminVal   = Math.max(0, (+baemin||0)   - (existing.morningBaemin||0))
+        coupangVal  = Math.max(0, (+coupang||0)  - (existing.morningCoupang||0))
+        yogiyoVal   = Math.max(0, (+yogiyo||0)   - (existing.morningYogiyo||0))
+        ddangyeoVal = Math.max(0, (+ddangyeo||0) - (existing.morningDdangyeo||0))
+      } else {
+        kioskVal=+kiosk||0; posVal=+pos||0
+        baeminVal=+baemin||0; coupangVal=+coupang||0; yogiyoVal=+yogiyo||0; ddangyeoVal=+ddangyeo||0
+      }
+      const delSum = baeminVal+coupangVal+yogiyoVal+ddangyeoVal
+
       const newRow = {
         ...existing,
-        [fieldKey(activeSession,'kiosk')]:    +kiosk||0,
+        [fieldKey(activeSession,'kiosk')]:    kioskVal,
         [fieldKey(activeSession,'del')]:      delSum,
-        [fieldKey(activeSession,'baemin')]:   +baemin||0,
-        [fieldKey(activeSession,'coupang')]:  +coupang||0,
-        [fieldKey(activeSession,'yogiyo')]:   +yogiyo||0,
-        [fieldKey(activeSession,'ddangyeo')]: +ddangyeo||0,
-        [fieldKey(activeSession,'pos')]:      +pos||0,
+        [fieldKey(activeSession,'baemin')]:   baeminVal,
+        [fieldKey(activeSession,'coupang')]:  coupangVal,
+        [fieldKey(activeSession,'yogiyo')]:   yogiyoVal,
+        [fieldKey(activeSession,'ddangyeo')]: ddangyeoVal,
+        [fieldKey(activeSession,'pos')]:      posVal,
         [activeSession==='morning'?'morningBy':activeSession==='middle'?'middleBy':'closeBy']: userData?.name || '매장전용',
         [activeSession==='morning'?'morningAt':activeSession==='middle'?'middleAt':'closeAt']: new Date().toISOString(),
       }
@@ -198,6 +224,15 @@ export default function RevenueInput() {
           <div style={{marginBottom:16}}>
             <div style={{fontSize:13,fontWeight:600,color:si.color}}>{si.label} 입력</div>
             <div style={{fontSize:11,color:'#5e6585',marginTop:3}}>{si.hint}</div>
+            {activeSession==='middle' && (
+              <div style={{marginTop:8,background:'rgba(167,139,250,0.08)',border:'1px solid rgba(167,139,250,0.2)',
+                borderRadius:7,padding:'8px 10px',fontSize:10,color:'#a78bfa',lineHeight:1.6}}>
+                💡 지금 화면(POS/키오스크)에 찍힌 <b>누적 금액 그대로</b> 입력하세요.<br/>
+                오전 매출({(rec.morningKiosk||0)+(rec.morningDel||0)+(rec.morningPos||0)>0
+                  ? ((rec.morningKiosk||0)+(rec.morningDel||0)+(rec.morningPos||0)).toLocaleString()+'원'
+                  : '미입력'})을 자동으로 빼서 미들타임 순수 매출만 저장돼요.
+              </div>
+            )}
           </div>
 
           <div style={{display:'flex',flexDirection:'column',gap:12}}>
@@ -258,11 +293,22 @@ export default function RevenueInput() {
 
             {/* 소계 */}
             <div style={{background:'#191c2b',borderRadius:8,padding:'12px 14px',
-              display:'flex',justifyContent:'space-between',alignItems:'center'}}>
-              <span style={{fontSize:12,color:'#5e6585'}}>소계</span>
-              <span style={{fontSize:16,fontWeight:700,color:si.color,fontFamily:'DM Mono,monospace'}}>
-                {((+kiosk||0)+delTotal+(+pos||0)).toLocaleString()}원
-              </span>
+              display:'flex',flexDirection:'column',gap:6}}>
+              <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+                <span style={{fontSize:12,color:'#5e6585'}}>{activeSession==='middle'?'입력한 누적 금액':'소계'}</span>
+                <span style={{fontSize:16,fontWeight:700,color:si.color,fontFamily:'DM Mono,monospace'}}>
+                  {((+kiosk||0)+delTotal+(+pos||0)).toLocaleString()}원
+                </span>
+              </div>
+              {activeSession==='middle' && (
+                <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',
+                  paddingTop:6,borderTop:'1px solid #272a3d'}}>
+                  <span style={{fontSize:11,color:'#a78bfa',fontWeight:600}}>→ 미들타임 순수 매출 (저장될 값)</span>
+                  <span style={{fontSize:15,fontWeight:700,color:'#a78bfa',fontFamily:'DM Mono,monospace'}}>
+                    {Math.max(0,((+kiosk||0)+delTotal+(+pos||0)) - ((rec.morningKiosk||0)+(rec.morningDel||0)+(rec.morningPos||0))).toLocaleString()}원
+                  </span>
+                </div>
+              )}
             </div>
 
             <button onClick={save} disabled={saving}
