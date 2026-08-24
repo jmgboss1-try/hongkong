@@ -142,21 +142,36 @@ export default function Revenue() {
     setSaving(true)
     try {
       const existing = data[targetDay] || {}
+
+      let kioskVal = +kiosk||0, posVal = +pos||0
+      let baeminVal = +baemin||0, coupangVal = +coupang||0, yogiyoVal = +yogiyo||0, ddangyeoVal = +ddangyeo||0
+
+      if (targetType === 'middle') {
+        // 미들타임: 입력값(누적)에서 오전값을 빼서 순수 미들타임 매출로 저장
+        kioskVal    = Math.max(0, kioskVal    - (existing.morningKiosk||0))
+        posVal      = Math.max(0, posVal      - (existing.morningPos||0))
+        baeminVal   = Math.max(0, baeminVal   - (existing.morningBaemin||0))
+        coupangVal  = Math.max(0, coupangVal  - (existing.morningCoupang||0))
+        yogiyoVal   = Math.max(0, yogiyoVal   - (existing.morningYogiyo||0))
+        ddangyeoVal = Math.max(0, ddangyeoVal - (existing.morningDdangyeo||0))
+      }
+
       const deliverySum = showDelDetail
-        ? (+baemin||0)+(+coupang||0)+(+yogiyo||0)+(+ddangyeo||0)
-        : +del||0
+        ? baeminVal+coupangVal+yogiyoVal+ddangyeoVal
+        : Math.max(0, (+del||0) - (targetType==='middle' ? (existing.morningDel||0) : 0))
+
       let newRow
       if (isNewMonth) {
         newRow = {
           ...existing,
-          [fieldKey(targetType,'kiosk')]: +kiosk||0,
+          [fieldKey(targetType,'kiosk')]: kioskVal,
           [fieldKey(targetType,'del')]:   deliverySum,
-          [fieldKey(targetType,'pos')]:   +pos||0,
+          [fieldKey(targetType,'pos')]:   posVal,
           ...(showDelDetail ? {
-            [fieldKey(targetType,'baemin')]:   +baemin||0,
-            [fieldKey(targetType,'coupang')]:  +coupang||0,
-            [fieldKey(targetType,'yogiyo')]:   +yogiyo||0,
-            [fieldKey(targetType,'ddangyeo')]: +ddangyeo||0,
+            [fieldKey(targetType,'baemin')]:   baeminVal,
+            [fieldKey(targetType,'coupang')]:  coupangVal,
+            [fieldKey(targetType,'yogiyo')]:   yogiyoVal,
+            [fieldKey(targetType,'ddangyeo')]: ddangyeoVal,
           } : {}),
         }
       } else {
@@ -187,12 +202,24 @@ export default function Revenue() {
   function startEdit(dd, type) {
     const r = data[dd]
     setEditDay(dd); setEditType(type); setDay(dd)
-    const s = getSession(r, type)
-    setKiosk(s.kiosk||''); setDel(s.del||''); setPos(s.pos||'')
-    setBaemin(r[fieldKey(type,'baemin')]||'')
-    setCoupang(r[fieldKey(type,'coupang')]||'')
-    setYogiyo(r[fieldKey(type,'yogiyo')]||'')
-    setDdangyeo(r[fieldKey(type,'ddangyeo')]||'')
+    if (type === 'middle') {
+      // 미들타임 수정 시: 저장된 순수값 + 오전값 = 누적값으로 복원해서 보여줌
+      const m = getMorning(r)
+      setKiosk((r.middleKiosk||0) + m.kiosk || '')
+      setDel((r.middleDel||0) + m.del || '')
+      setPos((r.middlePos||0) + m.pos || '')
+      setBaemin((r.middleBaemin||0) + (r.morningBaemin||0) || '')
+      setCoupang((r.middleCoupang||0) + (r.morningCoupang||0) || '')
+      setYogiyo((r.middleYogiyo||0) + (r.morningYogiyo||0) || '')
+      setDdangyeo((r.middleDdangyeo||0) + (r.morningDdangyeo||0) || '')
+    } else {
+      const s = getSession(r, type)
+      setKiosk(s.kiosk||''); setDel(s.del||''); setPos(s.pos||'')
+      setBaemin(r[fieldKey(type,'baemin')]||'')
+      setCoupang(r[fieldKey(type,'coupang')]||'')
+      setYogiyo(r[fieldKey(type,'yogiyo')]||'')
+      setDdangyeo(r[fieldKey(type,'ddangyeo')]||'')
+    }
     if(DELIVERY_PLATFORMS.some(p=>(r[fieldKey(type,p.key)]||0)>0)) setShowDelDetail(true)
     window.scrollTo({top:0, behavior:'smooth'})
   }
@@ -251,6 +278,14 @@ export default function Revenue() {
   const curYM = `${now.getFullYear()}-${pad(now.getMonth()+1)}`
   const isThisMonth = curMonth === curYM
 
+  // 미들타임 입력 중 순수매출 미리보기 계산 (IIFE 대신 변수로 미리 계산)
+  const isMiddleActive = (editDay ? editType : inputType) === 'middle'
+  const middleTargetDay = editDay || day
+  const middleExisting = data[middleTargetDay] || {}
+  const middleMorningTotal = (middleExisting.morningKiosk||0)+(middleExisting.morningDel||0)+(middleExisting.morningPos||0)
+  const middleInputTotal = (+kiosk||0)+(showDelDetail?delTotal:(+del||0))+(+pos||0)
+  const pureMiddlePreview = Math.max(0, middleInputTotal - middleMorningTotal)
+
   // 채널 상세보기 토글 (합계만 / 채널별)
   const [showChannelDetail, setShowChannelDetail] = useState(true)
 
@@ -304,9 +339,14 @@ export default function Revenue() {
               {inputType==='close' && (
                 <span style={{marginLeft:8,fontSize:10,color:'#5e6585'}}>오후는 자동 계산됩니다 (마감-오전-미들)</span>
               )}
-              {inputType==='middle' && (
-                <span style={{marginLeft:8,fontSize:10,color:'#5e6585'}}>14:30~16:30 브레이크타임 매출</span>
-              )}
+            </div>
+          )}
+          {((editDay ? editType : inputType) === 'middle') && (
+            <div style={{padding:'12px 18px 0'}}>
+              <div style={{background:'rgba(167,139,250,0.08)',border:'1px solid rgba(167,139,250,0.2)',
+                borderRadius:7,padding:'8px 10px',fontSize:10,color:'#a78bfa',lineHeight:1.6}}>
+                💡 POS/키오스크에 찍힌 <b>누적 금액 그대로</b> 입력하세요. 오전 매출을 자동으로 빼서 미들타임 순수 매출만 저장돼요.
+              </div>
             </div>
           )}
 
@@ -412,6 +452,17 @@ export default function Revenue() {
                   borderRadius:7,color:'#dde1f2',padding:'8px 10px',fontSize:12,outline:'none',width:'100%'}}/>
             </div>
           </div>
+          {isMiddleActive && (
+            <div style={{padding:'0 18px 14px'}}>
+              <div style={{background:'#191c2b',borderRadius:8,padding:'10px 14px',
+                display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+                <span style={{fontSize:11,color:'#a78bfa',fontWeight:600}}>→ 미들타임 순수 매출 (저장될 값)</span>
+                <span style={{fontSize:15,fontWeight:700,color:'#a78bfa',fontFamily:'DM Mono,monospace'}}>
+                  {pureMiddlePreview.toLocaleString()}원
+                </span>
+              </div>
+            </div>
+          )}
           <div style={{padding:'0 18px 18px'}}>
             <button onClick={save} disabled={saving}
               style={{background:'#f9b934',color:'#000',border:'none',borderRadius:8,padding:'9px 20px',
