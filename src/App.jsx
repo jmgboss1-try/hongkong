@@ -17,6 +17,7 @@ import MyPayroll from './pages/MyPayroll'
 import Notice from './pages/Notice'
 import ConsumptionAnalysis from './pages/ConsumptionAnalysis'
 import RevenueInput from './pages/RevenueInput'
+import SubstituteBoard from './pages/SubstituteBoard'
 import Layout from './components/Layout'
 
 function PendingScreen() {
@@ -85,6 +86,7 @@ function AppRoutes() {
         <Route path="/notice" element={<PrivateRoute storeOk><Notice /></PrivateRoute>} />
         <Route path="/consumption" element={<PrivateRoute ownerOnly><ConsumptionAnalysis /></PrivateRoute>} />
         <Route path="/revenue-input" element={<PrivateRoute storeOk><RevenueInput /></PrivateRoute>} />
+        <Route path="/substitute" element={<PrivateRoute storeOk><SubstituteBoard /></PrivateRoute>} />
         <Route path="*" element={<Navigate to={isOwner ? "/" : isStore ? "/revenue-input" : isInvestor ? "/revenue" : "/my-schedule"} />} />
       </Routes>
     </Layout>
