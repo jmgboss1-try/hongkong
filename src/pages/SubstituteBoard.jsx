@@ -19,6 +19,26 @@ function dateLabel(dateStr) {
   return `${d.getMonth()+1}/${d.getDate()}(${DAYS_KR[d.getDay()]})`
 }
 
+function toDateStr(d) {
+  return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`
+}
+
+// 이번주(일~토) 시작일 기준으로 2주치(14일) 날짜 배열 생성
+function get2WeeksDates() {
+  const today = new Date()
+  const sunday = new Date(today)
+  sunday.setDate(today.getDate() - today.getDay()) // 이번주 일요일로 이동
+  const weeks = [[], []]
+  for(let w=0; w<2; w++){
+    for(let i=0; i<7; i++){
+      const d = new Date(sunday)
+      d.setDate(sunday.getDate() + w*7 + i)
+      weeks[w].push(d)
+    }
+  }
+  return weeks
+}
+
 function isPast(dateStr) {
   if(!dateStr) return false
   const today = todayStr()
@@ -213,6 +233,55 @@ export default function SubstituteBoard() {
               취소
             </button>
           </div>
+        </div>
+      )}
+
+      {/* 2주간 스케쥴표 */}
+      {!loading && (
+        <div style={{background:'#12141f',border:'1px solid #272a3d',borderRadius:12,
+          padding:18,marginBottom:18}}>
+          <div style={{fontSize:13,fontWeight:600,marginBottom:14}}>📅 2주간 대타 현황</div>
+          {get2WeeksDates().map((week, wi) => (
+            <div key={wi} style={{marginBottom: wi===0 ? 14 : 0}}>
+              <div style={{fontSize:10,color:'#5e6585',fontWeight:600,marginBottom:6}}>
+                {wi===0 ? '이번주' : '다음주'}
+              </div>
+              <div style={{display:'grid',gridTemplateColumns:'repeat(7,1fr)',gap:6}}>
+                {week.map((d,di)=>{
+                  const ds = toDateStr(d)
+                  const dayReqs = requests.filter(r=>r.date===ds)
+                  const today = toDateStr(new Date())
+                  const isToday = ds === today
+                  return (
+                    <div key={di} style={{
+                      background: isToday ? 'rgba(249,185,52,0.08)' : '#191c2b',
+                      border: isToday ? '1px solid rgba(249,185,52,0.4)' : '1px solid #272a3d',
+                      borderRadius:8,padding:'8px 6px',minHeight:70,
+                    }}>
+                      <div style={{fontSize:10,fontWeight:700,marginBottom:5,textAlign:'center',
+                        color: di===0?'#f87171':di===6?'#93c5fd':isToday?'#f9b934':'#5e6585'}}>
+                        {d.getMonth()+1}/{d.getDate()}<span style={{fontWeight:400}}> ({DAYS_KR[di]})</span>
+                      </div>
+                      <div style={{display:'flex',flexDirection:'column',gap:3}}>
+                        {dayReqs.map(r=>(
+                          <div key={r.id} style={{
+                            fontSize:9,padding:'3px 4px',borderRadius:4,textAlign:'center',fontWeight:600,
+                            background: r.confirmedUid ? 'rgba(52,211,153,0.15)' : 'rgba(248,113,113,0.15)',
+                            color: r.confirmedUid ? '#34d399' : '#f87171',
+                            lineHeight:1.4,
+                          }}>
+                            {r.confirmedUid
+                              ? `✓ ${nameOf(r.confirmedUid)}`
+                              : `🔴 ${nameOf(r.requesterUid)}`}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          ))}
         </div>
       )}
 
