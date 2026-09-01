@@ -23,6 +23,7 @@ export default function Layout({ children }) {
     { path:'/work-manage',  icon:'⏱',  label:'근무관리' },
     { path:'/members',      icon:'📁', label:'인원관리' },
     { path:'/substitute',   icon:'🔄', label:'대타 구함' },
+    { path:'/loss-claims',  icon:'📋', label:'손실보상' },
     { path:'/cash',         icon:'💵', label:'현금시재' },
     { path:'/payroll',      icon:'📄', label:'인건비' },
     { path:'/investment',   icon:'📈', label:'투자관리' },
