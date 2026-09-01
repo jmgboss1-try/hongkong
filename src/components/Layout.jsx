@@ -42,11 +42,12 @@ export default function Layout({ children }) {
   ]
 
   const storeMenus = [
-    { path:'/revenue-input', icon:'💰', label:'매출입력' },
-    { path:'/substitute',    icon:'🔄', label:'대타 구함' },
-    { path:'/cash',          icon:'💵', label:'현금시재' },
-    { path:'/notice',        icon:'📋', label:'공지·메모' },
-  ]
+  { path:'/revenue-input', icon:'💰', label:'매출입력' },
+  { path:'/substitute',    icon:'🔄', label:'대타 구함' },
+  { path:'/loss-claims',   icon:'📋', label:'손실보상' },
+  { path:'/cash',          icon:'💵', label:'현금시재' },
+  { path:'/notice',        icon:'📋', label:'공지·메모' },
+]
 
   // 투자자 전용: 매출(조회) + 투자관리(조회)만
   const investorMenus = [
