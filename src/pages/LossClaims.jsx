@@ -28,6 +28,7 @@ function emptyForm() {
   return {
     date: todayStr(),
     platform: 'baemin',
+    orderNo: '',
     type: '오배송',
     cause: 'store',
     orderAmount: '',
@@ -278,9 +279,14 @@ export default function LossClaims() {
               </div>
             </div>
 
-            <div>
+                        <div>
               <label style={labelStyle}>플랫폼</label>
               <ToggleGroup options={PLATFORMS} value={form.platform} onChange={v=>setForm(f=>({...f,platform:v}))}/>
+            </div>
+            <div>
+              <label style={labelStyle}>주문번호</label>
+              <input value={form.orderNo} onChange={e=>setForm(f=>({...f,orderNo:e.target.value}))}
+                placeholder="주문번호 입력" style={inputStyle}/>
             </div>
             <div>
               <label style={labelStyle}>유형</label>
@@ -353,8 +359,9 @@ export default function LossClaims() {
                       <div>
                         <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap',marginBottom:6}}>
                           <span style={{fontSize:13,fontWeight:700,color:'#dde1f2'}}>{r.date}</span>
-                          <span style={{fontSize:11,fontWeight:700,padding:'2px 8px',borderRadius:4,
+                                                    <span style={{fontSize:11,fontWeight:700,padding:'2px 8px',borderRadius:4,
                             background:`${pf?.color}18`,color:pf?.color}}>{pf?.label}</span>
+                          {r.orderNo && <span style={{fontSize:11,color:'#5e6585',fontFamily:'DM Mono,monospace'}}>#{r.orderNo}</span>}
                           <span style={{fontSize:11,color:'#5e6585'}}>{r.type}</span>
                           <span style={{fontSize:11,fontWeight:600,padding:'2px 8px',borderRadius:4,
                             background:`${cause?.color}18`,color:cause?.color}}>원인: {cause?.label}</span>
@@ -415,9 +422,13 @@ export default function LossClaims() {
                           <input type="number" value={ef.lossAmount} onChange={e=>setEditForm(f=>({...f,lossAmount:e.target.value}))} style={inputStyle}/>
                         </div>
                       </div>
-                      <div>
+                                            <div>
                         <label style={labelStyle}>플랫폼</label>
                         <ToggleGroup options={PLATFORMS} value={ef.platform} onChange={v=>setEditForm(f=>({...f,platform:v}))}/>
+                      </div>
+                      <div>
+                        <label style={labelStyle}>주문번호</label>
+                        <input value={ef.orderNo} onChange={e=>setEditForm(f=>({...f,orderNo:e.target.value}))} style={inputStyle}/>
                       </div>
                       <div>
                         <label style={labelStyle}>유형</label>
