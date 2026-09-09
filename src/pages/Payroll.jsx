@@ -689,12 +689,19 @@ if(!isActive && !isRetired) return
                         급여 확정
                       </button>
                     )}
-                    {(status==='confirmed' || status==='inquiry') && (
-                      <button onClick={()=>confirmOne(emp.uid)} disabled={saving}
-                        style={{background:'transparent',border:'1px solid #3d4060',color:'#5e6585',
-                          borderRadius:7,padding:'8px 12px',fontSize:11,cursor:'pointer',fontFamily:'inherit'}}>
-                        재확정
-                      </button>
+                                        {(status==='confirmed' || status==='inquiry') && (
+                      <>
+                        <button onClick={()=>confirmOne(emp.uid)} disabled={saving}
+                          style={{background:'transparent',border:'1px solid #3d4060',color:'#5e6585',
+                            borderRadius:7,padding:'8px 12px',fontSize:11,cursor:'pointer',fontFamily:'inherit',marginRight:6}}>
+                          재확정
+                        </button>
+                        <button onClick={()=>markPaid(emp.uid)} disabled={saving}
+                          style={{background:'transparent',border:'1px solid rgba(147,197,253,0.4)',color:'#93c5fd',
+                            borderRadius:7,padding:'8px 12px',fontSize:11,cursor:'pointer',fontFamily:'inherit'}}>
+                          강제 지급
+                        </button>
+                      </>
                     )}
                     {status==='checked' && (
                       <button onClick={()=>markPaid(emp.uid)} disabled={saving}
