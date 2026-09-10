@@ -56,9 +56,12 @@ const WEEKLY_ITEMS = [
 export default function Checklist() {
   const [checks, setChecks]   = useState({}) // {date: {itemId: true}}
   const [loading, setLoading] = useState(true)
+  const [showHistory, setShowHistory] = useState(false)
+  const [historyDate, setHistoryDate] = useState(todayStr())
   const today = todayStr()
   const yesterday = yesterdayStr()
   const todayDow = new Date().getDay()
+  const historyDow = new Date(historyDate).getDay()
 
   async function load() {
     setLoading(true)
@@ -84,6 +87,9 @@ export default function Checklist() {
   function getItemsForDow(dow) {
     return [...DAILY_ITEMS, ...WEEKLY_ITEMS.filter(w=>w.dow===dow)]
   }
+
+  const historyItems = getItemsForDow(historyDow)
+  const historyDoneCount = historyItems.filter(it=>isChecked(historyDate, it.id)).length
 
   // 오늘 할 일
   const todayItems = getItemsForDow(todayDow)
@@ -133,7 +139,52 @@ export default function Checklist() {
           <div style={{fontSize:20,fontWeight:700}}>✅ 오늘의 체크리스트</div>
           <div style={{fontSize:12,color:'#5e6585',marginTop:2}}>매일·요일별 필수 업무</div>
         </div>
+        <button onClick={()=>{ setShowHistory(v=>!v); setHistoryDate(today) }}
+          style={{background:'#191c2b',border:'1px solid #272a3d',color:'#dde1f2',borderRadius:8,
+            padding:'8px 14px',fontSize:12,cursor:'pointer',fontFamily:'inherit'}}>
+          📖 지난 기록 보기
+        </button>
       </div>
+
+      {/* 지난 기록 조회 */}
+      {showHistory && (
+        <div style={{background:'#12141f',border:'1px solid rgba(147,197,253,0.3)',borderRadius:12,
+          padding:16,marginBottom:18}}>
+          <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:14,flexWrap:'wrap'}}>
+            <span style={{fontSize:12,fontWeight:700,color:'#93c5fd'}}>📖 지난 기록 조회</span>
+            <input type="date" value={historyDate} max={today}
+              onChange={e=>setHistoryDate(e.target.value)}
+              style={{background:'#191c2b',border:'1px solid #272a3d',borderRadius:7,color:'#dde1f2',
+                padding:'6px 10px',fontSize:12,outline:'none',fontFamily:'inherit'}}/>
+            <button onClick={()=>setShowHistory(false)}
+              style={{background:'transparent',border:'1px solid #272a3d',color:'#5e6585',borderRadius:6,
+                padding:'5px 10px',fontSize:11,cursor:'pointer',fontFamily:'inherit'}}>
+              닫기
+            </button>
+          </div>
+          <div style={{fontSize:11,color:'#5e6585',marginBottom:10}}>
+            {historyDate} ({DAYS_KR[historyDow]}) — 완료 {historyDoneCount} / {historyItems.length}
+          </div>
+          <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(220px,1fr))',gap:8}}>
+            {historyItems.map(it=>{
+              const done = isChecked(historyDate, it.id)
+              return (
+                <div key={it.id} style={{
+                  display:'flex',alignItems:'center',gap:8,padding:'7px 10px',borderRadius:7,
+                  background: done ? 'rgba(52,211,153,0.08)' : 'rgba(248,113,113,0.06)',
+                  border: done ? '1px solid rgba(52,211,153,0.25)' : '1px solid rgba(248,113,113,0.2)',
+                }}>
+                  <span style={{fontSize:13}}>{done ? '✅' : '❌'}</span>
+                  <span style={{fontSize:12,color: done?'#dde1f2':'#f87171'}}>
+                    {it.label}
+                    {it.time && <span style={{fontSize:10,color:'#5e6585',marginLeft:5}}>({it.time})</span>}
+                  </span>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
 
       {loading ? (
         <div style={{textAlign:'center',color:'#5e6585',padding:60}}>로딩 중...</div>
