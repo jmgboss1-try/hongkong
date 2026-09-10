@@ -99,13 +99,13 @@ export default function Checklist() {
   const yestItems = getItemsForDow(new Date(new Date().setDate(new Date().getDate()-1)).getDay())
   const yestUnfinished = yestItems.filter(it => !isChecked(yesterday, it.id))
 
-  const itemRow = (item, date, big=false) => {
+    const itemRow = (item, date, big=false) => {
     const done = isChecked(date, item.id)
     return (
       <div key={item.id+date} onClick={()=>toggleCheck(date, item.id)}
         style={{
-          display:'flex',alignItems:'center',gap:10,
-          padding: big ? '12px 14px' : '8px 12px',
+          display:'flex',alignItems:'center',gap:8,
+          padding: big ? '10px 12px' : '7px 10px',
           borderRadius:8,cursor:'pointer',
           background: done ? 'rgba(52,211,153,0.08)' : '#191c2b',
           border: done ? '1px solid rgba(52,211,153,0.3)' : '1px solid #272a3d',
@@ -197,7 +197,7 @@ export default function Checklist() {
               <div style={{fontSize:12,fontWeight:700,color:'#f87171',marginBottom:10}}>
                 ⚠ 어제({+yesterday.split('-')[2]}일) 못한 일 {yestUnfinished.length}건
               </div>
-              <div style={{display:'flex',flexDirection:'column',gap:6}}>
+                            <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(220px,1fr))',gap:8}}>
                 {yestUnfinished.map(it=>itemRow(it, yesterday))}
               </div>
             </div>
