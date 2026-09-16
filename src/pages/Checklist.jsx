@@ -108,6 +108,7 @@ export default function Checklist() {
 
   const [expandedDow, setExpandedDow] = useState(null)
   const [employees, setEmployees] = useState([]) // [{uid,name}]
+  const [subRequests, setSubRequests] = useState([]) // 대타 확정 목록
 
   const today = todayStr()
   const todayDow = new Date().getDay()
@@ -120,10 +121,11 @@ export default function Checklist() {
   async function load() {
     setLoading(true)
     try {
-      const [cfgSnap, recSnap, usersSnap] = await Promise.all([
+      const [cfgSnap, recSnap, usersSnap, subSnap] = await Promise.all([
         getDoc(doc(db,'checklist','config')),
         getDoc(doc(db,'checklist','records')),
         getDocs(collection(db,'users')),
+        getDoc(doc(db,'substitutes','requests')),
       ])
       if(cfgSnap.exists()) {
         const cfg = cfgSnap.data()
@@ -140,6 +142,7 @@ export default function Checklist() {
           emps.push({ uid:d.id, name:data.name })
       })
       setEmployees(emps)
+      setSubRequests(subSnap.exists() ? (subSnap.data().list||[]) : [])
     } catch(e) { console.error(e) }
     setLoading(false)
   }
@@ -248,6 +251,17 @@ export default function Checklist() {
     .filter(it=>it.alertUid||it.alertMsg)
     .map(it=>({ item:it, found: findUpcomingDate(it, 3) }))
     .filter(x=>x.found && x.found.offset>0) // 0=오늘은 제외, 1~3일 후만
+
+  // 확정된 대타 중 오늘부터 7일 이내(당일 포함)인 것
+  const nameOf = uid => employees.find(e=>e.uid===uid)?.name || '—'
+  const upcomingSubs = subRequests
+    .filter(r=>r.confirmedUid)
+    .map(r=>{
+      const diffDays = Math.round((new Date(r.date) - new Date(today)) / (1000*60*60*24))
+      return { ...r, diffDays }
+    })
+    .filter(r=>r.diffDays>=0 && r.diffDays<=7)
+    .sort((a,b)=>a.diffDays-b.diffDays)
 
   // 직전 영업일 미완료 항목 (일요일 휴무는 건너뛰고 계산됨)
   const prevWeekly = prevBusinessDate ? getWeeklyForDate(prevBusinessDate) : []
@@ -603,6 +617,33 @@ export default function Checklist() {
                 {prevDailyUnfinished.map(it=>DailyRow(it, prevBusinessDate))}
                 {prevWeeklyUnfinished.map(it=>WeeklyRow(it, prevBusinessDate))}
               </div>
+            </div>
+          )}
+
+          {/* 다가오는 대타 확정 알림 (D-7 이내) */}
+          {upcomingSubs.length > 0 && (
+            <div style={{marginBottom:18,display:'flex',flexDirection:'column',gap:8}}>
+              {upcomingSubs.map(r=>{
+                const dLabel = r.diffDays===0 ? '오늘' : r.diffDays===1 ? '내일' : `D-${r.diffDays}`
+                const dDow = DAYS_KR[dowOfDate(r.date)]
+                return (
+                  <div key={r.id} style={{
+                    background:'rgba(52,211,153,0.10)',border:'1.5px solid rgba(52,211,153,0.35)',
+                    borderRadius:10,padding:'12px 16px',display:'flex',alignItems:'center',gap:10,
+                  }}>
+                    <span style={{fontSize:18}}>🔄</span>
+                    <div>
+                      <div style={{fontSize:13,fontWeight:800,color:'#34d399'}}>
+                        {dLabel}({dDow}) 대타 확정: {nameOf(r.requesterUid)} → {nameOf(r.confirmedUid)}
+                      </div>
+                      <div style={{fontSize:11,color:'#34d399',marginTop:2,fontWeight:600}}>
+                        ⏰ {r.startH}:{r.startM}~{r.endH}:{r.endM}
+                        <span style={{color:'#5e6585',fontWeight:400,marginLeft:6}}>({r.date})</span>
+                      </div>
+                    </div>
+                  </div>
+                )
+              })}
             </div>
           )}
 
