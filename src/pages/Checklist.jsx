@@ -48,6 +48,20 @@ function isBiweeklyActive(item, dateStr) {
   return (diffDays % 14) === 0
 }
 
+// 오늘부터 daysAhead일 후까지(당일 포함) 그 항목이 실제로 발생하는 날짜를 찾아서 반환. 없으면 null.
+function findUpcomingDate(item, daysAhead) {
+  for(let i=0; i<=daysAhead; i++){
+    const d = new Date()
+    d.setDate(d.getDate()+i)
+    if(d.getDay() === CLOSED_DOW) continue // 휴무일은 건너뜀
+    const dateStr = `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`
+    if(d.getDay() === item.dow && isBiweeklyActive(item, dateStr)) {
+      return { dateStr, offset:i, dow:d.getDay() }
+    }
+  }
+  return null
+}
+
 const DEFAULT_DAILY = [
   { id:'d1',  label:'배달 용기 만들기' },
   { id:'d2',  label:'뚜껑 채우기' },
@@ -228,6 +242,12 @@ export default function Checklist() {
   const todayWeeklyDone = todayWeekly.filter(it=>isChecked(today, it.id)).length
   const todayTotalCount = dailyTotalSlots + todayWeekly.length
   const todayDoneCount = todayDailyDone + todayWeeklyDone
+
+  // 2~3일 이내(오늘 포함) 다가오는 알림 항목 (오늘 것은 제외 — 오늘은 아래 별도 배너로 표시)
+  const upcomingAlerts = weeklyItems
+    .filter(it=>it.alertUid||it.alertMsg)
+    .map(it=>({ item:it, found: findUpcomingDate(it, 3) }))
+    .filter(x=>x.found && x.found.offset>0) // 0=오늘은 제외, 1~3일 후만
 
   // 직전 영업일 미완료 항목 (일요일 휴무는 건너뛰고 계산됨)
   const prevWeekly = prevBusinessDate ? getWeeklyForDate(prevBusinessDate) : []
@@ -583,6 +603,32 @@ export default function Checklist() {
                 {prevDailyUnfinished.map(it=>DailyRow(it, prevBusinessDate))}
                 {prevWeeklyUnfinished.map(it=>WeeklyRow(it, prevBusinessDate))}
               </div>
+            </div>
+          )}
+
+          {/* 다가오는 특별 항목 미리 알림 (2~3일 전) */}
+          {upcomingAlerts.length > 0 && (
+            <div style={{marginBottom:18,display:'flex',flexDirection:'column',gap:8}}>
+              {upcomingAlerts.map(({item,found})=>{
+                const dLabel = found.offset===1 ? '내일' : `${found.offset}일 후`
+                return (
+                  <div key={item.id} style={{
+                    background:'rgba(167,139,250,0.10)',border:'1.5px solid rgba(167,139,250,0.35)',
+                    borderRadius:10,padding:'12px 16px',display:'flex',alignItems:'center',gap:10,
+                  }}>
+                    <span style={{fontSize:18}}>📌</span>
+                    <div>
+                      <div style={{fontSize:13,fontWeight:800,color:'#a78bfa'}}>
+                        {dLabel}({DAYS_KR[found.dow]}) {item.label} 있는 날!
+                      </div>
+                      <div style={{fontSize:11,color:'#a78bfa',marginTop:2,fontWeight:600}}>
+                        {item.alertUid && alertNameOf(item.alertUid) && `👤 ${alertNameOf(item.alertUid)}님 — `}
+                        {item.alertMsg || '일찍 출근 필요'} <span style={{color:'#5e6585',fontWeight:400}}>({found.dateStr})</span>
+                      </div>
+                    </div>
+                  </div>
+                )
+              })}
             </div>
           )}
 
