@@ -4,15 +4,19 @@ import { doc, getDoc, setDoc } from 'firebase/firestore'
 
 const pad = n => String(n).padStart(2,'0')
 const DAYS_KR = ['일','월','화','수','목','금','토']
+const CLOSED_DOW = 0 // 일요일 휴무
 
 function todayStr() {
   const n = new Date()
   return `${n.getFullYear()}-${pad(n.getMonth()+1)}-${pad(n.getDate())}`
 }
-function yesterdayStr() {
+function dateStrOffset(offsetDays) {
   const d = new Date()
-  d.setDate(d.getDate()-1)
+  d.setDate(d.getDate()+offsetDays)
   return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`
+}
+function dowOfDate(dateStr) {
+  return new Date(dateStr).getDay()
 }
 function dateOfDow(dow) {
   const today = new Date()
@@ -22,8 +26,18 @@ function dateOfDow(dow) {
   d.setDate(sunday.getDate() + dow)
   return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`
 }
+// 오늘 기준 가장 최근 "영업일"(휴무일 제외) 하루 전 날짜 찾기
+function lastBusinessDayBefore(dateStr) {
+  let d = new Date(dateStr)
+  for(let i=0;i<7;i++){
+    d.setDate(d.getDate()-1)
+    if(d.getDay() !== CLOSED_DOW) {
+      return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`
+    }
+  }
+  return null
+}
 
-// 기본값 (Firebase에 저장된 게 없을 때 최초 1회 사용)
 const DEFAULT_DAILY = [
   { id:'d1',  label:'배달 용기 만들기' },
   { id:'d2',  label:'뚜껑 채우기' },
@@ -55,24 +69,28 @@ const DOW_LABELS = ['일','월','화','수','목','금','토']
 export default function Checklist() {
   const [dailyItems, setDailyItems]   = useState(DEFAULT_DAILY)
   const [weeklyItems, setWeeklyItems] = useState(DEFAULT_WEEKLY)
-  const [checks, setChecks]   = useState({}) // {date: {itemId: true}}
+  const [checks, setChecks]   = useState({}) // {date: {itemId: true}} — 매일항목은 itemId_am / itemId_pm 로 저장
   const [loading, setLoading] = useState(true)
   const [saving, setSaving]   = useState(false)
 
   const [showHistory, setShowHistory] = useState(false)
   const [historyDate, setHistoryDate] = useState(todayStr())
 
-    const [showManage, setShowManage] = useState(false)
-  const [expandedDow, setExpandedDow] = useState(null) // 클릭해서 펼친 요일
+  const [showManage, setShowManage] = useState(false)
   const [newDaily, setNewDaily]   = useState('')
   const [newWeekly, setNewWeekly] = useState({ label:'', dow:1, time:'오전' })
   const [editItemId, setEditItemId] = useState(null)
   const [editItemForm, setEditItemForm] = useState(null)
 
+  const [expandedDow, setExpandedDow] = useState(null)
+
   const today = todayStr()
-  const yesterday = yesterdayStr()
   const todayDow = new Date().getDay()
   const historyDow = new Date(historyDate).getDay()
+
+  // 일요일(휴무) 다음 영업일 기준 "어제" = 가장 최근 휴무 아닌 전날
+  const prevBusinessDate = lastBusinessDayBefore(today)
+  const prevBusinessDow  = prevBusinessDate ? dowOfDate(prevBusinessDate) : null
 
   async function load() {
     setLoading(true)
@@ -86,7 +104,6 @@ export default function Checklist() {
         setDailyItems(cfg.daily || DEFAULT_DAILY)
         setWeeklyItems(cfg.weekly || DEFAULT_WEEKLY)
       } else {
-        // 최초 진입 시 기본값을 Firebase에 저장
         await setDoc(doc(db,'checklist','config'), { daily: DEFAULT_DAILY, weekly: DEFAULT_WEEKLY })
       }
       setChecks(recSnap.exists() ? (recSnap.data().byDate||{}) : {})
@@ -95,25 +112,25 @@ export default function Checklist() {
   }
   useEffect(()=>{ load() },[])
 
-  async function saveConfig(newDaily, newWeekly) {
-    await setDoc(doc(db,'checklist','config'), { daily:newDaily, weekly:newWeekly })
-    setDailyItems(newDaily)
-    setWeeklyItems(newWeekly)
+  async function saveConfig(nd, nw) {
+    await setDoc(doc(db,'checklist','config'), { daily:nd, weekly:nw })
+    setDailyItems(nd)
+    setWeeklyItems(nw)
   }
 
-  async function toggleCheck(date, itemId) {
+  async function toggleCheck(date, checkKey) {
     const dayChecks = { ...(checks[date]||{}) }
-    if(dayChecks[itemId]) delete dayChecks[itemId]
-    else dayChecks[itemId] = true
+    if(dayChecks[checkKey]) delete dayChecks[checkKey]
+    else dayChecks[checkKey] = true
     const newChecks = { ...checks, [date]: dayChecks }
     await setDoc(doc(db,'checklist','records'), { byDate: newChecks })
     setChecks(newChecks)
   }
 
-  const isChecked = (date, itemId) => !!(checks[date]?.[itemId])
+  const isChecked = (date, checkKey) => !!(checks[date]?.[checkKey])
 
-  function getItemsForDow(dow) {
-    return [...dailyItems, ...weeklyItems.filter(w=>w.dow===dow)]
+  function getWeeklyForDow(dow) {
+    return weeklyItems.filter(w=>w.dow===dow)
   }
 
   // ── 항목 관리 ──
@@ -140,12 +157,12 @@ export default function Checklist() {
   async function saveEditItem() {
     setSaving(true)
     if(editItemForm.type === 'daily') {
-      const newDailyList = dailyItems.map(it=>it.id===editItemId ? { id:it.id, label:editItemForm.label } : it)
-      await saveConfig(newDailyList, weeklyItems)
+      const nd = dailyItems.map(it=>it.id===editItemId ? { id:it.id, label:editItemForm.label } : it)
+      await saveConfig(nd, weeklyItems)
     } else {
-      const newWeeklyList = weeklyItems.map(it=>it.id===editItemId
+      const nw = weeklyItems.map(it=>it.id===editItemId
         ? { id:it.id, label:editItemForm.label, dow:+editItemForm.dow, time:editItemForm.time } : it)
-      await saveConfig(dailyItems, newWeeklyList)
+      await saveConfig(dailyItems, nw)
     }
     setEditItemId(null); setEditItemForm(null)
     setSaving(false)
@@ -156,18 +173,86 @@ export default function Checklist() {
     else await saveConfig(dailyItems, weeklyItems.filter(it=>it.id!==id))
   }
 
-  // 어제 못한 일
-  const yestDow = new Date(new Date().setDate(new Date().getDate()-1)).getDay()
-  const yestItems = getItemsForDow(yestDow)
-  const yestUnfinished = yestItems.filter(it => !isChecked(yesterday, it.id))
+  // 매일 항목: 오전/오후 카운트
+  function dailyDoneCount(date) {
+    let c = 0
+    dailyItems.forEach(it=>{
+      if(isChecked(date, it.id+'_am')) c++
+      if(isChecked(date, it.id+'_pm')) c++
+    })
+    return c
+  }
+  const dailyTotalSlots = dailyItems.length * 2
 
-  const todayItems = getItemsForDow(todayDow)
-  const todayDoneCount = todayItems.filter(it=>isChecked(today, it.id)).length
+  // 오늘 요약
+  const todayWeekly = getWeeklyForDow(todayDow)
+  const todayDailyDone = dailyDoneCount(today)
+  const todayWeeklyDone = todayWeekly.filter(it=>isChecked(today, it.id)).length
+  const todayTotalCount = dailyTotalSlots + todayWeekly.length
+  const todayDoneCount = todayDailyDone + todayWeeklyDone
 
-  const historyItems = getItemsForDow(historyDow)
-  const historyDoneCount = historyItems.filter(it=>isChecked(historyDate, it.id)).length
+  // 직전 영업일 미완료 항목 (일요일 휴무는 건너뛰고 계산됨)
+  const prevWeekly = prevBusinessDow!==null ? getWeeklyForDow(prevBusinessDow) : []
+  const prevDailyUnfinished = prevBusinessDate ? dailyItems.filter(it=>
+    !isChecked(prevBusinessDate, it.id+'_am') || !isChecked(prevBusinessDate, it.id+'_pm')
+  ) : []
+  const prevWeeklyUnfinished = prevBusinessDate ? prevWeekly.filter(it=>!isChecked(prevBusinessDate, it.id)) : []
+  const hasPrevUnfinished = prevDailyUnfinished.length>0 || prevWeeklyUnfinished.length>0
 
-  const itemRow = (item, date, big=false) => {
+  // 지난 기록 조회용
+  const historyWeekly = getWeeklyForDow(historyDow)
+  const historyDailyDone = dailyDoneCount(historyDate)
+  const historyWeeklyDone = historyWeekly.filter(it=>isChecked(historyDate, it.id)).length
+
+  const inputStyle = {
+    background:'#191c2b',border:'1px solid #272a3d',borderRadius:7,color:'#dde1f2',
+    padding:'8px 10px',fontSize:12,outline:'none',fontFamily:'inherit'
+  }
+
+  // 매일 항목 1개 = 오전/오후 체크박스 2개 나란히
+  function DailyRow(item, date, big=false) {
+    const amDone = isChecked(date, item.id+'_am')
+    const pmDone = isChecked(date, item.id+'_pm')
+    const bothDone = amDone && pmDone
+    return (
+      <div key={item.id+date} style={{
+        display:'flex',alignItems:'center',gap:8,
+        padding: big ? '10px 12px' : '7px 10px',
+        borderRadius:8,
+        background: bothDone ? 'rgba(52,211,153,0.08)' : '#191c2b',
+        border: bothDone ? '1px solid rgba(52,211,153,0.3)' : '1px solid #272a3d',
+      }}>
+        <span style={{
+          flex:1,fontSize: big?14:12, fontWeight: bothDone?400:600,
+          color: bothDone ? '#5e6585' : '#dde1f2',
+          textDecoration: bothDone ? 'line-through' : 'none',
+        }}>
+          {item.label}
+        </span>
+        <button onClick={()=>toggleCheck(date, item.id+'_am')}
+          style={{
+            display:'flex',alignItems:'center',gap:4,border:'none',cursor:'pointer',
+            background: amDone ? 'rgba(249,185,52,0.18)' : '#0b0d16',
+            color: amDone ? '#f9b934' : '#5e6585',
+            borderRadius:6,padding:'4px 8px',fontSize:10,fontWeight:700,fontFamily:'inherit'
+          }}>
+          {amDone ? '✓' : '○'} 오전
+        </button>
+        <button onClick={()=>toggleCheck(date, item.id+'_pm')}
+          style={{
+            display:'flex',alignItems:'center',gap:4,border:'none',cursor:'pointer',
+            background: pmDone ? 'rgba(147,197,253,0.18)' : '#0b0d16',
+            color: pmDone ? '#93c5fd' : '#5e6585',
+            borderRadius:6,padding:'4px 8px',fontSize:10,fontWeight:700,fontFamily:'inherit'
+          }}>
+          {pmDone ? '✓' : '○'} 오후
+        </button>
+      </div>
+    )
+  }
+
+  // 요일별 항목 1개 = 체크박스 1개 (기존과 동일)
+  function WeeklyRow(item, date, big=false) {
     const done = isChecked(date, item.id)
     return (
       <div key={item.id+date} onClick={()=>toggleCheck(date, item.id)}
@@ -177,7 +262,6 @@ export default function Checklist() {
           borderRadius:8,cursor:'pointer',
           background: done ? 'rgba(52,211,153,0.08)' : '#191c2b',
           border: done ? '1px solid rgba(52,211,153,0.3)' : '1px solid #272a3d',
-          transition:'.15s'
         }}>
         <div style={{
           width: big?22:18, height: big?22:18, borderRadius:6,flexShrink:0,
@@ -194,15 +278,10 @@ export default function Checklist() {
           textDecoration: done ? 'line-through' : 'none',
         }}>
           {item.label}
-          {item.time && <span style={{fontSize:big?11:10,color:'#f9b934',marginLeft:6,fontWeight:700}}>({item.time})</span>}
+          <span style={{fontSize:big?11:10,color:'#f9b934',marginLeft:6,fontWeight:700}}>({item.time})</span>
         </span>
       </div>
     )
-  }
-
-  const inputStyle = {
-    background:'#191c2b',border:'1px solid #272a3d',borderRadius:7,color:'#dde1f2',
-    padding:'8px 10px',fontSize:12,outline:'none',fontFamily:'inherit'
   }
 
   return (
@@ -210,7 +289,7 @@ export default function Checklist() {
       <div style={{display:'flex',alignItems:'flex-end',justifyContent:'space-between',marginBottom:22,flexWrap:'wrap',gap:10}}>
         <div>
           <div style={{fontSize:20,fontWeight:700}}>✅ 오늘의 체크리스트</div>
-          <div style={{fontSize:12,color:'#5e6585',marginTop:2}}>매일·요일별 필수 업무</div>
+          <div style={{fontSize:12,color:'#5e6585',marginTop:2}}>매일(오전·오후)·요일별 필수 업무</div>
         </div>
         <div style={{display:'flex',gap:8}}>
           <button onClick={()=>setShowManage(v=>!v)}
@@ -232,9 +311,10 @@ export default function Checklist() {
         <div style={{background:'#12141f',border:'1px solid #f9b934',borderRadius:12,padding:18,marginBottom:18}}>
           <div style={{fontSize:13,fontWeight:600,color:'#f9b934',marginBottom:16}}>⚙️ 체크리스트 항목 관리</div>
 
-          {/* 매일 항목 */}
           <div style={{marginBottom:20}}>
-            <div style={{fontSize:11,color:'#5e6585',fontWeight:600,marginBottom:8}}>📌 매일 필수 항목</div>
+            <div style={{fontSize:11,color:'#5e6585',fontWeight:600,marginBottom:8}}>
+              📌 매일 필수 항목 <span style={{color:'#3d4060'}}>(오전·오후 각각 체크)</span>
+            </div>
             <div style={{display:'flex',flexDirection:'column',gap:6,marginBottom:10}}>
               {dailyItems.map(item=>(
                 <div key={item.id} style={{background:'#191c2b',borderRadius:7,padding:'7px 10px',
@@ -272,7 +352,6 @@ export default function Checklist() {
             </div>
           </div>
 
-          {/* 요일별 항목 */}
           <div>
             <div style={{fontSize:11,color:'#5e6585',fontWeight:600,marginBottom:8}}>📅 요일별 필수 항목</div>
             <div style={{display:'flex',flexDirection:'column',gap:6,marginBottom:10}}>
@@ -345,43 +424,49 @@ export default function Checklist() {
               닫기
             </button>
           </div>
-          <div style={{fontSize:11,color:'#5e6585',marginBottom:10}}>
-            {historyDate} ({DAYS_KR[historyDow]}) — 완료 {historyDoneCount} / {historyItems.length}
-          </div>
-          <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(220px,1fr))',gap:8}}>
-            {historyItems.map(it=>{
-              const done = isChecked(historyDate, it.id)
-              return (
-                <div key={it.id} style={{
-                  display:'flex',alignItems:'center',gap:8,padding:'7px 10px',borderRadius:7,
-                  background: done ? 'rgba(52,211,153,0.08)' : 'rgba(248,113,113,0.06)',
-                  border: done ? '1px solid rgba(52,211,153,0.25)' : '1px solid rgba(248,113,113,0.2)',
-                }}>
-                  <span style={{fontSize:13}}>{done ? '✅' : '❌'}</span>
-                  <span style={{fontSize:12,color: done?'#dde1f2':'#f87171'}}>
-                    {it.label}
-                    {it.time && <span style={{fontSize:10,color:'#5e6585',marginLeft:5}}>({it.time})</span>}
-                  </span>
-                </div>
-              )
-            })}
-          </div>
+          {historyDow === CLOSED_DOW ? (
+            <div style={{fontSize:12,color:'#5e6585',padding:'12px 0'}}>😴 일요일은 휴무일입니다</div>
+          ) : (
+            <>
+              <div style={{fontSize:11,color:'#5e6585',marginBottom:10}}>
+                {historyDate} ({DAYS_KR[historyDow]}) — 매일 {historyDailyDone}/{dailyTotalSlots} · 요일 {historyWeeklyDone}/{historyWeekly.length}
+              </div>
+              <div style={{fontSize:10,color:'#5e6585',fontWeight:600,marginBottom:6}}>매일 항목</div>
+              <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(240px,1fr))',gap:8,marginBottom:14}}>
+                {dailyItems.map(it=>DailyRow(it, historyDate))}
+              </div>
+              {historyWeekly.length>0 && (
+                <>
+                  <div style={{fontSize:10,color:'#5e6585',fontWeight:600,marginBottom:6}}>요일별 항목</div>
+                  <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(220px,1fr))',gap:8}}>
+                    {historyWeekly.map(it=>WeeklyRow(it, historyDate))}
+                  </div>
+                </>
+              )}
+            </>
+          )}
         </div>
       )}
 
       {loading ? (
         <div style={{textAlign:'center',color:'#5e6585',padding:60}}>로딩 중...</div>
+      ) : todayDow === CLOSED_DOW ? (
+        <div style={{background:'#12141f',border:'1px solid #272a3d',borderRadius:12,padding:40,textAlign:'center'}}>
+          <div style={{fontSize:24,marginBottom:8}}>😴</div>
+          <div style={{fontSize:14,color:'#5e6585',fontWeight:600}}>오늘은 일요일 휴무일입니다</div>
+        </div>
       ) : (
         <>
-          {/* 어제 못한 일 */}
-          {yestUnfinished.length > 0 && (
+          {/* 직전 영업일 못한 일 (일요일 건너뜀) */}
+          {hasPrevUnfinished && (
             <div style={{background:'#12141f',border:'1px solid rgba(248,113,113,0.4)',borderRadius:12,
               padding:16,marginBottom:18}}>
               <div style={{fontSize:12,fontWeight:700,color:'#f87171',marginBottom:10}}>
-                ⚠ 어제({+yesterday.split('-')[2]}일) 못한 일 {yestUnfinished.length}건
+                ⚠ {+prevBusinessDate.split('-')[2]}일({DAYS_KR[prevBusinessDow]}) 못한 일 {prevDailyUnfinished.length+prevWeeklyUnfinished.length}건
               </div>
-              <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(220px,1fr))',gap:8}}>
-                {yestUnfinished.map(it=>itemRow(it, yesterday))}
+              <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(240px,1fr))',gap:8}}>
+                {prevDailyUnfinished.map(it=>DailyRow(it, prevBusinessDate))}
+                {prevWeeklyUnfinished.map(it=>WeeklyRow(it, prevBusinessDate))}
               </div>
             </div>
           )}
@@ -398,18 +483,33 @@ export default function Checklist() {
                 <div style={{fontSize:11,color:'#5e6585',marginTop:2}}>{today}</div>
               </div>
               <div style={{background:'#191c2b',borderRadius:8,padding:'8px 14px'}}>
-                <span style={{fontSize:16,fontWeight:800,color: todayDoneCount===todayItems.length ? '#34d399' : '#f9b934'}}>
+                <span style={{fontSize:16,fontWeight:800,color: todayDoneCount===todayTotalCount ? '#34d399' : '#f9b934'}}>
                   {todayDoneCount}
                 </span>
-                <span style={{fontSize:13,color:'#5e6585'}}> / {todayItems.length}</span>
+                <span style={{fontSize:13,color:'#5e6585'}}> / {todayTotalCount}</span>
               </div>
             </div>
-            <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(240px,1fr))',gap:8}}>
-              {todayItems.map(it=>itemRow(it, today, true))}
+
+            <div style={{fontSize:11,color:'#5e6585',fontWeight:600,marginBottom:8}}>
+              📌 매일 항목 <span style={{color:'#3d4060'}}>({todayDailyDone}/{dailyTotalSlots})</span>
             </div>
+            <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(260px,1fr))',gap:8,marginBottom: todayWeekly.length>0?16:0}}>
+              {dailyItems.map(it=>DailyRow(it, today, true))}
+            </div>
+
+            {todayWeekly.length > 0 && (
+              <>
+                <div style={{fontSize:11,color:'#5e6585',fontWeight:600,marginBottom:8}}>
+                  📅 오늘의 요일별 항목 <span style={{color:'#3d4060'}}>({todayWeeklyDone}/{todayWeekly.length})</span>
+                </div>
+                <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(240px,1fr))',gap:8}}>
+                  {todayWeekly.map(it=>WeeklyRow(it, today, true))}
+                </div>
+              </>
+            )}
           </div>
 
-                    {/* 이번주 전체 보기 */}
+          {/* 이번주 전체 보기 */}
           <div style={{background:'#12141f',border:'1px solid #272a3d',borderRadius:12,overflow:'hidden'}}>
             <div style={{padding:'14px 18px',borderBottom:'1px solid #272a3d',fontSize:13,fontWeight:600}}>
               📅 이번주 전체 보기 <span style={{fontSize:10,color:'#5e6585',fontWeight:400}}>— 요일을 클릭하면 전체 목록이 보여요</span>
@@ -417,16 +517,21 @@ export default function Checklist() {
             <div style={{display:'grid',gridTemplateColumns:'repeat(7,1fr)',gap:0}}>
               {DAYS_KR.map((dayName, dow)=>{
                 const date = dateOfDow(dow)
-                const items = getItemsForDow(dow)
+                const isClosed = dow === CLOSED_DOW
+                const weekly = getWeeklyForDow(dow)
                 const isToday = dow === todayDow
-                const doneCount = items.filter(it=>isChecked(date, it.id)).length
+                const dDone = isClosed ? 0 : dailyDoneCount(date)
+                const wDone = isClosed ? 0 : weekly.filter(it=>isChecked(date, it.id)).length
+                const total = isClosed ? 0 : dailyTotalSlots + weekly.length
+                const done  = dDone + wDone
                 return (
-                  <div key={dow} onClick={()=>setExpandedDow(v=>v===dow?null:dow)}
+                  <div key={dow} onClick={()=>!isClosed && setExpandedDow(v=>v===dow?null:dow)}
                     style={{
-                    padding:'12px 8px',cursor:'pointer',
+                    padding:'12px 8px',cursor: isClosed?'default':'pointer',
                     borderRight: dow<6 ? '1px solid #191c2b' : 'none',
-                    background: expandedDow===dow ? 'rgba(249,185,52,0.12)' : isToday ? 'rgba(249,185,52,0.06)' : 'transparent',
+                    background: isClosed ? 'rgba(94,101,133,0.04)' : expandedDow===dow ? 'rgba(249,185,52,0.12)' : isToday ? 'rgba(249,185,52,0.06)' : 'transparent',
                     outline: expandedDow===dow ? '1px solid rgba(249,185,52,0.5)' : 'none',
+                    opacity: isClosed ? 0.5 : 1,
                   }}>
                     <div style={{textAlign:'center',marginBottom:8}}>
                       <div style={{fontSize:11,fontWeight:800,
@@ -434,46 +539,58 @@ export default function Checklist() {
                         {dayName}
                       </div>
                       <div style={{fontSize:9,color:'#5e6585',marginTop:2}}>{+date.split('-')[2]}일</div>
-                      <div style={{fontSize:9,color: doneCount===items.length && items.length>0 ?'#34d399':'#5e6585',
-                        marginTop:3,fontWeight:600}}>
-                        {doneCount}/{items.length}
-                      </div>
-                    </div>
-                    <div style={{display:'flex',flexDirection:'column',gap:3}}>
-                      {items.filter(it=>it.dow!==undefined).map(it=>{
-                        const done = isChecked(date, it.id)
-                        return (
-                          <div key={it.id} style={{
-                            fontSize:8.5,padding:'3px 4px',borderRadius:4,textAlign:'center',
-                            background: done?'rgba(52,211,153,0.15)':'rgba(94,101,133,0.1)',
-                            color: done?'#34d399':'#5e6585',
-                            textDecoration: done?'line-through':'none',
-                            lineHeight:1.3,
-                          }}>
-                            {it.label}
-                          </div>
-                        )
-                      })}
-                      {items.filter(it=>it.dow===undefined).length > 0 && (
-                        <div style={{fontSize:8,color:'#3d4060',textAlign:'center',marginTop:2}}>
-                          +매일 {items.filter(it=>it.dow===undefined).length}개
+                      {isClosed ? (
+                        <div style={{fontSize:9,color:'#5e6585',marginTop:3,fontWeight:600}}>휴무</div>
+                      ) : (
+                        <div style={{fontSize:9,color: done===total && total>0 ?'#34d399':'#5e6585',
+                          marginTop:3,fontWeight:600}}>
+                          {done}/{total}
                         </div>
                       )}
                     </div>
+                    {!isClosed && (
+                      <div style={{display:'flex',flexDirection:'column',gap:3}}>
+                        {weekly.map(it=>{
+                          const wdone = isChecked(date, it.id)
+                          return (
+                            <div key={it.id} style={{
+                              fontSize:8.5,padding:'3px 4px',borderRadius:4,textAlign:'center',
+                              background: wdone?'rgba(52,211,153,0.15)':'rgba(94,101,133,0.1)',
+                              color: wdone?'#34d399':'#5e6585',
+                              textDecoration: wdone?'line-through':'none',
+                              lineHeight:1.3,
+                            }}>
+                              {it.label}
+                            </div>
+                          )
+                        })}
+                        <div style={{fontSize:8,color:'#3d4060',textAlign:'center',marginTop:2}}>
+                          +매일 {dailyItems.length}개
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )
               })}
             </div>
 
-            {/* 펼쳐진 요일 전체 목록 */}
             {expandedDow !== null && (
               <div style={{borderTop:'1px solid #272a3d',padding:16,background:'rgba(249,185,52,0.03)'}}>
                 <div style={{fontSize:12,fontWeight:700,color:'#f9b934',marginBottom:10}}>
                   {DAYS_KR[expandedDow]}요일 ({+dateOfDow(expandedDow).split('-')[2]}일) 전체 할 일
                 </div>
-                <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(220px,1fr))',gap:8}}>
-                  {getItemsForDow(expandedDow).map(it=>itemRow(it, dateOfDow(expandedDow)))}
+                <div style={{fontSize:10,color:'#5e6585',fontWeight:600,marginBottom:6}}>매일 항목</div>
+                <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(240px,1fr))',gap:8,marginBottom:14}}>
+                  {dailyItems.map(it=>DailyRow(it, dateOfDow(expandedDow)))}
                 </div>
+                {getWeeklyForDow(expandedDow).length>0 && (
+                  <>
+                    <div style={{fontSize:10,color:'#5e6585',fontWeight:600,marginBottom:6}}>요일별 항목</div>
+                    <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(220px,1fr))',gap:8}}>
+                      {getWeeklyForDow(expandedDow).map(it=>WeeklyRow(it, dateOfDow(expandedDow)))}
+                    </div>
+                  </>
+                )}
               </div>
             )}
           </div>
