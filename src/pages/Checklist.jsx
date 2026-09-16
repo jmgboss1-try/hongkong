@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { db } from '../firebase'
-import { doc, getDoc, setDoc } from 'firebase/firestore'
+import { doc, getDoc, setDoc, collection, getDocs } from 'firebase/firestore'
 
 const pad = n => String(n).padStart(2,'0')
 const DAYS_KR = ['일','월','화','수','목','금','토']
@@ -36,6 +36,16 @@ function lastBusinessDayBefore(dateStr) {
     }
   }
   return null
+}
+
+// interval='biweekly'인 항목이 특정 날짜에 노출되는지 판단 (baseDate 기준 14일 간격)
+function isBiweeklyActive(item, dateStr) {
+  if(item.interval !== 'biweekly' || !item.baseDate) return true
+  const base = new Date(item.baseDate)
+  const target = new Date(dateStr)
+  const diffDays = Math.round((target - base) / (1000*60*60*24))
+  if(diffDays < 0) return false
+  return (diffDays % 14) === 0
 }
 
 const DEFAULT_DAILY = [
@@ -78,11 +88,12 @@ export default function Checklist() {
 
   const [showManage, setShowManage] = useState(false)
   const [newDaily, setNewDaily]   = useState('')
-  const [newWeekly, setNewWeekly] = useState({ label:'', dow:1, time:'오전' })
+  const [newWeekly, setNewWeekly] = useState({ label:'', dow:1, time:'오전', interval:'weekly', baseDate: todayStr(), alertUid:'', alertMsg:'' })
   const [editItemId, setEditItemId] = useState(null)
   const [editItemForm, setEditItemForm] = useState(null)
 
   const [expandedDow, setExpandedDow] = useState(null)
+  const [employees, setEmployees] = useState([]) // [{uid,name}]
 
   const today = todayStr()
   const todayDow = new Date().getDay()
@@ -95,18 +106,26 @@ export default function Checklist() {
   async function load() {
     setLoading(true)
     try {
-      const [cfgSnap, recSnap] = await Promise.all([
+      const [cfgSnap, recSnap, usersSnap] = await Promise.all([
         getDoc(doc(db,'checklist','config')),
         getDoc(doc(db,'checklist','records')),
+        getDocs(collection(db,'users')),
       ])
       if(cfgSnap.exists()) {
         const cfg = cfgSnap.data()
         setDailyItems(cfg.daily || DEFAULT_DAILY)
-        setWeeklyItems(cfg.weekly || DEFAULT_WEEKLY)
+        setWeeklyItems((cfg.weekly || DEFAULT_WEEKLY).map(w=>({ interval:'weekly', ...w })))
       } else {
         await setDoc(doc(db,'checklist','config'), { daily: DEFAULT_DAILY, weekly: DEFAULT_WEEKLY })
       }
       setChecks(recSnap.exists() ? (recSnap.data().byDate||{}) : {})
+      const emps = []
+      usersSnap.forEach(d=>{
+        const data = d.data()
+        if(data.status==='approved' && !['owner','store','investor'].includes(data.role))
+          emps.push({ uid:d.id, name:data.name })
+      })
+      setEmployees(emps)
     } catch(e) { console.error(e) }
     setLoading(false)
   }
@@ -129,8 +148,14 @@ export default function Checklist() {
 
   const isChecked = (date, checkKey) => !!(checks[date]?.[checkKey])
 
+  // dow만 필터 (2주주기 필터는 날짜가 필요하므로 별도 함수)
   function getWeeklyForDow(dow) {
     return weeklyItems.filter(w=>w.dow===dow)
+  }
+  // 특정 날짜에 실제로 노출돼야 할 요일별 항목 (2주주기 반영)
+  function getWeeklyForDate(dateStr) {
+    const dow = dowOfDate(dateStr)
+    return weeklyItems.filter(w=>w.dow===dow && isBiweeklyActive(w, dateStr))
   }
 
   // ── 항목 관리 ──
@@ -145,14 +170,23 @@ export default function Checklist() {
   async function addWeeklyItem() {
     if(!newWeekly.label.trim()) return
     setSaving(true)
-    const item = { id:'w_'+Date.now(), label:newWeekly.label.trim(), dow:+newWeekly.dow, time:newWeekly.time }
+    const item = {
+      id:'w_'+Date.now(), label:newWeekly.label.trim(), dow:+newWeekly.dow, time:newWeekly.time,
+      interval: newWeekly.interval,
+      baseDate: newWeekly.interval==='biweekly' ? newWeekly.baseDate : null,
+      alertUid: newWeekly.alertUid || '',
+      alertMsg: newWeekly.alertMsg || '',
+    }
     await saveConfig(dailyItems, [...weeklyItems, item])
-    setNewWeekly({ label:'', dow:1, time:'오전' })
+    setNewWeekly({ label:'', dow:1, time:'오전', interval:'weekly', baseDate: todayStr(), alertUid:'', alertMsg:'' })
     setSaving(false)
   }
   function startEditItem(item, type) {
     setEditItemId(item.id)
-    setEditItemForm({ ...item, type })
+    setEditItemForm({
+      interval:'weekly', baseDate:todayStr(), alertUid:'', alertMsg:'',
+      ...item, type
+    })
   }
   async function saveEditItem() {
     setSaving(true)
@@ -161,7 +195,11 @@ export default function Checklist() {
       await saveConfig(nd, weeklyItems)
     } else {
       const nw = weeklyItems.map(it=>it.id===editItemId
-        ? { id:it.id, label:editItemForm.label, dow:+editItemForm.dow, time:editItemForm.time } : it)
+        ? { id:it.id, label:editItemForm.label, dow:+editItemForm.dow, time:editItemForm.time,
+            interval: editItemForm.interval || 'weekly',
+            baseDate: editItemForm.interval==='biweekly' ? (editItemForm.baseDate||todayStr()) : null,
+            alertUid: editItemForm.alertUid || '',
+            alertMsg: editItemForm.alertMsg || '' } : it)
       await saveConfig(dailyItems, nw)
     }
     setEditItemId(null); setEditItemForm(null)
@@ -185,14 +223,14 @@ export default function Checklist() {
   const dailyTotalSlots = dailyItems.length * 2
 
   // 오늘 요약
-  const todayWeekly = getWeeklyForDow(todayDow)
+  const todayWeekly = getWeeklyForDate(today)
   const todayDailyDone = dailyDoneCount(today)
   const todayWeeklyDone = todayWeekly.filter(it=>isChecked(today, it.id)).length
   const todayTotalCount = dailyTotalSlots + todayWeekly.length
   const todayDoneCount = todayDailyDone + todayWeeklyDone
 
   // 직전 영업일 미완료 항목 (일요일 휴무는 건너뛰고 계산됨)
-  const prevWeekly = prevBusinessDow!==null ? getWeeklyForDow(prevBusinessDow) : []
+  const prevWeekly = prevBusinessDate ? getWeeklyForDate(prevBusinessDate) : []
   const prevDailyUnfinished = prevBusinessDate ? dailyItems.filter(it=>
     !isChecked(prevBusinessDate, it.id+'_am') || !isChecked(prevBusinessDate, it.id+'_pm')
   ) : []
@@ -200,7 +238,7 @@ export default function Checklist() {
   const hasPrevUnfinished = prevDailyUnfinished.length>0 || prevWeeklyUnfinished.length>0
 
   // 지난 기록 조회용
-  const historyWeekly = getWeeklyForDow(historyDow)
+  const historyWeekly = getWeeklyForDate(historyDate)
   const historyDailyDone = dailyDoneCount(historyDate)
   const historyWeeklyDone = historyWeekly.filter(it=>isChecked(historyDate, it.id)).length
 
@@ -252,34 +290,58 @@ export default function Checklist() {
   }
 
   // 요일별 항목 1개 = 체크박스 1개 (기존과 동일)
+  function alertNameOf(uid) {
+    return employees.find(e=>e.uid===uid)?.name || ''
+  }
+
   function WeeklyRow(item, date, big=false) {
     const done = isChecked(date, item.id)
+    const hasAlert = item.alertUid || item.alertMsg
     return (
-      <div key={item.id+date} onClick={()=>toggleCheck(date, item.id)}
-        style={{
-          display:'flex',alignItems:'center',gap:8,
-          padding: big ? '10px 12px' : '7px 10px',
-          borderRadius:8,cursor:'pointer',
-          background: done ? 'rgba(52,211,153,0.08)' : '#191c2b',
-          border: done ? '1px solid rgba(52,211,153,0.3)' : '1px solid #272a3d',
-        }}>
-        <div style={{
-          width: big?22:18, height: big?22:18, borderRadius:6,flexShrink:0,
-          display:'flex',alignItems:'center',justifyContent:'center',
-          background: done ? '#34d399' : 'transparent',
-          border: done ? 'none' : '1.5px solid #3d4060',
-          fontSize: big?13:11, color:'#000',fontWeight:900,
-        }}>
-          {done && '✓'}
+      <div key={item.id+date}>
+        <div onClick={()=>toggleCheck(date, item.id)}
+          style={{
+            display:'flex',alignItems:'center',gap:8,
+            padding: big ? '10px 12px' : '7px 10px',
+            borderRadius: hasAlert ? '8px 8px 0 0' : 8,cursor:'pointer',
+            background: done ? 'rgba(52,211,153,0.08)' : '#191c2b',
+            border: done ? '1px solid rgba(52,211,153,0.3)' : '1px solid #272a3d',
+            borderBottom: hasAlert ? 'none' : undefined,
+          }}>
+          <div style={{
+            width: big?22:18, height: big?22:18, borderRadius:6,flexShrink:0,
+            display:'flex',alignItems:'center',justifyContent:'center',
+            background: done ? '#34d399' : 'transparent',
+            border: done ? 'none' : '1.5px solid #3d4060',
+            fontSize: big?13:11, color:'#000',fontWeight:900,
+          }}>
+            {done && '✓'}
+          </div>
+          <span style={{
+            fontSize: big?14:12, fontWeight: done?400:600,
+            color: done ? '#5e6585' : '#dde1f2',
+            textDecoration: done ? 'line-through' : 'none',
+          }}>
+            {item.label}
+            <span style={{fontSize:big?11:10,color:'#f9b934',marginLeft:6,fontWeight:700}}>({item.time})</span>
+            {item.interval==='biweekly' && (
+              <span style={{fontSize:big?10:9,color:'#a78bfa',marginLeft:5,fontWeight:700}}>2주마다</span>
+            )}
+          </span>
         </div>
-        <span style={{
-          fontSize: big?14:12, fontWeight: done?400:600,
-          color: done ? '#5e6585' : '#dde1f2',
-          textDecoration: done ? 'line-through' : 'none',
-        }}>
-          {item.label}
-          <span style={{fontSize:big?11:10,color:'#f9b934',marginLeft:6,fontWeight:700}}>({item.time})</span>
-        </span>
+        {hasAlert && (
+          <div style={{
+            padding: big ? '7px 12px' : '5px 10px',
+            borderRadius:'0 0 8px 8px',
+            background:'rgba(248,113,113,0.12)',
+            border:'1px solid rgba(248,113,113,0.3)',borderTop:'none',
+            fontSize: big?11:10, color:'#f87171', fontWeight:700,
+            display:'flex',alignItems:'center',gap:5,
+          }}>
+            ⏰ {item.alertUid && alertNameOf(item.alertUid) ? `${alertNameOf(item.alertUid)}님 ` : ''}
+            {item.alertMsg || '일찍 출근 필요'}
+          </div>
+        )}
       </div>
     )
   }
@@ -359,24 +421,55 @@ export default function Checklist() {
                 <div key={item.id} style={{background:'#191c2b',borderRadius:7,padding:'7px 10px',
                   display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}>
                   {editItemId===item.id ? (
-                    <>
-                      <input value={editItemForm.label} onChange={e=>setEditItemForm(f=>({...f,label:e.target.value}))}
-                        style={{...inputStyle,width:140}}/>
-                      <select value={editItemForm.dow} onChange={e=>setEditItemForm(f=>({...f,dow:e.target.value}))} style={inputStyle}>
-                        {DOW_LABELS.map((d,i)=><option key={i} value={i}>{d}요일</option>)}
-                      </select>
-                      <select value={editItemForm.time} onChange={e=>setEditItemForm(f=>({...f,time:e.target.value}))} style={inputStyle}>
-                        <option value="오전">오전</option>
-                        <option value="오후">오후</option>
-                      </select>
-                      <button onClick={saveEditItem} disabled={saving}
-                        style={{background:'#f9b934',color:'#000',border:'none',borderRadius:5,padding:'5px 10px',fontSize:11,cursor:'pointer',fontFamily:'inherit'}}>저장</button>
-                      <button onClick={()=>{setEditItemId(null);setEditItemForm(null)}}
-                        style={{background:'transparent',border:'none',color:'#5e6585',fontSize:12,cursor:'pointer'}}>✕</button>
-                    </>
+                    <div style={{display:'flex',flexDirection:'column',gap:8,width:'100%'}}>
+                      <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
+                        <input value={editItemForm.label} onChange={e=>setEditItemForm(f=>({...f,label:e.target.value}))}
+                          style={{...inputStyle,width:140}}/>
+                        <select value={editItemForm.dow} onChange={e=>setEditItemForm(f=>({...f,dow:e.target.value}))} style={inputStyle}>
+                          {DOW_LABELS.map((d,i)=><option key={i} value={i}>{d}요일</option>)}
+                        </select>
+                        <select value={editItemForm.time} onChange={e=>setEditItemForm(f=>({...f,time:e.target.value}))} style={inputStyle}>
+                          <option value="오전">오전</option>
+                          <option value="오후">오후</option>
+                        </select>
+                        <select value={editItemForm.interval||'weekly'} onChange={e=>setEditItemForm(f=>({...f,interval:e.target.value}))} style={inputStyle}>
+                          <option value="weekly">매주</option>
+                          <option value="biweekly">2주마다</option>
+                        </select>
+                        {editItemForm.interval==='biweekly' && (
+                          <input type="date" value={editItemForm.baseDate||todayStr()}
+                            onChange={e=>setEditItemForm(f=>({...f,baseDate:e.target.value}))} style={inputStyle}/>
+                        )}
+                      </div>
+                      <div style={{display:'flex',gap:8,flexWrap:'wrap',alignItems:'center'}}>
+                        <span style={{fontSize:10,color:'#5e6585'}}>⏰ 알림(선택):</span>
+                        <select value={editItemForm.alertUid||''} onChange={e=>setEditItemForm(f=>({...f,alertUid:e.target.value}))} style={inputStyle}>
+                          <option value="">담당자 없음</option>
+                          {employees.map(e=><option key={e.uid} value={e.uid}>{e.name}</option>)}
+                        </select>
+                        <input value={editItemForm.alertMsg||''} onChange={e=>setEditItemForm(f=>({...f,alertMsg:e.target.value}))}
+                          placeholder="알림 문구 (예: 1시간 일찍 출근)" style={{...inputStyle,flex:1,minWidth:140}}/>
+                      </div>
+                      <div style={{display:'flex',gap:8}}>
+                        <button onClick={saveEditItem} disabled={saving}
+                          style={{background:'#f9b934',color:'#000',border:'none',borderRadius:5,padding:'6px 14px',fontSize:11,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>저장</button>
+                        <button onClick={()=>{setEditItemId(null);setEditItemForm(null)}}
+                          style={{background:'transparent',border:'1px solid #272a3d',color:'#5e6585',borderRadius:5,padding:'6px 14px',fontSize:11,cursor:'pointer',fontFamily:'inherit'}}>취소</button>
+                      </div>
+                    </div>
                   ) : (
                     <>
-                      <span style={{flex:1,fontSize:12,color:'#dde1f2'}}>{item.label}</span>
+                      <div style={{flex:1}}>
+                        <div style={{fontSize:12,color:'#dde1f2'}}>
+                          {item.label}
+                          {item.interval==='biweekly' && <span style={{fontSize:10,color:'#a78bfa',marginLeft:6,fontWeight:700}}>2주마다</span>}
+                        </div>
+                        {(item.alertUid||item.alertMsg) && (
+                          <div style={{fontSize:10,color:'#f87171',marginTop:2}}>
+                            ⏰ {item.alertUid && alertNameOf(item.alertUid) ? `${alertNameOf(item.alertUid)}님 ` : ''}{item.alertMsg||'일찍 출근 필요'}
+                          </div>
+                        )}
+                      </div>
                       <span style={{fontSize:11,color:'#93c5fd',fontWeight:600}}>{DOW_LABELS[item.dow]}요일</span>
                       <span style={{fontSize:11,color:'#f9b934',fontWeight:600}}>{item.time}</span>
                       <button onClick={()=>startEditItem(item,'weekly')}
@@ -388,22 +481,44 @@ export default function Checklist() {
                 </div>
               ))}
             </div>
-            <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
-              <input value={newWeekly.label} onChange={e=>setNewWeekly(f=>({...f,label:e.target.value}))}
-                placeholder="새 항목 이름"
-                style={{...inputStyle,flex:1,minWidth:120}}/>
-              <select value={newWeekly.dow} onChange={e=>setNewWeekly(f=>({...f,dow:e.target.value}))} style={inputStyle}>
-                {DOW_LABELS.map((d,i)=><option key={i} value={i}>{d}요일</option>)}
-              </select>
-              <select value={newWeekly.time} onChange={e=>setNewWeekly(f=>({...f,time:e.target.value}))} style={inputStyle}>
-                <option value="오전">오전</option>
-                <option value="오후">오후</option>
-              </select>
-              <button onClick={addWeeklyItem} disabled={saving}
-                style={{background:'#34d399',color:'#000',border:'none',borderRadius:7,
-                  padding:'8px 16px',fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'inherit',whiteSpace:'nowrap'}}>
-                + 추가
-              </button>
+            <div style={{display:'flex',flexDirection:'column',gap:8}}>
+              <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
+                <input value={newWeekly.label} onChange={e=>setNewWeekly(f=>({...f,label:e.target.value}))}
+                  placeholder="새 항목 이름 (예: 냉장고 성애제거)"
+                  style={{...inputStyle,flex:1,minWidth:120}}/>
+                <select value={newWeekly.dow} onChange={e=>setNewWeekly(f=>({...f,dow:e.target.value}))} style={inputStyle}>
+                  {DOW_LABELS.map((d,i)=><option key={i} value={i}>{d}요일</option>)}
+                </select>
+                <select value={newWeekly.time} onChange={e=>setNewWeekly(f=>({...f,time:e.target.value}))} style={inputStyle}>
+                  <option value="오전">오전</option>
+                  <option value="오후">오후</option>
+                </select>
+                <select value={newWeekly.interval} onChange={e=>setNewWeekly(f=>({...f,interval:e.target.value}))} style={inputStyle}>
+                  <option value="weekly">매주</option>
+                  <option value="biweekly">2주마다</option>
+                </select>
+                {newWeekly.interval==='biweekly' && (
+                  <div style={{display:'flex',alignItems:'center',gap:6}}>
+                    <span style={{fontSize:10,color:'#5e6585'}}>기준일</span>
+                    <input type="date" value={newWeekly.baseDate}
+                      onChange={e=>setNewWeekly(f=>({...f,baseDate:e.target.value}))} style={inputStyle}/>
+                  </div>
+                )}
+              </div>
+              <div style={{display:'flex',gap:8,flexWrap:'wrap',alignItems:'center'}}>
+                <span style={{fontSize:10,color:'#5e6585'}}>⏰ 알림(선택):</span>
+                <select value={newWeekly.alertUid} onChange={e=>setNewWeekly(f=>({...f,alertUid:e.target.value}))} style={inputStyle}>
+                  <option value="">담당자 없음</option>
+                  {employees.map(e=><option key={e.uid} value={e.uid}>{e.name}</option>)}
+                </select>
+                <input value={newWeekly.alertMsg} onChange={e=>setNewWeekly(f=>({...f,alertMsg:e.target.value}))}
+                  placeholder="알림 문구 (예: 1시간 일찍 출근 필요)" style={{...inputStyle,flex:1,minWidth:160}}/>
+                <button onClick={addWeeklyItem} disabled={saving}
+                  style={{background:'#34d399',color:'#000',border:'none',borderRadius:7,
+                    padding:'8px 16px',fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'inherit',whiteSpace:'nowrap'}}>
+                  + 추가
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -490,6 +605,29 @@ export default function Checklist() {
               </div>
             </div>
 
+            {/* 오늘 조기출근/특별 알림 배너 */}
+            {todayWeekly.filter(it=>it.alertUid||it.alertMsg).length > 0 && (
+              <div style={{marginBottom:16,display:'flex',flexDirection:'column',gap:8}}>
+                {todayWeekly.filter(it=>it.alertUid||it.alertMsg).map(it=>(
+                  <div key={it.id} style={{
+                    background:'rgba(248,113,113,0.12)',border:'1.5px solid rgba(248,113,113,0.4)',
+                    borderRadius:10,padding:'12px 16px',display:'flex',alignItems:'center',gap:10,
+                  }}>
+                    <span style={{fontSize:18}}>🔔</span>
+                    <div>
+                      <div style={{fontSize:13,fontWeight:800,color:'#f87171'}}>
+                        오늘은 {it.label} 있는 날!
+                      </div>
+                      <div style={{fontSize:11,color:'#f87171',marginTop:2,fontWeight:600}}>
+                        {it.alertUid && alertNameOf(it.alertUid) && `👤 ${alertNameOf(it.alertUid)}님 — `}
+                        {it.alertMsg || '일찍 출근 필요'}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
             <div style={{fontSize:11,color:'#5e6585',fontWeight:600,marginBottom:8}}>
               📌 매일 항목 <span style={{color:'#3d4060'}}>({todayDailyDone}/{dailyTotalSlots})</span>
             </div>
@@ -518,7 +656,7 @@ export default function Checklist() {
               {DAYS_KR.map((dayName, dow)=>{
                 const date = dateOfDow(dow)
                 const isClosed = dow === CLOSED_DOW
-                const weekly = getWeeklyForDow(dow)
+                const weekly = getWeeklyForDate(date)
                 const isToday = dow === todayDow
                 const dDone = isClosed ? 0 : dailyDoneCount(date)
                 const wDone = isClosed ? 0 : weekly.filter(it=>isChecked(date, it.id)).length
@@ -583,11 +721,11 @@ export default function Checklist() {
                 <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(240px,1fr))',gap:8,marginBottom:14}}>
                   {dailyItems.map(it=>DailyRow(it, dateOfDow(expandedDow)))}
                 </div>
-                {getWeeklyForDow(expandedDow).length>0 && (
+                {getWeeklyForDate(dateOfDow(expandedDow)).length>0 && (
                   <>
                     <div style={{fontSize:10,color:'#5e6585',fontWeight:600,marginBottom:6}}>요일별 항목</div>
                     <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(220px,1fr))',gap:8}}>
-                      {getWeeklyForDow(expandedDow).map(it=>WeeklyRow(it, dateOfDow(expandedDow)))}
+                      {getWeeklyForDate(dateOfDow(expandedDow)).map(it=>WeeklyRow(it, dateOfDow(expandedDow)))}
                     </div>
                   </>
                 )}
