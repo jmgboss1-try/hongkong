@@ -284,14 +284,14 @@ export default function Checklist() {
     .filter(r=>r.diffDays>=0 && r.diffDays<=7)
     .sort((a,b)=>a.diffDays-b.diffDays)
 
-  // 아직 확정 안 된 대타 요청 (D-7 이내)
+    // 아직 확정 안 된 대타 요청 (D-30 이내 — 지원자를 빨리 구해야 하니 넉넉하게)
   const openSubs = subRequests
     .filter(r=>!r.confirmedUid)
     .map(r=>{
       const diffDays = Math.round((new Date(r.date) - new Date(today)) / (1000*60*60*24))
       return { ...r, diffDays }
     })
-    .filter(r=>r.diffDays>=0 && r.diffDays<=7)
+    .filter(r=>r.diffDays>=0 && r.diffDays<=30)
     .sort((a,b)=>a.diffDays-b.diffDays)
 
   // 직전 영업일 미완료 항목 (일요일 휴무는 건너뛰고 계산됨)
