@@ -275,8 +275,18 @@ export default function Checklist() {
 
   // 확정된 대타 중 오늘부터 7일 이내(당일 포함)인 것
   const nameOf = uid => employees.find(e=>e.uid===uid)?.name || '—'
-  const upcomingSubs = subRequests
+    const upcomingSubs = subRequests
     .filter(r=>r.confirmedUid)
+    .map(r=>{
+      const diffDays = Math.round((new Date(r.date) - new Date(today)) / (1000*60*60*24))
+      return { ...r, diffDays }
+    })
+    .filter(r=>r.diffDays>=0 && r.diffDays<=7)
+    .sort((a,b)=>a.diffDays-b.diffDays)
+
+  // 아직 확정 안 된 대타 요청 (D-7 이내)
+  const openSubs = subRequests
+    .filter(r=>!r.confirmedUid)
     .map(r=>{
       const diffDays = Math.round((new Date(r.date) - new Date(today)) / (1000*60*60*24))
       return { ...r, diffDays }
@@ -662,6 +672,33 @@ export default function Checklist() {
                 {prevDailyUnfinished.map(it=>DailyRow(it, prevBusinessDate))}
                 {prevWeeklyUnfinished.map(it=>WeeklyRow(it, prevBusinessDate))}
               </div>
+            </div>
+          )}
+
+                    {/* 미확정 대타 구함 알림 (D-7 이내) */}
+          {openSubs.length > 0 && (
+            <div style={{marginBottom:18,display:'flex',flexDirection:'column',gap:8}}>
+              {openSubs.map(r=>{
+                const dLabel = r.diffDays===0 ? '오늘' : r.diffDays===1 ? '내일' : `D-${r.diffDays}`
+                const dDow = DAYS_KR[dowOfDate(r.date)]
+                return (
+                  <div key={r.id} style={{
+                    background:'rgba(248,113,113,0.10)',border:'1.5px solid rgba(248,113,113,0.35)',
+                    borderRadius:10,padding:'12px 16px',display:'flex',alignItems:'center',gap:10,
+                  }}>
+                    <span style={{fontSize:18}}>🙋</span>
+                    <div>
+                      <div style={{fontSize:13,fontWeight:800,color:'#f87171'}}>
+                        {dLabel}({dDow}) {nameOf(r.requesterUid)} 대타 구함!
+                      </div>
+                      <div style={{fontSize:11,color:'#f87171',marginTop:2,fontWeight:600}}>
+                        ⏰ {r.startH}:{r.startM}~{r.endH}:{r.endM}
+                        <span style={{color:'#5e6585',fontWeight:400,marginLeft:6}}>({r.date}) — 지원 가능해요!</span>
+                      </div>
+                    </div>
+                  </div>
+                )
+              })}
             </div>
           )}
 
