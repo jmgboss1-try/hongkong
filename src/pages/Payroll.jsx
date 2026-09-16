@@ -6,6 +6,7 @@ const pad = n => String(n).padStart(2,'0')
 const daysIn = ym => { const[y,m]=ym.split('-').map(Number); return new Date(y,m,0).getDate() }
 const mLabel = ym => { const[y,m]=ym.split('-'); return `${y}년 ${+m}월` }
 const wonFmt = n => (n||0).toLocaleString('ko-KR')
+const todayStr = () => { const n=new Date(); return `${n.getFullYear()}-${pad(n.getMonth()+1)}-${pad(n.getDate())}` }
 
 function getWageForMonth(emp, month) {
   const history = emp.wageHistory || []
@@ -368,6 +369,11 @@ export default function Payroll() {
   const [nameMap, setNameMap]             = useState({}) // uid → name (퇴직자 포함 전체)
   const [severanceInput, setSeveranceInput] = useState({}) // uid → 입력중인 금액
 
+  // 가불 관리
+  const [advances, setAdvances]       = useState({}) // {uid: [{id,date,amount,memo}]}
+  const [advanceUid, setAdvanceUid]   = useState(null) // 가불 패널 펼친 직원
+  const [advanceForm, setAdvanceForm] = useState({ date: todayStr(), amount:'', memo:'' })
+
   const monthOpts=[]
   for(let y=2022;y<=2026;y++){const sm=y===2022?10:1;for(let m=sm;m<=12;m++){monthOpts.push(`${y}-${pad(m)}`)}}
 
@@ -402,7 +408,7 @@ if(!isActive && !isRetired) return
       const [cy,cm] = curMonth.split('-').map(Number)
       const prev = cm===1?`${cy-1}-12`:`${cy}-${pad(cm-1)}`
 
-      const [wh,ex,me,pwh,pex,pme,pr,ownerCfg,sevSnap] = await Promise.all([
+      const [wh,ex,me,pwh,pex,pme,pr,ownerCfg,sevSnap,advSnap] = await Promise.all([
   getDoc(doc(db,'workhours',curMonth)),
   getDoc(doc(db,'workextra',curMonth)),
   getDoc(doc(db,'workmemos',curMonth)),
@@ -412,6 +418,7 @@ if(!isActive && !isRetired) return
   getDoc(doc(db,'payroll',curMonth)),
   getDoc(doc(db,'payrollOwner', curMonth)),
   getDoc(doc(db,'severance', curMonth)),
+  getDoc(doc(db,'advances', curMonth)),
 ])
       setWorkHours(wh.exists()?wh.data():{})
       setWorkExtra(ex.exists()?ex.data():{})
@@ -422,6 +429,7 @@ if(!isActive && !isRetired) return
       setPayroll(pr.exists()?pr.data():{})
       if(ownerCfg.exists()) setOwnerConfig(ownerCfg.data())
       setSeverance(sevSnap.exists()?sevSnap.data():{})
+      setAdvances(advSnap.exists()?advSnap.data():{})
     } catch(e){ console.error(e) }
     setLoading(false)
   }
@@ -552,6 +560,42 @@ if(!isActive && !isRetired) return
     setSaving(false)
   }
 
+  // ── 가불 관리 ──
+  function advanceListOf(uid) {
+    return advances[uid] || []
+  }
+  function advanceTotalOf(uid) {
+    return advanceListOf(uid).reduce((a,r)=>a+(r.amount||0),0)
+  }
+  async function saveAdvances(newAdvances) {
+    await setDoc(doc(db,'advances',curMonth), newAdvances)
+    setAdvances(newAdvances)
+  }
+  async function addAdvance(uid) {
+    const amount = +String(advanceForm.amount||'').replace(/[^0-9]/g,'') || 0
+    if(amount <= 0) return alert('가불 금액을 입력해주세요')
+    if(!advanceForm.date) return alert('날짜를 입력해주세요')
+    setSaving(true)
+    try {
+      const newRec = { id: Date.now().toString(), date: advanceForm.date, amount, memo: advanceForm.memo||'' }
+      const newList = [...advanceListOf(uid), newRec].sort((a,b)=>a.date>b.date?1:-1)
+      const newAdvances = { ...advances, [uid]: newList }
+      await saveAdvances(newAdvances)
+      setAdvanceForm({ date: todayStr(), amount:'', memo:'' })
+    } catch(e){ console.error(e) }
+    setSaving(false)
+  }
+  async function deleteAdvance(uid, id) {
+    if(!window.confirm('이 가불 기록을 삭제하시겠습니까?')) return
+    setSaving(true)
+    try {
+      const newList = advanceListOf(uid).filter(r=>r.id!==id)
+      const newAdvances = { ...advances, [uid]: newList }
+      await saveAdvances(newAdvances)
+    } catch(e){ console.error(e) }
+    setSaving(false)
+  }
+
   const inquiryCount = employees.filter(e=>getStatus(e.uid)==='inquiry').length
   const paidCount    = employees.filter(e=>getStatus(e.uid)==='paid').length
   const checkedCount = employees.filter(e=>['checked','paid'].includes(getStatus(e.uid))).length
@@ -562,6 +606,7 @@ if(!isActive && !isRetired) return
     return a + netPay
   },0)
   const severanceTotal = Object.values(severance).reduce((a,s)=>a+s.net,0)
+  const advanceGrandTotal = Object.values(advances).reduce((a,list)=>a+(list||[]).reduce((b,r)=>b+(r.amount||0),0),0)
 
   return (
     <div>
@@ -606,6 +651,7 @@ if(!isActive && !isRetired) return
           {label:'문의 건수',        val:`${inquiryCount}건`,                       color:'#f87171'},
           {label:'지급 완료',        val:`${paidCount}명`,                          color:'#93c5fd'},
           ...(severanceTotal>0 ? [{label:'이달 퇴직금 지급액', val:`${severanceTotal.toLocaleString()}원`, color:'#fb923c'}] : []),
+          ...(advanceGrandTotal>0 ? [{label:'이달 가불 총액', val:`${advanceGrandTotal.toLocaleString()}원`, color:'#f87171'}] : []),
         ].map(k=>(
           <div key={k.label} style={{background:'#12141f',border:'1px solid #272a3d',borderRadius:12,padding:'14px 16px',position:'relative',overflow:'hidden'}}>
             <div style={{position:'absolute',top:0,left:0,right:0,height:2,background:k.color,opacity:.5}}/>
@@ -627,6 +673,9 @@ if(!isActive && !isRetired) return
             const st      = STATUS[status]
             const hasInquiry = p?.inquiry && !p.inquiry.resolved
             const isOpen  = activeUid === emp.uid
+            const advTotal  = advanceTotalOf(emp.uid)
+            const finalPay  = (display.netPay||display.totalPay||0) - advTotal
+            const isAdvanceOpen = advanceUid === emp.uid
 
             return (
               <div key={emp.uid} style={{background:'#12141f',
@@ -653,6 +702,13 @@ if(!isActive && !isRetired) return
                         📨 문의 {isOpen?'닫기':'확인'}
                       </button>
                     )}
+                    <button onClick={()=>{ setAdvanceUid(isAdvanceOpen?null:emp.uid); setAdvanceForm({date:todayStr(),amount:'',memo:''}) }}
+                      style={{background: advTotal>0 ? 'rgba(248,113,113,0.12)' : 'rgba(147,197,253,0.1)',
+                        border: advTotal>0 ? '1px solid rgba(248,113,113,0.3)' : '1px solid rgba(147,197,253,0.25)',
+                        color: advTotal>0 ? '#f87171' : '#93c5fd',borderRadius:6,padding:'4px 10px',fontSize:11,
+                        cursor:'pointer',fontFamily:'inherit',fontWeight:600}}>
+                      💸 가불{advTotal>0?` ${advTotal.toLocaleString()}원`:''} {isAdvanceOpen?'닫기':''}
+                    </button>
                   </div>
                   <div style={{display:'flex',alignItems:'center',gap:14,flexWrap:'wrap'}}>
                     <div style={{textAlign:'right'}}>
@@ -678,8 +734,13 @@ if(!isActive && !isRetired) return
                           </span>
                         )}
                       </div>
+                      {advTotal>0 && (
+                        <div style={{fontSize:11,color:'#f87171',marginBottom:2}}>
+                          가불 차감 -{advTotal.toLocaleString()}원
+                        </div>
+                      )}
                       <div style={{fontSize:16,fontWeight:700,color:'#34d399',fontFamily:'DM Mono,monospace'}}>
-                        실수령 {(display.netPay||display.totalPay||0).toLocaleString()}원
+                        {advTotal>0 ? '최종 지급' : '실수령'} {finalPay.toLocaleString()}원
                       </div>
                     </div>
                     {status==='unconfirmed' && (
@@ -724,6 +785,59 @@ if(!isActive && !isRetired) return
                     )}
                   </div>
                 </div>
+
+                {/* 가불 관리 패널 */}
+                {isAdvanceOpen && (
+                  <div style={{padding:'14px 18px',borderTop:'1px solid rgba(147,197,253,0.2)',
+                    background:'rgba(147,197,253,0.03)'}}>
+                    <div style={{fontSize:11,fontWeight:600,color:'#93c5fd',marginBottom:10}}>
+                      💸 {emp.name} 가불 내역
+                    </div>
+
+                    {advanceListOf(emp.uid).length > 0 && (
+                      <div style={{display:'flex',flexDirection:'column',gap:6,marginBottom:12}}>
+                        {advanceListOf(emp.uid).map(r=>(
+                          <div key={r.id} style={{display:'flex',alignItems:'center',gap:10,
+                            background:'#191c2b',borderRadius:7,padding:'7px 12px',flexWrap:'wrap'}}>
+                            <span style={{fontSize:11,color:'#5e6585',fontFamily:'DM Mono,monospace',minWidth:80}}>{r.date}</span>
+                            <span style={{fontSize:13,fontWeight:700,color:'#f87171',fontFamily:'DM Mono,monospace'}}>
+                              {r.amount.toLocaleString()}원
+                            </span>
+                            <span style={{flex:1,fontSize:11,color:'#5e6585'}}>{r.memo||'—'}</span>
+                            <button onClick={()=>deleteAdvance(emp.uid, r.id)}
+                              style={{background:'transparent',border:'1px solid #3d1f1f',color:'#f87171',
+                                padding:'3px 8px',fontSize:10,borderRadius:4,cursor:'pointer',fontFamily:'inherit'}}>
+                              삭제
+                            </button>
+                          </div>
+                        ))}
+                        <div style={{display:'flex',justifyContent:'flex-end',fontSize:11,color:'#5e6585',paddingTop:2}}>
+                          이번달 가불 합계 <span style={{color:'#f87171',fontWeight:700,marginLeft:6}}>{advTotal.toLocaleString()}원</span>
+                        </div>
+                      </div>
+                    )}
+
+                    <div style={{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap'}}>
+                      <input type="date" value={advanceForm.date}
+                        onChange={e=>setAdvanceForm(f=>({...f,date:e.target.value}))}
+                        style={{background:'#191c2b',border:'1px solid #272a3d',borderRadius:7,color:'#dde1f2',
+                          padding:'7px 10px',fontSize:12,outline:'none',fontFamily:'inherit'}}/>
+                      <input type="number" placeholder="가불 금액" value={advanceForm.amount}
+                        onChange={e=>setAdvanceForm(f=>({...f,amount:e.target.value}))}
+                        style={{width:140,background:'#191c2b',border:'1px solid #272a3d',borderRadius:7,color:'#dde1f2',
+                          padding:'7px 10px',fontSize:12,outline:'none',fontFamily:'DM Mono,monospace'}}/>
+                      <input placeholder="메모 (선택)" value={advanceForm.memo}
+                        onChange={e=>setAdvanceForm(f=>({...f,memo:e.target.value}))}
+                        style={{flex:1,minWidth:120,background:'#191c2b',border:'1px solid #272a3d',borderRadius:7,color:'#dde1f2',
+                          padding:'7px 10px',fontSize:12,outline:'none',fontFamily:'inherit'}}/>
+                      <button onClick={()=>addAdvance(emp.uid)} disabled={saving}
+                        style={{background:'#93c5fd',color:'#000',border:'none',borderRadius:7,padding:'7px 16px',
+                          fontSize:11,fontWeight:700,cursor:'pointer',fontFamily:'inherit',whiteSpace:'nowrap'}}>
+                        + 가불 추가
+                      </button>
+                    </div>
+                  </div>
+                )}
 
                 {/* 퇴직금 처리 (퇴직자 전용) */}
                 {emp.isRetired && (
