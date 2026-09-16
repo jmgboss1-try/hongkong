@@ -109,6 +109,7 @@ export default function Checklist() {
   const [expandedDow, setExpandedDow] = useState(null)
   const [employees, setEmployees] = useState([]) // [{uid,name}]
   const [subRequests, setSubRequests] = useState([]) // 대타 확정 목록
+  const [pinnedNotices, setPinnedNotices] = useState([]) // 공지/메모 중 체크리스트 알림 대상
 
   const today = todayStr()
   const todayDow = new Date().getDay()
@@ -121,11 +122,13 @@ export default function Checklist() {
   async function load() {
     setLoading(true)
     try {
-      const [cfgSnap, recSnap, usersSnap, subSnap] = await Promise.all([
+      const [cfgSnap, recSnap, usersSnap, subSnap, noticeSnap, memoSnap] = await Promise.all([
         getDoc(doc(db,'checklist','config')),
         getDoc(doc(db,'checklist','records')),
         getDocs(collection(db,'users')),
         getDoc(doc(db,'substitutes','requests')),
+        getDocs(collection(db,'notices')),
+        getDocs(collection(db,'memos')),
       ])
       if(cfgSnap.exists()) {
         const cfg = cfgSnap.data()
@@ -143,6 +146,24 @@ export default function Checklist() {
       })
       setEmployees(emps)
       setSubRequests(subSnap.exists() ? (subSnap.data().list||[]) : [])
+
+      const nowDate = todayStr()
+      const pinned = []
+      noticeSnap.forEach(d=>{
+        const data = d.data()
+        if(data.checklistAlert && data.alertStart && data.alertEnd &&
+           data.alertStart<=nowDate && nowDate<=data.alertEnd) {
+          pinned.push({ type:'notice', id:d.id, content:data.content, authorName:data.authorName })
+        }
+      })
+      memoSnap.forEach(d=>{
+        const data = d.data()
+        if(data.checklistAlert && data.alertStart && data.alertEnd &&
+           data.alertStart<=nowDate && nowDate<=data.alertEnd) {
+          pinned.push({ type:'memo', id:d.id, content:data.content, authorName:data.authorName })
+        }
+      })
+      setPinnedNotices(pinned)
     } catch(e) { console.error(e) }
     setLoading(false)
   }
@@ -594,6 +615,30 @@ export default function Checklist() {
               )}
             </>
           )}
+        </div>
+      )}
+
+      {/* 공지·메모 알림 — 휴무일에도 항상 표시 */}
+      {!loading && pinnedNotices.length > 0 && (
+        <div style={{marginBottom:18,display:'flex',flexDirection:'column',gap:8}}>
+          {pinnedNotices.map(n=>(
+            <div key={n.type+n.id} style={{
+              background: n.type==='notice' ? 'rgba(249,185,52,0.10)' : 'rgba(147,197,253,0.10)',
+              border: n.type==='notice' ? '1.5px solid rgba(249,185,52,0.4)' : '1.5px solid rgba(147,197,253,0.35)',
+              borderRadius:10,padding:'12px 16px',display:'flex',alignItems:'flex-start',gap:10,
+            }}>
+              <span style={{fontSize:18}}>{n.type==='notice' ? '📢' : '💬'}</span>
+              <div>
+                <div style={{fontSize:11,fontWeight:800,
+                  color: n.type==='notice' ? '#f9b934' : '#93c5fd', marginBottom:2}}>
+                  {n.type==='notice' ? `공지 · ${n.authorName}` : `메모 · ${n.authorName}`}
+                </div>
+                <div style={{fontSize:13,color:'#dde1f2',lineHeight:1.6,whiteSpace:'pre-wrap'}}>
+                  {n.content}
+                </div>
+              </div>
+            </div>
+          ))}
         </div>
       )}
 
