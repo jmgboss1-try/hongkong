@@ -200,8 +200,11 @@ export default function Members() {
       const now = new Date()
       const thisMonth = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`
       const userSnap = await getDoc(doc(db,'users',form.uid))
-      const existingHistory = userSnap.exists() ? userSnap.data().wageHistory || [] : []
-      const oldWage = userSnap.exists() ? (userSnap.data().wage || 10030) : 10030
+      const existingData = userSnap.exists() ? userSnap.data() : {}
+
+      // ── 시급 이력 ──
+      const existingHistory = existingData.wageHistory || []
+      const oldWage = existingData.wage || 10030
       const newWage = +form.wage || 10030
       const hasPriorHistory = existingHistory.some(h => h.month < thisMonth)
       const newHistory = existingHistory.filter(h => h.month !== thisMonth)
@@ -212,6 +215,22 @@ export default function Members() {
       newHistory.push({ month: thisMonth, wage: newWage })
       newHistory.sort((a,b) => a.month > b.month ? 1 : -1)
 
+      // ── 근무스케쥴(소정근로일/평균근무시간) 이력 — 시급 이력과 동일한 패턴 ──
+      const existingScheduleHistory = existingData.scheduleHistory || []
+      const oldWorkDays = existingData.workDays || [1,2,3,4,5]
+      const oldAvgHours = existingData.avgHours || 8
+      const newWorkDays = form.workDays || [1,2,3,4,5]
+      const newAvgHours = +form.avgHours || 8
+      const scheduleChanged = JSON.stringify(oldWorkDays) !== JSON.stringify(newWorkDays) || oldAvgHours !== newAvgHours
+      const hasPriorScheduleHistory = existingScheduleHistory.some(h => h.month < thisMonth)
+      const newScheduleHistory = existingScheduleHistory.filter(h => h.month !== thisMonth)
+      if (!hasPriorScheduleHistory && scheduleChanged) {
+        const joinMonth = form.joinDate ? form.joinDate.slice(0,7) : '2022-10'
+        newScheduleHistory.push({ month: joinMonth, workDays: oldWorkDays, avgHours: oldAvgHours })
+      }
+      newScheduleHistory.push({ month: thisMonth, workDays: newWorkDays, avgHours: newAvgHours })
+      newScheduleHistory.sort((a,b) => a.month > b.month ? 1 : -1)
+
       await setDoc(doc(db,'users',form.uid), {
         name: form.name,
         wage: newWage,
@@ -220,13 +239,14 @@ export default function Members() {
         email: form.email || '',
         account: form.account || '',
         ssn: form.ssn || '',
-        avgHours: +form.avgHours || 8,
-        workDays: form.workDays || [1,2,3,4,5],
+        avgHours: newAvgHours,
+        workDays: newWorkDays,
         holidayBase: form.holidayBase || 'contract',
         employType: form.employType || 'part',
         payType: form.payType || 'hourly',
         fixedSalary: +form.fixedSalary || 0,
         wageHistory: newHistory,
+        scheduleHistory: newScheduleHistory,
       }, {merge:true})
 
       await load()
@@ -284,6 +304,8 @@ export default function Members() {
         payType:      addForm.payType || 'hourly',
         fixedSalary:  +addForm.fixedSalary || 0,
         wageHistory:  [{ month: (addForm.joinDate||'').slice(0,7) || '2022-10', wage: +addForm.wage||10030 }],
+        scheduleHistory: [{ month: (addForm.joinDate||'').slice(0,7) || '2022-10',
+          workDays: addForm.workDays || [1,2,3,4,5], avgHours: +addForm.avgHours || 8 }],
         manualEntry:  true,
       })
       setShowAddForm(false)
