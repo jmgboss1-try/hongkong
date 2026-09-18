@@ -15,6 +15,16 @@ function getWageForMonth(emp, month) {
   return applicable.length ? applicable[0].wage : (emp.wage||10030)
 }
 
+// 해당 월에 적용되는 근무스케쥴(소정근로일/평균근무시간) 찾기 — 시급 이력과 동일한 패턴
+function getScheduleForMonth(emp, month) {
+  const history = emp.scheduleHistory || []
+  if(!history.length) return { workDays: emp.workDays || [1,2,3,4,5], avgHours: emp.avgHours || 8 }
+  const applicable = history.filter(h=>h.month<=month).sort((a,b)=>a.month>b.month?-1:1)
+  return applicable.length
+    ? { workDays: applicable[0].workDays, avgHours: applicable[0].avgHours }
+    : { workDays: emp.workDays || [1,2,3,4,5], avgHours: emp.avgHours || 8 }
+}
+
 function calcDeduction(totalPay, employType) {
   if(employType === 'none') return { tax:0, pension:0, health:0, employ:0, care:0, total:0 }
   if(employType === 'part') {
@@ -49,8 +59,9 @@ function computeSalary(emp, wh, ex, empMemos, prevWh, prevEx, prevEmpMemos, curM
   }
 
   const wage = getWageForMonth(emp, curMonth)
-  const workDays = emp.workDays || [1,2,3,4,5]
-  const avgHours = emp.avgHours || 8
+  const schedule = getScheduleForMonth(emp, curMonth)
+  const workDays = schedule.workDays || [1,2,3,4,5]
+  const avgHours = schedule.avgHours || 8
   const holidayBase = emp.holidayBase || 'contract'
   const days = daysIn(curMonth)
   const [cy,cm] = curMonth.split('-').map(Number)
@@ -397,6 +408,7 @@ if(!isActive && !isRetired) return
             wageHistory:data.wageHistory||[], workDays:data.workDays||[1,2,3,4,5],
             avgHours:data.avgHours||8, employType:data.employType||'part',
             holidayBase:data.holidayBase||'contract',
+            scheduleHistory:data.scheduleHistory||[],
             payType:data.payType||'hourly', fixedSalary:data.fixedSalary||0,
             isRetired, leaveDate:data.leaveDate||null})
         if(data.ssn) ssnData[d.id] = data.ssn
