@@ -1,664 +1,591 @@
 import { useEffect, useState } from 'react'
 import { db } from '../firebase'
-import { collection, getDocs, getDoc, doc, setDoc } from 'firebase/firestore'
-import { GradeBadge } from '../AuthContext'
+import { doc, getDoc, setDoc, collection, getDocs } from 'firebase/firestore'
 
-function calcTenure(joinDate, leaveDate) {
-  if (!joinDate) return '—'
-  const end = leaveDate ? new Date(leaveDate) : new Date()
-  const join = new Date(joinDate)
-  const diffDays = Math.floor((end-join)/(1000*60*60*24))
-  const years = Math.floor(diffDays/365)
-  const months = Math.floor((diffDays%365)/30)
-  if (years > 0) return `${years}년 ${months}개월`
-  if (months > 0) return `${months}개월`
-  return `${diffDays}일`
+const pad = n => String(n).padStart(2,'0')
+
+// 해당 월의 시급 찾기
+function getWageForMonth(emp, month) {
+  const history = emp.wageHistory || []
+  if(history.length === 0) return emp.wage || 10030
+  const applicable = history
+    .filter(h => h.month <= month)
+    .sort((a,b) => a.month > b.month ? -1 : 1)
+  return applicable.length > 0 ? applicable[0].wage : (emp.wage || 10030)
 }
 
-function calcSeverance(joinDate, leaveDate, wage, avgHours) {
-  if (!joinDate) return 0
-  const end = leaveDate ? new Date(leaveDate) : new Date()
-  const join = new Date(joinDate)
-  const diffDays = Math.floor((end-join)/(1000*60*60*24))
-  if (diffDays < 365) return 0
-  const years = diffDays / 365
-  const dailyWage = (wage * (avgHours||8)) / 30
-  return Math.round(dailyWage * 30 * years)
+// 해당 월에 적용되는 근무스케쥴(소정근로일/평균근무시간) 찾기 — 시급 이력과 동일한 패턴
+function getScheduleForMonth(emp, month) {
+  const history = emp.scheduleHistory || []
+  if(history.length === 0) return { workDays: emp.workDays || [1,2,3,4,5], avgHours: emp.avgHours || 8 }
+  const applicable = history
+    .filter(h => h.month <= month)
+    .sort((a,b) => a.month > b.month ? -1 : 1)
+  return applicable.length > 0
+    ? { workDays: applicable[0].workDays, avgHours: applicable[0].avgHours }
+    : { workDays: emp.workDays || [1,2,3,4,5], avgHours: emp.avgHours || 8 }
 }
 
-function maskSSN(ssn) {
-  if (!ssn) return '—'
-  return ssn.slice(0,6) + '-●●●●●●'
+const daysIn = ym => { const[y,m]=ym.split('-').map(Number); return new Date(y,m,0).getDate() }
+const mLabel = ym => { const[y,m]=ym.split('-'); return `${y}년 ${+m}월` }
+const DAYS_KR = ['일','월','화','수','목','금','토']
+
+function calcWeeklyHoliday(weekHours, wage, workDays, weekAttendance, weekMemos) {
+  // 그 주 실제 근무시간이 15시간 미만이면 미지급 (매주 독립 판단)
+  if(weekHours < 15) return 0
+
+  // 소정근로일 중 결근일 계산
+  const absentDays = workDays.filter(dow => {
+    const h = weekAttendance[dow] || 0
+    return h === 0
+  })
+
+  if(absentDays.length === 0) {
+    // 개근 → 주휴 지급
+    // 주휴수당 = (그 주 실제근무시간 / 40) × 8 × 시급
+    return Math.round((weekHours / 40) * 8 * wage)
+  }
+
+  // 결근이 있는 경우 → 대타로 메꿨는지 확인
+  const subCount = Object.values(weekMemos).filter(memo =>
+    memo && memo.includes('대타')
+  ).length
+
+  if(subCount >= absentDays.length) {
+    return Math.round((weekHours / 40) * 8 * wage)
+  }
+
+  return 0
 }
 
-function MemberCard({ m, onEdit, onRetire }) {
-  const [showDetail, setShowDetail] = useState(false)
-  const tenure = calcTenure(m.joinDate)
-  const severance = calcSeverance(m.joinDate, null, m.wage||10030, m.avgHours||8)
-
-  return (
-    <div style={{background:'#191c2b',border:'1px solid #272a3d',borderRadius:12,overflow:'hidden'}}>
-      <div style={{padding:'16px',display:'flex',alignItems:'center',justifyContent:'space-between',cursor:'pointer'}}
-        onClick={()=>setShowDetail(v=>!v)}>
-        <div style={{display:'flex',flexDirection:'column',gap:6}}>
-          <div style={{display:'flex',alignItems:'center',gap:10}}>
-            <div style={{fontSize:16,fontWeight:700}}>{m.name}</div>
-            <GradeBadge joinDate={m.joinDate} size={11}/>
-          </div>
-          <div style={{fontSize:11,color:'#5e6585'}}>
-            📅 입사일: {m.joinDate||'미입력'} · 근속 {tenure}
-          </div>
-        </div>
-        <div style={{fontSize:12,color:'#5e6585'}}>{showDetail?'▲':'▼'}</div>
-      </div>
-      {showDetail && (
-        <div style={{borderTop:'1px solid #272a3d',padding:'16px',display:'flex',flexDirection:'column',gap:10}}>
-          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
-            {[
-              ['📱 연락처', m.phone||'—'],
-              ['✉️ 이메일', m.email||'—'],
-              ['🏦 계좌번호', m.account||'—'],
-              ['🔐 주민번호', maskSSN(m.ssn)],
-              ...(m.payType==='fixed'
-                ? [['💰 월 고정급', `${(m.fixedSalary||0).toLocaleString()}원`]]
-                : [
-                    ['💰 시급', `${(m.wage||10030).toLocaleString()}원`],
-                    ['⏱ 평균 근무시간', `${m.avgHours||8}h/일`],
-                  ]
-              ),
-            ].map(([label,val])=>(
-              <div key={label} style={{background:'#12141f',borderRadius:8,padding:'10px 12px'}}>
-                <div style={{fontSize:10,color:'#5e6585',marginBottom:3}}>{label}</div>
-                <div style={{fontSize:12,color:'#dde1f2',fontFamily:'DM Mono,monospace'}}>{val}</div>
-              </div>
-            ))}
-          </div>
-          <div style={{background:'rgba(249,185,52,0.08)',border:'1px solid rgba(249,185,52,0.2)',borderRadius:8,padding:'12px 14px',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
-            <div>
-              <div style={{fontSize:10,color:'#5e6585',marginBottom:3}}>📦 예상 퇴직금 (현재 기준)</div>
-              <div style={{fontSize:16,fontWeight:700,color:'#f9b934',fontFamily:'DM Mono,monospace'}}>
-                {severance > 0 ? severance.toLocaleString()+'원' : '1년 미만 (해당없음)'}
-              </div>
-            </div>
-            <div style={{fontSize:10,color:'#5e6585',textAlign:'right',lineHeight:1.8}}>
-              근속 {tenure}<br/>시급 {(m.wage||10030).toLocaleString()}원
-            </div>
-          </div>
-          <div style={{display:'flex',gap:8}}>
-            <button onClick={()=>onEdit(m)}
-              style={{background:'#f9b934',color:'#000',border:'none',borderRadius:7,padding:'8px 16px',fontSize:11,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
-              ✏️ 정보 수정
-            </button>
-            <button onClick={()=>onRetire(m)}
-              style={{background:'transparent',border:'1px solid #f87171',color:'#f87171',borderRadius:7,padding:'8px 16px',fontSize:11,cursor:'pointer',fontFamily:'inherit'}}>
-              📤 퇴직 처리
-            </button>
-          </div>
-        </div>
-      )}
-    </div>
-  )
-}
-
-function RetiredCard({ m, onRestore }) {
-  const [showDetail, setShowDetail] = useState(false)
-  const tenure = calcTenure(m.joinDate, m.leaveDate)
-  const severance = calcSeverance(m.joinDate, m.leaveDate, m.wage||10030, m.avgHours||8)
-
-  return (
-    <div style={{background:'#191c2b',border:'1px solid #272a3d',borderRadius:12,overflow:'hidden',opacity:0.8}}>
-      <div style={{padding:'16px',display:'flex',alignItems:'center',justifyContent:'space-between',cursor:'pointer'}}
-        onClick={()=>setShowDetail(v=>!v)}>
-        <div style={{display:'flex',flexDirection:'column',gap:6}}>
-          <div style={{display:'flex',alignItems:'center',gap:10}}>
-            <div style={{fontSize:16,fontWeight:700,color:'#5e6585'}}>{m.name}</div>
-            <span style={{fontSize:10,background:'rgba(94,101,133,0.2)',color:'#5e6585',padding:'2px 8px',borderRadius:4,fontWeight:600}}>퇴직</span>
-          </div>
-          <div style={{fontSize:11,color:'#5e6585'}}>
-            📅 {m.joinDate||'?'} ~ {m.leaveDate||'?'} · 근속 {tenure}
-          </div>
-        </div>
-        <div style={{fontSize:12,color:'#5e6585'}}>{showDetail?'▲':'▼'}</div>
-      </div>
-      {showDetail && (
-        <div style={{borderTop:'1px solid #272a3d',padding:'16px',display:'flex',flexDirection:'column',gap:10}}>
-          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
-            {[
-              ['📅 입사일', m.joinDate||'—'],
-              ['📤 퇴사일', m.leaveDate||'—'],
-              ['📱 연락처', m.phone||'—'],
-              ['🏦 계좌번호', m.account||'—'],
-              ['💰 마지막 시급', `${(m.wage||10030).toLocaleString()}원`],
-              ['⏱ 평균 근무시간', `${m.avgHours||8}h/일`],
-            ].map(([label,val])=>(
-              <div key={label} style={{background:'#12141f',borderRadius:8,padding:'10px 12px'}}>
-                <div style={{fontSize:10,color:'#5e6585',marginBottom:3}}>{label}</div>
-                <div style={{fontSize:12,color:'#dde1f2',fontFamily:'DM Mono,monospace'}}>{val}</div>
-              </div>
-            ))}
-          </div>
-          <div style={{background:'rgba(94,101,133,0.08)',border:'1px solid rgba(94,101,133,0.2)',borderRadius:8,padding:'12px 14px',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
-            <div>
-              <div style={{fontSize:10,color:'#5e6585',marginBottom:3}}>📦 퇴직금 (퇴사일 기준)</div>
-              <div style={{fontSize:16,fontWeight:700,color:'#f9b934',fontFamily:'DM Mono,monospace'}}>
-                {severance > 0 ? severance.toLocaleString()+'원' : '1년 미만 (해당없음)'}
-              </div>
-            </div>
-            <div style={{fontSize:10,color:'#5e6585',textAlign:'right',lineHeight:1.8}}>
-              근속 {tenure}<br/>시급 {(m.wage||10030).toLocaleString()}원
-            </div>
-          </div>
-          <button onClick={()=>onRestore(m)}
-            style={{background:'transparent',border:'1px solid #34d399',color:'#34d399',borderRadius:7,
-              padding:'8px 16px',fontSize:11,cursor:'pointer',fontFamily:'inherit'}}>
-            🔄 복직 처리
-          </button>
-        </div>
-      )}
-    </div>
-  )
-}
-
-export default function Members() {
-  const [members, setMembers] = useState([])
-  const [retired, setRetired] = useState([])
+export default function WorkManage() {
+  const [curMonth, setCurMonth] = useState(() => {
+    const now = new Date()
+    return `${now.getFullYear()}-${pad(now.getMonth()+1)}`
+  })
+  const [employees, setEmployees] = useState([])
+  const [workHours, setWorkHours] = useState({})   // {uid: {dd: hours}}
+  const [workExtra, setWorkExtra] = useState({})   // {uid: {dd: minutes}}
+  const [memos, setMemos] = useState({})           // {uid: {dd: memo}}
+  const [prevWorkHours, setPrevWorkHours] = useState({})
+  const [prevWorkExtra, setPrevWorkExtra] = useState({})
+  const [prevMemos, setPrevMemos] = useState({})
   const [loading, setLoading] = useState(true)
-  const [showForm, setShowForm] = useState(false)
-  const [showRetired, setShowRetired] = useState(false)
-  const [form, setForm] = useState({})
-  const [saving, setSaving] = useState(false)
-  const [retireForm, setRetireForm] = useState(null) // 퇴직 처리 중인 직원
-  const [showAddForm, setShowAddForm] = useState(false)
-  const [addForm, setAddForm] = useState({})
-  const [addSaving, setAddSaving] = useState(false)
+  const [activeEmp, setActiveEmp] = useState(null)
+  const [showTodayOnly, setShowTodayOnly] = useState(false)
+  const [severance, setSeverance] = useState({}) // {uid:{amount,tax,net,paidDate}}
+  const [nameMap, setNameMap] = useState({}) // uid → name (퇴직자 포함)
+
+  const monthOpts = []
+  for(let y=2022;y<=2026;y++){const sm=y===2022?10:1;for(let m=sm;m<=12;m++){monthOpts.push(`${y}-${pad(m)}`)}}
 
   async function load() {
     setLoading(true)
     try {
-      const snap = await getDocs(collection(db,'users'))
-      const active = [], ret = []
-      snap.forEach(d => {
+      const usersSnap = await getDocs(collection(db,'users'))
+      const finalEmps = []
+      const nameData = {}
+usersSnap.forEach(d => {
         const data = d.data()
-        if(data.role === 'owner') return
-        if(data.status === 'approved') active.push({uid:d.id,...data})
-        if(data.status === 'retired') ret.push({uid:d.id,...data})
+        nameData[d.id] = data.name
+        if(data.status==='approved'
+  && data.role!=='owner'
+  && data.role!=='store'
+  && data.role!=='investor'
+  && data.payType!=='fixed') {
+          finalEmps.push({
+            uid:d.id,
+            name:data.name,
+            wage:data.wage||10030,
+            wageHistory:data.wageHistory||[],
+            workDays:data.workDays||[1,2,3,4,5],
+            avgHours:data.avgHours||8,
+            scheduleHistory:data.scheduleHistory||[]
+          })
+        }
       })
-      setMembers(active.sort((a,b)=>a.joinDate>b.joinDate?1:-1))
-      setRetired(ret.sort((a,b)=>a.leaveDate>b.leaveDate?-1:1))
+      setEmployees(finalEmps)
+      setNameMap(nameData)
+
+      const sevSnap = await getDoc(doc(db,'severance',curMonth))
+      setSeverance(sevSnap.exists() ? sevSnap.data() : {})
+
+const whSnap = await getDoc(doc(db,'workhours',curMonth))
+      setWorkHours(whSnap.exists() ? whSnap.data() : {})
+
+      const exSnap = await getDoc(doc(db,'workextra',curMonth))
+      setWorkExtra(exSnap.exists() ? exSnap.data() : {})
+
+const memoSnap = await getDoc(doc(db,'workmemos',curMonth))
+      setMemos(memoSnap.exists() ? memoSnap.data() : {})
+
+      // 이전달 데이터 불러오기
+      const [cy,cm] = curMonth.split('-').map(Number)
+      const prevMonth = cm===1 ? `${cy-1}-12` : `${cy}-${pad(cm-1)}`
+      const prevWhSnap = await getDoc(doc(db,'workhours',prevMonth))
+      setPrevWorkHours(prevWhSnap.exists() ? prevWhSnap.data() : {})
+      const prevExSnap = await getDoc(doc(db,'workextra',prevMonth))
+setPrevWorkExtra(prevExSnap.exists() ? prevExSnap.data() : {})
+
+const prevMemoSnap = await getDoc(doc(db,'workmemos',prevMonth))
+setPrevMemos(prevMemoSnap.exists() ? prevMemoSnap.data() : {})
+
     } catch(e) { console.error(e) }
     setLoading(false)
   }
 
-  useEffect(()=>{ load() },[])
+  useEffect(() => { load() }, [curMonth])
 
-  function setF(key,val){ setForm(f=>({...f,[key]:val})) }
+  async function saveWorkHours(uid, dd, hours) {
+    const h = +hours || 0
+    const newWH = { ...workHours, [uid]: { ...(workHours[uid]||{}), [dd]: h } }
+    if(!h) delete newWH[uid][dd]
+    await setDoc(doc(db,'workhours',curMonth), newWH)
+    setWorkHours(newWH)
+  }
 
-  async function save() {
-    if(!form.name?.trim()) return alert('이름을 입력해주세요')
-    setSaving(true)
-    try {
-      const now = new Date()
-      const thisMonth = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`
-      const userSnap = await getDoc(doc(db,'users',form.uid))
-      const existingData = userSnap.exists() ? userSnap.data() : {}
+  async function saveWorkExtra(uid, dd, mins) {
+    const m = +mins || 0
+    const newEx = { ...workExtra, [uid]: { ...(workExtra[uid]||{}), [dd]: m } }
+    if(!m) delete newEx[uid][dd]
+    await setDoc(doc(db,'workextra',curMonth), newEx)
+    setWorkExtra(newEx)
+  }
 
-      // ── 시급 이력 ──
-      const existingHistory = existingData.wageHistory || []
-      const oldWage = existingData.wage || 10030
-      const newWage = +form.wage || 10030
-      const hasPriorHistory = existingHistory.some(h => h.month < thisMonth)
-      const newHistory = existingHistory.filter(h => h.month !== thisMonth)
-      if (!hasPriorHistory && oldWage !== newWage) {
-        const joinMonth = form.joinDate ? form.joinDate.slice(0,7) : '2022-10'
-        newHistory.push({ month: joinMonth, wage: oldWage })
+  async function saveMemo(uid, dd, memo) {
+    const newMemos = { ...memos, [uid]: { ...(memos[uid]||{}), [dd]: memo } }
+    if(!memo) delete newMemos[uid][dd]
+    await setDoc(doc(db,'workmemos',curMonth), newMemos)
+    setMemos(newMemos)
+  }
+
+function getEmpStats(emp) {
+    const wh = workHours[emp.uid] || {}
+    const ex = workExtra[emp.uid] || {}
+    const empMemos = memos[emp.uid] || {}
+    const prevWh = prevWorkHours[emp.uid] || {}
+    const prevEx = prevWorkExtra[emp.uid] || {}
+    const prevEmpMemos = prevMemos[emp.uid] || {}
+    const wage = getWageForMonth(emp, curMonth)
+    const schedule = getScheduleForMonth(emp, curMonth)
+    const workDays = schedule.workDays || [1,2,3,4,5]
+    const avgHours = schedule.avgHours || 8
+    const days = daysIn(curMonth)
+    const [cy,cm] = curMonth.split('-').map(Number)
+
+    // 이전달 마지막 날 계산
+    const prevMonthDays = cm===1 ? new Date(cy-1,12,0).getDate() : new Date(cy,cm-1,0).getDate()
+
+    let totalHours = 0
+    let totalMins = 0
+    let totalWeeklyHoliday = 0
+    const rows = []
+
+    for(let d=1; d<=days; d++) {
+      const dd = pad(d)
+      const dow = new Date(cy,cm-1,d).getDay()
+      const h = wh[dd] || 0
+      const m = ex[dd] || 0
+      totalHours += h
+      totalMins += m
+
+      let weeklyHoliday = 0
+      if(dow === 0) {
+        let weekH = 0
+        const weekAttendance = {}
+        const weekMemos = {}
+
+        for(let wd=1; wd<=6; wd++) {
+          const prevD = d - wd
+
+          if(prevD >= 1) {
+            // 이번달 데이터
+            const prevDD = pad(prevD)
+            const prevDow = new Date(cy,cm-1,prevD).getDay()
+            const prevH = (wh[prevDD]||0) + (ex[prevDD]||0)/60
+            weekH += prevH
+            weekAttendance[prevDow] = (weekAttendance[prevDow]||0) + prevH
+            if(empMemos[prevDD]) weekMemos[prevDD] = empMemos[prevDD]
+          } else {
+            // 이전달 데이터
+            const prevMonthD = prevMonthDays + prevD // prevD는 음수이므로 더하기
+            if(prevMonthD >= 1) {
+              const prevDD = pad(prevMonthD)
+              const prevDow = new Date(cy,cm-2,prevMonthD).getDay()
+              const prevH = (prevWh[prevDD]||0) + (prevEx[prevDD]||0)/60
+              weekH += prevH
+              weekAttendance[prevDow] = (weekAttendance[prevDow]||0) + prevH
+              if(prevEmpMemos[prevDD]) weekMemos[`prev_${prevDD}`] = prevEmpMemos[prevDD]
+            }
+          }
+        }
+
+        weeklyHoliday = calcWeeklyHoliday(weekH, wage, workDays, weekAttendance, weekMemos)
+        totalWeeklyHoliday += weeklyHoliday
       }
-      newHistory.push({ month: thisMonth, wage: newWage })
-      newHistory.sort((a,b) => a.month > b.month ? 1 : -1)
 
-      // ── 근무스케쥴(소정근로일/평균근무시간) 이력 — 시급 이력과 동일한 패턴 ──
-      const existingScheduleHistory = existingData.scheduleHistory || []
-      const oldWorkDays = existingData.workDays || [1,2,3,4,5]
-      const oldAvgHours = existingData.avgHours || 8
-      const newWorkDays = form.workDays || [1,2,3,4,5]
-      const newAvgHours = +form.avgHours || 8
-      const scheduleChanged = JSON.stringify(oldWorkDays) !== JSON.stringify(newWorkDays) || oldAvgHours !== newAvgHours
-      const hasPriorScheduleHistory = existingScheduleHistory.some(h => h.month < thisMonth)
-      const newScheduleHistory = existingScheduleHistory.filter(h => h.month !== thisMonth)
-      if (!hasPriorScheduleHistory && scheduleChanged) {
-        const joinMonth = form.joinDate ? form.joinDate.slice(0,7) : '2022-10'
-        newScheduleHistory.push({ month: joinMonth, workDays: oldWorkDays, avgHours: oldAvgHours })
-      }
-      newScheduleHistory.push({ month: thisMonth, workDays: newWorkDays, avgHours: newAvgHours })
-      newScheduleHistory.sort((a,b) => a.month > b.month ? 1 : -1)
+      rows.push({ d, dd, dow, h, m, weeklyHoliday })
+    }
 
-      await setDoc(doc(db,'users',form.uid), {
-        name: form.name,
-        wage: newWage,
-        joinDate: form.joinDate || '',
-        phone: form.phone || '',
-        email: form.email || '',
-        account: form.account || '',
-        ssn: form.ssn || '',
-        avgHours: newAvgHours,
-        workDays: newWorkDays,
-        holidayBase: form.holidayBase || 'contract',
-        employType: form.employType || 'part',
-        payType: form.payType || 'hourly',
-        fixedSalary: +form.fixedSalary || 0,
-        wageHistory: newHistory,
-        scheduleHistory: newScheduleHistory,
-      }, {merge:true})
+    const totalH = totalHours + totalMins/60
+    const basePay = Math.round(totalH * wage)
+    const totalPay = basePay + totalWeeklyHoliday
 
-      await load()
-      setShowForm(false)
-      setForm({})
-    } catch(e) { console.error(e) }
-    setSaving(false)
+    return { totalHours, totalMins, totalH, basePay, totalWeeklyHoliday, totalPay, rows }
   }
 
-  async function retireMember() {
-    if(!retireForm?.leaveDate) return alert('퇴사일을 입력해주세요')
-    setSaving(true)
-    try {
-      await setDoc(doc(db,'users',retireForm.uid), {
-        status: 'retired',
-        leaveDate: retireForm.leaveDate,
-      }, {merge:true})
-      setRetireForm(null)
-      await load()
-    } catch(e) { console.error(e) }
-    setSaving(false)
-  }
+  const allStats = employees.map(e => ({ emp:e, ...getEmpStats(e) }))
+  // 오늘 근무 인원 계산
+  const todayDow = new Date().getDay()
+  const todayDD  = pad(new Date().getDate())
+  const todayEmps = allStats.filter(s => s.emp.workDays.includes(todayDow))
 
-  async function restoreMember(m) {
-    if(!window.confirm(`${m.name}님을 다시 재직 상태로 복직 처리하시겠습니까?`)) return
-    setSaving(true)
-    try {
-      await setDoc(doc(db,'users',m.uid), {
-        status: 'approved',
-        leaveDate: '',
-      }, {merge:true})
-      await load()
-    } catch(e) { console.error(e) }
-    setSaving(false)
-  }
+  const todayContent = (
+    <div style={{background:'#12141f',border:'1px solid #34d399',borderRadius:12,overflow:'hidden',marginBottom:18}}>
+      <div style={{padding:'14px 18px',borderBottom:'1px solid #272a3d',fontSize:13,fontWeight:600,color:'#34d399'}}>
+        📅 오늘 ({+todayDD}일) 근무 인원 — {todayEmps.length}명
+      </div>
+      {todayEmps.length === 0 ? (
+        <div style={{padding:24,textAlign:'center',color:'#5e6585',fontSize:12}}>오늘 근무 예정 인원이 없습니다</div>
+      ) : (
+        <div>
+          <div style={{display:'flex',alignItems:'center',gap:14,padding:'8px 18px',
+            background:'#191c2b',fontSize:10,fontWeight:600,color:'#5e6585'}}>
+            <div style={{minWidth:80}}>이름</div>
+            <div style={{minWidth:120}}>근무시간 (h)</div>
+            <div style={{minWidth:120}}>추가근무 (분)</div>
+            <div style={{flex:1}}>비고</div>
+          </div>
+          {todayEmps.map(({emp})=>{
+            const wh = workHours[emp.uid]||{}
+            const ex = workExtra[emp.uid]||{}
+            const empMemos = memos[emp.uid]||{}
+            const missing = []
+            const hasMissing = missing.length > 0
+            const hasToday = (wh[todayDD]||0) > 0
+            return (
+              <div key={emp.uid} style={{display:'flex',alignItems:'center',gap:14,padding:'10px 18px',
+                borderBottom:'1px solid #1a1d2e',
+                background:hasToday?'rgba(249,185,52,0.04)':'transparent'}}>
+                <div style={{minWidth:80,fontSize:13,fontWeight:700,
+                  color:hasMissing?'#f87171':hasToday?'#f9b934':'#dde1f2'}}>
+                  {emp.name}
+                  {hasMissing && <span style={{fontSize:9,marginLeft:4}}>⚠{missing.length}</span>}
+                </div>
+                <input type="number" defaultValue={wh[todayDD]||''} min="0" max="24" step="0.5" placeholder="0"
+                  onBlur={e=>saveWorkHours(emp.uid,todayDD,e.target.value)}
+                  onKeyDown={e=>e.key==='Enter'&&e.target.blur()}
+                  style={{width:100,background:wh[todayDD]>0?'rgba(249,185,52,0.15)':'#191c2b',
+                    border:wh[todayDD]>0?'1px solid #f9b934':'1px solid #272a3d',
+                    borderRadius:6,color:wh[todayDD]>0?'#f9b934':'#dde1f2',
+                    padding:'7px 8px',fontSize:13,fontWeight:wh[todayDD]>0?700:400,
+                    textAlign:'center',outline:'none',fontFamily:'DM Mono,monospace'}}/>
+                <input type="number" defaultValue={ex[todayDD]||''} min="0" max="180" step="5" placeholder="0"
+                  onBlur={e=>saveWorkExtra(emp.uid,todayDD,e.target.value)}
+                  onKeyDown={e=>e.key==='Enter'&&e.target.blur()}
+                  style={{width:100,background:ex[todayDD]>0?'rgba(249,185,52,0.15)':'#191c2b',
+                    border:ex[todayDD]>0?'1px solid #f9b934':'1px solid #272a3d',
+                    borderRadius:6,color:ex[todayDD]>0?'#f9b934':'#dde1f2',
+                    padding:'7px 8px',fontSize:13,fontWeight:ex[todayDD]>0?700:400,
+                    textAlign:'center',outline:'none',fontFamily:'DM Mono,monospace'}}/>
+                <input type="text" defaultValue={empMemos[todayDD]||''} placeholder="비고..."
+                  onBlur={e=>saveMemo(emp.uid,todayDD,e.target.value)}
+                  onKeyDown={e=>e.key==='Enter'&&e.target.blur()}
+                  style={{flex:1,background:'transparent',border:'none',
+                    borderBottom:empMemos[todayDD]?'1px solid #272a3d':'1px solid transparent',
+                    color:empMemos[todayDD]?'#f87171':'#3d4060',
+                    padding:'4px 2px',fontSize:11,outline:'none',fontFamily:'inherit'}}/>
+              </div>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
 
-  async function addMember() {
-    if(!addForm.name?.trim()) return alert('이름을 입력해주세요')
-    setAddSaving(true)
-    try {
-      const newUid = 'manual_' + Date.now()
-      await setDoc(doc(db,'users',newUid), {
-        name:         addForm.name.trim(),
-        role:         'staff',
-        status:       'approved',
-        joinDate:     addForm.joinDate || '',
-        phone:        addForm.phone || '',
-        account:      addForm.account || '',
-        ssn:          addForm.ssn || '',
-        wage:         +addForm.wage || 10030,
-        avgHours:     +addForm.avgHours || 8,
-        workDays:     addForm.workDays || [1,2,3,4,5],
-        holidayBase:  addForm.holidayBase || 'contract',
-        employType:   addForm.employType || 'part',
-        payType:      addForm.payType || 'hourly',
-        fixedSalary:  +addForm.fixedSalary || 0,
-        wageHistory:  [{ month: (addForm.joinDate||'').slice(0,7) || '2022-10', wage: +addForm.wage||10030 }],
-        scheduleHistory: [{ month: (addForm.joinDate||'').slice(0,7) || '2022-10',
-          workDays: addForm.workDays || [1,2,3,4,5], avgHours: +addForm.avgHours || 8 }],
-        manualEntry:  true,
-      })
-      setShowAddForm(false)
-      setAddForm({})
-      await load()
-    } catch(e) { console.error(e) }
-    setAddSaving(false)
-  }
-
-  function editMember(m) {
-    setForm({...m, workDays: Array.isArray(m.workDays) ? m.workDays : [1,2,3,4,5]})
-    setShowForm(true)
-    window.scrollTo({top:0,behavior:'smooth'})
-  }
-
-  const totalSeverance = members.reduce((a,m)=>
-    a+calcSeverance(m.joinDate,null,m.wage||10030,m.avgHours||8),0)
+  const grandBase = allStats.reduce((a,s)=>a+s.basePay,0)
+  const grandHoliday = allStats.reduce((a,s)=>a+s.totalWeeklyHoliday,0)
+  const grandTotal = allStats.reduce((a,s)=>a+s.totalPay,0)
 
   return (
     <div>
       <div style={{display:'flex',alignItems:'flex-end',justifyContent:'space-between',marginBottom:22}}>
         <div>
-          <div style={{fontSize:20,fontWeight:700}}>📁 인원관리</div>
-          <div style={{fontSize:12,color:'#5e6585',marginTop:2}}>사장 전용 — 승인된 직원 정보</div>
+          <div style={{fontSize:20,fontWeight:700}}>⏱ 근무관리</div>
+          <div style={{fontSize:12,color:'#5e6585',marginTop:2}}>{mLabel(curMonth)} — 사장 전용</div>
         </div>
-        <button onClick={()=>{ setShowAddForm(v=>!v); setAddForm({payType:'hourly',employType:'part',workDays:[1,2,3,4,5]}) }}
-          style={{background:'#f9b934',color:'#000',border:'none',borderRadius:8,
-            padding:'8px 16px',fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
-          + 직원 추가
+        <select value={curMonth} onChange={e=>setCurMonth(e.target.value)}
+          style={{background:'#191c2b',border:'1px solid #272a3d',borderRadius:8,color:'#dde1f2',padding:'8px 12px',fontSize:12,fontFamily:'inherit',outline:'none'}}>
+          {monthOpts.map(m=><option key={m} value={m}>{mLabel(m)}</option>)}
+        </select>
+      </div>
+
+      {/* 월 합계 */}
+      <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:14,marginBottom:20}}>
+        {[
+          {label:'기본급 합계', val:grandBase, color:'#f9b934'},
+          {label:'주휴수당 합계', val:grandHoliday, color:'#93c5fd'},
+          {label:'총 인건비', val:grandTotal, color:'#34d399'},
+        ].map(k=>(
+          <div key={k.label} style={{background:'#12141f',border:'1px solid #272a3d',borderRadius:12,padding:'18px 20px',position:'relative',overflow:'hidden'}}>
+            <div style={{position:'absolute',top:0,left:0,right:0,height:3,background:k.color}}></div>
+            <div style={{fontSize:10,fontWeight:600,color:'#5e6585',textTransform:'uppercase',letterSpacing:.8,marginBottom:6}}>{k.label}</div>
+            <div style={{fontSize:20,fontWeight:700,color:k.color,fontFamily:'DM Mono,monospace'}}>{k.val.toLocaleString()}원</div>
+          </div>
+        ))}
+      </div>
+
+      {/* 이번달 퇴직금 지급 내역 */}
+      {Object.keys(severance).length > 0 && (
+        <div style={{background:'#12141f',border:'1px solid rgba(251,146,60,0.3)',borderRadius:12,
+          overflow:'hidden',marginBottom:18}}>
+          <div style={{padding:'14px 18px',borderBottom:'1px solid #272a3d',fontSize:13,fontWeight:600,color:'#fb923c'}}>
+            📤 {mLabel(curMonth)} 퇴직금 지급 내역
+          </div>
+          <div style={{padding:'8px 0'}}>
+            {Object.entries(severance).map(([uid,s])=>(
+              <div key={uid} style={{display:'flex',alignItems:'center',gap:14,padding:'10px 18px',
+                borderBottom:'1px solid #1a1d2e',flexWrap:'wrap'}}>
+                <div style={{minWidth:80,fontSize:13,fontWeight:700,color:'#dde1f2'}}>
+                  {nameMap[uid]||'—'}
+                </div>
+                <div style={{fontSize:11,color:'#5e6585'}}>
+                  {s.paidDate?.slice(0,10)} 지급
+                </div>
+                <div style={{flex:1}}/>
+                <div style={{fontSize:11,color:'#5e6585'}}>
+                  총액 {s.amount.toLocaleString()}원
+                </div>
+                <div style={{fontSize:11,color:'#f87171'}}>
+                  원천징수 -{s.tax.toLocaleString()}원
+                </div>
+                <div style={{fontSize:13,fontWeight:700,color:'#34d399',fontFamily:'DM Mono,monospace'}}>
+                  실지급 {s.net.toLocaleString()}원
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* 직원 탭 */}
+      <div style={{display:'flex',gap:8,marginBottom:14,flexWrap:'wrap'}}>
+        <button onClick={()=>{ setShowTodayOnly(v=>!v); setActiveEmp(null) }}
+          style={{padding:'7px 14px',borderRadius:7,border:'none',fontSize:12,fontWeight:600,cursor:'pointer',fontFamily:'inherit',
+            background:showTodayOnly?'#34d399':'#191c2b',color:showTodayOnly?'#000':'#5e6585'}}>
+          📅 오늘 근무
         </button>
+        <button onClick={()=>{ setActiveEmp(null); setShowTodayOnly(false) }}
+          style={{padding:'7px 14px',borderRadius:7,border:'none',fontSize:12,fontWeight:600,cursor:'pointer',fontFamily:'inherit',
+            background:activeEmp===null&&!showTodayOnly?'#f9b934':'#191c2b',color:activeEmp===null&&!showTodayOnly?'#000':'#5e6585'}}>
+          전체 요약
+        </button>
+        {employees.map(e=>(
+          <button key={e.uid} onClick={()=>setActiveEmp(e.uid)}
+            style={{padding:'7px 14px',borderRadius:7,border:'none',fontSize:12,fontWeight:600,cursor:'pointer',fontFamily:'inherit',
+              background:activeEmp===e.uid?'#f9b934':'#191c2b',color:activeEmp===e.uid?'#000':'#5e6585'}}>
+            {e.name}
+          </button>
+        ))}
       </div>
 
-      {/* 총 퇴직금 */}
-      <div style={{background:'#12141f',border:'1px solid #272a3d',borderRadius:12,padding:'18px 20px',marginBottom:18,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
-        <div>
-          <div style={{fontSize:11,color:'#5e6585',marginBottom:4}}>📦 전체 예상 퇴직금 합계</div>
-          <div style={{fontSize:22,fontWeight:700,color:'#f9b934',fontFamily:'DM Mono,monospace'}}>{totalSeverance.toLocaleString()}원</div>
-        </div>
-        <div style={{fontSize:11,color:'#5e6585'}}>재직 {members.length}명 · 퇴직 {retired.length}명</div>
-      </div>
-
-      {/* 직원 추가 폼 */}
-      {showAddForm && (
-        <div style={{background:'#12141f',border:'1px solid #34d399',borderRadius:12,marginBottom:18}}>
-          <div style={{padding:'14px 18px',borderBottom:'1px solid #272a3d',fontSize:13,fontWeight:600,
-            color:'#34d399',display:'flex',justifyContent:'space-between'}}>
-            <span>➕ 새 직원 추가</span>
-            <button onClick={()=>setShowAddForm(false)}
-              style={{background:'transparent',border:'none',color:'#5e6585',fontSize:18,cursor:'pointer'}}>✕</button>
-          </div>
-
-          {/* 급여 방식 */}
-          <div style={{padding:'14px 18px 0'}}>
-            <label style={{fontSize:10,color:'#5e6585',fontWeight:600,display:'block',marginBottom:8}}>급여 방식</label>
-            <div style={{display:'flex',gap:8,marginBottom:14}}>
-              {[
-                {key:'hourly', label:'⏱ 시급제',   desc:'근무시간 기반 계산'},
-                {key:'fixed',  label:'📅 고정급제', desc:'매달 고정 금액 지급'},
-              ].map(opt=>{
-                const selected = (addForm.payType||'hourly') === opt.key
-                return (
-                  <div key={opt.key} onClick={()=>setAddForm(f=>({...f,payType:opt.key}))}
-                    style={{flex:1,padding:'10px 14px',borderRadius:8,cursor:'pointer',
-                      background:selected?'rgba(52,211,153,0.12)':'#191c2b',
-                      border:selected?'1px solid #34d399':'1px solid #272a3d'}}>
-                    <div style={{fontSize:12,fontWeight:600,color:selected?'#34d399':'#5e6585',marginBottom:3}}>{opt.label}</div>
-                    <div style={{fontSize:10,color:'#5e6585'}}>{opt.desc}</div>
-                  </div>
-                )
-              })}
-            </div>
-          </div>
-
-          {/* 기본 정보 */}
-          <div style={{padding:'0 18px 14px',display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(180px,1fr))',gap:12}}>
-            {[
-              ['이름 *','text','name'],
-              ['입사일','date','joinDate'],
-              ['연락처','text','phone'],
-              ['계좌번호','text','account'],
-              ['주민등록번호','text','ssn'],
-              ...((addForm.payType||'hourly')==='fixed'
-                ? [['월 고정급 (원)','number','fixedSalary']]
-                : [
-                    ['시급 (원)','number','wage'],
-                    ['평균근무시간(h/일)','number','avgHours'],
-                  ]
-              ),
-            ].map(([label,type,key])=>(
-              <div key={key} style={{display:'flex',flexDirection:'column',gap:4}}>
-                <label style={{fontSize:10,color:'#5e6585',fontWeight:600}}>{label}</label>
-                <input type={type} value={addForm[key]||''}
-                  onChange={e=>setAddForm(f=>({...f,[key]:e.target.value}))}
-                  style={{background:'#191c2b',border:'1px solid #272a3d',borderRadius:7,color:'#dde1f2',
-                    padding:'8px 10px',fontSize:12,outline:'none',width:'100%',fontFamily:'inherit'}}/>
-              </div>
-            ))}
-          </div>
-
-          {/* 고용 유형 */}
-          <div style={{padding:'0 18px 14px'}}>
-            <label style={{fontSize:10,color:'#5e6585',fontWeight:600,display:'block',marginBottom:8}}>고용 유형 (공제 기준)</label>
-            <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
-              {[
-                {key:'part', label:'🕐 아르바이트', desc:'3.3% 원천징수'},
-                {key:'full', label:'💼 정직원',     desc:'4대보험 적용'},
-                {key:'none', label:'✕ 공제없음',   desc:'세전 지급'},
-              ].map(opt=>{
-                const selected = (addForm.employType||'part') === opt.key
-                return (
-                  <div key={opt.key} onClick={()=>setAddForm(f=>({...f,employType:opt.key}))}
-                    style={{flex:1,padding:'10px 14px',borderRadius:8,cursor:'pointer',
-                      background:selected?'rgba(52,211,153,0.12)':'#191c2b',
-                      border:selected?'1px solid #34d399':'1px solid #272a3d',minWidth:100}}>
-                    <div style={{fontSize:12,fontWeight:600,color:selected?'#34d399':'#5e6585',marginBottom:3}}>{opt.label}</div>
-                    <div style={{fontSize:10,color:'#5e6585'}}>{opt.desc}</div>
-                  </div>
-                )
-              })}
-            </div>
-          </div>
-
-          <div style={{padding:'0 18px 18px',display:'flex',gap:8,alignItems:'center'}}>
-            <button onClick={addMember} disabled={addSaving}
-              style={{background:'#34d399',color:'#000',border:'none',borderRadius:8,
-                padding:'9px 20px',fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
-              {addSaving?'추가 중...':'직원 추가'}
-            </button>
-            <button onClick={()=>setShowAddForm(false)}
-              style={{background:'#191c2b',color:'#5e6585',border:'1px solid #272a3d',borderRadius:8,
-                padding:'9px 20px',fontSize:12,cursor:'pointer',fontFamily:'inherit'}}>
-              취소
-            </button>
-            <span style={{fontSize:10,color:'#5e6585'}}>* 이 직원은 앱 로그인 없이 급여관리에만 반영돼요</span>
-          </div>
-        </div>
-      )}
-
-      {/* 퇴직 처리 모달 */}
-      {retireForm && (
-        <div style={{background:'#12141f',border:'1px solid #f87171',borderRadius:12,marginBottom:18,padding:'18px'}}>
-          <div style={{fontSize:13,fontWeight:600,color:'#f87171',marginBottom:14}}>
-            📤 {retireForm.name} 퇴직 처리
-          </div>
-          <div style={{display:'flex',flexDirection:'column',gap:12}}>
-            <div>
-              <label style={{fontSize:10,color:'#5e6585',fontWeight:600,display:'block',marginBottom:6}}>퇴사일</label>
-              <input type="date" value={retireForm.leaveDate||''}
-                onChange={e=>setRetireForm(f=>({...f,leaveDate:e.target.value}))}
-                style={{background:'#191c2b',border:'1px solid #272a3d',borderRadius:7,color:'#dde1f2',
-                  padding:'8px 10px',fontSize:12,outline:'none',width:'100%',fontFamily:'inherit'}}/>
-            </div>
-            {retireForm.leaveDate && (
-              <div style={{background:'rgba(249,185,52,0.08)',border:'1px solid rgba(249,185,52,0.2)',borderRadius:8,padding:'12px 14px'}}>
-                <div style={{fontSize:11,color:'#5e6585',marginBottom:4}}>퇴직금 (퇴사일 기준)</div>
-                <div style={{fontSize:16,fontWeight:700,color:'#f9b934',fontFamily:'DM Mono,monospace'}}>
-                  {calcSeverance(retireForm.joinDate, retireForm.leaveDate, retireForm.wage||10030, retireForm.avgHours||8).toLocaleString()}원
-                </div>
-                <div style={{fontSize:10,color:'#5e6585',marginTop:4}}>
-                  근속 {calcTenure(retireForm.joinDate, retireForm.leaveDate)}
-                </div>
-              </div>
-            )}
-            <div style={{display:'flex',gap:8}}>
-              <button onClick={retireMember} disabled={saving}
-                style={{background:'#f87171',color:'#fff',border:'none',borderRadius:8,
-                  padding:'9px 20px',fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
-                {saving?'처리 중...':'퇴직 확정'}
-              </button>
-              <button onClick={()=>setRetireForm(null)}
-                style={{background:'#191c2b',color:'#5e6585',border:'1px solid #272a3d',borderRadius:8,
-                  padding:'9px 20px',fontSize:12,cursor:'pointer',fontFamily:'inherit'}}>
-                취소
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* 수정 폼 */}
-      {showForm && (
-        <div style={{background:'#12141f',border:'1px solid #f9b934',borderRadius:12,marginBottom:18}}>
-          <div style={{padding:'14px 18px',borderBottom:'1px solid #272a3d',fontSize:13,fontWeight:600,color:'#f9b934',display:'flex',justifyContent:'space-between'}}>
-            <span>✏️ {form.name} 정보 수정</span>
-            <button onClick={()=>setShowForm(false)}
-              style={{background:'transparent',border:'none',color:'#5e6585',fontSize:18,cursor:'pointer'}}>✕</button>
-          </div>
-          <div style={{padding:18,display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(180px,1fr))',gap:12}}>
-            {[
-              ['이름','text','name',form.name||''],
-              ['입사일','date','joinDate',form.joinDate||''],
-              ['연락처','text','phone',form.phone||''],
-              ['계좌번호','text','account',form.account||''],
-              ['주민등록번호','text','ssn',form.ssn||''],
-              ...((form.payType||'hourly')==='fixed'
-                ? [['월 고정급 (원)','number','fixedSalary',form.fixedSalary||0]]
-                : [
-                    ['시급','number','wage',form.wage||10030],
-                    ['평균근무시간(h/일)','number','avgHours',form.avgHours||8],
-                  ]
-              ),
-            ].map(([label,type,key,val])=>(
-              <div key={key} style={{display:'flex',flexDirection:'column',gap:4}}>
-                <label style={{fontSize:10,color:'#5e6585',fontWeight:600}}>{label}</label>
-                <input type={type} value={val} onChange={e=>setF(key,e.target.value)}
-                  style={{background:'#191c2b',border:'1px solid #272a3d',borderRadius:7,color:'#dde1f2',padding:'8px 10px',fontSize:12,outline:'none',width:'100%',fontFamily:'inherit'}}/>
-              </div>
-            ))}
-          </div>
-
-          {/* 급여 방식 */}
-          <div style={{padding:'0 18px 14px'}}>
-            <label style={{fontSize:10,color:'#5e6585',fontWeight:600,display:'block',marginBottom:8}}>급여 방식</label>
-            <div style={{display:'flex',gap:8}}>
-              {[
-                {key:'hourly', label:'⏱ 시급제',   desc:'근무시간 기반 계산'},
-                {key:'fixed',  label:'📅 고정급제', desc:'매달 고정 금액 지급'},
-              ].map(opt=>{
-                const selected = (form.payType||'hourly') === opt.key
-                return (
-                  <div key={opt.key} onClick={()=>setF('payType', opt.key)}
-                    style={{flex:1,padding:'10px 14px',borderRadius:8,cursor:'pointer',
-                      background:selected?'rgba(249,185,52,0.12)':'#191c2b',
-                      border:selected?'1px solid #f9b934':'1px solid #272a3d'}}>
-                    <div style={{fontSize:12,fontWeight:600,color:selected?'#f9b934':'#5e6585',marginBottom:3}}>{opt.label}</div>
-                    <div style={{fontSize:10,color:'#5e6585'}}>{opt.desc}</div>
-                  </div>
-                )
-              })}
-            </div>
-          </div>
-
-          {/* 소정근로일 */}
-          <div style={{padding:'0 18px 14px'}}>
-            <label style={{fontSize:10,color:'#5e6585',fontWeight:600,display:'block',marginBottom:8}}>소정근로일 (주휴수당 기준)</label>
-            <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
-              {['월','화','수','목','금','토','일'].map((day,i)=>{
-                const idx = i+1===7 ? 0 : i+1
-                const workDays = form.workDays || [1,2,3,4,5]
-                const checked = workDays.includes(idx)
-                return (
-                  <label key={day} style={{display:'flex',alignItems:'center',gap:4,cursor:'pointer',
-                    background:checked?'rgba(249,185,52,0.15)':'#191c2b',
-                    border:checked?'1px solid #f9b934':'1px solid #272a3d',
-                    borderRadius:6,padding:'6px 10px',fontSize:12,fontWeight:600,
-                    color:checked?'#f9b934':'#5e6585',transition:'.15s'}}>
-                    <input type="checkbox" checked={checked} style={{display:'none'}}
-                      onChange={()=>{
-                        const current = form.workDays || [1,2,3,4,5]
-                        const next = current.includes(idx)
-                          ? current.filter(d=>d!==idx)
-                          : [...current, idx].sort()
-                        setF('workDays', next)
-                      }}/>
-                    {day}
-                  </label>
-                )
-              })}
-            </div>
-            <div style={{fontSize:10,color:'#5e6585',marginTop:6}}>
-              주 {Array.isArray(form.workDays)?form.workDays.length:5}일 소정근로
-            </div>
-          </div>
-
-          {/* 주휴 계산 기준 */}
-          <div style={{padding:'0 18px 14px'}}>
-            <label style={{fontSize:10,color:'#5e6585',fontWeight:600,display:'block',marginBottom:8}}>주휴수당 계산 기준</label>
-            <div style={{display:'flex',gap:8}}>
-              {[
-                {key:'contract', label:'📋 소정근로 기준', desc:'법적 기준'},
-                {key:'actual',   label:'⭐ 실제근무 기준', desc:'복지 적용'},
-              ].map(opt=>{
-                const selected = (form.holidayBase||'contract') === opt.key
-                return (
-                  <div key={opt.key} onClick={()=>setF('holidayBase', opt.key)}
-                    style={{flex:1,padding:'10px 14px',borderRadius:8,cursor:'pointer',
-                      background:selected?'rgba(249,185,52,0.12)':'#191c2b',
-                      border:selected?'1px solid #f9b934':'1px solid #272a3d'}}>
-                    <div style={{fontSize:12,fontWeight:600,color:selected?'#f9b934':'#5e6585',marginBottom:3}}>{opt.label}</div>
-                    <div style={{fontSize:10,color:'#5e6585'}}>{opt.desc}</div>
-                  </div>
-                )
-              })}
-            </div>
-          </div>
-
-          {/* 고용 유형 */}
-          <div style={{padding:'0 18px 14px'}}>
-            <label style={{fontSize:10,color:'#5e6585',fontWeight:600,display:'block',marginBottom:8}}>고용 유형 (공제 기준)</label>
-            <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
-              {[
-                {key:'part', label:'🕐 아르바이트', desc:'3.3% 원천징수'},
-                {key:'full', label:'💼 정직원',     desc:'4대보험 적용'},
-                {key:'none', label:'✕ 공제없음',   desc:'세전 지급'},
-              ].map(opt=>{
-                const selected = (form.employType||'part') === opt.key
-                return (
-                  <div key={opt.key} onClick={()=>setF('employType', opt.key)}
-                    style={{flex:1,padding:'10px 14px',borderRadius:8,cursor:'pointer',
-                      background:selected?'rgba(249,185,52,0.12)':'#191c2b',
-                      border:selected?'1px solid #f9b934':'1px solid #272a3d',minWidth:100}}>
-                    <div style={{fontSize:12,fontWeight:600,color:selected?'#f9b934':'#5e6585',marginBottom:3}}>{opt.label}</div>
-                    <div style={{fontSize:10,color:'#5e6585'}}>{opt.desc}</div>
-                  </div>
-                )
-              })}
-            </div>
-          </div>
-
-          <div style={{padding:'0 18px 18px',display:'flex',gap:8}}>
-            <button onClick={save} disabled={saving}
-              style={{background:'#f9b934',color:'#000',border:'none',borderRadius:8,padding:'9px 20px',fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
-              {saving?'저장 중...':'저 장'}
-            </button>
-            <button onClick={()=>setShowForm(false)}
-              style={{background:'#191c2b',color:'#5e6585',border:'1px solid #272a3d',borderRadius:8,padding:'9px 20px',fontSize:12,cursor:'pointer',fontFamily:'inherit'}}>
-              취 소
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* 재직 직원 목록 */}
       {loading ? <div style={{textAlign:'center',color:'#5e6585',padding:60}}>로딩 중...</div> : (
-        <div style={{display:'flex',flexDirection:'column',gap:12}}>
-          {members.length===0 && (
-            <div style={{textAlign:'center',color:'#5e6585',padding:40}}>
-              승인된 직원이 없습니다.
+        <>
+          {showTodayOnly && todayContent}
+
+          {/* 전체 요약 */}
+          {activeEmp===null && !showTodayOnly && (
+            <div style={{background:'#12141f',border:'1px solid #272a3d',borderRadius:12,overflow:'hidden',marginBottom:18}}>
+              <div style={{padding:'14px 18px',borderBottom:'1px solid #272a3d',fontSize:13,fontWeight:600}}>직원별 급여 요약</div>
+              <div style={{overflowX:'auto'}}>
+                <table style={{width:'100%',borderCollapse:'collapse',fontSize:12}}>
+                  <thead>
+                    <tr style={{background:'#191c2b'}}>
+                      {['직원','시급','근무시간','추가(분)','기본급','주휴수당','총 지급액'].map(h=>(
+                        <th key={h} style={{padding:'8px 14px',fontSize:10,fontWeight:600,color:'#5e6585',
+                          textAlign:h==='직원'?'left':'right',whiteSpace:'nowrap'}}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {allStats.map(({emp,totalHours,totalMins,basePay,totalWeeklyHoliday,totalPay})=>(
+                      <tr key={emp.uid} onClick={()=>setActiveEmp(emp.uid)} style={{cursor:'pointer'}}>
+                        <td style={{padding:'10px 14px',borderBottom:'1px solid #272a3d',color:'#dde1f2',fontWeight:600}}>{emp.name}</td>
+                        <td style={{padding:'10px 14px',borderBottom:'1px solid #272a3d',textAlign:'right',fontFamily:'DM Mono,monospace',color:'#dde1f2'}}>{(emp.wage||10030).toLocaleString()}</td>
+                        <td style={{padding:'10px 14px',borderBottom:'1px solid #272a3d',textAlign:'right',fontFamily:'DM Mono,monospace',color:'#dde1f2'}}>{totalHours}h</td>
+                        <td style={{padding:'10px 14px',borderBottom:'1px solid #272a3d',textAlign:'right',fontFamily:'DM Mono,monospace',color:totalMins>0?'#f9b934':'#5e6585'}}>{totalMins>0?`${totalMins}m`:'—'}</td>
+                        <td style={{padding:'10px 14px',borderBottom:'1px solid #272a3d',textAlign:'right',fontFamily:'DM Mono,monospace',color:'#dde1f2'}}>{basePay.toLocaleString()}</td>
+                        <td style={{padding:'10px 14px',borderBottom:'1px solid #272a3d',textAlign:'right',fontFamily:'DM Mono,monospace',color:'#93c5fd'}}>{totalWeeklyHoliday.toLocaleString()}</td>
+                        <td style={{padding:'10px 14px',borderBottom:'1px solid #272a3d',textAlign:'right',fontFamily:'DM Mono,monospace',color:'#34d399',fontWeight:700}}>{totalPay.toLocaleString()}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  <tfoot>
+                    <tr style={{background:'#1f2236'}}>
+                      <td style={{padding:'10px 14px',fontWeight:700,color:'#f9b934'}}>합 계</td>
+                      <td></td>
+                      <td style={{padding:'10px 14px',textAlign:'right',fontWeight:700,color:'#f9b934',fontFamily:'DM Mono,monospace'}}>{allStats.reduce((a,s)=>a+s.totalHours,0)}h</td>
+                      <td style={{padding:'10px 14px',textAlign:'right',fontWeight:700,color:'#f9b934',fontFamily:'DM Mono,monospace'}}>{allStats.reduce((a,s)=>a+s.totalMins,0)}m</td>
+                      <td style={{padding:'10px 14px',textAlign:'right',fontWeight:700,color:'#f9b934',fontFamily:'DM Mono,monospace'}}>{grandBase.toLocaleString()}</td>
+                      <td style={{padding:'10px 14px',textAlign:'right',fontWeight:700,color:'#f9b934',fontFamily:'DM Mono,monospace'}}>{grandHoliday.toLocaleString()}</td>
+                      <td style={{padding:'10px 14px',textAlign:'right',fontWeight:700,color:'#f9b934',fontFamily:'DM Mono,monospace'}}>{grandTotal.toLocaleString()}</td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
             </div>
           )}
-          {members.map(m=>(
-            <MemberCard key={m.uid} m={m} onEdit={editMember} onRetire={m=>setRetireForm({...m,leaveDate:''})}/>
-          ))}
-        </div>
-      )}
 
-      {/* 퇴직자 목록 */}
-      <div style={{marginTop:24}}>
-        <button onClick={()=>setShowRetired(v=>!v)}
-          style={{background:'#191c2b',border:'1px solid #272a3d',borderRadius:8,color:'#5e6585',
-            padding:'8px 16px',fontSize:12,cursor:'pointer',fontFamily:'inherit',width:'100%',marginBottom:10}}>
-          {showRetired?'▲':'▼'} 퇴직자 기록 ({retired.length}명)
-        </button>
-        {showRetired && (
-          <div style={{display:'flex',flexDirection:'column',gap:12}}>
-            {retired.length===0 ? (
-              <div style={{textAlign:'center',color:'#5e6585',padding:20}}>퇴직자 기록이 없습니다</div>
-            ) : (
-              retired.map(m=><RetiredCard key={m.uid} m={m} onRestore={restoreMember}/>)
-            )}
-          </div>
-        )}
-      </div>
+          {/* 개인별 상세 */}
+{activeEmp!==null && (()=>{
+  const empData = allStats.find(s=>s.emp.uid===activeEmp)
+  if(!empData) return null
+            if(!empData) return null
+            const {emp, totalHours, totalMins, totalH, basePay, totalWeeklyHoliday, totalPay, rows} = empData
+            const empMemos = memos[emp.uid] || {}
+
+            return (
+              <div style={{background:'#12141f',border:'1px solid #272a3d',borderRadius:12,overflow:'hidden'}}>
+                <div style={{padding:'14px 18px',borderBottom:'1px solid #272a3d',fontSize:13,fontWeight:600,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+                  <span>{emp.name} 근무 상세</span>
+                  <span style={{fontSize:11,color:'#5e6585'}}>시급 {(emp.wage||10030).toLocaleString()}원/h</span>
+                </div>
+
+                {/* 급여 요약 */}
+                <div style={{padding:'14px 18px',borderBottom:'1px solid #272a3d',display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:10}}>
+                  {[
+                    {label:'총 근무시간', val:`${totalHours}h ${totalMins>0?totalMins+'m':''}`, color:'#f9b934'},
+                    {label:'기본급', val:`${basePay.toLocaleString()}원`, color:'#dde1f2'},
+                    {label:'주휴수당', val:`${totalWeeklyHoliday.toLocaleString()}원`, color:'#93c5fd'},
+                    {label:'이달 월급', val:`${totalPay.toLocaleString()}원`, color:'#34d399'},
+                  ].map(k=>(
+                    <div key={k.label} style={{background:'#191c2b',borderRadius:8,padding:'10px 12px'}}>
+                      <div style={{fontSize:10,color:'#5e6585',marginBottom:3}}>{k.label}</div>
+                      <div style={{fontSize:13,fontWeight:700,color:k.color,fontFamily:'DM Mono,monospace'}}>{k.val}</div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* 테이블 */}
+                <div style={{padding:'12px 18px',borderBottom:'1px solid #272a3d',fontSize:12,fontWeight:600,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+                  <span>일별 근무시간 입력</span>
+                  <span style={{fontSize:10,color:'#5e6585'}}>일요일에 주휴수당 자동계산</span>
+                </div>
+                <div style={{overflowX:'auto'}}>
+                  <table style={{width:'100%',borderCollapse:'collapse',fontSize:12}}>
+                    <thead>
+                      <tr style={{background:'#191c2b'}}>
+                        <th style={{padding:'8px 10px',fontSize:10,fontWeight:600,color:'#5e6585',textAlign:'left',width:45}}>날짜</th>
+                        <th style={{padding:'8px 6px',fontSize:10,fontWeight:600,color:'#5e6585',textAlign:'left',width:28}}>요일</th>
+                        <th style={{padding:'8px 10px',fontSize:10,fontWeight:600,color:'#5e6585',textAlign:'center',width:110}}>근무시간(h)</th>
+                        <th style={{padding:'8px 10px',fontSize:10,fontWeight:600,color:'#f9b934',textAlign:'center',width:110}}>추가근무(분)</th>
+                        <th style={{padding:'8px 10px',fontSize:10,fontWeight:600,color:'#93c5fd',textAlign:'center',width:110}}>주휴수당</th>
+                        <th style={{padding:'8px 10px',fontSize:10,fontWeight:600,color:'#5e6585',textAlign:'left'}}>비고</th>
+                      </tr>
+                    </thead>
+<tbody key={activeEmp}>
+  {rows.map(({d,dd,dow,h,m,weeklyHoliday})=>{
+                        const isWeekend = dow===0||dow===6
+                        const isSun = dow===0
+                        const now = new Date()
+                        const isToday = curMonth===`${now.getFullYear()}-${pad(now.getMonth()+1)}` && d===now.getDate()
+
+                        return (
+                          <tr key={dd} style={{
+                            background: isSun&&weeklyHoliday>0?'rgba(147,197,253,0.05)':h>0||m>0?'rgba(249,185,52,0.04)':'transparent',
+                            borderLeft: isSun&&weeklyHoliday>0?'3px solid #93c5fd':h>0||m>0?'3px solid #f9b934':'3px solid transparent'
+                          }}>
+                            <td style={{padding:'6px 10px',borderBottom:'1px solid #1a1d2e',
+                              color:isToday?'#f9b934':dow===0?'#f87171':dow===6?'#93c5fd':'#dde1f2',
+                              fontWeight:isToday?700:500,fontSize:12}}>
+                              {d}일
+                            </td>
+                            <td style={{padding:'6px 6px',borderBottom:'1px solid #1a1d2e',
+                              color:dow===0?'#f87171':dow===6?'#93c5fd':'#5e6585',fontSize:11,fontWeight:600}}>
+                              {DAYS_KR[dow]}
+                            </td>
+                            {/* 근무시간 */}
+                            <td style={{padding:'4px 10px',borderBottom:'1px solid #1a1d2e',textAlign:'center'}}>
+                              {!isSun ? (
+<input key={`${activeEmp}_${dd}_h`} type="number" defaultValue={h||''} min="0" max="24" step="0.5" placeholder="0"
+  onBlur={e=>saveWorkHours(emp.uid,dd,e.target.value)}
+  onKeyDown={e=>e.key==='Enter'&&e.target.blur()}
+                                  style={{
+                                    width:80, background:h>0?'rgba(249,185,52,0.15)':'#191c2b',
+                                    border:h>0?'1px solid #f9b934':'1px solid #272a3d',
+                                    borderRadius:6, color:h>0?'#f9b934':'#dde1f2',
+                                    padding:'6px 8px', fontSize:13, fontWeight:h>0?700:400,
+                                    textAlign:'center', outline:'none', fontFamily:'DM Mono,monospace'
+                                  }}/>
+                              ) : (
+                                <span style={{fontSize:11,color:'#5e6585'}}>주휴일</span>
+                              )}
+                            </td>
+                            {/* 추가근무(분) */}
+                            <td style={{padding:'4px 10px',borderBottom:'1px solid #1a1d2e',textAlign:'center'}}>
+                              {!isSun ? (
+<input key={`${activeEmp}_${dd}_m`} type="number" defaultValue={m||''} min="0" max="180" step="5" placeholder="0"
+  onBlur={e=>saveWorkExtra(emp.uid,dd,e.target.value)}
+  onKeyDown={e=>e.key==='Enter'&&e.target.blur()}
+                                  style={{
+                                    width:80, background:m>0?'rgba(249,185,52,0.15)':'#191c2b',
+                                    border:m>0?'1px solid #f9b934':'1px solid #272a3d',
+                                    borderRadius:6, color:m>0?'#f9b934':'#dde1f2',
+                                    padding:'6px 8px', fontSize:13, fontWeight:m>0?700:400,
+                                    textAlign:'center', outline:'none', fontFamily:'DM Mono,monospace'
+                                  }}/>
+                              ) : <span style={{color:'#272a3d'}}>—</span>}
+                            </td>
+                            {/* 주휴수당 */}
+                            <td style={{padding:'6px 10px',borderBottom:'1px solid #1a1d2e',textAlign:'center',fontFamily:'DM Mono,monospace'}}>
+{isSun && weeklyHoliday>0 ? (
+  <span style={{color:'#93c5fd',fontWeight:700,fontSize:12}}>{weeklyHoliday.toLocaleString()}원</span>
+) : isSun ? (
+  <span style={{color:'#3d4060',fontSize:11}}>미지급</span>
+) : (
+  <span style={{color:'#272a3d'}}>—</span>
+)}
+                            </td>
+                            {/* 비고 */}
+                            <td style={{padding:'4px 10px',borderBottom:'1px solid #1a1d2e'}}>
+<input key={`${activeEmp}_${dd}_memo`} type="text" defaultValue={empMemos[dd]||''}
+  placeholder={isSun?'':'결석사유 등...'}
+  onBlur={e=>saveMemo(emp.uid,dd,e.target.value)}
+  onKeyDown={e=>e.key==='Enter'&&e.target.blur()}
+                                style={{
+                                  width:'100%', background:'transparent', border:'none',
+                                  borderBottom:empMemos[dd]?'1px solid #272a3d':'1px solid transparent',
+                                  color:empMemos[dd]?'#f87171':'#3d4060',
+                                  padding:'4px 2px', fontSize:11, outline:'none', fontFamily:'inherit'
+                                }}/>
+                            </td>
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                    <tfoot>
+                      <tr style={{background:'#1f2236'}}>
+                        <td colSpan={2} style={{padding:'12px 10px',fontWeight:700,color:'#f9b934',fontSize:12}}>이달 합계</td>
+                        <td style={{padding:'12px 10px',textAlign:'center',fontWeight:700,color:'#f9b934',fontFamily:'DM Mono,monospace'}}>{totalHours}h</td>
+                        <td style={{padding:'12px 10px',textAlign:'center',fontWeight:700,color:'#f9b934',fontFamily:'DM Mono,monospace'}}>{totalMins>0?`${totalMins}m`:'—'}</td>
+                        <td style={{padding:'12px 10px',textAlign:'center',fontWeight:700,color:'#93c5fd',fontFamily:'DM Mono,monospace'}}>{totalWeeklyHoliday.toLocaleString()}원</td>
+                        <td style={{padding:'12px 10px'}}>
+                          <span style={{color:'#34d399',fontWeight:700,fontFamily:'DM Mono,monospace',fontSize:14}}>
+                            월급 {totalPay.toLocaleString()}원
+                          </span>
+                          <span style={{color:'#5e6585',fontSize:10,marginLeft:8}}>
+                            (기본급 {basePay.toLocaleString()} + 주휴 {totalWeeklyHoliday.toLocaleString()})
+                          </span>
+                        </td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
+              </div>
+            )
+          })()}
+        </>
+      )}
     </div>
   )
 }
