@@ -36,9 +36,10 @@ function emptyForm() {
     memo: '',
     claimStatus: 'pending',
     approvedDate: '',
-    approvedAmount: '',
-    depositDate: '',
     rejectReason: '',
+    finalConfirmed: false,
+    finalConfirmedDate: '',
+    finalAmount: '',
   }
 }
 
@@ -54,6 +55,10 @@ export default function LossClaims() {
   const [editForm, setEditForm] = useState(null)
 
   const [filterTab, setFilterTab] = useState('active') // 'active' | 'done'
+
+  // 최종 확인(입금+금액 확정) 인라인 폼
+  const [confirmId, setConfirmId] = useState(null)
+  const [confirmForm, setConfirmForm] = useState({ date: todayStr(), amount: '' })
 
   async function load() {
     setLoading(true)
@@ -79,7 +84,7 @@ export default function LossClaims() {
         ...form,
         orderAmount: +form.orderAmount||0,
         lossAmount: +form.lossAmount||0,
-        approvedAmount: +form.approvedAmount||0,
+        finalAmount: +form.finalAmount||0,
         status: 'active', // 진행중/완료
         createdAt: new Date().toISOString(),
       }
@@ -102,6 +107,34 @@ export default function LossClaims() {
     await saveAll(newList)
   }
 
+  // ── 최종 확인 (상담원 통화로 실제 입금 확인 후) ──
+  function startConfirm(r) {
+    setConfirmId(r.id)
+    setConfirmForm({ date: todayStr(), amount: r.finalAmount ? String(r.finalAmount) : '' })
+  }
+  async function saveFinalConfirm(id) {
+    const amount = +confirmForm.amount || 0
+    if(!confirmForm.date) return alert('최종확인일을 입력해주세요')
+    if(amount<=0) return alert('최종 보상금액을 입력해주세요')
+    setSaving(true)
+    try {
+      const newList = records.map(r => r.id===id ? {
+        ...r,
+        finalConfirmed: true,
+        finalConfirmedDate: confirmForm.date,
+        finalAmount: amount,
+      } : r)
+      await saveAll(newList)
+      setConfirmId(null)
+    } catch(e){ console.error(e) }
+    setSaving(false)
+  }
+  async function undoFinalConfirm(id) {
+    if(!window.confirm('최종 확인을 취소하고 다시 확인대기 상태로 되돌리시겠습니까?')) return
+    const newList = records.map(r => r.id===id ? { ...r, finalConfirmed:false } : r)
+    await saveAll(newList)
+  }
+
   function startEdit(r) {
     setEditId(r.id)
     setEditForm({ ...r })
@@ -115,7 +148,7 @@ export default function LossClaims() {
           ...editForm,
           orderAmount: +editForm.orderAmount||0,
           lossAmount: +editForm.lossAmount||0,
-          approvedAmount: +editForm.approvedAmount||0,
+          finalAmount: +editForm.finalAmount||0,
         } : r
       )
       await saveAll(newList)
@@ -141,6 +174,16 @@ export default function LossClaims() {
   const causeOf = key => CAUSES.find(c=>c.key===key)
   const claimStatusOf = key => CLAIM_STATUS.find(s=>s.key===key)
 
+  // 카드 헤더에 표시할 상태 뱃지 (승인 후 최종확인 여부까지 구분)
+  function claimBadge(r) {
+    if(r.claimStatus === 'approved') {
+      return r.finalConfirmed
+        ? { label:'🟢 최종완료', color:'#34d399' }
+        : { label:'🟡 승인(확인대기)', color:'#f9b934' }
+    }
+    return claimStatusOf(r.claimStatus)
+  }
+
   const filtered = records
     .filter(r => filterTab==='active' ? r.status!=='done' : r.status==='done')
     .sort((a,b)=> b.date.localeCompare(a.date))
@@ -149,9 +192,10 @@ export default function LossClaims() {
   const doneCount   = records.filter(r=>r.status==='done').length
 
   const totalLoss     = records.reduce((a,r)=>a+(r.lossAmount||0),0)
-  const totalApproved = records.filter(r=>r.claimStatus==='approved').reduce((a,r)=>a+(r.approvedAmount||0),0)
+  const totalApproved = records.filter(r=>r.claimStatus==='approved' && r.finalConfirmed).reduce((a,r)=>a+(r.finalAmount||0),0)
   const totalOrder    = records.reduce((a,r)=>a+(r.orderAmount||0),0)
   const pendingCount  = records.filter(r=>r.claimStatus==='pending').length
+  const waitingConfirmCount = records.filter(r=>r.claimStatus==='approved' && !r.finalConfirmed).length
 
   const inputStyle = {
     background:'#191c2b',border:'1px solid #272a3d',borderRadius:7,color:'#dde1f2',
@@ -191,25 +235,34 @@ export default function LossClaims() {
 
         {f.claimStatus === 'approved' && (
           <div style={{marginTop:10,background:'rgba(52,211,153,0.06)',border:'1px solid rgba(52,211,153,0.2)',
-            borderRadius:8,padding:12,display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(150px,1fr))',gap:10}}>
-            <div>
+            borderRadius:8,padding:12}}>
+            <div style={{maxWidth:200}}>
               <label style={labelStyle}>승인일</label>
               <input type="date" value={f.approvedDate||todayStr()}
                 onChange={e=>(target==='form'?setForm:setEditForm)(p=>({...p,approvedDate:e.target.value}))}
                 style={inputStyle}/>
             </div>
-            <div>
-              <label style={labelStyle}>보상 금액 (원)</label>
-              <input type="number" value={f.approvedAmount}
-                onChange={e=>(target==='form'?setForm:setEditForm)(p=>({...p,approvedAmount:e.target.value}))}
-                placeholder="0" style={inputStyle}/>
+            <div style={{fontSize:10,color:'#5e6585',marginTop:8,lineHeight:1.6}}>
+              💡 보상금액은 나중에 실제 입금 확인 후 카드의 <b>"최종 확인"</b> 버튼으로 입력해요.
+              위에서 입력한 <b>주문 금액</b>과 비교해 수수료가 얼마나 빠졌는지 자동으로 보여드려요.
             </div>
-            <div>
-              <label style={labelStyle}>입금 확인일 (선택)</label>
-              <input type="date" value={f.depositDate||''}
-                onChange={e=>(target==='form'?setForm:setEditForm)(p=>({...p,depositDate:e.target.value}))}
-                style={inputStyle}/>
-            </div>
+            {target==='editForm' && f.finalConfirmed && (
+              <div style={{marginTop:12,paddingTop:12,borderTop:'1px solid rgba(52,211,153,0.2)',
+                display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(150px,1fr))',gap:10}}>
+                <div>
+                  <label style={labelStyle}>최종확인일</label>
+                  <input type="date" value={f.finalConfirmedDate||todayStr()}
+                    onChange={e=>setEditForm(p=>({...p,finalConfirmedDate:e.target.value}))}
+                    style={inputStyle}/>
+                </div>
+                <div>
+                  <label style={labelStyle}>최종 보상금액 (원)</label>
+                  <input type="number" value={f.finalAmount}
+                    onChange={e=>setEditForm(p=>({...p,finalAmount:e.target.value}))}
+                    placeholder="0" style={inputStyle}/>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
@@ -244,8 +297,9 @@ export default function LossClaims() {
         {[
           {label:'총 주문 금액',   val:totalOrder,     color:'#dde1f2'},
           {label:'총 손실 금액',   val:totalLoss,      color:'#f87171'},
-          {label:'보상 받은 금액', val:totalApproved,  color:'#34d399'},
-          {label:'대기중 건수',    val:pendingCount, isCount:true, color:'#f9b934'},
+          {label:'보상 받은 금액(최종확인)', val:totalApproved,  color:'#34d399'},
+          {label:'승인 대기중',    val:pendingCount, isCount:true, color:'#5e6585'},
+          ...(waitingConfirmCount>0 ? [{label:'최종확인 대기중', val:waitingConfirmCount, isCount:true, color:'#f9b934'}] : []),
         ].map(k=>(
           <div key={k.label} style={{background:'#12141f',border:'1px solid #272a3d',borderRadius:12,padding:'14px 16px',position:'relative',overflow:'hidden'}}>
             <div style={{position:'absolute',top:0,left:0,right:0,height:3,background:k.color}}/>
@@ -344,9 +398,12 @@ export default function LossClaims() {
           {filtered.map(r=>{
             const pf = platformOf(r.platform)
             const cause = causeOf(r.cause)
-            const cs = claimStatusOf(r.claimStatus)
+            const cs = claimBadge(r)
             const isEditing = editId === r.id
             const ef = isEditing ? editForm : null
+            const isConfirming = confirmId === r.id
+            const feeDiff = r.finalConfirmed ? (r.orderAmount||0) - (r.finalAmount||0) : 0
+            const feePct  = r.finalConfirmed && r.orderAmount>0 ? Math.round(feeDiff/r.orderAmount*100) : 0
 
             return (
               <div key={r.id} style={{background:'#12141f',
@@ -373,18 +430,65 @@ export default function LossClaims() {
                           <span>주문금액 <b style={{color:'#dde1f2'}}>{wonFmt(r.orderAmount)}원</b></span>
                           <span>손실금액 <b style={{color:'#f87171'}}>{wonFmt(r.lossAmount)}원</b></span>
                           {r.claimStatus==='approved' && (
+                            <span>승인일 <b style={{color:'#dde1f2'}}>{r.approvedDate}</b></span>
+                          )}
+                          {r.claimStatus==='approved' && !r.finalConfirmed && (
+                            <span style={{color:'#f9b934',fontWeight:700}}>⏳ 최종확인 대기중</span>
+                          )}
+                          {r.claimStatus==='approved' && r.finalConfirmed && (
                             <>
-                              <span>보상금액 <b style={{color:'#34d399'}}>{wonFmt(r.approvedAmount)}원</b></span>
-                              <span>승인일 <b style={{color:'#dde1f2'}}>{r.approvedDate}</b></span>
-                              <span>입금확인 <b style={{color: r.depositDate?'#34d399':'#f9b934'}}>{r.depositDate || '미확인'}</b></span>
+                              <span>최종확인일 <b style={{color:'#dde1f2'}}>{r.finalConfirmedDate}</b></span>
+                              <span>최종보상 <b style={{color:'#34d399'}}>{wonFmt(r.finalAmount)}원</b></span>
+                              <span>수수료 <b style={{color:'#f87171'}}>-{wonFmt(feeDiff)}원 ({feePct}%)</b></span>
                             </>
                           )}
                           {r.claimStatus==='rejected' && r.rejectReason && (
                             <span>거절사유 <b style={{color:'#f87171'}}>{r.rejectReason}</b></span>
                           )}
                         </div>
+
+                        {isConfirming && (
+                          <div style={{marginTop:10,background:'rgba(249,185,52,0.06)',border:'1px solid rgba(249,185,52,0.25)',
+                            borderRadius:8,padding:12,display:'flex',gap:10,alignItems:'flex-end',flexWrap:'wrap'}}>
+                            <div>
+                              <label style={labelStyle}>최종확인일</label>
+                              <input type="date" value={confirmForm.date}
+                                onChange={e=>setConfirmForm(f=>({...f,date:e.target.value}))} style={inputStyle}/>
+                            </div>
+                            <div>
+                              <label style={labelStyle}>최종 보상금액 (원)</label>
+                              <input type="number" value={confirmForm.amount}
+                                onChange={e=>setConfirmForm(f=>({...f,amount:e.target.value}))}
+                                placeholder="상담원 안내 금액" style={inputStyle}/>
+                            </div>
+                            <button onClick={()=>saveFinalConfirm(r.id)} disabled={saving}
+                              style={{background:'#34d399',color:'#000',border:'none',borderRadius:7,padding:'8px 16px',
+                                fontSize:11,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
+                              {saving?'저장 중...':'확정'}
+                            </button>
+                            <button onClick={()=>setConfirmId(null)}
+                              style={{background:'transparent',border:'1px solid #272a3d',color:'#5e6585',borderRadius:7,
+                                padding:'8px 14px',fontSize:11,cursor:'pointer',fontFamily:'inherit'}}>
+                              취소
+                            </button>
+                          </div>
+                        )}
                       </div>
-                      <div style={{display:'flex',gap:6,flexShrink:0}}>
+                      <div style={{display:'flex',gap:6,flexShrink:0,flexWrap:'wrap'}}>
+                        {r.claimStatus==='approved' && !r.finalConfirmed && !isConfirming && (
+                          <button onClick={()=>startConfirm(r)}
+                            style={{background:'#f9b934',color:'#000',border:'none',
+                              padding:'5px 12px',fontSize:10,fontWeight:700,borderRadius:5,cursor:'pointer',fontFamily:'inherit'}}>
+                            ✅ 최종 확인
+                          </button>
+                        )}
+                        {r.claimStatus==='approved' && r.finalConfirmed && (
+                          <button onClick={()=>undoFinalConfirm(r.id)}
+                            style={{background:'transparent',border:'1px solid #272a3d',color:'#5e6585',
+                              padding:'5px 10px',fontSize:10,borderRadius:5,cursor:'pointer',fontFamily:'inherit'}}>
+                            확인 취소
+                          </button>
+                        )}
                         <button onClick={()=>startEdit(r)}
                           style={{background:'transparent',border:'1px solid #272a3d',color:'#dde1f2',
                             padding:'5px 10px',fontSize:10,borderRadius:5,cursor:'pointer',fontFamily:'inherit'}}>
