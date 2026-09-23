@@ -114,7 +114,7 @@ const STATUS = {
 }
 
 // 세무 보고서 모달
-function TaxReportModal({ month, curMonth, employees, payroll, getComputed, ssnMap, ownerConfig, setOwnerConfig, severance, nameMap, onClose }) {
+function TaxReportModal({ month, curMonth, employees, payroll, getComputed, ssnMap, ownerConfig, setOwnerConfig, severance, nameMap, bonuses, onClose }) {
   const [showOwnerConfig, setShowOwnerConfig] = useState(false)
 const [editOwner, setEditOwner] = useState(ownerConfig)
 
@@ -127,7 +127,9 @@ useEffect(() => {
   const rows = employees.map(emp => {
     const p       = payroll[emp.uid]
     const computed = getComputed(emp)
-    const salary   = p?.confirmedByOwner ? p.totalPay : computed.totalPay
+    const basePay  = p?.confirmedByOwner ? p.totalPay : computed.totalPay
+    const bonusTotal = (bonuses?.[emp.uid]||[]).reduce((a,r)=>a+(r.amount||0),0)
+    const salary   = basePay + bonusTotal
     const tax      = Math.round(salary * 0.033)
     const net      = salary - tax
     return { uid: emp.uid, name: emp.name, ssn: ssnMap[emp.uid] || '—', salary, tax, net }
@@ -385,6 +387,11 @@ export default function Payroll() {
   const [advanceUid, setAdvanceUid]   = useState(null) // 가불 패널 펼친 직원
   const [advanceForm, setAdvanceForm] = useState({ date: todayStr(), amount:'', memo:'' })
 
+  // 상여/보너스 관리
+  const [bonuses, setBonuses]       = useState({}) // {uid: [{id,date,amount,memo}]}
+  const [bonusUid, setBonusUid]     = useState(null) // 상여 패널 펼친 직원
+  const [bonusForm, setBonusForm]   = useState({ date: todayStr(), amount:'', memo:'' })
+
   const monthOpts=[]
   for(let y=2022;y<=2026;y++){const sm=y===2022?10:1;for(let m=sm;m<=12;m++){monthOpts.push(`${y}-${pad(m)}`)}}
 
@@ -420,7 +427,7 @@ if(!isActive && !isRetired) return
       const [cy,cm] = curMonth.split('-').map(Number)
       const prev = cm===1?`${cy-1}-12`:`${cy}-${pad(cm-1)}`
 
-      const [wh,ex,me,pwh,pex,pme,pr,ownerCfg,sevSnap,advSnap] = await Promise.all([
+      const [wh,ex,me,pwh,pex,pme,pr,ownerCfg,sevSnap,advSnap,bonusSnap] = await Promise.all([
   getDoc(doc(db,'workhours',curMonth)),
   getDoc(doc(db,'workextra',curMonth)),
   getDoc(doc(db,'workmemos',curMonth)),
@@ -608,6 +615,42 @@ if(!isActive && !isRetired) return
     setSaving(false)
   }
 
+  // ── 상여/보너스 관리 (세금 부과 대상 — 세전 급여에 합산 후 원천징수 재계산) ──
+  function bonusListOf(uid) {
+    return bonuses[uid] || []
+  }
+  function bonusTotalOf(uid) {
+    return bonusListOf(uid).reduce((a,r)=>a+(r.amount||0),0)
+  }
+  async function saveBonuses(newBonuses) {
+    await setDoc(doc(db,'bonuses',curMonth), newBonuses)
+    setBonuses(newBonuses)
+  }
+  async function addBonus(uid) {
+    const amount = +String(bonusForm.amount||'').replace(/[^0-9]/g,'') || 0
+    if(amount <= 0) return alert('상여 금액을 입력해주세요')
+    if(!bonusForm.date) return alert('날짜를 입력해주세요')
+    setSaving(true)
+    try {
+      const newRec = { id: Date.now().toString(), date: bonusForm.date, amount, memo: bonusForm.memo||'' }
+      const newList = [...bonusListOf(uid), newRec].sort((a,b)=>a.date>b.date?1:-1)
+      const newBonuses = { ...bonuses, [uid]: newList }
+      await saveBonuses(newBonuses)
+      setBonusForm({ date: todayStr(), amount:'', memo:'' })
+    } catch(e){ console.error(e) }
+    setSaving(false)
+  }
+  async function deleteBonus(uid, id) {
+    if(!window.confirm('이 상여 기록을 삭제하시겠습니까?')) return
+    setSaving(true)
+    try {
+      const newList = bonusListOf(uid).filter(r=>r.id!==id)
+      const newBonuses = { ...bonuses, [uid]: newList }
+      await saveBonuses(newBonuses)
+    } catch(e){ console.error(e) }
+    setSaving(false)
+  }
+
   const inquiryCount = employees.filter(e=>getStatus(e.uid)==='inquiry').length
   const paidCount    = employees.filter(e=>getStatus(e.uid)==='paid').length
   const checkedCount = employees.filter(e=>['checked','paid'].includes(getStatus(e.uid))).length
@@ -619,6 +662,7 @@ if(!isActive && !isRetired) return
   },0)
   const severanceTotal = Object.values(severance).reduce((a,s)=>a+s.net,0)
   const advanceGrandTotal = Object.values(advances).reduce((a,list)=>a+(list||[]).reduce((b,r)=>b+(r.amount||0),0),0)
+  const bonusGrandTotal = Object.values(bonuses).reduce((a,list)=>a+(list||[]).reduce((b,r)=>b+(r.amount||0),0),0)
 
   return (
     <div>
@@ -664,6 +708,7 @@ if(!isActive && !isRetired) return
           {label:'지급 완료',        val:`${paidCount}명`,                          color:'#93c5fd'},
           ...(severanceTotal>0 ? [{label:'이달 퇴직금 지급액', val:`${severanceTotal.toLocaleString()}원`, color:'#fb923c'}] : []),
           ...(advanceGrandTotal>0 ? [{label:'이달 가불 총액', val:`${advanceGrandTotal.toLocaleString()}원`, color:'#f87171'}] : []),
+          ...(bonusGrandTotal>0 ? [{label:'이달 상여 총액', val:`${bonusGrandTotal.toLocaleString()}원`, color:'#a78bfa'}] : []),
         ].map(k=>(
           <div key={k.label} style={{background:'#12141f',border:'1px solid #272a3d',borderRadius:12,padding:'14px 16px',position:'relative',overflow:'hidden'}}>
             <div style={{position:'absolute',top:0,left:0,right:0,height:2,background:k.color,opacity:.5}}/>
@@ -686,8 +731,14 @@ if(!isActive && !isRetired) return
             const hasInquiry = p?.inquiry && !p.inquiry.resolved
             const isOpen  = activeUid === emp.uid
             const advTotal  = advanceTotalOf(emp.uid)
-            const finalPay  = (display.netPay||display.totalPay||0) - advTotal
+            const bonusTotal = bonusTotalOf(emp.uid)
+            // 상여는 과세 대상 — 세전 급여에 합산 후 원천징수 재계산
+            const grossWithBonus = (display.totalPay||0) + bonusTotal
+            const deductionWithBonus = bonusTotal>0 ? calcDeduction(grossWithBonus, emp.employType||'part') : display.deduction
+            const netWithBonus = grossWithBonus - (deductionWithBonus?.total||0)
+            const finalPay  = (bonusTotal>0 ? netWithBonus : (display.netPay||display.totalPay||0)) - advTotal
             const isAdvanceOpen = advanceUid === emp.uid
+            const isBonusOpen = bonusUid === emp.uid
 
             return (
               <div key={emp.uid} style={{background:'#12141f',
@@ -721,6 +772,13 @@ if(!isActive && !isRetired) return
                         cursor:'pointer',fontFamily:'inherit',fontWeight:600}}>
                       💸 가불{advTotal>0?` ${advTotal.toLocaleString()}원`:''} {isAdvanceOpen?'닫기':''}
                     </button>
+                    <button onClick={()=>{ setBonusUid(isBonusOpen?null:emp.uid); setBonusForm({date:todayStr(),amount:'',memo:''}) }}
+                      style={{background: bonusTotal>0 ? 'rgba(167,139,250,0.12)' : 'rgba(94,101,133,0.1)',
+                        border: bonusTotal>0 ? '1px solid rgba(167,139,250,0.3)' : '1px solid #272a3d',
+                        color: bonusTotal>0 ? '#a78bfa' : '#5e6585',borderRadius:6,padding:'4px 10px',fontSize:11,
+                        cursor:'pointer',fontFamily:'inherit',fontWeight:600}}>
+                      🎁 상여{bonusTotal>0?` ${bonusTotal.toLocaleString()}원`:''} {isBonusOpen?'닫기':''}
+                    </button>
                   </div>
                   <div style={{display:'flex',alignItems:'center',gap:14,flexWrap:'wrap'}}>
                     <div style={{textAlign:'right'}}>
@@ -746,13 +804,21 @@ if(!isActive && !isRetired) return
                           </span>
                         )}
                       </div>
+                      {bonusTotal>0 && (
+                        <div style={{fontSize:11,color:'#a78bfa',marginBottom:2}}>
+                          상여 +{bonusTotal.toLocaleString()}원
+                          <span style={{color:'#f87171',marginLeft:6}}>
+                            (세금 -{(deductionWithBonus?.total||0).toLocaleString()}원)
+                          </span>
+                        </div>
+                      )}
                       {advTotal>0 && (
                         <div style={{fontSize:11,color:'#f87171',marginBottom:2}}>
                           가불 차감 -{advTotal.toLocaleString()}원
                         </div>
                       )}
                       <div style={{fontSize:16,fontWeight:700,color:'#34d399',fontFamily:'DM Mono,monospace'}}>
-                        {advTotal>0 ? '최종 지급' : '실수령'} {finalPay.toLocaleString()}원
+                        {advTotal>0 || bonusTotal>0 ? '최종 지급' : '실수령'} {finalPay.toLocaleString()}원
                       </div>
                     </div>
                     {status==='unconfirmed' && (
@@ -847,6 +913,62 @@ if(!isActive && !isRetired) return
                           fontSize:11,fontWeight:700,cursor:'pointer',fontFamily:'inherit',whiteSpace:'nowrap'}}>
                         + 가불 추가
                       </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* 상여/보너스 관리 패널 */}
+                {isBonusOpen && (
+                  <div style={{padding:'14px 18px',borderTop:'1px solid rgba(167,139,250,0.2)',
+                    background:'rgba(167,139,250,0.03)'}}>
+                    <div style={{fontSize:11,fontWeight:600,color:'#a78bfa',marginBottom:10}}>
+                      🎁 {emp.name} 상여·보너스 내역
+                    </div>
+
+                    {bonusListOf(emp.uid).length > 0 && (
+                      <div style={{display:'flex',flexDirection:'column',gap:6,marginBottom:12}}>
+                        {bonusListOf(emp.uid).map(r=>(
+                          <div key={r.id} style={{display:'flex',alignItems:'center',gap:10,
+                            background:'#191c2b',borderRadius:7,padding:'7px 12px',flexWrap:'wrap'}}>
+                            <span style={{fontSize:11,color:'#5e6585',fontFamily:'DM Mono,monospace',minWidth:80}}>{r.date}</span>
+                            <span style={{fontSize:13,fontWeight:700,color:'#a78bfa',fontFamily:'DM Mono,monospace'}}>
+                              {r.amount.toLocaleString()}원
+                            </span>
+                            <span style={{flex:1,fontSize:11,color:'#5e6585'}}>{r.memo||'—'}</span>
+                            <button onClick={()=>deleteBonus(emp.uid, r.id)}
+                              style={{background:'transparent',border:'1px solid #3d1f1f',color:'#f87171',
+                                padding:'3px 8px',fontSize:10,borderRadius:4,cursor:'pointer',fontFamily:'inherit'}}>
+                              삭제
+                            </button>
+                          </div>
+                        ))}
+                        <div style={{display:'flex',justifyContent:'flex-end',fontSize:11,color:'#5e6585',paddingTop:2}}>
+                          이번달 상여 합계 <span style={{color:'#a78bfa',fontWeight:700,marginLeft:6}}>{bonusTotal.toLocaleString()}원</span>
+                        </div>
+                      </div>
+                    )}
+
+                    <div style={{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap'}}>
+                      <input type="date" value={bonusForm.date}
+                        onChange={e=>setBonusForm(f=>({...f,date:e.target.value}))}
+                        style={{background:'#191c2b',border:'1px solid #272a3d',borderRadius:7,color:'#dde1f2',
+                          padding:'7px 10px',fontSize:12,outline:'none',fontFamily:'inherit'}}/>
+                      <input type="number" placeholder="상여 금액" value={bonusForm.amount}
+                        onChange={e=>setBonusForm(f=>({...f,amount:e.target.value}))}
+                        style={{width:140,background:'#191c2b',border:'1px solid #272a3d',borderRadius:7,color:'#dde1f2',
+                          padding:'7px 10px',fontSize:12,outline:'none',fontFamily:'DM Mono,monospace'}}/>
+                      <input placeholder="사유 (예: 추석 보너스)" value={bonusForm.memo}
+                        onChange={e=>setBonusForm(f=>({...f,memo:e.target.value}))}
+                        style={{flex:1,minWidth:120,background:'#191c2b',border:'1px solid #272a3d',borderRadius:7,color:'#dde1f2',
+                          padding:'7px 10px',fontSize:12,outline:'none',fontFamily:'inherit'}}/>
+                      <button onClick={()=>addBonus(emp.uid)} disabled={saving}
+                        style={{background:'#a78bfa',color:'#000',border:'none',borderRadius:7,padding:'7px 16px',
+                          fontSize:11,fontWeight:700,cursor:'pointer',fontFamily:'inherit',whiteSpace:'nowrap'}}>
+                        + 상여 추가
+                      </button>
+                    </div>
+                    <div style={{fontSize:9,color:'#5e6585',marginTop:8}}>
+                      💡 상여는 세전 급여에 합산되어 원천징수(3.3% 또는 4대보험)가 다시 계산돼요.
                     </div>
                   </div>
                 )}
@@ -986,6 +1108,7 @@ if(!isActive && !isRetired) return
 setOwnerConfig={setOwnerConfig}
           severance={severance}
           nameMap={nameMap}
+          bonuses={bonuses}
           onClose={()=>setShowTaxReport(false)}
         />
       )}
