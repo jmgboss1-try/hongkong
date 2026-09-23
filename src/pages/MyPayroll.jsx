@@ -12,6 +12,7 @@ export default function MyPayroll() {
     const now=new Date(); return `${now.getFullYear()}-${pad(now.getMonth()+1)}`
   })
   const [payroll, setPayroll]           = useState(null)
+  const [myBonuses, setMyBonuses]       = useState([])
   const [loading, setLoading]           = useState(true)
   const [showInquiryForm, setShowInquiryForm] = useState(false)
   const [inquiryText, setInquiryText]   = useState('')
@@ -24,9 +25,14 @@ export default function MyPayroll() {
     if(!user) return
     setLoading(true)
     try {
-      const snap = await getDoc(doc(db,'payroll',curMonth))
+      const [snap, bonusSnap] = await Promise.all([
+        getDoc(doc(db,'payroll',curMonth)),
+        getDoc(doc(db,'bonuses',curMonth)),
+      ])
       const data = snap.exists() ? snap.data() : {}
       setPayroll(data[user.uid] || null)
+      const bonusData = bonusSnap.exists() ? bonusSnap.data() : {}
+      setMyBonuses(bonusData[user.uid] || [])
     } catch(e){ console.error(e) }
     setLoading(false)
   }
@@ -69,6 +75,7 @@ export default function MyPayroll() {
   }
 
   const p = payroll
+  const myBonusTotal = myBonuses.reduce((a,r)=>a+(r.amount||0),0)
 
   // 상태 계산
   const isPending  = !p?.confirmedByOwner
@@ -159,6 +166,33 @@ export default function MyPayroll() {
               </div>
             </div>
           </div>
+
+          {/* 상여·보너스 내역 */}
+          {myBonuses.length > 0 && (
+            <div style={{background:'#12141f',border:'1px solid rgba(167,139,250,0.3)',borderRadius:12,
+              overflow:'hidden',marginBottom:14}}>
+              <div style={{padding:'12px 18px',borderBottom:'1px solid #272a3d',fontSize:12,fontWeight:600,
+                color:'#a78bfa',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+                <span>🎁 이달 상여·보너스</span>
+                <span style={{fontFamily:'DM Mono,monospace'}}>{myBonusTotal.toLocaleString()}원</span>
+              </div>
+              <div style={{display:'flex',flexDirection:'column',gap:6,padding:'12px 18px'}}>
+                {myBonuses.map(r=>(
+                  <div key={r.id} style={{display:'flex',alignItems:'center',gap:10,
+                    background:'#191c2b',borderRadius:7,padding:'8px 12px',flexWrap:'wrap'}}>
+                    <span style={{fontSize:11,color:'#5e6585',fontFamily:'DM Mono,monospace',minWidth:80}}>{r.date}</span>
+                    <span style={{fontSize:13,fontWeight:700,color:'#a78bfa',fontFamily:'DM Mono,monospace'}}>
+                      {r.amount.toLocaleString()}원
+                    </span>
+                    <span style={{flex:1,fontSize:11,color:'#5e6585'}}>{r.memo||'—'}</span>
+                  </div>
+                ))}
+              </div>
+              <div style={{padding:'0 18px 12px',fontSize:10,color:'#5e6585'}}>
+                💡 상여는 이달 급여에 합산되어 세금이 함께 계산돼요.
+              </div>
+            </div>
+          )}
 
           {/* 문의 스레드 */}
           {p.inquiry && (
