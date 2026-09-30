@@ -438,6 +438,7 @@ if(!isActive && !isRetired) return
   getDoc(doc(db,'payrollOwner', curMonth)),
   getDoc(doc(db,'severance', curMonth)),
   getDoc(doc(db,'advances', curMonth)),
+  getDoc(doc(db,'bonuses', curMonth)),      
 ])
       setWorkHours(wh.exists()?wh.data():{})
       setWorkExtra(ex.exists()?ex.data():{})
@@ -449,6 +450,7 @@ if(!isActive && !isRetired) return
       if(ownerCfg.exists()) setOwnerConfig(ownerCfg.data())
       setSeverance(sevSnap.exists()?sevSnap.data():{})
       setAdvances(advSnap.exists()?advSnap.data():{})
+      setBonuses(bonusSnap.exists()?bonusSnap.data():{})
     } catch(e){ console.error(e) }
     setLoading(false)
   }
