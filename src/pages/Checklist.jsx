@@ -26,13 +26,24 @@ function dateOfDow(dow) {
   d.setDate(sunday.getDate() + dow)
   return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`
 }
-// 오늘 기준 가장 최근 "영업일"(휴무일 제외) 하루 전 날짜 찾기
-function lastBusinessDayBefore(dateStr) {
+
+// 임시휴무(등록된 날짜구간) 중 해당 날짜를 포함하는 항목 찾기. 없으면 null.
+function holidayInfoOf(dateStr, holidays) {
+  return (holidays||[]).find(h => h.startDate <= dateStr && dateStr <= h.endDate) || null
+}
+// 일요일(고정휴무) 이거나 등록된 임시휴무 기간에 포함되면 휴무일
+function isClosedDate(dateStr, holidays) {
+  return dowOfDate(dateStr) === CLOSED_DOW || !!holidayInfoOf(dateStr, holidays)
+}
+
+// 오늘 기준 가장 최근 "영업일"(일요일+임시휴무 제외) 하루 전 날짜 찾기
+function lastBusinessDayBefore(dateStr, holidays) {
   let d = new Date(dateStr)
-  for(let i=0;i<7;i++){
+  for(let i=0;i<14;i++){
     d.setDate(d.getDate()-1)
-    if(d.getDay() !== CLOSED_DOW) {
-      return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`
+    const ds = `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`
+    if(!isClosedDate(ds, holidays)) {
+      return ds
     }
   }
   return null
@@ -49,12 +60,12 @@ function isBiweeklyActive(item, dateStr) {
 }
 
 // 오늘부터 daysAhead일 후까지(당일 포함) 그 항목이 실제로 발생하는 날짜를 찾아서 반환. 없으면 null.
-function findUpcomingDate(item, daysAhead) {
+function findUpcomingDate(item, daysAhead, holidays) {
   for(let i=0; i<=daysAhead; i++){
     const d = new Date()
     d.setDate(d.getDate()+i)
-    if(d.getDay() === CLOSED_DOW) continue // 휴무일은 건너뜀
     const dateStr = `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`
+    if(isClosedDate(dateStr, holidays)) continue // 휴무일(일요일+임시휴무)은 건너뜀
     if(d.getDay() === item.dow && isBiweeklyActive(item, dateStr)) {
       return { dateStr, offset:i, dow:d.getDay() }
     }
@@ -94,6 +105,7 @@ export default function Checklist() {
   const [dailyItems, setDailyItems]   = useState(DEFAULT_DAILY)
   const [weeklyItems, setWeeklyItems] = useState(DEFAULT_WEEKLY)
   const [checks, setChecks]   = useState({}) // {date: {itemId: true}} — 매일항목은 itemId_am / itemId_pm 로 저장
+  const [holidays, setHolidays] = useState([]) // [{id,startDate,endDate,reason}] 임시휴무 목록
   const [loading, setLoading] = useState(true)
   const [saving, setSaving]   = useState(false)
 
@@ -106,6 +118,9 @@ export default function Checklist() {
   const [editItemId, setEditItemId] = useState(null)
   const [editItemForm, setEditItemForm] = useState(null)
 
+  const [showHolidayManage, setShowHolidayManage] = useState(false)
+  const [newHoliday, setNewHoliday] = useState({ startDate: todayStr(), endDate: todayStr(), reason:'' })
+
   const [expandedDow, setExpandedDow] = useState(null)
   const [employees, setEmployees] = useState([]) // [{uid,name}]
   const [subRequests, setSubRequests] = useState([]) // 대타 확정 목록
@@ -115,20 +130,26 @@ export default function Checklist() {
   const todayDow = new Date().getDay()
   const historyDow = new Date(historyDate).getDay()
 
-  // 일요일(휴무) 다음 영업일 기준 "어제" = 가장 최근 휴무 아닌 전날
-  const prevBusinessDate = lastBusinessDayBefore(today)
+  const todayHolidayInfo = holidayInfoOf(today, holidays)
+  const todayClosed = todayDow === CLOSED_DOW || !!todayHolidayInfo
+  const historyHolidayInfo = holidayInfoOf(historyDate, holidays)
+  const historyClosed = historyDow === CLOSED_DOW || !!historyHolidayInfo
+
+  // 일요일/임시휴무 다음 영업일 기준 "어제" = 가장 최근 휴무 아닌 전날
+  const prevBusinessDate = lastBusinessDayBefore(today, holidays)
   const prevBusinessDow  = prevBusinessDate ? dowOfDate(prevBusinessDate) : null
 
   async function load() {
     setLoading(true)
     try {
-      const [cfgSnap, recSnap, usersSnap, subSnap, noticeSnap, memoSnap] = await Promise.all([
+      const [cfgSnap, recSnap, usersSnap, subSnap, noticeSnap, memoSnap, holSnap] = await Promise.all([
         getDoc(doc(db,'checklist','config')),
         getDoc(doc(db,'checklist','records')),
         getDocs(collection(db,'users')),
         getDoc(doc(db,'substitutes','requests')),
         getDocs(collection(db,'notices')),
         getDocs(collection(db,'memos')),
+        getDoc(doc(db,'checklist','holidays')),
       ])
       if(cfgSnap.exists()) {
         const cfg = cfgSnap.data()
@@ -138,6 +159,7 @@ export default function Checklist() {
         await setDoc(doc(db,'checklist','config'), { daily: DEFAULT_DAILY, weekly: DEFAULT_WEEKLY })
       }
       setChecks(recSnap.exists() ? (recSnap.data().byDate||{}) : {})
+      setHolidays(holSnap.exists() ? (holSnap.data().list||[]) : [])
       const emps = []
       usersSnap.forEach(d=>{
         const data = d.data()
@@ -249,6 +271,29 @@ export default function Checklist() {
     else await saveConfig(dailyItems, weeklyItems.filter(it=>it.id!==id))
   }
 
+  // ── 임시휴무 관리 ──
+  async function saveHolidays(list) {
+    await setDoc(doc(db,'checklist','holidays'), { list })
+    setHolidays(list)
+  }
+  async function addHoliday() {
+    if(!newHoliday.startDate || !newHoliday.endDate) return
+    if(newHoliday.startDate > newHoliday.endDate) { alert('종료일이 시작일보다 빠릅니다'); return }
+    setSaving(true)
+    const item = {
+      id:'h_'+Date.now(),
+      startDate:newHoliday.startDate, endDate:newHoliday.endDate,
+      reason: newHoliday.reason.trim() || '임시휴무',
+    }
+    await saveHolidays([...holidays, item])
+    setNewHoliday({ startDate: todayStr(), endDate: todayStr(), reason:'' })
+    setSaving(false)
+  }
+  async function deleteHoliday(id) {
+    if(!window.confirm('이 임시휴무 등록을 삭제하시겠습니까?')) return
+    await saveHolidays(holidays.filter(h=>h.id!==id))
+  }
+
   // 매일 항목: 오전/오후 카운트
   function dailyDoneCount(date) {
     let c = 0
@@ -270,7 +315,7 @@ export default function Checklist() {
   // 2~3일 이내(오늘 포함) 다가오는 알림 항목 (오늘 것은 제외 — 오늘은 아래 별도 배너로 표시)
   const upcomingAlerts = weeklyItems
     .filter(it=>it.alertUid||it.alertMsg)
-    .map(it=>({ item:it, found: findUpcomingDate(it, 3) }))
+    .map(it=>({ item:it, found: findUpcomingDate(it, 3, holidays) }))
     .filter(x=>x.found && x.found.offset>0) // 0=오늘은 제외, 1~3일 후만
 
   // 확정된 대타 중 오늘부터 7일 이내(당일 포함)인 것
@@ -294,7 +339,7 @@ export default function Checklist() {
     .filter(r=>r.diffDays>=0 && r.diffDays<=30)
     .sort((a,b)=>a.diffDays-b.diffDays)
 
-  // 직전 영업일 미완료 항목 (일요일 휴무는 건너뛰고 계산됨)
+  // 직전 영업일 미완료 항목 (일요일+임시휴무는 건너뛰고 계산됨)
   const prevWeekly = prevBusinessDate ? getWeeklyForDate(prevBusinessDate) : []
   const prevDailyUnfinished = prevBusinessDate ? dailyItems.filter(it=>
     !isChecked(prevBusinessDate, it.id+'_am') || !isChecked(prevBusinessDate, it.id+'_pm')
@@ -418,12 +463,18 @@ export default function Checklist() {
           <div style={{fontSize:20,fontWeight:700}}>✅ 오늘의 체크리스트</div>
           <div style={{fontSize:12,color:'#5e6585',marginTop:2}}>매일(오전·오후)·요일별 필수 업무</div>
         </div>
-        <div style={{display:'flex',gap:8}}>
+        <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
           <button onClick={()=>setShowManage(v=>!v)}
             style={{background: showManage ? '#f9b934' : '#191c2b',border:'1px solid #272a3d',
               color: showManage ? '#000' : '#dde1f2',borderRadius:8,
               padding:'8px 14px',fontSize:12,fontWeight:showManage?700:400,cursor:'pointer',fontFamily:'inherit'}}>
             ⚙️ 항목 관리
+          </button>
+          <button onClick={()=>setShowHolidayManage(v=>!v)}
+            style={{background: showHolidayManage ? '#f87171' : '#191c2b',border:'1px solid #272a3d',
+              color: showHolidayManage ? '#000' : '#dde1f2',borderRadius:8,
+              padding:'8px 14px',fontSize:12,fontWeight:showHolidayManage?700:400,cursor:'pointer',fontFamily:'inherit'}}>
+            🗓 임시휴무 설정
           </button>
           <button onClick={()=>{ setShowHistory(v=>!v); setHistoryDate(today) }}
             style={{background:'#191c2b',border:'1px solid #272a3d',color:'#dde1f2',borderRadius:8,
@@ -432,6 +483,45 @@ export default function Checklist() {
           </button>
         </div>
       </div>
+
+      {/* 임시휴무 설정 패널 */}
+      {showHolidayManage && (
+        <div style={{background:'#12141f',border:'1px solid rgba(248,113,113,0.4)',borderRadius:12,padding:18,marginBottom:18}}>
+          <div style={{fontSize:13,fontWeight:600,color:'#f87171',marginBottom:4}}>🗓 임시휴무 설정</div>
+          <div style={{fontSize:11,color:'#5e6585',marginBottom:16}}>추석·설 연휴처럼 매장 문을 닫는 기간을 등록하면, 그 기간엔 일요일과 동일하게 체크리스트가 쉬어요.</div>
+          <div style={{display:'flex',flexDirection:'column',gap:6,marginBottom:14}}>
+            {holidays.length===0 && (
+              <div style={{fontSize:11,color:'#5e6585'}}>등록된 임시휴무가 없습니다</div>
+            )}
+            {holidays.slice().sort((a,b)=>a.startDate.localeCompare(b.startDate)).map(h=>(
+              <div key={h.id} style={{background:'#191c2b',borderRadius:7,padding:'8px 10px',
+                display:'flex',alignItems:'center',gap:8}}>
+                <span style={{flex:1,fontSize:12,color:'#dde1f2'}}>
+                  {h.startDate} ~ {h.endDate}
+                  <span style={{color:'#f87171',marginLeft:8,fontWeight:600}}>{h.reason}</span>
+                </span>
+                <button onClick={()=>deleteHoliday(h.id)}
+                  style={{background:'transparent',border:'none',color:'#f87171',fontSize:12,cursor:'pointer',padding:0}}>🗑</button>
+              </div>
+            ))}
+          </div>
+          <div style={{display:'flex',gap:8,flexWrap:'wrap',alignItems:'center'}}>
+            <span style={{fontSize:10,color:'#5e6585'}}>시작일</span>
+            <input type="date" value={newHoliday.startDate}
+              onChange={e=>setNewHoliday(f=>({...f,startDate:e.target.value}))} style={inputStyle}/>
+            <span style={{fontSize:10,color:'#5e6585'}}>종료일</span>
+            <input type="date" value={newHoliday.endDate}
+              onChange={e=>setNewHoliday(f=>({...f,endDate:e.target.value}))} style={inputStyle}/>
+            <input value={newHoliday.reason} onChange={e=>setNewHoliday(f=>({...f,reason:e.target.value}))}
+              placeholder="사유 (예: 추석 연휴)" style={{...inputStyle,flex:1,minWidth:140}}/>
+            <button onClick={addHoliday} disabled={saving}
+              style={{background:'#f87171',color:'#000',border:'none',borderRadius:7,
+                padding:'8px 16px',fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'inherit',whiteSpace:'nowrap'}}>
+              + 등록
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* 항목 관리 패널 */}
       {showManage && (
@@ -604,8 +694,10 @@ export default function Checklist() {
               닫기
             </button>
           </div>
-          {historyDow === CLOSED_DOW ? (
-            <div style={{fontSize:12,color:'#5e6585',padding:'12px 0'}}>😴 일요일은 휴무일입니다</div>
+          {historyClosed ? (
+            <div style={{fontSize:12,color:'#5e6585',padding:'12px 0'}}>
+              😴 {historyDow===CLOSED_DOW ? '일요일은 휴무일입니다' : `임시휴무일입니다 (${historyHolidayInfo?.reason||'임시휴무'})`}
+            </div>
           ) : (
             <>
               <div style={{fontSize:11,color:'#5e6585',marginBottom:10}}>
@@ -654,14 +746,16 @@ export default function Checklist() {
 
       {loading ? (
         <div style={{textAlign:'center',color:'#5e6585',padding:60}}>로딩 중...</div>
-      ) : todayDow === CLOSED_DOW ? (
+      ) : todayClosed ? (
         <div style={{background:'#12141f',border:'1px solid #272a3d',borderRadius:12,padding:40,textAlign:'center'}}>
           <div style={{fontSize:24,marginBottom:8}}>😴</div>
-          <div style={{fontSize:14,color:'#5e6585',fontWeight:600}}>오늘은 일요일 휴무일입니다</div>
+          <div style={{fontSize:14,color:'#5e6585',fontWeight:600}}>
+            {todayDow===CLOSED_DOW ? '오늘은 일요일 휴무일입니다' : `오늘은 임시휴무일입니다 (${todayHolidayInfo?.reason||'임시휴무'})`}
+          </div>
         </div>
       ) : (
         <>
-          {/* 직전 영업일 못한 일 (일요일 건너뜀) */}
+          {/* 직전 영업일 못한 일 (일요일+임시휴무 건너뜀) */}
           {hasPrevUnfinished && (
             <div style={{background:'#12141f',border:'1px solid rgba(248,113,113,0.4)',borderRadius:12,
               padding:16,marginBottom:18}}>
@@ -824,7 +918,7 @@ export default function Checklist() {
             <div style={{display:'grid',gridTemplateColumns:'repeat(7,1fr)',gap:0}}>
               {DAYS_KR.map((dayName, dow)=>{
                 const date = dateOfDow(dow)
-                const isClosed = dow === CLOSED_DOW
+                const isClosed = isClosedDate(date, holidays)
                 const weekly = getWeeklyForDate(date)
                 const isToday = dow === todayDow
                 const dDone = isClosed ? 0 : dailyDoneCount(date)
