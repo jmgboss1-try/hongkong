@@ -20,6 +20,7 @@ import RevenueInput from './pages/RevenueInput'
 import SubstituteBoard from './pages/SubstituteBoard'
 import LossClaims from './pages/LossClaims'
 import Checklist from './pages/Checklist'
+import Prepaid from './pages/Prepaid'
 import Layout from './components/Layout'
 
 function PendingScreen() {
@@ -91,6 +92,7 @@ function AppRoutes() {
         <Route path="/substitute" element={<PrivateRoute storeOk><SubstituteBoard /></PrivateRoute>} />
         <Route path="/loss-claims" element={<PrivateRoute storeOk><LossClaims /></PrivateRoute>} />
         <Route path="/checklist" element={<PrivateRoute storeOk><Checklist /></PrivateRoute>} />
+        <Route path="/prepaid" element={<PrivateRoute storeOk><Prepaid /></PrivateRoute>} />
         <Route path="*" element={<Navigate to={isOwner ? "/" : isStore ? "/revenue-input" : isInvestor ? "/revenue" : "/my-schedule"} />} />
       </Routes>
     </Layout>
