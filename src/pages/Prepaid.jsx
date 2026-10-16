@@ -35,6 +35,7 @@ const inputStyle = {
 
 export default function Prepaid() {
   const { isOwner, isStore } = useAuth()
+  const canEdit = isOwner || isStore // 사장·매장 계정 동일 권한
   const [vendors, setVendors] = useState([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving]   = useState(false)
@@ -189,7 +190,7 @@ export default function Prepaid() {
           <div style={{fontSize:20,fontWeight:700}}>💳 선결제 관리</div>
           <div style={{fontSize:12,color:'#5e6585',marginTop:2}}>업체·개인별 선결제 충전 / 차감 장부</div>
         </div>
-        {isOwner && (
+        {canEdit && (
           <button onClick={openNewVendor}
             style={{background:'#34d399',color:'#000',border:'none',borderRadius:8,
               padding:'9px 16px',fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
@@ -256,7 +257,7 @@ export default function Prepaid() {
 
           {activeVendors.length===0 ? (
             <div style={{background:'#12141f',border:'1px solid #272a3d',borderRadius:12,padding:40,textAlign:'center',color:'#5e6585',fontSize:13}}>
-              등록된 업체가 없습니다. {isOwner ? '오른쪽 위 "+ 업체 추가"로 시작하세요.' : ''}
+              등록된 업체가 없습니다. {canEdit ? '오른쪽 위 "+ 업체 추가"로 시작하세요.' : ''}
             </div>
           ) : (
             <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(220px,1fr))',gap:10,marginBottom:18}}>
@@ -287,7 +288,7 @@ export default function Prepaid() {
                 </div>
               </div>
 
-              {isOwner && (
+              {canEdit && (
                 <div style={{display:'flex',gap:8,marginBottom:14,flexWrap:'wrap'}}>
                   <button onClick={()=>openEditVendor(selected)}
                     style={{background:'#191c2b',border:'1px solid #272a3d',color:'#dde1f2',borderRadius:6,padding:'5px 12px',fontSize:11,cursor:'pointer',fontFamily:'inherit'}}>✏️ 업체 정보 수정</button>
@@ -338,7 +339,7 @@ export default function Prepaid() {
                         <th style={{padding:'6px 8px',fontWeight:600}}>차감</th>
                         <th style={{padding:'6px 8px',fontWeight:600}}>잔액</th>
                         <th style={{textAlign:'left',padding:'6px 8px',fontWeight:600}}>메모</th>
-                        {isOwner && <th style={{width:56}}></th>}
+                        {canEdit && <th style={{width:56}}></th>}
                       </tr>
                     </thead>
                     <tbody>
@@ -346,7 +347,7 @@ export default function Prepaid() {
                         if(editEntryId===e.id) {
                           return (
                             <tr key={e.id} style={{borderTop:'1px solid #191c2b'}}>
-                              <td colSpan={isOwner?6:5} style={{padding:'8px'}}>
+                              <td colSpan={canEdit?6:5} style={{padding:'8px'}}>
                                 <div style={{display:'flex',gap:6,flexWrap:'wrap',alignItems:'center'}}>
                                   <input type="date" value={editEntryForm.date} onChange={ev=>setEditEntryForm(f=>({...f,date:ev.target.value}))} style={inputStyle}/>
                                   <select value={editEntryForm.kind} onChange={ev=>setEditEntryForm(f=>({...f,kind:ev.target.value}))} style={inputStyle}>
@@ -371,7 +372,7 @@ export default function Prepaid() {
                             <td style={{padding:'8px',color:'#f87171',fontWeight:700}}>{e.kind==='use' ? wonFmt(e.amount) : ''}</td>
                             <td style={{padding:'8px',color:'#dde1f2',fontWeight:700}}>{wonFmt(e.balance)}</td>
                             <td style={{textAlign:'left',padding:'8px',color:'#5e6585'}}>{e.memo}</td>
-                            {isOwner && (
+                            {canEdit && (
                               <td style={{padding:'8px',whiteSpace:'nowrap'}}>
                                 <button onClick={()=>startEditEntry(e)}
                                   style={{background:'transparent',border:'none',color:'#5e6585',fontSize:12,cursor:'pointer',padding:'0 4px'}}>✏️</button>
@@ -401,7 +402,7 @@ export default function Prepaid() {
                   {archivedVendors.map(v=>(
                     <div key={v.id}>
                       {VendorCard(v)}
-                      {isOwner && (
+                      {canEdit && (
                         <button onClick={()=>toggleArchive(v)}
                           style={{marginTop:6,background:'#191c2b',border:'1px solid #272a3d',color:'#93c5fd',borderRadius:6,padding:'4px 10px',fontSize:11,cursor:'pointer',fontFamily:'inherit'}}>
                           보관 해제
