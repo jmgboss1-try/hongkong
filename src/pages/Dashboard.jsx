@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { db } from '../firebase'
 import { doc, getDoc, getDocs, collection } from 'firebase/firestore'
+import MissedExpenseInput from '../components/MissedExpenseInput'
 import { ComposedChart, Bar, Line, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts'
 
 const pad = n => String(n).padStart(2,'0')
@@ -122,20 +123,7 @@ export default function Dashboard() {
         setRev({kiosk:k,del:dl,pos:p,total:k+dl+p})
       } else setRev({kiosk:0,del:0,pos:0,total:0})
 
-      const expSnap = await getDoc(doc(db,'expenses',curMonth))
-      if(expSnap.exists()) {
-        const d = expSnap.data()
-        let expTotal=0, dep=0
-        const carryover = d.carryover||0
-        Object.values(d).forEach(e=>{
-          if(typeof e!=='object'||e===null) return
-          dep+=e.deposit||0
-          Object.entries(e).forEach(([k,v])=>{
-            if(!['deposit','carryover'].includes(k) && typeof v==='number') expTotal+=v
-          })
-        })
-        setExp({total:expTotal,mat:0,mgmt:0,sal:0,deposit:dep,carryover,balance:carryover+dep-expTotal})
-      } else setExp({total:0,mat:0,mgmt:0,sal:0,deposit:0,carryover:0,balance:0})
+      await loadExpenses()
 
       const usersSnap = await getDocs(collection(db,'users'))
       const emps = []
@@ -216,6 +204,24 @@ export default function Dashboard() {
       setStaffStats(stats)
     } catch(e){ console.error(e) }
     setLoading(false)
+  }
+
+  // 지출 합계 — 대시보드에서 지출을 추가하면 이 부분만 다시 불러옴
+  async function loadExpenses() {
+    const expSnap = await getDoc(doc(db,'expenses',curMonth))
+    if(expSnap.exists()) {
+      const d = expSnap.data()
+      let expTotal=0, dep=0
+      const carryover = d.carryover||0
+      Object.values(d).forEach(e=>{
+        if(typeof e!=='object'||e===null) return
+        dep+=e.deposit||0
+        Object.entries(e).forEach(([k,v])=>{
+          if(!['deposit','carryover'].includes(k) && typeof v==='number') expTotal+=v
+        })
+      })
+      setExp({total:expTotal,mat:0,mgmt:0,sal:0,deposit:dep,carryover,balance:carryover+dep-expTotal})
+    } else setExp({total:0,mat:0,mgmt:0,sal:0,deposit:0,carryover:0,balance:0})
   }
 
   // 일별 차트: 이번달 vs 전월 (일자 정렬)
@@ -348,6 +354,11 @@ export default function Dashboard() {
             <KPI label="매출 기준 순이익" value={wonFmt(Math.abs(profit))} note={profit>=0?'흑자 ▲':'적자 ▼'} color={profit>=0?'#5e6585':'#f87171'}/>
           </div>
 
+          {/* ── 못 적은 지출 입력 (지출관리와 동기화) ── */}
+          <div style={{marginBottom:20}}>
+            <MissedExpenseInput curMonth={curMonth} onSaved={()=>loadExpenses().catch(e=>console.error(e))}/>
+          </div>
+
           {/* ── 매출 추이 그래프 ── */}
           <div style={{background:'#12141f',border:'1px solid #272a3d',borderRadius:12,padding:18,marginBottom:20}}>
             {/* 헤더 */}
@@ -461,63 +472,6 @@ export default function Dashboard() {
             )}
           </div>
 
-          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:14}}>
-            <div style={{background:'#12141f',border:'1px solid #272a3d',borderRadius:12,overflow:'hidden'}}>
-              <div style={{padding:'14px 18px',borderBottom:'1px solid #272a3d',fontSize:13,fontWeight:600}}>채널별 매출 요약</div>
-              <table style={{width:'100%',borderCollapse:'collapse',fontSize:12}}>
-                <tbody>
-                  {[['🖥️ 키오스크',rev.kiosk],['🛵 배달',rev.del],['🧾 포스(현장)',rev.pos]].map(([label,val])=>(
-                    <tr key={label}>
-                      <td style={{padding:'10px 18px',borderBottom:'1px solid #272a3d',color:'#dde1f2'}}>{label}</td>
-                      <td style={{padding:'10px 18px',borderBottom:'1px solid #272a3d',textAlign:'right',color:'#f9b934',fontFamily:'DM Mono, monospace'}}>{val.toLocaleString()}</td>
-                    </tr>
-                  ))}
-                </tbody>
-                <tfoot>
-                  <tr style={{background:'#1f2236'}}>
-                    <td style={{padding:'10px 18px',fontWeight:700,color:'#f9b934'}}>합 계</td>
-                    <td style={{padding:'10px 18px',textAlign:'right',fontWeight:700,color:'#f9b934',fontFamily:'DM Mono, monospace'}}>{rev.total.toLocaleString()}</td>
-                  </tr>
-                </tfoot>
-              </table>
-            </div>
-
-            <div style={{background:'#12141f',border:'1px solid #272a3d',borderRadius:12,overflow:'hidden'}}>
-              <div style={{padding:'14px 18px',borderBottom:'1px solid #272a3d',fontSize:13,fontWeight:600}}>이번달 인원 현황</div>
-              <table style={{width:'100%',borderCollapse:'collapse',fontSize:12}}>
-                <thead>
-                  <tr style={{background:'#191c2b'}}>
-                    {['직원','근무시간','인건비'].map(h=>(
-                      <th key={h} style={{padding:'8px 18px',fontSize:10,fontWeight:600,color:'#5e6585',textAlign:h==='직원'?'left':'right'}}>{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {staff.map(e=>{
-                    const s=staffStats[e.uid]||{hours:0,mins:0,wage:0}
-                    return(
-                      <tr key={e.uid}>
-                        <td style={{padding:'9px 18px',borderBottom:'1px solid #272a3d',color:'#dde1f2'}}>{e.name}</td>
-                        <td style={{padding:'9px 18px',borderBottom:'1px solid #272a3d',textAlign:'right',fontFamily:'DM Mono, monospace',color:'#dde1f2'}}>
-                          {s.hours}h{s.mins>0?` ${s.mins}m`:''}
-                        </td>
-                        <td style={{padding:'9px 18px',borderBottom:'1px solid #272a3d',textAlign:'right',color:'#34d399',fontFamily:'DM Mono, monospace'}}>{s.wage.toLocaleString()}</td>
-                      </tr>
-                    )
-                  })}
-                </tbody>
-                <tfoot>
-                  <tr style={{background:'#1f2236'}}>
-                    <td style={{padding:'10px 18px',fontWeight:700,color:'#f9b934'}}>합 계</td>
-                    <td style={{padding:'10px 18px',textAlign:'right',fontWeight:700,color:'#f9b934',fontFamily:'DM Mono, monospace'}}>
-                      {Object.values(staffStats).reduce((a,s)=>a+s.hours,0)}h
-                    </td>
-                    <td style={{padding:'10px 18px',textAlign:'right',fontWeight:700,color:'#f9b934',fontFamily:'DM Mono, monospace'}}>{totalLaborCost.toLocaleString()}</td>
-                  </tr>
-                </tfoot>
-              </table>
-            </div>
-          </div>
         </>
       )}
     </div>
