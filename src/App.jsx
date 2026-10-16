@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { AuthProvider, useAuth } from './AuthContext'
 import Login from './pages/Login'
 import Dashboard from './pages/Dashboard'
@@ -21,6 +21,7 @@ import SubstituteBoard from './pages/SubstituteBoard'
 import LossClaims from './pages/LossClaims'
 import Checklist from './pages/Checklist'
 import Prepaid from './pages/Prepaid'
+import PhoneUpload from './pages/PhoneUpload'
 import Layout from './components/Layout'
 
 function PendingScreen() {
@@ -60,6 +61,14 @@ function PrivateRoute({ children, ownerOnly, legendOnly, storeOk, investorOk }) 
 
 function AppRoutes() {
   const { user, isOwner, isStore, isInvestor } = useAuth()
+  const location = useLocation()
+
+  // 폰 사진 업로드 페이지: 로그인 없이 접근 (포스에서 만든 QR로 진입)
+  if (location.pathname.startsWith('/upload/')) return (
+    <Routes>
+      <Route path="/upload/:sid" element={<PhoneUpload />} />
+    </Routes>
+  )
 
   if (!user) return (
     <Routes>
