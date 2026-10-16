@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { db } from '../firebase'
-import { doc, getDoc, setDoc, collection, getDocs } from 'firebase/firestore'
+import { doc, getDoc, setDoc, deleteDoc, collection, getDocs } from 'firebase/firestore'
+import { PhotoPicker, PhotoGrid, Lightbox } from '../components/PhotoAttach'
 
 const pad = n => String(n).padStart(2,'0')
 const DAYS_KR = ['일','월','화','수','목','금','토']
@@ -118,6 +119,11 @@ export default function Checklist() {
   const [editItemId, setEditItemId] = useState(null)
   const [editItemForm, setEditItemForm] = useState(null)
 
+  const [photoViewer, setPhotoViewer] = useState(null) // {label, images}
+  const [photoEditId, setPhotoEditId] = useState(null)
+  const [photoEditImages, setPhotoEditImages] = useState([])
+  const [photoLoading, setPhotoLoading] = useState(false)
+
   const [showHolidayManage, setShowHolidayManage] = useState(false)
   const [newHoliday, setNewHoliday] = useState({ startDate: todayStr(), endDate: todayStr(), reason:'' })
 
@@ -175,14 +181,14 @@ export default function Checklist() {
         const data = d.data()
         if(data.checklistAlert && data.alertStart && data.alertEnd &&
            data.alertStart<=nowDate && nowDate<=data.alertEnd) {
-          pinned.push({ type:'notice', id:d.id, content:data.content, authorName:data.authorName })
+          pinned.push({ type:'notice', id:d.id, content:data.content, authorName:data.authorName, images:data.images||[] })
         }
       })
       memoSnap.forEach(d=>{
         const data = d.data()
         if(data.checklistAlert && data.alertStart && data.alertEnd &&
            data.alertStart<=nowDate && nowDate<=data.alertEnd) {
-          pinned.push({ type:'memo', id:d.id, content:data.content, authorName:data.authorName })
+          pinned.push({ type:'memo', id:d.id, content:data.content, authorName:data.authorName, images:data.images||[] })
         }
       })
       setPinnedNotices(pinned)
@@ -251,11 +257,11 @@ export default function Checklist() {
   async function saveEditItem() {
     setSaving(true)
     if(editItemForm.type === 'daily') {
-      const nd = dailyItems.map(it=>it.id===editItemId ? { id:it.id, label:editItemForm.label } : it)
+      const nd = dailyItems.map(it=>it.id===editItemId ? { id:it.id, label:editItemForm.label, photoCount: it.photoCount||0 } : it)
       await saveConfig(nd, weeklyItems)
     } else {
       const nw = weeklyItems.map(it=>it.id===editItemId
-        ? { id:it.id, label:editItemForm.label, dow:+editItemForm.dow, time:editItemForm.time,
+        ? { id:it.id, label:editItemForm.label, photoCount: it.photoCount||0, dow:+editItemForm.dow, time:editItemForm.time,
             interval: editItemForm.interval || 'weekly',
             baseDate: editItemForm.interval==='biweekly' ? (editItemForm.baseDate||todayStr()) : null,
             alertUid: editItemForm.alertUid || '',
@@ -267,8 +273,70 @@ export default function Checklist() {
   }
   async function deleteItem(id, type) {
     if(!window.confirm('이 항목을 삭제하시겠습니까?')) return
+    try { await deleteDoc(doc(db,'checklistPhotos',id)) } catch(e) { console.error(e) }
     if(type === 'daily') await saveConfig(dailyItems.filter(it=>it.id!==id), weeklyItems)
     else await saveConfig(dailyItems, weeklyItems.filter(it=>it.id!==id))
+  }
+
+  // ── 항목별 참고 사진 ──
+  async function openItemPhotos(item) {
+    setPhotoLoading(true)
+    try {
+      const snap = await getDoc(doc(db,'checklistPhotos',item.id))
+      setPhotoViewer({ label:item.label, images: snap.exists() ? (snap.data().images||[]) : [] })
+    } catch(e) { console.error(e) }
+    setPhotoLoading(false)
+  }
+  async function startEditPhotos(item) {
+    if(photoEditId===item.id) { setPhotoEditId(null); return }
+    setPhotoLoading(true)
+    try {
+      const snap = await getDoc(doc(db,'checklistPhotos',item.id))
+      setPhotoEditImages(snap.exists() ? (snap.data().images||[]) : [])
+      setPhotoEditId(item.id)
+    } catch(e) { console.error(e) }
+    setPhotoLoading(false)
+  }
+  async function saveItemPhotos() {
+    const id = photoEditId
+    if(!id) return
+    setSaving(true)
+    try {
+      if(photoEditImages.length===0) await deleteDoc(doc(db,'checklistPhotos',id))
+      else await setDoc(doc(db,'checklistPhotos',id), { images: photoEditImages })
+      const cnt = photoEditImages.length
+      await saveConfig(
+        dailyItems.map(it=>it.id===id ? { ...it, photoCount:cnt } : it),
+        weeklyItems.map(it=>it.id===id ? { ...it, photoCount:cnt } : it)
+      )
+      setPhotoEditId(null); setPhotoEditImages([])
+    } catch(e) { console.error(e); alert('사진 저장에 실패했어요') }
+    setSaving(false)
+  }
+  function ItemPhotoPanel(item) {
+    if(photoEditId!==item.id) return null
+    return (
+      <div style={{background:'#12141f',border:'1px solid #272a3d',borderRadius:7,padding:10,marginTop:4}}>
+        <div style={{fontSize:11,color:'#93c5fd',fontWeight:700,marginBottom:8}}>📷 {item.label} — 참고 사진 (완성 기준·위치 등)</div>
+        <PhotoPicker images={photoEditImages} onChange={setPhotoEditImages} max={3}/>
+        <div style={{display:'flex',gap:8}}>
+          <button onClick={saveItemPhotos} disabled={saving}
+            style={{background:'#f9b934',color:'#000',border:'none',borderRadius:5,padding:'6px 14px',fontSize:11,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>사진 저장</button>
+          <button onClick={()=>{setPhotoEditId(null);setPhotoEditImages([])}}
+            style={{background:'transparent',border:'1px solid #272a3d',color:'#5e6585',borderRadius:5,padding:'6px 14px',fontSize:11,cursor:'pointer',fontFamily:'inherit'}}>취소</button>
+        </div>
+      </div>
+    )
+  }
+  function PhotoBadge(item) {
+    if(!(item.photoCount>0)) return null
+    return (
+      <button onClick={e=>{ e.stopPropagation(); openItemPhotos(item) }}
+        style={{border:'none',cursor:'pointer',background:'rgba(147,197,253,0.15)',color:'#93c5fd',
+          borderRadius:6,padding:'4px 8px',fontSize:10,fontWeight:700,fontFamily:'inherit',flexShrink:0}}>
+        📷 {item.photoCount}
+      </button>
+    )
   }
 
   // ── 임시휴무 관리 ──
@@ -377,6 +445,7 @@ export default function Checklist() {
         }}>
           {item.label}
         </span>
+        {PhotoBadge(item)}
         <button onClick={()=>toggleCheck(date, item.id+'_am')}
           style={{
             display:'flex',alignItems:'center',gap:4,border:'none',cursor:'pointer',
@@ -438,6 +507,7 @@ export default function Checklist() {
               <span style={{fontSize:big?10:9,color:'#a78bfa',marginLeft:5,fontWeight:700}}>2주마다</span>
             )}
           </span>
+          {PhotoBadge(item)}
         </div>
         {hasAlert && (
           <div style={{
@@ -534,7 +604,8 @@ export default function Checklist() {
             </div>
             <div style={{display:'flex',flexDirection:'column',gap:6,marginBottom:10}}>
               {dailyItems.map(item=>(
-                <div key={item.id} style={{background:'#191c2b',borderRadius:7,padding:'7px 10px',
+                <div key={item.id}>
+                <div style={{background:'#191c2b',borderRadius:7,padding:'7px 10px',
                   display:'flex',alignItems:'center',gap:8}}>
                   {editItemId===item.id ? (
                     <>
@@ -548,12 +619,16 @@ export default function Checklist() {
                   ) : (
                     <>
                       <span style={{flex:1,fontSize:12,color:'#dde1f2'}}>{item.label}</span>
+                      <button onClick={()=>startEditPhotos(item)}
+                        style={{background:'transparent',border:'none',color: item.photoCount>0 ? '#93c5fd' : '#5e6585',fontSize:12,cursor:'pointer',padding:0}}>📷{item.photoCount>0 ? item.photoCount : ''}</button>
                       <button onClick={()=>startEditItem(item,'daily')}
                         style={{background:'transparent',border:'none',color:'#5e6585',fontSize:12,cursor:'pointer',padding:0}}>✏️</button>
                       <button onClick={()=>deleteItem(item.id,'daily')}
                         style={{background:'transparent',border:'none',color:'#f87171',fontSize:12,cursor:'pointer',padding:0}}>🗑</button>
                     </>
                   )}
+                </div>
+                {ItemPhotoPanel(item)}
                 </div>
               ))}
             </div>
@@ -573,7 +648,8 @@ export default function Checklist() {
             <div style={{fontSize:11,color:'#5e6585',fontWeight:600,marginBottom:8}}>📅 요일별 필수 항목</div>
             <div style={{display:'flex',flexDirection:'column',gap:6,marginBottom:10}}>
               {weeklyItems.map(item=>(
-                <div key={item.id} style={{background:'#191c2b',borderRadius:7,padding:'7px 10px',
+                <div key={item.id}>
+                <div style={{background:'#191c2b',borderRadius:7,padding:'7px 10px',
                   display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}>
                   {editItemId===item.id ? (
                     <div style={{display:'flex',flexDirection:'column',gap:8,width:'100%'}}>
@@ -627,12 +703,16 @@ export default function Checklist() {
                       </div>
                       <span style={{fontSize:11,color:'#93c5fd',fontWeight:600}}>{DOW_LABELS[item.dow]}요일</span>
                       <span style={{fontSize:11,color:'#f9b934',fontWeight:600}}>{item.time}</span>
+                      <button onClick={()=>startEditPhotos(item)}
+                        style={{background:'transparent',border:'none',color: item.photoCount>0 ? '#93c5fd' : '#5e6585',fontSize:12,cursor:'pointer',padding:0}}>📷{item.photoCount>0 ? item.photoCount : ''}</button>
                       <button onClick={()=>startEditItem(item,'weekly')}
                         style={{background:'transparent',border:'none',color:'#5e6585',fontSize:12,cursor:'pointer',padding:0}}>✏️</button>
                       <button onClick={()=>deleteItem(item.id,'weekly')}
                         style={{background:'transparent',border:'none',color:'#f87171',fontSize:12,cursor:'pointer',padding:0}}>🗑</button>
                     </>
                   )}
+                </div>
+                {ItemPhotoPanel(item)}
                 </div>
               ))}
             </div>
@@ -738,6 +818,7 @@ export default function Checklist() {
                 <div style={{fontSize:13,color:'#dde1f2',lineHeight:1.6,whiteSpace:'pre-wrap'}}>
                   {n.content}
                 </div>
+                <div style={{marginTop:8}}><PhotoGrid images={n.images} label={n.type==='notice' ? '공지 사진' : '메모 사진'}/></div>
               </div>
             </div>
           ))}
@@ -996,6 +1077,9 @@ export default function Checklist() {
             )}
           </div>
         </>
+      )}
+      {photoViewer && (
+        <Lightbox images={photoViewer.images} label={photoViewer.label} onClose={()=>setPhotoViewer(null)}/>
       )}
     </div>
   )

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { db } from '../firebase'
 import { collection, addDoc, getDocs, doc, updateDoc, deleteDoc, orderBy, query } from 'firebase/firestore'
 import { useAuth, GradeBadge } from '../AuthContext'
+import { PhotoPicker, PhotoGrid } from '../components/PhotoAttach'
 
 const pad = n => String(n).padStart(2,'0')
 const todayStr = () => { const n=new Date(); return `${n.getFullYear()}-${pad(n.getMonth()+1)}-${pad(n.getDate())}` }
@@ -15,6 +16,8 @@ export default function Notice() {
   const [activeTab, setActiveTab] = useState('notice')
   const [newNotice, setNewNotice] = useState('')
   const [newMemo, setNewMemo] = useState('')
+  const [newNoticeImages, setNewNoticeImages] = useState([])
+  const [newMemoImages, setNewMemoImages] = useState([])
   const [lastRead, setLastRead] = useState(() => {
     return localStorage.getItem('lastRead_notice') || '0'
   })
@@ -67,18 +70,20 @@ export default function Notice() {
   const newMemoCount = memos.filter(m => m.createdAt > lastReadMemo).length
 
   async function addNotice() {
-    if(!newNotice.trim()) return
+    if(!newNotice.trim() && newNoticeImages.length===0) return
     await addDoc(collection(db,'notices'), {
       content: newNotice.trim(),
       authorName: userData?.name || '사장',
       authorUid: user.uid,
       createdAt: new Date().toISOString(),
       isOwner: true,
+      images: newNoticeImages,
       checklistAlert: noticeAlertOn,
       alertStart: noticeAlertOn ? noticeAlertStart : null,
       alertEnd:   noticeAlertOn ? noticeAlertEnd   : null,
     })
     setNewNotice('')
+    setNewNoticeImages([])
     setNoticeAlertOn(false)
     setNoticeAlertStart(todayStr())
     setNoticeAlertEnd(plusDaysStr(7))
@@ -86,18 +91,20 @@ export default function Notice() {
   }
 
   async function addMemo() {
-    if(!newMemo.trim()) return
+    if(!newMemo.trim() && newMemoImages.length===0) return
     await addDoc(collection(db,'memos'), {
       content: newMemo.trim(),
       authorName: userData?.name || '직원',
       authorUid: user.uid,
       joinDate: userData?.joinDate || '',
       createdAt: new Date().toISOString(),
+      images: newMemoImages,
       checklistAlert: memoAlertOn,
       alertStart: memoAlertOn ? memoAlertStart : null,
       alertEnd:   memoAlertOn ? memoAlertEnd   : null,
     })
     setNewMemo('')
+    setNewMemoImages([])
     setMemoAlertOn(false)
     setMemoAlertStart(todayStr())
     setMemoAlertEnd(plusDaysStr(7))
@@ -209,6 +216,7 @@ export default function Notice() {
                 style={{width:'100%',background:'#191c2b',border:'1px solid #272a3d',borderRadius:8,
                   color:'#dde1f2',padding:'10px 12px',fontSize:12,outline:'none',resize:'vertical',
                   fontFamily:'inherit',marginBottom:10}}/>
+              <PhotoPicker images={newNoticeImages} onChange={setNewNoticeImages}/>
               <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap',marginBottom:10}}>
                 {alertToggleBtn('📌 체크리스트 상단에도 노출', noticeAlertOn, setNoticeAlertOn)}
                 {noticeAlertOn && (
@@ -263,6 +271,7 @@ export default function Notice() {
                     </div>
                   </div>
                   <div style={{fontSize:13,color:'#dde1f2',lineHeight:1.8,whiteSpace:'pre-wrap',marginBottom:isOwner?10:0}}>{n.content}</div>
+                  <PhotoGrid images={n.images} label="공지 사진"/>
 
                   {isOwner && (
                     editing ? (
@@ -308,6 +317,7 @@ export default function Notice() {
               style={{width:'100%',background:'#191c2b',border:'1px solid #272a3d',borderRadius:8,
                 color:'#dde1f2',padding:'10px 12px',fontSize:12,outline:'none',resize:'vertical',
                 fontFamily:'inherit',marginBottom:10}}/>
+            <PhotoPicker images={newMemoImages} onChange={setNewMemoImages}/>
             <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap',marginBottom:10}}>
               {alertToggleBtn('📌 체크리스트 상단에도 노출', memoAlertOn, setMemoAlertOn)}
               {memoAlertOn && (
@@ -363,6 +373,7 @@ export default function Notice() {
                     </div>
                   </div>
                   <div style={{fontSize:13,color:'#dde1f2',lineHeight:1.8,whiteSpace:'pre-wrap',marginBottom:canManage?10:0}}>{m.content}</div>
+                  <PhotoGrid images={m.images} label="메모 사진"/>
 
                   {canManage && (
                     editing ? (
