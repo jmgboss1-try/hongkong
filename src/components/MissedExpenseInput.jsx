@@ -21,12 +21,19 @@ const DEFAULT_CATEGORIES = [
 ]
 
 const yesterdayStr = () => { const d=new Date(); d.setDate(d.getDate()-1); return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}` }
+// 선택한 달의 기본 입력 날짜 — 이번 달이면 어제(1일이면 1일), 지난 달이면 그 달 1일
+const defaultDateFor = month => {
+  const n = new Date()
+  if(month !== `${n.getFullYear()}-${pad(n.getMonth()+1)}`) return `${month}-01`
+  const y = yesterdayStr()
+  return y.slice(0,7)===month ? y : `${month}-01`
+}
 
 // 대시보드용 "못 적은 지출 입력" — 지출관리와 같은 expenses/{YYYY-MM} 문서에 기록
 export default function MissedExpenseInput({ curMonth, onSaved }) {
   const [categories, setCategories] = useState(DEFAULT_CATEGORIES)
   const [monthData, setMonthData]   = useState({})
-  const [date, setDate]             = useState(yesterdayStr)
+  const [date, setDate]             = useState(()=>defaultDateFor(curMonth))
   const [catId, setCatId]           = useState('hq')
   const [amount, setAmount]         = useState('')
   const [saving, setSaving]         = useState(false)
@@ -52,10 +59,7 @@ export default function MissedExpenseInput({ curMonth, onSaved }) {
   const [prevCurMonth, setPrevCurMonth] = useState(curMonth)
   if(prevCurMonth !== curMonth) {
     setPrevCurMonth(curMonth)
-    if(ym !== curMonth) {
-      const n = new Date()
-      setDate(curMonth===`${n.getFullYear()}-${pad(n.getMonth()+1)}` ? yesterdayStr() : `${curMonth}-01`)
-    }
+    if(ym !== curMonth) setDate(defaultDateFor(curMonth))
   }
 
   const dayEntry = (monthData[dd] && typeof monthData[dd]==='object') ? monthData[dd] : {}
