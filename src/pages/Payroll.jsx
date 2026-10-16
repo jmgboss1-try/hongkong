@@ -114,7 +114,7 @@ const STATUS = {
 }
 
 // 세무 보고서 모달
-function TaxReportModal({ month, curMonth, employees, payroll, getComputed, ssnMap, ownerConfig, setOwnerConfig, severance, nameMap, bonuses, onClose }) {
+function TaxReportModal({ month, curMonth, employees, payroll, getComputed, ssnMap, ownerConfig, setOwnerConfig, ownerConfigFrom, setOwnerConfigFrom, severance, nameMap, bonuses, onClose }) {
   const [showOwnerConfig, setShowOwnerConfig] = useState(false)
 const [editOwner, setEditOwner] = useState(ownerConfig)
 
@@ -206,8 +206,13 @@ useEffect(() => {
         {showOwnerConfig && (
           <div className="no-print" style={{padding:'14px 20px',background:'#f0f7ff',borderBottom:'1px solid #cce0f5'}}>
             <div style={{fontSize:12,fontWeight:700,color:'#336',marginBottom:10}}>
-              ⚙️ 정민규 급여 설정 (매달 수동 입력)
+              ⚙️ 정민규 급여 설정 (한 번 적용하면 다음 달부터 자동 적용)
             </div>
+            {ownerConfigFrom && ownerConfigFrom !== curMonth && (
+              <div style={{fontSize:11,color:'#b45309',marginBottom:10}}>
+                {mLabel(ownerConfigFrom)} 설정을 불러왔어요. 금액이 바뀌었으면 수정 후 적용하세요.
+              </div>
+            )}
             <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:10}}>
               {[
                 ['주민등록번호','text','ssn'],
@@ -227,6 +232,7 @@ useEffect(() => {
               <button onClick={async ()=>{
   setOwnerConfig(editOwner)
   await setDoc(doc(db,'payrollOwner', curMonth), editOwner)
+  setOwnerConfigFrom(curMonth)
   setShowOwnerConfig(false)
 }}
                 style={{background:'#1a56db',color:'#fff',border:'none',borderRadius:5,
@@ -378,6 +384,7 @@ export default function Payroll() {
   const [saving, setSaving]               = useState(false)
   const [showTaxReport, setShowTaxReport] = useState(false)
   const [ownerConfig, setOwnerConfig]     = useState({ ssn:'', salary:0, deduction:0 })
+  const [ownerConfigFrom, setOwnerConfigFrom] = useState(null) // 설정을 불러온 월 (이번 달에 없으면 가장 최근 달)
   const [severance, setSeverance]         = useState({}) // {uid:{amount,tax,net,paidDate}}
   const [nameMap, setNameMap]             = useState({}) // uid → name (퇴직자 포함 전체)
   const [severanceInput, setSeveranceInput] = useState({}) // uid → 입력중인 금액
@@ -427,7 +434,7 @@ if(!isActive && !isRetired) return
       const [cy,cm] = curMonth.split('-').map(Number)
       const prev = cm===1?`${cy-1}-12`:`${cy}-${pad(cm-1)}`
 
-      const [wh,ex,me,pwh,pex,pme,pr,ownerCfg,sevSnap,advSnap,bonusSnap] = await Promise.all([
+      const [wh,ex,me,pwh,pex,pme,pr,ownerSnap,sevSnap,advSnap,bonusSnap] = await Promise.all([
   getDoc(doc(db,'workhours',curMonth)),
   getDoc(doc(db,'workextra',curMonth)),
   getDoc(doc(db,'workmemos',curMonth)),
@@ -435,7 +442,7 @@ if(!isActive && !isRetired) return
   getDoc(doc(db,'workextra',prev)),
   getDoc(doc(db,'workmemos',prev)),
   getDoc(doc(db,'payroll',curMonth)),
-  getDoc(doc(db,'payrollOwner', curMonth)),
+  getDocs(collection(db,'payrollOwner')),
   getDoc(doc(db,'severance', curMonth)),
   getDoc(doc(db,'advances', curMonth)),
   getDoc(doc(db,'bonuses', curMonth)),      
@@ -447,7 +454,10 @@ if(!isActive && !isRetired) return
       setPrevWorkExtra(pex.exists()?pex.data():{})
       setPrevMemos(pme.exists()?pme.data():{})
       setPayroll(pr.exists()?pr.data():{})
-      if(ownerCfg.exists()) setOwnerConfig(ownerCfg.data())
+      // 이번 달 설정이 없으면 가장 최근 이전 달 설정을 이어서 사용
+      const ownerDoc = ownerSnap.docs.filter(d=>d.id<=curMonth).sort((a,b)=>a.id<b.id?1:-1)[0]
+      setOwnerConfig(ownerDoc ? ownerDoc.data() : { ssn:'', salary:0, deduction:0 })
+      setOwnerConfigFrom(ownerDoc ? ownerDoc.id : null)
       setSeverance(sevSnap.exists()?sevSnap.data():{})
       setAdvances(advSnap.exists()?advSnap.data():{})
       setBonuses(bonusSnap.exists()?bonusSnap.data():{})
@@ -1108,6 +1118,8 @@ if(!isActive && !isRetired) return
           ssnMap={ssnMap}
           ownerConfig={ownerConfig}
 setOwnerConfig={setOwnerConfig}
+          ownerConfigFrom={ownerConfigFrom}
+          setOwnerConfigFrom={setOwnerConfigFrom}
           severance={severance}
           nameMap={nameMap}
           bonuses={bonuses}
