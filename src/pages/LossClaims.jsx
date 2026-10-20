@@ -327,8 +327,10 @@ export default function LossClaims() {
                     {stage!=='open' && (
                       <button onClick={()=>reopen(r.id)} style={smallBtn('transparent','#5e6585','1px solid #272a3d')}>되돌리기</button>
                     )}
-                    <button onClick={()=>{ setEditId(r.id); setEditForm({ ...emptyForm(), ...r }) }}
-                      style={smallBtn('transparent','#dde1f2','1px solid #272a3d')}>수정</button>
+                    {stage==='open' && (
+                      <button onClick={()=>{ setEditId(r.id); setEditForm({ ...emptyForm(), ...r }) }}
+                        style={smallBtn('transparent','#dde1f2','1px solid #272a3d')}>수정</button>
+                    )}
                     <button onClick={()=>deleteRecord(r.id)}
                       style={smallBtn('transparent','#f87171','1px solid #3d1f1f')}>삭제</button>
                   </div>
