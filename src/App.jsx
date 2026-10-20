@@ -47,7 +47,7 @@ function PendingScreen() {
   )
 }
 
-function PrivateRoute({ children, ownerOnly, legendOnly, storeOk, investorOk }) {
+function PrivateRoute({ children, ownerOnly, legendOnly, storeOk, storeOnly, investorOk }) {
   const { user, isOwner, isStore, isInvestor, isPending, isLegend } = useAuth()
   if (!user) return <Navigate to="/login" />
   if (isPending) return <PendingScreen />
@@ -56,6 +56,8 @@ function PrivateRoute({ children, ownerOnly, legendOnly, storeOk, investorOk }) 
   if (ownerOnly && !isOwner && !isInvestor) return <Navigate to="/revenue-input" />
   if (legendOnly && !isOwner && !isLegend) return <Navigate to="/revenue-input" />
   if (isStore && !storeOk) return <Navigate to="/revenue-input" />
+  // 사장 + 매장계정 전용 화면 (일반 직원은 주소를 직접 쳐도 못 들어감)
+  if (storeOnly && !isOwner && !isStore) return <Navigate to="/my-schedule" />
   return children
 }
 
@@ -97,7 +99,7 @@ function AppRoutes() {
         <Route path="/expenses-input" element={<PrivateRoute legendOnly><ExpensesInput /></PrivateRoute>} />
         <Route path="/notice" element={<PrivateRoute storeOk><Notice /></PrivateRoute>} />
         <Route path="/consumption" element={<PrivateRoute ownerOnly><ConsumptionAnalysis /></PrivateRoute>} />
-        <Route path="/revenue-input" element={<PrivateRoute storeOk><RevenueInput /></PrivateRoute>} />
+        <Route path="/revenue-input" element={<PrivateRoute storeOk storeOnly><RevenueInput /></PrivateRoute>} />
         <Route path="/substitute" element={<PrivateRoute storeOk><SubstituteBoard /></PrivateRoute>} />
         <Route path="/loss-claims" element={<PrivateRoute storeOk><LossClaims /></PrivateRoute>} />
         <Route path="/checklist" element={<PrivateRoute storeOk><Checklist /></PrivateRoute>} />

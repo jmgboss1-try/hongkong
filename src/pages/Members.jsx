@@ -31,6 +31,19 @@ function maskSSN(ssn) {
   return ssn.slice(0,6) + '-●●●●●●'
 }
 
+// 계정 역할 표시 — 매장/투자자 계정은 일반 직원과 권한이 다름 (매출입력 등)
+function RoleBadge({ role }) {
+  const r = role==='store'    ? { label:'🏪 매장계정', color:'#93c5fd' }
+          : role==='investor' ? { label:'🤝 투자자',   color:'#34d399' }
+          : { label:'👤 직원', color:'#5e6585' }
+  return (
+    <span style={{fontSize:10,fontWeight:700,padding:'2px 8px',borderRadius:999,whiteSpace:'nowrap',
+      color:r.color,border:`1px solid ${r.color}55`,background:`${r.color}1a`}}>
+      {r.label}
+    </span>
+  )
+}
+
 function MemberCard({ m, onEdit, onRetire }) {
   const [showDetail, setShowDetail] = useState(false)
   const tenure = calcTenure(m.joinDate)
@@ -44,6 +57,7 @@ function MemberCard({ m, onEdit, onRetire }) {
           <div style={{display:'flex',alignItems:'center',gap:10}}>
             <div style={{fontSize:16,fontWeight:700}}>{m.name}</div>
             <GradeBadge joinDate={m.joinDate} size={11}/>
+            <RoleBadge role={m.role}/>
           </div>
           <div style={{fontSize:11,color:'#5e6585'}}>
             📅 입사일: {m.joinDate||'미입력'} · 근속 {tenure}
