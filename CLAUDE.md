@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Store management web app for 홍콩반점 중앙대점 (a single restaurant): revenue, expenses, staff schedules, payroll, inventory, checklists, investor ledger. The UI and all user-facing text are Korean; the owner talks to Claude in Korean, so reply in Korean.
 
-Business context that affects features: the store's bank account holder (예금주) is 김기억, who appears in the app as "형" (co-investor; `loans/hyung`, `investor:'hyung'` in 투자관리). The user who manages the app is the largest investor. Money moving between the store account and 김기억 is loans, investment or profit sharing, never revenue or an expense. The owner also runs transfers with 홍콩반점 상암점 (bank name '홍콩반점0410 상'); those are loans to 상암점, tracked in `loans/sangam` (`StoreLoanLedger` in 지출관리). '홍콩반점0410중' is a 중앙대점 account.
+Business context that affects features: the store's bank account holder (예금주) is 김기억, who appears in the app as "형" (co-investor; `loans/hyung`, `investor:'hyung'` in 투자관리). The user who manages the app is the largest investor. Money moving between the store account and 김기억 is loans, investment or profit sharing, never revenue or an expense. The owner also runs transfers with 홍콩반점 상암점 (bank name '홍콩반점0410 상'); those are loans to 상암점, tracked in `loans/sangam` (`StoreLoanLedger` in 지출관리). '홍콩반점0410중' is the 본사 물류대금 virtual account, so withdrawals to it default to 본사발주 (`hq`) unless a user rule says otherwise.
 
 ## Commands
 

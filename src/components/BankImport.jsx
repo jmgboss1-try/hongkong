@@ -210,6 +210,8 @@ const kindOf = v => NONOP_KINDS.find(k=>k.value===v)?.kind
 //   형(김기억) = 예금주 이름, 상암점 = '홍콩반점0410 상'(홍콩반점 상암점 계좌. '홍콩반점0410중'은 중앙대점 계좌)
 const LEDGERS = { '__loan': 'hyung', '__loan_sangam': 'sangam' }
 const isSangam = t => norm(t.matchText).startsWith('홍콩반점0410상')
+// 기본 카테고리 (사용자가 고른 규칙이 없을 때): '홍콩반점0410중'은 본사 물류대금 가상계좌 → 본사발주
+const builtinCat = (t, categories) => norm(t.matchText).startsWith('홍콩반점0410중') && categories.some(c=>c.id==='hq') ? 'hq' : ''
 const isNonOp = v => !!kindOf(v)
 
 const selStyle = {background:'#12141f',border:'1px solid #272a3d',borderRadius:6,color:'#dde1f2',
@@ -302,7 +304,7 @@ export default function BankImport({ categories, onSaved }) {
         if (isSangam(t)) return { ...t, cat:'__loan_sangam', include:true, sangam:true, loanDup: ledgerHas(t,'lent','sangam') }
         const fixed = fixedMap.get(t.key)
         if (fixed) return { ...t, fixed, cat: fixed.paid ? 'skip' : fixed.categoryId, include: !fixed.paid }
-        return { ...t, cat: ruleFor(outRules, t), include:true }
+        return { ...t, cat: ruleFor(outRules, t) || builtinCat(t, categories), include:true }
       }))
     } catch(e) {
       console.error(e); setRows(null)
