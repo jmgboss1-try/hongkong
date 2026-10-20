@@ -42,6 +42,13 @@ export default function RevenueInput() {
 
   const delTotal = (+baemin||0)+(+coupang||0)+(+yogiyo||0)+(+ddangyeo||0)
 
+  // 포스기에서 하루 종일 켜두므로 1분마다 날짜를 다시 확인 — 날짜가 바뀌면 그날 문서를 새로 불러옴
+  const [, setTick] = useState(0)
+  useEffect(()=>{
+    const id = setInterval(()=>setTick(t=>t+1), 60000)
+    return ()=>clearInterval(id)
+  },[])
+
   useEffect(()=>{
     async function load() {
       setLoading(true)
@@ -52,7 +59,7 @@ export default function RevenueInput() {
       setLoading(false)
     }
     load()
-  },[])
+  },[today, todayDD])
 
   function resetInputs() {
     setKiosk(''); setPos('')
@@ -83,7 +90,10 @@ export default function RevenueInput() {
   async function save() {
     setSaving(true)
     try {
-      const existing = data[todayDD] || {}
+      // 저장 직전 최신 데이터를 다시 읽음 — 켜둔 사이 사장님이 다른 기기에서 고친 내용을 덮어쓰지 않도록
+      const snap = await getDoc(doc(db,'revenue',today))
+      const latest = snap.exists() ? snap.data() : {}
+      const existing = latest[todayDD] || {}
 
       let kioskVal, posVal, baeminVal, coupangVal, yogiyoVal, ddangyeoVal
 
@@ -113,9 +123,9 @@ export default function RevenueInput() {
         [activeSession==='morning'?'morningBy':activeSession==='middle'?'middleBy':'closeBy']: userData?.name || '매장전용',
         [activeSession==='morning'?'morningAt':activeSession==='middle'?'middleAt':'closeAt']: new Date().toISOString(),
       }
-      const newData = { ...data, [todayDD]: newRow }
-      await setDoc(doc(db,'revenue',today), newData)
-      setData(newData)
+      // 오늘 날짜 칸만 저장 (다른 날짜는 건드리지 않음)
+      await setDoc(doc(db,'revenue',today), { [todayDD]: newRow }, { merge:true })
+      setData({ ...latest, [todayDD]: newRow })
       const label = activeSession==='morning'?'🌅 오전':activeSession==='middle'?'☕ 미들타임':'🌙 마감'
       alert(`${label} 매출이 저장됐습니다!`)
     } catch(e) { console.error(e) }

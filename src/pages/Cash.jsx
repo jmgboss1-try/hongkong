@@ -115,6 +115,13 @@ export default function Cash() {
   const [viewDate, setViewDate] = useState(todayDD)
   const [showHistory, setShowHistory] = useState(false)
 
+  // 포스기에서 하루 종일 켜두므로 1분마다 날짜를 다시 확인 — 날짜가 바뀌면 그날 문서를 새로 불러옴
+  const [, setTick] = useState(0)
+  useEffect(()=>{
+    const id = setInterval(()=>setTick(t=>t+1), 60000)
+    return ()=>clearInterval(id)
+  },[])
+
   useEffect(()=>{
     async function load() {
       setLoading(true)
@@ -125,12 +132,13 @@ export default function Cash() {
 
         // 오늘 시재 기록
         const snap = await getDoc(doc(db,'cash',today))
-        if(snap.exists()) setRecords(snap.data())
+        setRecords(snap.exists() ? snap.data() : {})
+        setViewDate(todayDD)
       } catch(e) { console.error(e) }
       setLoading(false)
     }
     load()
-  },[])
+  },[today, todayDD])
 
   async function saveBaseAmount() {
     const amt = +tempBase
@@ -146,10 +154,13 @@ async function saveRecord(type, data) {
   const timeStr = now.toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit'})
   const dateStr = now.toLocaleDateString('ko-KR')
 
+  // 저장 직전 최신 데이터를 다시 읽음 — 다른 기기에서 저장한 오픈/마감 기록을 덮어쓰지 않도록
+  const snap = await getDoc(doc(db,'cash',today))
+  const latest = snap.exists() ? snap.data() : {}
   const newRecords = {
-    ...records,
+    ...latest,
     [todayDD]: {
-      ...(records[todayDD]||{}),
+      ...(latest[todayDD]||{}),
       [type]: {
         ...data,
         recordedAt: timeStr,
@@ -159,7 +170,7 @@ async function saveRecord(type, data) {
       }
     }
   }
-  await setDoc(doc(db,'cash',today), newRecords)
+  await setDoc(doc(db,'cash',today), { [todayDD]: newRecords[todayDD] }, { merge:true })
   setRecords(newRecords)
   alert(`${type==='open'?'오픈':'마감'} 시재가 저장됐습니다!`)
 }
