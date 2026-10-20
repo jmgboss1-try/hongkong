@@ -14,299 +14,232 @@ const PLATFORMS = [
 ]
 const TYPES  = ['오배송','메뉴누락','파손','기타']
 const CAUSES = [
-  { key:'store',  label:'매장',  color:'#f87171' },
-  { key:'rider',  label:'라이더', color:'#f9b934' },
-  { key:'customer',label:'고객', color:'#93c5fd' },
-]
-const CLAIM_STATUS = [
-  { key:'pending',  label:'대기중', color:'#5e6585' },
-  { key:'approved', label:'승인',   color:'#34d399' },
-  { key:'rejected', label:'거절',   color:'#f87171' },
+  { key:'store',    label:'매장',   color:'#f87171' },
+  { key:'rider',    label:'라이더', color:'#f9b934' },
+  { key:'customer', label:'고객',   color:'#93c5fd' },
 ]
 
+// 기록 하나의 단계 — 예전 기록(승인/최종확인/처리완료 따로 관리)도 그대로 읽을 수 있게 변환
+//   open: 진행중 / paid: 보상완료 / rejected: 거절 / closed: 금액 없이 완료 처리된 예전 기록
+function stageOf(r) {
+  if(r.claimStatus === 'rejected') return 'rejected'
+  if(r.finalConfirmed) return 'paid'
+  if(r.status === 'done') return 'closed'
+  return 'open'
+}
+const STAGE_BADGE = {
+  open:     { label:'⏳ 진행중',   color:'#f9b934' },
+  paid:     { label:'🟢 보상완료', color:'#34d399' },
+  rejected: { label:'🔴 거절',     color:'#f87171' },
+  closed:   { label:'완료',        color:'#5e6585' },
+}
+
 function emptyForm() {
-  return {
-    date: todayStr(),
-    platform: 'baemin',
-    orderNo: '',
-    type: '오배송',
-    cause: 'store',
-    orderAmount: '',
-    lossAmount: '',
-    memo: '',
-    claimStatus: 'pending',
-    approvedDate: '',
-    rejectReason: '',
-    finalConfirmed: false,
-    finalConfirmedDate: '',
-    finalAmount: '',
-  }
+  return { date: todayStr(), platform:'baemin', lossAmount:'', memo:'',
+    orderNo:'', orderAmount:'', type:'', cause:'' }
+}
+
+const inputStyle = {
+  background:'#191c2b',border:'1px solid #272a3d',borderRadius:7,color:'#dde1f2',
+  padding:'8px 10px',fontSize:12,outline:'none',fontFamily:'inherit',width:'100%'
+}
+const labelStyle = { fontSize:10,color:'#5e6585',fontWeight:600,display:'block',marginBottom:6 }
+const smallBtn = (bg, color, border='none') => ({
+  background:bg,color,border,padding:'6px 12px',fontSize:11,fontWeight:700,
+  borderRadius:6,cursor:'pointer',fontFamily:'inherit',whiteSpace:'nowrap'
+})
+
+function ToggleGroup({ options, value, onChange, allowEmpty }) {
+  return (
+    <div style={{display:'flex',flexWrap:'wrap',gap:6}}>
+      {options.map(opt=>{
+        const key = opt.key ?? opt
+        const label = opt.label ?? opt
+        const color = opt.color || '#f9b934'
+        const selected = value === key
+        return (
+          <button key={key} type="button" onClick={()=>onChange(selected && allowEmpty ? '' : key)}
+            style={{padding:'6px 12px',borderRadius:7,border:'none',fontSize:11,fontWeight:600,
+              cursor:'pointer',fontFamily:'inherit',
+              background:selected?`${color}22`:'#191c2b',
+              color:selected?color:'#5e6585',
+              outline:selected?`1.5px solid ${color}55`:'1.5px solid transparent'}}>
+            {label}
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
+// 등록/수정 공용 폼 — 기본 4칸 + 접을 수 있는 상세
+function ClaimForm({ value, onChange }) {
+  const [showDetail, setShowDetail] = useState(!!(value.orderNo || value.orderAmount || value.type || value.cause))
+  const set = (k,v) => onChange({ ...value, [k]: v })
+  return (
+    <div style={{display:'flex',flexDirection:'column',gap:12}}>
+      <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(150px,1fr))',gap:10}}>
+        <div>
+          <label style={labelStyle}>날짜</label>
+          <input type="date" value={value.date} onChange={e=>set('date',e.target.value)} style={inputStyle}/>
+        </div>
+        <div>
+          <label style={labelStyle}>손실 금액 (원)</label>
+          <input type="number" value={value.lossAmount} onChange={e=>set('lossAmount',e.target.value)}
+            placeholder="0" style={inputStyle}/>
+        </div>
+      </div>
+      <div>
+        <label style={labelStyle}>플랫폼</label>
+        <ToggleGroup options={PLATFORMS} value={value.platform} onChange={v=>set('platform',v)}/>
+      </div>
+      <div>
+        <label style={labelStyle}>내용</label>
+        <input value={value.memo} onChange={e=>set('memo',e.target.value)}
+          placeholder="예: 짬뽕 누락, 라이더 오배송" style={inputStyle}/>
+      </div>
+
+      <button type="button" onClick={()=>setShowDetail(v=>!v)}
+        style={{alignSelf:'flex-start',background:'transparent',border:'none',color:'#5e6585',
+          fontSize:11,cursor:'pointer',fontFamily:'inherit',padding:0}}>
+        {showDetail ? '▾ 상세 접기' : '▸ 상세 (주문번호·주문금액·유형·원인) — 선택'}
+      </button>
+      {showDetail && (
+        <div style={{display:'flex',flexDirection:'column',gap:12,paddingLeft:10,borderLeft:'2px solid #272a3d'}}>
+          <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(150px,1fr))',gap:10}}>
+            <div>
+              <label style={labelStyle}>주문번호</label>
+              <input value={value.orderNo} onChange={e=>set('orderNo',e.target.value)} style={inputStyle}/>
+            </div>
+            <div>
+              <label style={labelStyle}>주문 금액 (원)</label>
+              <input type="number" value={value.orderAmount} onChange={e=>set('orderAmount',e.target.value)}
+                placeholder="0" style={inputStyle}/>
+            </div>
+          </div>
+          <div>
+            <label style={labelStyle}>유형</label>
+            <ToggleGroup options={TYPES} value={value.type} onChange={v=>set('type',v)} allowEmpty/>
+          </div>
+          <div>
+            <label style={labelStyle}>원인</label>
+            <ToggleGroup options={CAUSES} value={value.cause} onChange={v=>set('cause',v)} allowEmpty/>
+          </div>
+        </div>
+      )}
+    </div>
+  )
 }
 
 export default function LossClaims() {
   const [records, setRecords] = useState([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving]   = useState(false)
+  const [tab, setTab]         = useState('open') // 'open' | 'done'
 
   const [showForm, setShowForm] = useState(false)
-  const [form, setForm] = useState(emptyForm())
-
-  const [editId, setEditId] = useState(null)
+  const [form, setForm]         = useState(emptyForm())
+  const [editId, setEditId]     = useState(null)
   const [editForm, setEditForm] = useState(null)
 
-  const [filterTab, setFilterTab] = useState('active') // 'active' | 'done'
+  // 카드 안 인라인 입력: { id, kind:'paid'|'rejected', date, amount, reason }
+  const [action, setAction] = useState(null)
 
-  // 최종 확인(입금+금액 확정) 인라인 폼
-  const [confirmId, setConfirmId] = useState(null)
-  const [confirmForm, setConfirmForm] = useState({ date: todayStr(), amount: '' })
+  useEffect(()=>{
+    getDoc(doc(db,'lossClaims','records'))
+      .then(snap=>setRecords(snap.exists() ? (snap.data().list||[]) : []))
+      .catch(e=>console.error(e))
+      .finally(()=>setLoading(false))
+  },[])
 
-  async function load() {
-    setLoading(true)
+  // 저장 직전 최신 목록을 다시 읽어서 변경 적용 — 포스기와 사장님 폰에서 동시에 써도 서로 덮어쓰지 않도록
+  async function update(fn) {
+    setSaving(true)
     try {
       const snap = await getDoc(doc(db,'lossClaims','records'))
-      setRecords(snap.exists() ? (snap.data().list||[]) : [])
-    } catch(e) { console.error(e) }
-    setLoading(false)
+      const latest = snap.exists() ? (snap.data().list||[]) : []
+      const next = fn(latest)
+      await setDoc(doc(db,'lossClaims','records'), { list: next })
+      setRecords(next)
+      return true
+    } catch(e) { console.error(e); alert('저장 중 오류가 발생했습니다.'); return false }
+    finally { setSaving(false) }
   }
-  useEffect(()=>{ load() },[])
+  const patch = (id, fields) => update(list => list.map(r => r.id===id ? { ...r, ...fields } : r))
 
-  async function saveAll(newList) {
-    await setDoc(doc(db,'lossClaims','records'), { list:newList })
-    setRecords(newList)
-  }
+  const toNumbers = f => ({ ...f, lossAmount:+f.lossAmount||0, orderAmount:+f.orderAmount||0 })
 
   async function addRecord() {
     if(!form.date) return alert('날짜를 입력해주세요')
-    setSaving(true)
-    try {
-      const newRec = {
-        id: Date.now().toString(),
-        ...form,
-        orderAmount: +form.orderAmount||0,
-        lossAmount: +form.lossAmount||0,
-        finalAmount: +form.finalAmount||0,
-        status: 'active', // 진행중/완료
-        createdAt: new Date().toISOString(),
-      }
-      await saveAll([...records, newRec])
-      setForm(emptyForm())
-      setShowForm(false)
-    } catch(e) { console.error(e) }
-    setSaving(false)
+    const ok = await update(list => [...list, {
+      id: Date.now().toString(), ...toNumbers(form),
+      claimStatus:'pending', status:'active', createdAt:new Date().toISOString(),
+    }])
+    if(ok) { setForm(emptyForm()); setShowForm(false); setTab('open') }
+  }
+
+  async function saveEdit() {
+    const ok = await patch(editId, toNumbers(editForm))
+    if(ok) { setEditId(null); setEditForm(null) }
+  }
+
+  async function saveAction() {
+    if(action.kind === 'paid') {
+      const amount = +action.amount || 0
+      if(amount <= 0) return alert('받은 보상 금액을 입력해주세요')
+      const ok = await patch(action.id, {
+        claimStatus:'approved', approvedDate: action.date,
+        finalConfirmed:true, finalConfirmedDate: action.date, finalAmount: amount, status:'done',
+      })
+      if(ok) setAction(null)
+    } else {
+      const ok = await patch(action.id, { claimStatus:'rejected', rejectReason: action.reason||'', status:'done' })
+      if(ok) setAction(null)
+    }
+  }
+
+  async function reopen(id) {
+    if(!window.confirm('다시 진행중으로 되돌릴까요?')) return
+    await patch(id, { claimStatus:'pending', finalConfirmed:false, status:'active' })
   }
 
   async function deleteRecord(id) {
     if(!window.confirm('이 기록을 삭제하시겠습니까?')) return
-    await saveAll(records.filter(r=>r.id!==id))
+    await update(list => list.filter(r => r.id!==id))
   }
 
-  async function toggleStatus(id) {
-    const newList = records.map(r=>
-      r.id===id ? { ...r, status: r.status==='active' ? 'done' : 'active' } : r
-    )
-    await saveAll(newList)
-  }
+  const openList = records.filter(r => stageOf(r)==='open')
+  const doneList = records.filter(r => stageOf(r)!=='open')
+  const shown = (tab==='open' ? openList : doneList).slice().sort((a,b)=>b.date.localeCompare(a.date))
 
-  // ── 최종 확인 (상담원 통화로 실제 입금 확인 후) ──
-  function startConfirm(r) {
-    setConfirmId(r.id)
-    setConfirmForm({ date: todayStr(), amount: r.finalAmount ? String(r.finalAmount) : '' })
-  }
-  async function saveFinalConfirm(id) {
-    const amount = +confirmForm.amount || 0
-    if(!confirmForm.date) return alert('최종확인일을 입력해주세요')
-    if(amount<=0) return alert('최종 보상금액을 입력해주세요')
-    setSaving(true)
-    try {
-      const newList = records.map(r => r.id===id ? {
-        ...r,
-        finalConfirmed: true,
-        finalConfirmedDate: confirmForm.date,
-        finalAmount: amount,
-      } : r)
-      await saveAll(newList)
-      setConfirmId(null)
-    } catch(e){ console.error(e) }
-    setSaving(false)
-  }
-  async function undoFinalConfirm(id) {
-    if(!window.confirm('최종 확인을 취소하고 다시 확인대기 상태로 되돌리시겠습니까?')) return
-    const newList = records.map(r => r.id===id ? { ...r, finalConfirmed:false } : r)
-    await saveAll(newList)
-  }
-
-  function startEdit(r) {
-    setEditId(r.id)
-    setEditForm({ ...r })
-  }
-
-  async function saveEdit() {
-    setSaving(true)
-    try {
-      const newList = records.map(r =>
-        r.id === editId ? {
-          ...editForm,
-          orderAmount: +editForm.orderAmount||0,
-          lossAmount: +editForm.lossAmount||0,
-          finalAmount: +editForm.finalAmount||0,
-        } : r
-      )
-      await saveAll(newList)
-      setEditId(null); setEditForm(null)
-    } catch(e) { console.error(e) }
-    setSaving(false)
-  }
-
-  function updateClaimStatus(target, key, val) {
-    // target: 'form' | 'editForm'
-    const setter = target === 'form' ? setForm : setEditForm
-    setter(f => {
-      const next = { ...f, [key]: val }
-      // 승인으로 바꾸는 순간 승인일 기본값을 오늘로
-      if(key==='claimStatus' && val==='approved' && !next.approvedDate) {
-        next.approvedDate = todayStr()
-      }
-      return next
-    })
-  }
-
-  const platformOf = key => PLATFORMS.find(p=>p.key===key)
-  const causeOf = key => CAUSES.find(c=>c.key===key)
-  const claimStatusOf = key => CLAIM_STATUS.find(s=>s.key===key)
-
-  // 카드 헤더에 표시할 상태 뱃지 (승인 후 최종확인 여부까지 구분)
-  function claimBadge(r) {
-    if(r.claimStatus === 'approved') {
-      return r.finalConfirmed
-        ? { label:'🟢 최종완료', color:'#34d399' }
-        : { label:'🟡 승인(확인대기)', color:'#f9b934' }
-    }
-    return claimStatusOf(r.claimStatus)
-  }
-
-  const filtered = records
-    .filter(r => filterTab==='active' ? r.status!=='done' : r.status==='done')
-    .sort((a,b)=> b.date.localeCompare(a.date))
-
-  const activeCount = records.filter(r=>r.status!=='done').length
-  const doneCount   = records.filter(r=>r.status==='done').length
-
-  const totalLoss     = records.reduce((a,r)=>a+(r.lossAmount||0),0)
-  const totalApproved = records.filter(r=>r.claimStatus==='approved' && r.finalConfirmed).reduce((a,r)=>a+(r.finalAmount||0),0)
-  const totalOrder    = records.reduce((a,r)=>a+(r.orderAmount||0),0)
-  const pendingCount  = records.filter(r=>r.claimStatus==='pending').length
-  const waitingConfirmCount = records.filter(r=>r.claimStatus==='approved' && !r.finalConfirmed).length
-
-  const inputStyle = {
-    background:'#191c2b',border:'1px solid #272a3d',borderRadius:7,color:'#dde1f2',
-    padding:'8px 10px',fontSize:12,outline:'none',fontFamily:'inherit',width:'100%'
-  }
-  const labelStyle = { fontSize:10,color:'#5e6585',fontWeight:600,display:'block',marginBottom:6 }
-
-  function ToggleGroup({ options, value, onChange, colorKey='color' }) {
-    return (
-      <div style={{display:'flex',flexWrap:'wrap',gap:6}}>
-        {options.map(opt=>{
-          const key = opt.key ?? opt
-          const label = opt.label ?? opt
-          const color = opt[colorKey] || '#f9b934'
-          const selected = value === key
-          return (
-            <button key={key} onClick={()=>onChange(key)}
-              style={{padding:'6px 12px',borderRadius:7,border:'none',fontSize:11,fontWeight:600,
-                cursor:'pointer',fontFamily:'inherit',
-                background:selected?`${color}22`:'#191c2b',
-                color:selected?color:'#5e6585',
-                outline:selected?`1.5px solid ${color}55`:'1.5px solid transparent'}}>
-              {label}
-            </button>
-          )
-        })}
-      </div>
-    )
-  }
-
-  function ClaimStatusSection({ f, target }) {
-    return (
-      <div>
-        <label style={labelStyle}>손실보상 상태</label>
-        <ToggleGroup options={CLAIM_STATUS} value={f.claimStatus}
-          onChange={v=>updateClaimStatus(target, 'claimStatus', v)}/>
-
-        {f.claimStatus === 'approved' && (
-          <div style={{marginTop:10,background:'rgba(52,211,153,0.06)',border:'1px solid rgba(52,211,153,0.2)',
-            borderRadius:8,padding:12}}>
-            <div style={{maxWidth:200}}>
-              <label style={labelStyle}>승인일</label>
-              <input type="date" value={f.approvedDate||todayStr()}
-                onChange={e=>(target==='form'?setForm:setEditForm)(p=>({...p,approvedDate:e.target.value}))}
-                style={inputStyle}/>
-            </div>
-            <div style={{fontSize:10,color:'#5e6585',marginTop:8,lineHeight:1.6}}>
-              💡 보상금액은 나중에 실제 입금 확인 후 카드의 <b>"최종 확인"</b> 버튼으로 입력해요.
-              위에서 입력한 <b>주문 금액</b>과 비교해 수수료가 얼마나 빠졌는지 자동으로 보여드려요.
-            </div>
-            {target==='editForm' && f.finalConfirmed && (
-              <div style={{marginTop:12,paddingTop:12,borderTop:'1px solid rgba(52,211,153,0.2)',
-                display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(150px,1fr))',gap:10}}>
-                <div>
-                  <label style={labelStyle}>최종확인일</label>
-                  <input type="date" value={f.finalConfirmedDate||todayStr()}
-                    onChange={e=>setEditForm(p=>({...p,finalConfirmedDate:e.target.value}))}
-                    style={inputStyle}/>
-                </div>
-                <div>
-                  <label style={labelStyle}>최종 보상금액 (원)</label>
-                  <input type="number" value={f.finalAmount}
-                    onChange={e=>setEditForm(p=>({...p,finalAmount:e.target.value}))}
-                    placeholder="0" style={inputStyle}/>
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-
-        {f.claimStatus === 'rejected' && (
-          <div style={{marginTop:10}}>
-            <label style={labelStyle}>거절 사유</label>
-            <input value={f.rejectReason||''}
-              onChange={e=>(target==='form'?setForm:setEditForm)(p=>({...p,rejectReason:e.target.value}))}
-              placeholder="거절 사유를 입력하세요" style={inputStyle}/>
-          </div>
-        )}
-      </div>
-    )
-  }
+  const openLoss  = openList.reduce((a,r)=>a+(r.lossAmount||0),0)
+  const paidTotal = records.filter(r=>stageOf(r)==='paid').reduce((a,r)=>a+(r.finalAmount||0),0)
 
   return (
     <div>
-      <div style={{display:'flex',alignItems:'flex-end',justifyContent:'space-between',marginBottom:22,flexWrap:'wrap',gap:10}}>
+      <div style={{display:'flex',alignItems:'flex-end',justifyContent:'space-between',marginBottom:18,flexWrap:'wrap',gap:10}}>
         <div>
-          <div style={{fontSize:20,fontWeight:700}}>📋 손실보상 관리</div>
-          <div style={{fontSize:12,color:'#5e6585',marginTop:2}}>배달 사고 및 보상 이력</div>
+          <div style={{fontSize:20,fontWeight:700}}>📋 손실보상</div>
+          <div style={{fontSize:12,color:'#5e6585',marginTop:2}}>배달 사고 등록 → 보상 받으면 금액만 입력</div>
         </div>
         <button onClick={()=>{ setShowForm(v=>!v); setForm(emptyForm()) }}
           style={{background:'#f9b934',color:'#000',border:'none',borderRadius:8,
             padding:'8px 16px',fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
-          + 사고 등록
+          {showForm ? '닫기' : '+ 사고 등록'}
         </button>
       </div>
 
-      {/* 요약 카드 */}
+      {/* 요약 */}
       <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(150px,1fr))',gap:12,marginBottom:18}}>
         {[
-          {label:'총 주문 금액',   val:totalOrder,     color:'#dde1f2'},
-          {label:'총 손실 금액',   val:totalLoss,      color:'#f87171'},
-          {label:'보상 받은 금액(최종확인)', val:totalApproved,  color:'#34d399'},
-          {label:'승인 대기중',    val:pendingCount, isCount:true, color:'#5e6585'},
-          ...(waitingConfirmCount>0 ? [{label:'최종확인 대기중', val:waitingConfirmCount, isCount:true, color:'#f9b934'}] : []),
+          { label:'진행중', val:`${openList.length}건`, color:'#f9b934' },
+          { label:'진행중 손실 금액', val:`${wonFmt(openLoss)}원`, color:'#f87171' },
+          { label:'지금까지 받은 보상', val:`${wonFmt(paidTotal)}원`, color:'#34d399' },
         ].map(k=>(
           <div key={k.label} style={{background:'#12141f',border:'1px solid #272a3d',borderRadius:12,padding:'14px 16px',position:'relative',overflow:'hidden'}}>
             <div style={{position:'absolute',top:0,left:0,right:0,height:3,background:k.color}}/>
             <div style={{fontSize:10,fontWeight:600,color:'#5e6585',marginBottom:6}}>{k.label}</div>
-            <div style={{fontSize:16,fontWeight:700,color:k.color,fontFamily:'DM Mono,monospace'}}>
-              {k.isCount ? `${k.val}건` : `${wonFmt(k.val)}원`}
-            </div>
+            <div style={{fontSize:16,fontWeight:700,color:k.color,fontFamily:'DM Mono,monospace'}}>{k.val}</div>
           </div>
         ))}
       </div>
@@ -314,74 +247,21 @@ export default function LossClaims() {
       {/* 등록 폼 */}
       {showForm && (
         <div style={{background:'#12141f',border:'1px solid #f9b934',borderRadius:12,marginBottom:18,padding:18}}>
-          <div style={{fontSize:13,fontWeight:600,color:'#f9b934',marginBottom:14}}>+ 사고 등록</div>
-          <div style={{display:'flex',flexDirection:'column',gap:14}}>
-            <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(160px,1fr))',gap:12}}>
-              <div>
-                <label style={labelStyle}>날짜</label>
-                <input type="date" value={form.date} onChange={e=>setForm(f=>({...f,date:e.target.value}))} style={inputStyle}/>
-              </div>
-              <div>
-                <label style={labelStyle}>주문 금액 (원)</label>
-                <input type="number" value={form.orderAmount} onChange={e=>setForm(f=>({...f,orderAmount:e.target.value}))}
-                  placeholder="0" style={inputStyle}/>
-              </div>
-              <div>
-                <label style={labelStyle}>손실 금액 (원)</label>
-                <input type="number" value={form.lossAmount} onChange={e=>setForm(f=>({...f,lossAmount:e.target.value}))}
-                  placeholder="0" style={inputStyle}/>
-              </div>
-            </div>
-
-                        <div>
-              <label style={labelStyle}>플랫폼</label>
-              <ToggleGroup options={PLATFORMS} value={form.platform} onChange={v=>setForm(f=>({...f,platform:v}))}/>
-            </div>
-            <div>
-              <label style={labelStyle}>주문번호</label>
-              <input value={form.orderNo} onChange={e=>setForm(f=>({...f,orderNo:e.target.value}))}
-                placeholder="주문번호 입력" style={inputStyle}/>
-            </div>
-            <div>
-              <label style={labelStyle}>유형</label>
-              <ToggleGroup options={TYPES.map(t=>({key:t,label:t,color:'#f9b934'}))} value={form.type}
-                onChange={v=>setForm(f=>({...f,type:v}))}/>
-            </div>
-            <div>
-              <label style={labelStyle}>원인 제공</label>
-              <ToggleGroup options={CAUSES} value={form.cause} onChange={v=>setForm(f=>({...f,cause:v}))}/>
-            </div>
-
-            <div>
-              <label style={labelStyle}>내용</label>
-              <input value={form.memo} onChange={e=>setForm(f=>({...f,memo:e.target.value}))}
-                placeholder="어떤 일이 있었는지 적어주세요" style={inputStyle}/>
-            </div>
-
-            <ClaimStatusSection f={form} target="form"/>
-          </div>
-
-          <div style={{display:'flex',gap:8,marginTop:16}}>
-            <button onClick={addRecord} disabled={saving}
-              style={{background:'#f9b934',color:'#000',border:'none',borderRadius:8,padding:'9px 20px',
-                fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
-              {saving?'등록 중...':'등록'}
-            </button>
-            <button onClick={()=>setShowForm(false)}
-              style={{background:'#191c2b',color:'#5e6585',border:'1px solid #272a3d',borderRadius:8,
-                padding:'9px 20px',fontSize:12,cursor:'pointer',fontFamily:'inherit'}}>
-              취소
-            </button>
-          </div>
+          <ClaimForm value={form} onChange={setForm}/>
+          <button onClick={addRecord} disabled={saving}
+            style={{marginTop:16,background:'#f9b934',color:'#000',border:'none',borderRadius:8,padding:'9px 22px',
+              fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
+            {saving?'등록 중...':'등록'}
+          </button>
         </div>
       )}
 
-      {/* 진행중/완료 탭 */}
+      {/* 진행중 / 완료 */}
       <div style={{display:'flex',gap:8,marginBottom:14}}>
-        {[['active',`🔴 진행중 (${activeCount})`],['done',`🟢 완료 (${doneCount})`]].map(([key,label])=>(
-          <button key={key} onClick={()=>setFilterTab(key)}
+        {[['open',`진행중 (${openList.length})`],['done',`완료 (${doneList.length})`]].map(([key,label])=>(
+          <button key={key} onClick={()=>setTab(key)}
             style={{padding:'7px 14px',borderRadius:7,border:'none',fontSize:12,fontWeight:600,cursor:'pointer',fontFamily:'inherit',
-              background:filterTab===key?'#f9b934':'#191c2b',color:filterTab===key?'#000':'#5e6585'}}>
+              background:tab===key?'#f9b934':'#191c2b',color:tab===key?'#000':'#5e6585'}}>
             {label}
           </button>
         ))}
@@ -389,178 +269,95 @@ export default function LossClaims() {
 
       {loading ? (
         <div style={{textAlign:'center',color:'#5e6585',padding:60}}>로딩 중...</div>
-      ) : filtered.length === 0 ? (
+      ) : shown.length === 0 ? (
         <div style={{background:'#12141f',border:'1px solid #272a3d',borderRadius:12,padding:40,textAlign:'center',color:'#5e6585'}}>
-          {filterTab==='active' ? '진행중인 사고 건이 없습니다' : '완료된 사고 건이 없습니다'}
+          {tab==='open' ? '진행중인 사고가 없습니다' : '완료된 사고가 없습니다'}
         </div>
       ) : (
-        <div style={{display:'flex',flexDirection:'column',gap:12}}>
-          {filtered.map(r=>{
-            const pf = platformOf(r.platform)
-            const cause = causeOf(r.cause)
-            const cs = claimBadge(r)
-            const isEditing = editId === r.id
-            const ef = isEditing ? editForm : null
-            const isConfirming = confirmId === r.id
-            const feeDiff = r.finalConfirmed ? (r.orderAmount||0) - (r.finalAmount||0) : 0
-            const feePct  = r.finalConfirmed && r.orderAmount>0 ? Math.round(feeDiff/r.orderAmount*100) : 0
+        <div style={{display:'flex',flexDirection:'column',gap:10}}>
+          {shown.map(r=>{
+            const pf = PLATFORMS.find(p=>p.key===r.platform)
+            const cause = CAUSES.find(c=>c.key===r.cause)
+            const stage = stageOf(r)
+            const badge = STAGE_BADGE[stage]
+            const act = action?.id===r.id ? action : null
+            const fee = stage==='paid' && r.orderAmount>0 ? r.orderAmount - (r.finalAmount||0) : null
+
+            if(editId === r.id) return (
+              <div key={r.id} style={{background:'#12141f',border:'1px solid #f9b934',borderRadius:12,padding:18}}>
+                <ClaimForm value={editForm} onChange={setEditForm}/>
+                <div style={{display:'flex',gap:8,marginTop:16}}>
+                  <button onClick={saveEdit} disabled={saving} style={smallBtn('#f9b934','#000')}>{saving?'저장 중...':'저장'}</button>
+                  <button onClick={()=>{setEditId(null);setEditForm(null)}} style={smallBtn('#191c2b','#5e6585','1px solid #272a3d')}>취소</button>
+                </div>
+              </div>
+            )
 
             return (
-              <div key={r.id} style={{background:'#12141f',
-                border:`1px solid ${isEditing?'#f9b934':'#272a3d'}`,borderRadius:12,overflow:'hidden'}}>
+              <div key={r.id} style={{background:'#12141f',border:'1px solid #272a3d',borderRadius:12,padding:'14px 18px'}}>
+                <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',gap:10,flexWrap:'wrap'}}>
+                  <div style={{flex:1,minWidth:200}}>
+                    <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap',marginBottom:6}}>
+                      <span style={{fontSize:13,fontWeight:700}}>{r.date}</span>
+                      <span style={{fontSize:11,fontWeight:700,padding:'2px 8px',borderRadius:4,
+                        background:`${pf?.color}18`,color:pf?.color}}>{pf?.label}</span>
+                      <span style={{fontSize:11,fontWeight:700,color:badge.color}}>{badge.label}</span>
+                    </div>
+                    {r.memo && <div style={{fontSize:12,color:'#dde1f2',marginBottom:6}}>{r.memo}</div>}
+                    <div style={{display:'flex',gap:12,flexWrap:'wrap',fontSize:11,color:'#5e6585'}}>
+                      <span>손실 <b style={{color:'#f87171'}}>{wonFmt(r.lossAmount)}원</b></span>
+                      {stage==='paid' && <span>보상 <b style={{color:'#34d399'}}>{wonFmt(r.finalAmount)}원</b> ({r.finalConfirmedDate})</span>}
+                      {fee!==null && <span>수수료 <b style={{color:'#f87171'}}>-{wonFmt(fee)}원</b></span>}
+                      {stage==='rejected' && r.rejectReason && <span>사유 <b style={{color:'#f87171'}}>{r.rejectReason}</b></span>}
+                      {r.orderNo && <span style={{fontFamily:'DM Mono,monospace'}}>#{r.orderNo}</span>}
+                      {r.type && <span>{r.type}</span>}
+                      {cause && <span>원인: {cause.label}</span>}
+                    </div>
+                  </div>
 
-                {!isEditing ? (
-                  <>
-                    <div style={{padding:'14px 18px',display:'flex',justifyContent:'space-between',
-                      alignItems:'flex-start',flexWrap:'wrap',gap:10}}>
-                      <div>
-                        <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap',marginBottom:6}}>
-                          <span style={{fontSize:13,fontWeight:700,color:'#dde1f2'}}>{r.date}</span>
-                                                    <span style={{fontSize:11,fontWeight:700,padding:'2px 8px',borderRadius:4,
-                            background:`${pf?.color}18`,color:pf?.color}}>{pf?.label}</span>
-                          {r.orderNo && <span style={{fontSize:11,color:'#5e6585',fontFamily:'DM Mono,monospace'}}>#{r.orderNo}</span>}
-                          <span style={{fontSize:11,color:'#5e6585'}}>{r.type}</span>
-                          <span style={{fontSize:11,fontWeight:600,padding:'2px 8px',borderRadius:4,
-                            background:`${cause?.color}18`,color:cause?.color}}>원인: {cause?.label}</span>
-                          <span style={{fontSize:11,fontWeight:700,padding:'2px 8px',borderRadius:4,
-                            background:`${cs?.color}18`,color:cs?.color}}>{cs?.label}</span>
-                        </div>
-                        {r.memo && <div style={{fontSize:12,color:'#dde1f2',marginBottom:6}}>{r.memo}</div>}
-                        <div style={{display:'flex',gap:14,flexWrap:'wrap',fontSize:11,color:'#5e6585'}}>
-                          <span>주문금액 <b style={{color:'#dde1f2'}}>{wonFmt(r.orderAmount)}원</b></span>
-                          <span>손실금액 <b style={{color:'#f87171'}}>{wonFmt(r.lossAmount)}원</b></span>
-                          {r.claimStatus==='approved' && (
-                            <span>승인일 <b style={{color:'#dde1f2'}}>{r.approvedDate}</b></span>
-                          )}
-                          {r.claimStatus==='approved' && !r.finalConfirmed && (
-                            <span style={{color:'#f9b934',fontWeight:700}}>⏳ 최종확인 대기중</span>
-                          )}
-                          {r.claimStatus==='approved' && r.finalConfirmed && (
-                            <>
-                              <span>최종확인일 <b style={{color:'#dde1f2'}}>{r.finalConfirmedDate}</b></span>
-                              <span>최종보상 <b style={{color:'#34d399'}}>{wonFmt(r.finalAmount)}원</b></span>
-                              <span>수수료 <b style={{color:'#f87171'}}>-{wonFmt(feeDiff)}원 ({feePct}%)</b></span>
-                            </>
-                          )}
-                          {r.claimStatus==='rejected' && r.rejectReason && (
-                            <span>거절사유 <b style={{color:'#f87171'}}>{r.rejectReason}</b></span>
-                          )}
-                        </div>
+                  <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>
+                    {stage==='open' && !act && (
+                      <>
+                        <button onClick={()=>setAction({ id:r.id, kind:'paid', date:todayStr(), amount:'' })}
+                          style={smallBtn('#34d399','#000')}>💰 보상 받음</button>
+                        <button onClick={()=>setAction({ id:r.id, kind:'rejected', reason:'' })}
+                          style={smallBtn('transparent','#f87171','1px solid #3d1f1f')}>거절됨</button>
+                      </>
+                    )}
+                    {stage!=='open' && (
+                      <button onClick={()=>reopen(r.id)} style={smallBtn('transparent','#5e6585','1px solid #272a3d')}>되돌리기</button>
+                    )}
+                    <button onClick={()=>{ setEditId(r.id); setEditForm({ ...emptyForm(), ...r }) }}
+                      style={smallBtn('transparent','#dde1f2','1px solid #272a3d')}>수정</button>
+                    <button onClick={()=>deleteRecord(r.id)}
+                      style={smallBtn('transparent','#f87171','1px solid #3d1f1f')}>삭제</button>
+                  </div>
+                </div>
 
-                        {isConfirming && (
-                          <div style={{marginTop:10,background:'rgba(249,185,52,0.06)',border:'1px solid rgba(249,185,52,0.25)',
-                            borderRadius:8,padding:12,display:'flex',gap:10,alignItems:'flex-end',flexWrap:'wrap'}}>
-                            <div>
-                              <label style={labelStyle}>최종확인일</label>
-                              <input type="date" value={confirmForm.date}
-                                onChange={e=>setConfirmForm(f=>({...f,date:e.target.value}))} style={inputStyle}/>
-                            </div>
-                            <div>
-                              <label style={labelStyle}>최종 보상금액 (원)</label>
-                              <input type="number" value={confirmForm.amount}
-                                onChange={e=>setConfirmForm(f=>({...f,amount:e.target.value}))}
-                                placeholder="상담원 안내 금액" style={inputStyle}/>
-                            </div>
-                            <button onClick={()=>saveFinalConfirm(r.id)} disabled={saving}
-                              style={{background:'#34d399',color:'#000',border:'none',borderRadius:7,padding:'8px 16px',
-                                fontSize:11,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
-                              {saving?'저장 중...':'확정'}
-                            </button>
-                            <button onClick={()=>setConfirmId(null)}
-                              style={{background:'transparent',border:'1px solid #272a3d',color:'#5e6585',borderRadius:7,
-                                padding:'8px 14px',fontSize:11,cursor:'pointer',fontFamily:'inherit'}}>
-                              취소
-                            </button>
-                          </div>
-                        )}
-                      </div>
-                      <div style={{display:'flex',gap:6,flexShrink:0,flexWrap:'wrap'}}>
-                        {r.claimStatus==='approved' && !r.finalConfirmed && !isConfirming && (
-                          <button onClick={()=>startConfirm(r)}
-                            style={{background:'#f9b934',color:'#000',border:'none',
-                              padding:'5px 12px',fontSize:10,fontWeight:700,borderRadius:5,cursor:'pointer',fontFamily:'inherit'}}>
-                            ✅ 최종 확인
-                          </button>
-                        )}
-                        {r.claimStatus==='approved' && r.finalConfirmed && (
-                          <button onClick={()=>undoFinalConfirm(r.id)}
-                            style={{background:'transparent',border:'1px solid #272a3d',color:'#5e6585',
-                              padding:'5px 10px',fontSize:10,borderRadius:5,cursor:'pointer',fontFamily:'inherit'}}>
-                            확인 취소
-                          </button>
-                        )}
-                        <button onClick={()=>startEdit(r)}
-                          style={{background:'transparent',border:'1px solid #272a3d',color:'#dde1f2',
-                            padding:'5px 10px',fontSize:10,borderRadius:5,cursor:'pointer',fontFamily:'inherit'}}>
-                          수정
-                        </button>
-                        <button onClick={()=>toggleStatus(r.id)}
-                          style={{background: r.status==='active' ? '#34d399' : 'transparent',
-                            border: r.status==='active' ? 'none' : '1px solid #272a3d',
-                            color: r.status==='active' ? '#000' : '#5e6585',
-                            padding:'5px 12px',fontSize:10,fontWeight:700,borderRadius:5,cursor:'pointer',fontFamily:'inherit'}}>
-                          {r.status==='active' ? '처리 완료 ✓' : '다시 처리중으로'}
-                        </button>
-                        <button onClick={()=>deleteRecord(r.id)}
-                          style={{background:'transparent',border:'1px solid #3d1f1f',color:'#f87171',
-                            padding:'5px 10px',fontSize:10,borderRadius:5,cursor:'pointer',fontFamily:'inherit'}}>
-                          삭제
-                        </button>
-                      </div>
-                    </div>
-                  </>
-                ) : (
-                  <div style={{padding:18}}>
-                    <div style={{display:'flex',flexDirection:'column',gap:14}}>
-                      <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(160px,1fr))',gap:12}}>
+                {act && (
+                  <div style={{marginTop:12,background:'#191c2b',borderRadius:8,padding:12,
+                    display:'flex',gap:8,alignItems:'flex-end',flexWrap:'wrap'}}>
+                    {act.kind==='paid' ? (
+                      <>
                         <div>
-                          <label style={labelStyle}>날짜</label>
-                          <input type="date" value={ef.date} onChange={e=>setEditForm(f=>({...f,date:e.target.value}))} style={inputStyle}/>
+                          <label style={labelStyle}>받은 날짜</label>
+                          <input type="date" value={act.date} onChange={e=>setAction({...act,date:e.target.value})} style={inputStyle}/>
                         </div>
                         <div>
-                          <label style={labelStyle}>주문 금액 (원)</label>
-                          <input type="number" value={ef.orderAmount} onChange={e=>setEditForm(f=>({...f,orderAmount:e.target.value}))} style={inputStyle}/>
+                          <label style={labelStyle}>받은 보상 금액 (원)</label>
+                          <input type="number" autoFocus value={act.amount} onChange={e=>setAction({...act,amount:e.target.value})}
+                            onKeyDown={e=>e.key==='Enter' && saveAction()} placeholder="0" style={inputStyle}/>
                         </div>
-                        <div>
-                          <label style={labelStyle}>손실 금액 (원)</label>
-                          <input type="number" value={ef.lossAmount} onChange={e=>setEditForm(f=>({...f,lossAmount:e.target.value}))} style={inputStyle}/>
-                        </div>
+                      </>
+                    ) : (
+                      <div style={{flex:1,minWidth:180}}>
+                        <label style={labelStyle}>거절 사유 (선택)</label>
+                        <input autoFocus value={act.reason} onChange={e=>setAction({...act,reason:e.target.value})}
+                          onKeyDown={e=>e.key==='Enter' && saveAction()} style={inputStyle}/>
                       </div>
-                                            <div>
-                        <label style={labelStyle}>플랫폼</label>
-                        <ToggleGroup options={PLATFORMS} value={ef.platform} onChange={v=>setEditForm(f=>({...f,platform:v}))}/>
-                      </div>
-                      <div>
-                        <label style={labelStyle}>주문번호</label>
-                        <input value={ef.orderNo} onChange={e=>setEditForm(f=>({...f,orderNo:e.target.value}))} style={inputStyle}/>
-                      </div>
-                      <div>
-                        <label style={labelStyle}>유형</label>
-                        <ToggleGroup options={TYPES.map(t=>({key:t,label:t,color:'#f9b934'}))} value={ef.type}
-                          onChange={v=>setEditForm(f=>({...f,type:v}))}/>
-                      </div>
-                      <div>
-                        <label style={labelStyle}>원인 제공</label>
-                        <ToggleGroup options={CAUSES} value={ef.cause} onChange={v=>setEditForm(f=>({...f,cause:v}))}/>
-                      </div>
-                      <div>
-                        <label style={labelStyle}>내용</label>
-                        <input value={ef.memo} onChange={e=>setEditForm(f=>({...f,memo:e.target.value}))} style={inputStyle}/>
-                      </div>
-                      <ClaimStatusSection f={ef} target="editForm"/>
-                    </div>
-                    <div style={{display:'flex',gap:8,marginTop:16}}>
-                      <button onClick={saveEdit} disabled={saving}
-                        style={{background:'#f9b934',color:'#000',border:'none',borderRadius:8,padding:'9px 20px',
-                          fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
-                        {saving?'저장 중...':'저장'}
-                      </button>
-                      <button onClick={()=>{setEditId(null);setEditForm(null)}}
-                        style={{background:'#191c2b',color:'#5e6585',border:'1px solid #272a3d',borderRadius:8,
-                          padding:'9px 20px',fontSize:12,cursor:'pointer',fontFamily:'inherit'}}>
-                        취소
-                      </button>
-                    </div>
+                    )}
+                    <button onClick={saveAction} disabled={saving} style={smallBtn('#f9b934','#000')}>{saving?'저장 중...':'완료'}</button>
+                    <button onClick={()=>setAction(null)} style={smallBtn('transparent','#5e6585','1px solid #272a3d')}>취소</button>
                   </div>
                 )}
               </div>
