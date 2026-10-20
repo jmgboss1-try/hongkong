@@ -8,6 +8,8 @@ import { doc, getDoc, setDoc } from 'firebase/firestore'
 //    (지출과 같은 문서에 한 번에 쓰므로, 지출만 저장되고 중복 방지 기록은 빠지는 일이 없음)
 //  - 사용자가 고른 카테고리는 expenseImportRules/default 에 "내용 → 카테고리" 규칙으로 저장해 다음 달부터 자동 선택
 //    (규칙 저장이 안 돼도 지출 반영에는 영향 없음)
+//  - 예금주(김기억 = 앱의 '형')와 주고받은 돈은 지출·실입금이 아니라 '형과의 단기 대여금' 장부(loans/hyung)로 보냄
+//    (출금 → 빌려줌, 입금 → 받음). 장부에 같은 날짜·금액·종류가 이미 있으면 중복이라 기본 제외
 
 const pad = n => String(n).padStart(2,'0')
 const wonFmt = n => (n||0).toLocaleString('ko-KR')
@@ -241,6 +243,12 @@ export default function BankImport({ categories, onSaved }) {
       setShowDepRows(false)
       const depRules = rules.filter(isDepositRule), outRules = rules.filter(x=>!isDepositRule(x))
       const holder = norm(chk?.holder)
+      // 대여금 장부: 이미 있는 기록(직접 적었거나 전에 가져온 것)과 겹치는지 확인용
+      let ledger = []
+      try { const ls = await getDoc(doc(db,'loans','hyung')); ledger = ls.exists() ? (ls.data().list||[]) : [] } catch(e) { console.error(e) }
+      const ledgerKeys = new Set(ledger.map(x=>x.bankKey).filter(Boolean))
+      const ledgerHas = (t, type) => ledgerKeys.has(t.key) || ledger.some(x=>x.type===type && x.date===t.date && x.amount===(type==='lent'?t.out:t.in))
+      const isHolder = t => holder && norm(t.matchText) === holder
       // 고정지출 항목·이번 달 납부 기록 (못 읽어도 가져오기는 계속)
       let fixedMap = new Map()
       try {
@@ -253,11 +261,17 @@ export default function BankImport({ categories, onSaved }) {
         // 입금: 날짜별로 다시 맞추는 방식이라 '이미 반영됨'이 없음. 예금주 본인 이체·제외 규칙에 걸린 건은 기본 제외
         if (!t.out) {
           const rule = ruleFor(depRules, t)
-          const self = holder && norm(t.matchText) === holder
+          const self = isHolder(t)
           const include = rule ? rule !== '__skip_in' : !self
-          return { ...t, imported:false, cat:'', include, selfTransfer: self && !rule }
+          // 예금주가 보낸 돈은 대여금(받음)으로 기록 — 장부에 이미 있으면 기본으로 기록 안 함
+          const loanDup = self && ledgerHas(t, 'received')
+          return { ...t, imported:false, cat:'', include, selfTransfer: self && !rule, loan: self && !include && !loanDup, loanDup }
         }
         const imported = importedKeys.has(t.key)
+        if (!imported && isHolder(t)) {
+          const loanDup = ledgerHas(t, 'lent')
+          return { ...t, imported, loanDup, cat: loanDup ? 'skip' : '__loan', include: !loanDup }
+        }
         const fixed = !imported ? fixedMap.get(t.key) : null
         if (fixed) return { ...t, imported, fixed, cat: fixed.paid ? 'skip' : fixed.categoryId, include: !fixed.paid }
         return { ...t, imported, cat: ruleFor(outRules, t), include: !imported }
@@ -283,14 +297,17 @@ export default function BankImport({ categories, onSaved }) {
   function toggleDeposit(i) {
     setRows(prev=>{
       const target = norm(prev[i].matchText), include = !prev[i].include
-      return prev.map((r,j)=> (j===i || (target && !r.out && norm(r.matchText)===target)) ? { ...r, include, selfTransfer:false } : r)
+      return prev.map((r,j)=> (j===i || (target && !r.out && norm(r.matchText)===target)) ? { ...r, include, selfTransfer:false, loan: include ? false : r.loan } : r)
     })
   }
+  const setLoanIn = (i, loan) => setRows(prev=>prev.map((r,j)=>j===i ? { ...r, loan } : r))
 
   const outs = rows ? rows.map((r,i)=>({ ...r, i })).filter(r=>r.out) : []
   const ins  = rows ? rows.map((r,i)=>({ ...r, i })).filter(r=>r.in) : []
   const pickedOut = outs.filter(r=>!r.imported && r.include && r.cat!=='skip')
   const unassigned = pickedOut.filter(r=>!r.cat).length
+  const loanOut = pickedOut.filter(r=>r.cat==='__loan')
+  const loanIn  = ins.filter(r=>!r.include && r.loan)
 
   // 조회기간 날짜별: 지금 적힌 실입금액 vs PDF 입금 합계(제외한 건 빼고)
   const depDays = []
@@ -307,7 +324,7 @@ export default function BankImport({ categories, onSaved }) {
 
   async function save() {
     const toSave = pickedOut.filter(r=>r.cat)
-    if (!toSave.length && !depChanged.length) return alert(unassigned ? '카테고리를 고른 출금이 없어요. 카테고리를 먼저 골라주세요.' : '반영할 내용이 없어요.')
+    if (!toSave.length && !depChanged.length && !loanIn.length) return alert(unassigned ? '카테고리를 고른 출금이 없어요. 카테고리를 먼저 골라주세요.' : '반영할 내용이 없어요.')
     if (unassigned && !window.confirm(`카테고리를 안 고른 출금 ${unassigned}건은 빼고, 고른 ${toSave.length}건만 지금 반영할까요?\n빠진 건은 화면에 남아 있고, 나중에 같은 파일을 다시 올려도 다시 나와요.`)) return
     setBusy(true)
     try {
@@ -323,6 +340,7 @@ export default function BankImport({ categories, onSaved }) {
         const keySet = new Set(keys)
         for (const r of list) {
           if (keySet.has(r.key)) { savedKeys.add(r.key); continue }
+          if (r.cat === '__loan') { keys.push(r.key); keySet.add(r.key); savedKeys.add(r.key); continue } // 지출 아님 → 장부로
           const dd = r.date.slice(8,10)
           const entry = { ...(data[dd]||{}) }
           categories.forEach(c=>{ if(entry[c.id]===undefined) entry[c.id]=0 })
@@ -347,6 +365,25 @@ export default function BankImport({ categories, onSaved }) {
         for (const r of list) if (r.fixed && !r.fixed.paid && r.out) fixedPaid[r.fixed.id] = { paid:true, paidDate: r.date.slice(8,10), amount: r.out }
         if (Object.keys(fixedPaid).length) await setDoc(doc(db,'fixedExpenses',ym), fixedPaid, { merge:true })
       }
+      // 대여금 장부에 기록 (저장 직전 다시 읽고, 이미 기록된 은행 거래는 건너뜀)
+      const loanNew = [
+        ...loanOut.filter(r=>savedKeys.has(r.key)).map(r=>({ type:'lent', amount:r.out, r })),
+        ...loanIn.map(r=>({ type:'received', amount:r.in, r })),
+      ]
+      let loanCount = 0
+      if (loanNew.length) {
+        const ls = await getDoc(doc(db,'loans','hyung'))
+        const list = ls.exists() ? (ls.data().list||[]) : []
+        const have = new Set(list.map(x=>x.bankKey).filter(Boolean))
+        let n = Date.now()
+        for (const { type, amount, r } of loanNew) {
+          if (have.has(r.key)) continue
+          list.push({ id: String(n++), date: r.date, type, amount, memo: `계좌내역 자동 기록 (${r.desc})`, bankKey: r.key })
+          have.add(r.key); loanCount++
+        }
+        list.sort((a,b)=>a.date.localeCompare(b.date))
+        await setDoc(doc(db,'loans','hyung'), { list })
+      }
       // 고른 카테고리를 규칙으로 저장 (내용 → 카테고리). 실패해도 지출 반영은 이미 끝남
       const newRules = [...rules]
       const upsert = (kw, categoryId, deposit) => {
@@ -355,7 +392,7 @@ export default function BankImport({ categories, onSaved }) {
         if (ex >= 0) newRules[ex] = { keyword: kw, categoryId }
         else newRules.push({ keyword: kw, categoryId })
       }
-      for (const r of pickedOut) if (r.cat) upsert(String(r.matchText||'').trim(), r.cat, false)
+      for (const r of pickedOut) if (r.cat && r.cat !== '__loan') upsert(String(r.matchText||'').trim(), r.cat, false)
       // 입금 제외/포함 기억 (예금주 본인 이체로 자동 제외된 건은 규칙으로 남기지 않음)
       if (withDeposits) {
         const seen = new Set()
@@ -374,11 +411,14 @@ export default function BankImport({ categories, onSaved }) {
 
       const months = Object.keys(byMonth).sort()
       const parts = []
-      if (toSave.length) parts.push(`출금 ${toSave.length}건 ${wonFmt(toSave.reduce((a,r)=>a+r.out,0))}원`)
+      const expSaved = toSave.filter(r=>r.cat!=='__loan')
+      if (expSaved.length) parts.push(`출금 ${expSaved.length}건 ${wonFmt(expSaved.reduce((a,r)=>a+r.out,0))}원`)
+      if (loanCount) parts.push(`형과의 대여금 장부 ${loanCount}건`)
       if (depChanged.length) parts.push(`실입금액 ${depChanged.length}일치를 PDF 기준으로 맞춤`)
       setDone(`${months.map(m=>`${+m.slice(5)}월`).join('·')} 지출관리에 ${parts.join(', ')} 반영했어요.`)
       // 반영한 출금은 '이미 반영됨'으로 바꾸고, 남은 출금은 계속 고를 수 있게 화면에 둠
       const remaining = rows.filter(r=>r.out && !savedKeys.has(r.key) && !r.imported && r.cat!=='skip')
+      setRows(prev=>prev && prev.map(r=> (!r.out && r.loan) ? { ...r, loan:false, loanDup:true } : r))
       setExistingDep(prev=>{ const n = { ...prev }; for (const d of depChanged) n[d.date] = d.pdf; return n })
       if (remaining.length === 0) { setRows(null); setFileName(''); if (fileRef.current) fileRef.current.value = '' }
       else setRows(prev=>prev.map(r=> savedKeys.has(r.key) ? { ...r, imported:true } : r))
@@ -397,7 +437,7 @@ export default function BankImport({ categories, onSaved }) {
     <div key={r.key} style={{display:'contents'}}>
     
     <div style={{background:'#191c2b',borderRadius:8,padding:'8px 12px',display:'flex',alignItems:'center',gap:10,
-      flexWrap:'wrap',opacity:r.imported || !r.include || r.cat==='skip' ? (r.fixed?.paid ? 0.75 : 0.45) : 1}}>
+      flexWrap:'wrap',opacity:r.imported || (!r.include && !r.loan) || r.cat==='skip' ? (r.fixed?.paid || r.loanDup ? 0.75 : 0.45) : 1}}>
       <input type="checkbox" checked={!r.imported && r.include && r.cat!=='skip'} disabled={r.imported}
         onChange={()=> !r.out ? toggleDeposit(r.i) : r.cat==='skip' ? setCat(r.i, r.fixed?.categoryId || '') : toggle(r.i)}
         style={{width:16,height:16,cursor:r.imported?'default':'pointer',flexShrink:0}}/>
@@ -413,9 +453,14 @@ export default function BankImport({ categories, onSaved }) {
         )}
       </span>
       <span style={{fontSize:13,fontWeight:700,color,fontFamily:'DM Mono,monospace',minWidth:90,textAlign:'right'}}>{wonFmt(amount)}원</span>
-      {!r.out && r.selfTransfer && (
-        <span style={{fontSize:10,color:'#5e6585'}}>예금주 본인 이체라 제외</span>
+      {!r.out && !r.include && (
+        <select value={r.loan ? 'loan' : ''} onChange={e=>setLoanIn(r.i, e.target.value==='loan')}
+          style={{...selStyle, minWidth:150}}>
+          <option value="">실입금에서 제외만</option>
+          <option value="loan">🤝 대여금(받음)으로 기록</option>
+        </select>
       )}
+      {r.loanDup && <span style={{fontSize:10,color:'#5e6585'}}>대여금 장부에 이미 있어요</span>}
       {r.imported ? (
         <span style={{fontSize:10,color:'#5e6585',minWidth:110,textAlign:'center'}}>✓ 이미 반영됨</span>
       ) : showCat && (
@@ -427,6 +472,7 @@ export default function BankImport({ categories, onSaved }) {
               {categories.filter(c=>c.sec===sec).map(c=><option key={c.id} value={c.id}>{c.label}</option>)}
             </optgroup>
           ))}
+          <option value="__loan">🤝 대여금(빌려줌) — 형과의 대여금 장부로</option>
           <option value="skip">반영 안 함</option>
         </select>
       )}
@@ -476,7 +522,7 @@ export default function BankImport({ categories, onSaved }) {
               </div>
             )
           })()}
-          {pickedOut.length + depChanged.length > 0 && (
+          {pickedOut.length + depChanged.length + loanIn.length > 0 && (
             <div style={{fontSize:11,marginBottom:12,padding:'8px 12px',borderRadius:8,background:'rgba(249,185,52,0.08)',color:'#f9b934'}}>
               ⚠️ 아직 저장 전이에요. 카테고리를 고른 뒤 맨 아래 <b>"지출관리에 반영"</b>을 눌러야 지출관리에 들어가요. 다 못 골라도 고른 것만 먼저 반영할 수 있어요.
             </div>
@@ -530,7 +576,7 @@ export default function BankImport({ categories, onSaved }) {
                     </div>
                     <button type="button" onClick={()=>setShowDepRows(v=>!v)}
                       style={{background:'transparent',border:'none',color:'#93c5fd',fontSize:11,cursor:'pointer',fontFamily:'inherit',padding:0}}>
-                      {showDepRows ? '▾ 입금 내역 접기' : `▸ 입금 내역 ${ins.length}건 보기`}{excluded.length ? ` (제외 ${excluded.length}건 · ${wonFmt(excluded.reduce((a,r)=>a+r.in,0))}원)` : ''}
+                      {showDepRows ? '▾ 입금 내역 접기' : `▸ 입금 내역 ${ins.length}건 보기`}{excluded.length ? ` (제외 ${excluded.length}건 · ${wonFmt(excluded.reduce((a,r)=>a+r.in,0))}원)` : ''}{loanIn.length ? ` · 🤝 대여금(받음) ${loanIn.length}건 기록 예정` : ''}
                     </button>
                     {showDepRows && (
                       <div style={{display:'flex',flexDirection:'column',gap:6,marginTop:8}}>
@@ -558,7 +604,7 @@ export default function BankImport({ categories, onSaved }) {
             <button onClick={save} disabled={busy}
               style={{flex:1,background:'#34d399',color:'#000',border:'none',borderRadius:8,padding:'11px',
                 fontSize:13,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
-              {busy ? '저장 중...' : `💾 지출관리에 반영 (출금 ${pickedOut.filter(r=>r.cat).length}건${depChanged.length?` · 실입금 ${depChanged.length}일`:''})`}
+              {busy ? '저장 중...' : `💾 지출관리에 반영 (출금 ${pickedOut.filter(r=>r.cat && r.cat!=='__loan').length}건${depChanged.length?` · 실입금 ${depChanged.length}일`:''}${loanOut.length+loanIn.length?` · 대여금 ${loanOut.length+loanIn.length}건`:''})`}
             </button>
             <button onClick={()=>{ setRows(null); setFileName(''); if(fileRef.current) fileRef.current.value='' }}
               style={{background:'#191c2b',color:'#5e6585',border:'1px solid #272a3d',borderRadius:8,

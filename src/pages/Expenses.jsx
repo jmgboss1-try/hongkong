@@ -764,6 +764,8 @@ const [payingDate, setPayingDate]     = useState('')
             // 반영한 달로 이동해서 바로 확인할 수 있게
             const last = months?.[months.length-1]
             if(last && last!==curMonth) setCurMonth(last); else load()
+            // 대여금 장부도 바뀌었을 수 있으니 다시 불러옴
+            getDoc(doc(db,'loans','hyung')).then(s=>setLoanRecords(s.exists() ? (s.data().list||[]) : [])).catch(e=>console.error(e))
           }}/>
         )}
 
