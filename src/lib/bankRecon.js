@@ -9,7 +9,7 @@
 //   importedKeys: 지출로 반영한 출금 키 목록
 //   nonOp       : 영업 외 거래 [{ key, date, dir:'in'|'out', amount, kind, desc }]
 
-export const NONOP_LABELS = { loan:'🤝 대여금(형)', invest:'💼 투자·정산', personal:'👤 개인 이체', other:'📎 기타 영업외' }
+export const NONOP_LABELS = { loan:'🤝 대여금(형)', loan_sangam:'🏪 상암점 대여금', invest:'💼 투자·정산', personal:'👤 개인 이체', other:'📎 기타 영업외' }
 
 const parseKey = k => {
   const [date, time, out, inn, balance] = String(k).split('|')

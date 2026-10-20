@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import BankImport from '../components/BankImport'
 import BankReconCard from '../components/BankReconCard'
+import StoreLoanLedger from '../components/StoreLoanLedger'
 import { db } from '../firebase'
 import { doc, getDoc, setDoc } from 'firebase/firestore'
 
@@ -69,6 +70,7 @@ const [payingDate, setPayingDate]     = useState('')
 
   // 입력 모드
   const [inputMode, setInputMode] = useState('manual')
+  const [loanReload, setLoanReload] = useState(0) // 계좌내역 가져오기 후 상암점 대여금 장부 다시 불러오기
 
 
   const days = daysIn(curMonth)
@@ -747,6 +749,9 @@ const [payingDate, setPayingDate]     = useState('')
         )}
       </div>
 
+      {/* ── 상암점과의 대여금 (계좌내역 가져오기가 자동 기록) ── */}
+      <StoreLoanLedger ledgerId="sangam" title="🏪 상암점과의 대여금" partner="상암점" reloadKey={loanReload}/>
+
       {/* 입력 영역 */}
       <div style={{background:'#12141f',border:'1px solid #272a3d',borderRadius:12,marginBottom:18}}>
         <div style={{display:'flex',borderBottom:'1px solid #272a3d'}}>
@@ -770,6 +775,7 @@ const [payingDate, setPayingDate]     = useState('')
             if(last && last!==curMonth) setCurMonth(last); else load()
             // 대여금 장부도 바뀌었을 수 있으니 다시 불러옴
             getDoc(doc(db,'loans','hyung')).then(s=>setLoanRecords(s.exists() ? (s.data().list||[]) : [])).catch(e=>console.error(e))
+            setLoanReload(n=>n+1)
           }}/>
         )}
 
