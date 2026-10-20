@@ -131,6 +131,86 @@ function ClaimForm({ value, onChange }) {
   )
 }
 
+// 타임라인 기록 종류 — 플랫폼과 주고받은 과정을 날짜별로 남김
+const EVENT_KINDS = [
+  { key:'contact',  label:'📞 연락·문의', color:'#93c5fd' },
+  { key:'approved', label:'✅ 승인',      color:'#34d399' },
+  { key:'rejected', label:'❌ 반려',      color:'#f87171' },
+  { key:'paid',     label:'💰 입금확인',  color:'#34d399' },
+  { key:'memo',     label:'📝 메모',      color:'#5e6585' },
+]
+const eventKindOf = k => EVENT_KINDS.find(e=>e.key===k) || EVENT_KINDS[4]
+const receivedOf = r => (r.timeline||[]).filter(e=>e.kind==='paid').reduce((a,e)=>a+(e.amount||0),0)
+const mdLabel = d => d ? `${+d.slice(5,7)}/${+d.slice(8,10)}` : ''
+
+function Timeline({ r, editable, saving, onAdd, onDelete, onNextCheck }) {
+  const [ev, setEv] = useState({ date: todayStr(), kind:'contact', amount:'', note:'' })
+  const events = (r.timeline||[]).slice().sort((a,b)=>a.date.localeCompare(b.date) || a.id.localeCompare(b.id))
+  async function add() {
+    if(!ev.note.trim() && !(+ev.amount)) return alert('내용이나 금액을 입력해주세요')
+    const ok = await onAdd({ id: Date.now().toString(), date: ev.date, kind: ev.kind, amount: +ev.amount||0, note: ev.note.trim() })
+    if(ok) setEv(v=>({ ...v, amount:'', note:'' }))
+  }
+  return (
+    <div style={{marginTop:12,borderTop:'1px solid #272a3d',paddingTop:12}}>
+      {events.length===0 && <div style={{fontSize:11,color:'#5e6585',marginBottom:10}}>아직 기록이 없어요</div>}
+      <div style={{display:'flex',flexDirection:'column',gap:0,marginBottom:editable?12:0}}>
+        {events.map(e=>{
+          const k = eventKindOf(e.kind)
+          return (
+            <div key={e.id} style={{display:'flex',gap:10,alignItems:'flex-start',padding:'6px 0',
+              borderLeft:`2px solid ${k.color}55`,paddingLeft:10,marginLeft:4}}>
+              <span style={{fontSize:11,color:'#5e6585',fontFamily:'DM Mono,monospace',minWidth:74}}>{e.date}</span>
+              <span style={{fontSize:11,fontWeight:700,color:k.color,whiteSpace:'nowrap'}}>{k.label}</span>
+              <span style={{flex:1,fontSize:12,color:'#dde1f2',lineHeight:1.5}}>
+                {e.note}
+                {e.amount>0 && <b style={{color:k.color,marginLeft:6,fontFamily:'DM Mono,monospace'}}>{wonFmt(e.amount)}원</b>}
+              </span>
+              {editable && (
+                <button onClick={()=>onDelete(e.id)} disabled={saving}
+                  style={{background:'transparent',border:'none',color:'#5e6585',fontSize:11,cursor:'pointer',padding:0}}>✕</button>
+              )}
+            </div>
+          )
+        })}
+      </div>
+      {editable && (
+        <>
+          <div style={{display:'flex',gap:6,flexWrap:'wrap',marginBottom:8}}>
+            {EVENT_KINDS.map(k=>(
+              <button key={k.key} type="button" onClick={()=>setEv(v=>({...v,kind:k.key}))}
+                style={{padding:'4px 10px',borderRadius:6,border:'none',fontSize:11,fontWeight:600,cursor:'pointer',fontFamily:'inherit',
+                  background:ev.kind===k.key?`${k.color}22`:'#191c2b',color:ev.kind===k.key?k.color:'#5e6585',
+                  outline:ev.kind===k.key?`1.5px solid ${k.color}55`:'1.5px solid transparent'}}>
+                {k.label}
+              </button>
+            ))}
+          </div>
+          <div style={{display:'flex',gap:6,flexWrap:'wrap',alignItems:'center'}}>
+            <input type="date" value={ev.date} onChange={e=>setEv(v=>({...v,date:e.target.value}))}
+              style={{...inputStyle,width:140}}/>
+            <input value={ev.note} onChange={e=>setEv(v=>({...v,note:e.target.value}))}
+              onKeyDown={e=>e.key==='Enter' && add()}
+              placeholder="예: 쿠팡 상담원 - 나머지 금액 자동정산 예정 문자 받음" style={{...inputStyle,flex:1,minWidth:200,width:'auto'}}/>
+            <input type="number" value={ev.amount} onChange={e=>setEv(v=>({...v,amount:e.target.value}))}
+              placeholder="금액(선택)" style={{...inputStyle,width:110}}/>
+            <button onClick={add} disabled={saving} style={smallBtn('#f9b934','#000')}>+ 기록</button>
+          </div>
+          <div style={{display:'flex',gap:8,alignItems:'center',marginTop:10,flexWrap:'wrap'}}>
+            <span style={{fontSize:11,color:'#5e6585'}}>📅 다음 확인일</span>
+            <input type="date" value={r.nextCheck||''} onChange={e=>onNextCheck(e.target.value)}
+              style={{...inputStyle,width:140}}/>
+            {r.nextCheck && (
+              <button onClick={()=>onNextCheck('')} style={smallBtn('transparent','#5e6585','1px solid #272a3d')}>지우기</button>
+            )}
+            <span style={{fontSize:10,color:'#5e6585'}}>그날이 되면 카드가 빨갛게 표시되고 맨 위로 올라와요</span>
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
 export default function LossClaims() {
   const [records, setRecords] = useState([])
   const [loading, setLoading] = useState(true)
@@ -144,6 +224,7 @@ export default function LossClaims() {
 
   // 카드 안 인라인 입력: { id, kind:'paid'|'rejected', date, amount, reason }
   const [action, setAction] = useState(null)
+  const [openTimeline, setOpenTimeline] = useState({}) // id → 타임라인 펼침 여부
 
   useEffect(()=>{
     getDoc(doc(db,'lossClaims','records'))
@@ -167,6 +248,13 @@ export default function LossClaims() {
   }
   const patch = (id, fields) => update(list => list.map(r => r.id===id ? { ...r, ...fields } : r))
 
+  const addEvent = (id, ev) => update(list => list.map(r => r.id===id ? { ...r, timeline: [...(r.timeline||[]), ev] } : r))
+  const deleteEvent = (id, evId) => {
+    if(!window.confirm('이 기록을 지울까요?')) return
+    return update(list => list.map(r => r.id===id ? { ...r, timeline: (r.timeline||[]).filter(e=>e.id!==evId) } : r))
+  }
+  const setNextCheck = (id, date) => patch(id, { nextCheck: date })
+
   const toNumbers = f => ({ ...f, lossAmount:+f.lossAmount||0, orderAmount:+f.orderAmount||0 })
 
   async function addRecord() {
@@ -187,20 +275,26 @@ export default function LossClaims() {
     if(action.kind === 'paid') {
       const amount = +action.amount || 0
       if(amount <= 0) return alert('받은 보상 금액을 입력해주세요')
-      const ok = await patch(action.id, {
+      const ok = await update(list => list.map(r => r.id===action.id ? { ...r,
         claimStatus:'approved', approvedDate: action.date,
-        finalConfirmed:true, finalConfirmedDate: action.date, finalAmount: amount, status:'done',
-      })
+        finalConfirmed:true, finalConfirmedDate: action.date, finalAmount: amount, status:'done', nextCheck:'',
+        timeline: [...(r.timeline||[]), { id: Date.now().toString(), date: action.date, kind:'memo', amount, note:'보상완료 처리' }],
+      } : r))
       if(ok) setAction(null)
     } else {
-      const ok = await patch(action.id, { claimStatus:'rejected', rejectReason: action.reason||'', status:'done' })
+      const ok = await update(list => list.map(r => r.id===action.id ? { ...r,
+        claimStatus:'rejected', rejectReason: action.reason||'', status:'done', nextCheck:'',
+        timeline: [...(r.timeline||[]), { id: Date.now().toString(), date: todayStr(), kind:'rejected', amount:0, note:`거절로 종료${action.reason?` — ${action.reason}`:''}` }],
+      } : r))
       if(ok) setAction(null)
     }
   }
 
   async function reopen(id) {
     if(!window.confirm('다시 진행중으로 되돌릴까요?')) return
-    await patch(id, { claimStatus:'pending', finalConfirmed:false, status:'active' })
+    await update(list => list.map(r => r.id===id ? { ...r, claimStatus:'pending', finalConfirmed:false, status:'active',
+      timeline: [...(r.timeline||[]), { id: Date.now().toString(), date: todayStr(), kind:'memo', amount:0, note:'다시 진행중으로 되돌림' }],
+    } : r))
   }
 
   async function deleteRecord(id) {
@@ -210,7 +304,12 @@ export default function LossClaims() {
 
   const openList = records.filter(r => stageOf(r)==='open')
   const doneList = records.filter(r => stageOf(r)!=='open')
-  const shown = (tab==='open' ? openList : doneList).slice().sort((a,b)=>b.date.localeCompare(a.date))
+  const today = todayStr()
+  const isDue = r => stageOf(r)==='open' && r.nextCheck && r.nextCheck <= today
+  const dueCount = openList.filter(isDue).length
+  // 확인할 날이 된 건이 맨 위, 나머지는 최신순
+  const shown = (tab==='open' ? openList : doneList).slice()
+    .sort((a,b)=> (isDue(b)-isDue(a)) || b.date.localeCompare(a.date))
 
   const openLoss  = openList.reduce((a,r)=>a+(r.lossAmount||0),0)
   const paidTotal = records.filter(r=>stageOf(r)==='paid').reduce((a,r)=>a+(r.finalAmount||0),0)
@@ -235,6 +334,7 @@ export default function LossClaims() {
           { label:'진행중', val:`${openList.length}건`, color:'#f9b934' },
           { label:'진행중 손실 금액', val:`${wonFmt(openLoss)}원`, color:'#f87171' },
           { label:'지금까지 받은 보상', val:`${wonFmt(paidTotal)}원`, color:'#34d399' },
+          ...(dueCount>0 ? [{ label:'📅 오늘 다시 확인할 건', val:`${dueCount}건`, color:'#f87171' }] : []),
         ].map(k=>(
           <div key={k.label} style={{background:'#12141f',border:'1px solid #272a3d',borderRadius:12,padding:'14px 16px',position:'relative',overflow:'hidden'}}>
             <div style={{position:'absolute',top:0,left:0,right:0,height:3,background:k.color}}/>
@@ -282,6 +382,10 @@ export default function LossClaims() {
             const badge = STAGE_BADGE[stage]
             const act = action?.id===r.id ? action : null
             const fee = stage==='paid' && r.orderAmount>0 ? r.orderAmount - (r.finalAmount||0) : null
+            const due = isDue(r)
+            const received = receivedOf(r)
+            const tlCount = (r.timeline||[]).length
+            const tlOpen = !!openTimeline[r.id]
 
             if(editId === r.id) return (
               <div key={r.id} style={{background:'#12141f',border:'1px solid #f9b934',borderRadius:12,padding:18}}>
@@ -294,7 +398,7 @@ export default function LossClaims() {
             )
 
             return (
-              <div key={r.id} style={{background:'#12141f',border:'1px solid #272a3d',borderRadius:12,padding:'14px 18px'}}>
+              <div key={r.id} style={{background:'#12141f',border:`1px solid ${due?'rgba(248,113,113,0.6)':'#272a3d'}`,borderRadius:12,padding:'14px 18px'}}>
                 <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',gap:10,flexWrap:'wrap'}}>
                   <div style={{flex:1,minWidth:200}}>
                     <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap',marginBottom:6}}>
@@ -302,10 +406,17 @@ export default function LossClaims() {
                       <span style={{fontSize:11,fontWeight:700,padding:'2px 8px',borderRadius:4,
                         background:`${pf?.color}18`,color:pf?.color}}>{pf?.label}</span>
                       <span style={{fontSize:11,fontWeight:700,color:badge.color}}>{badge.label}</span>
+                      {stage==='open' && r.nextCheck && (
+                        <span style={{fontSize:11,fontWeight:700,padding:'2px 8px',borderRadius:4,
+                          background:due?'rgba(248,113,113,0.15)':'#191c2b',color:due?'#f87171':'#5e6585'}}>
+                          📅 {due ? '오늘 확인!' : `${mdLabel(r.nextCheck)} 재확인`}
+                        </span>
+                      )}
                     </div>
                     {r.memo && <div style={{fontSize:12,color:'#dde1f2',marginBottom:6}}>{r.memo}</div>}
                     <div style={{display:'flex',gap:12,flexWrap:'wrap',fontSize:11,color:'#5e6585'}}>
                       <span>손실 <b style={{color:'#f87171'}}>{wonFmt(r.lossAmount)}원</b></span>
+                      {stage==='open' && received>0 && <span>지금까지 입금 <b style={{color:'#34d399'}}>{wonFmt(received)}원</b></span>}
                       {stage==='paid' && <span>보상 <b style={{color:'#34d399'}}>{wonFmt(r.finalAmount)}원</b> ({r.finalConfirmedDate})</span>}
                       {fee!==null && <span>수수료 <b style={{color:'#f87171'}}>-{wonFmt(fee)}원</b></span>}
                       {stage==='rejected' && r.rejectReason && <span>사유 <b style={{color:'#f87171'}}>{r.rejectReason}</b></span>}
@@ -316,9 +427,13 @@ export default function LossClaims() {
                   </div>
 
                   <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>
+                    <button onClick={()=>setOpenTimeline(o=>({...o,[r.id]:!o[r.id]}))}
+                      style={smallBtn(tlOpen?'rgba(147,197,253,0.15)':'transparent','#93c5fd','1px solid rgba(147,197,253,0.3)')}>
+                      🕓 타임라인{tlCount>0?` ${tlCount}`:''}
+                    </button>
                     {stage==='open' && !act && (
                       <>
-                        <button onClick={()=>setAction({ id:r.id, kind:'paid', date:todayStr(), amount:'' })}
+                        <button onClick={()=>setAction({ id:r.id, kind:'paid', date:todayStr(), amount: received ? String(received) : '' })}
                           style={smallBtn('#34d399','#000')}>💰 보상 받음</button>
                         <button onClick={()=>setAction({ id:r.id, kind:'rejected', reason:'' })}
                           style={smallBtn('transparent','#f87171','1px solid #3d1f1f')}>거절됨</button>
@@ -361,6 +476,13 @@ export default function LossClaims() {
                     <button onClick={saveAction} disabled={saving} style={smallBtn('#f9b934','#000')}>{saving?'저장 중...':'완료'}</button>
                     <button onClick={()=>setAction(null)} style={smallBtn('transparent','#5e6585','1px solid #272a3d')}>취소</button>
                   </div>
+                )}
+
+                {tlOpen && (
+                  <Timeline r={r} editable={stage==='open'} saving={saving}
+                    onAdd={ev=>addEvent(r.id, ev)}
+                    onDelete={evId=>deleteEvent(r.id, evId)}
+                    onNextCheck={d=>setNextCheck(r.id, d)}/>
                 )}
               </div>
             )
