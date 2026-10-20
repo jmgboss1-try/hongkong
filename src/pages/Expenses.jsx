@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import BankImport from '../components/BankImport'
+import BankReconCard from '../components/BankReconCard'
 import { db } from '../firebase'
 import { doc, getDoc, setDoc } from 'firebase/firestore'
 
@@ -403,7 +404,7 @@ const [payingDate, setPayingDate]     = useState('')
           {label:'전월 이월 잔액', val:carryoverAmt,    color:'#93c5fd'},
           {label:'총 실입금액',   val:totalDeposit,      color:'#34d399'},
           {label:'총 지출',       val:grand,             color:'#f87171'},
-          {label:'현재 잔액',     val:currentBalance,    color:currentBalance>=0?'#f9b934':'#f87171'},
+          {label:'영업 잔액 (이월+입금−지출)', val:currentBalance,    color:currentBalance>=0?'#f9b934':'#f87171'},
         ].map(k=>(
           <div key={k.label} style={{background:'#12141f',border:'1px solid #272a3d',borderRadius:12,padding:'14px 16px',position:'relative',overflow:'hidden'}}>
             <div style={{position:'absolute',top:0,left:0,right:0,height:3,background:k.color}}/>
@@ -412,6 +413,9 @@ const [payingDate, setPayingDate]     = useState('')
           </div>
         ))}
       </div>
+
+      {/* ── 통장 잔액 맞추기 (영업 잔액 vs 실제 통장) ── */}
+      <BankReconCard data={data} categories={categories}/>
 
       {/* ── 고정지출 체크리스트 ── */}
       <div style={{background:'#12141f',border:`1px solid ${unpaidFixed.length>0?'rgba(248,113,113,0.4)':'rgba(52,211,153,0.3)'}`,borderRadius:12,marginBottom:18,overflow:'hidden'}}>

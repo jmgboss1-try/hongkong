@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { db } from '../firebase'
 import { doc, getDoc, getDocs, collection } from 'firebase/firestore'
 import MissedExpenseInput from '../components/MissedExpenseInput'
+import { bankSummary } from '../lib/bankRecon'
 import { ComposedChart, Bar, Line, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts'
 
 const pad = n => String(n).padStart(2,'0')
@@ -220,7 +221,7 @@ export default function Dashboard() {
           if(!['deposit','carryover'].includes(k) && typeof v==='number') expTotal+=v
         })
       })
-      setExp({total:expTotal,mat:0,mgmt:0,sal:0,deposit:dep,carryover,balance:carryover+dep-expTotal})
+      setExp({total:expTotal,mat:0,mgmt:0,sal:0,deposit:dep,carryover,balance:carryover+dep-expTotal,bank:bankSummary(d).bank})
     } else setExp({total:0,mat:0,mgmt:0,sal:0,deposit:0,carryover:0,balance:0})
   }
 
@@ -350,7 +351,11 @@ export default function Dashboard() {
           </div>
           <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:14,marginBottom:20}}>
             <KPI label="총 실입금액" value={wonFmt(exp.deposit||0)} note="수수료 제외 계좌 실입금" color="#34d399"/>
-            <KPI label="현재 계좌 잔액" value={wonFmt(Math.abs(exp.balance||0))} note={`이월 ${wonFmt(exp.carryover||0)} + 입금 - 지출`} color={(exp.balance||0)>=0?'#f9b934':'#f87171'}/>
+            <KPI label="영업 잔액" value={wonFmt(Math.abs(exp.balance||0))}
+              note={exp.bank?.closing!=null
+                ? `실제 통장 ${(exp.bank.closing||0).toLocaleString('ko-KR')}원 · ${exp.bank.diff===0?'장부와 일치':'지출관리에서 차이 확인'}`
+                : `이월 ${wonFmt(exp.carryover||0)} + 입금 - 지출 (통장 잔액과는 다를 수 있어요)`}
+              color={(exp.balance||0)>=0?'#f9b934':'#f87171'}/>
             <KPI label="매출 기준 순이익" value={wonFmt(Math.abs(profit))} note={profit>=0?'흑자 ▲':'적자 ▼'} color={profit>=0?'#5e6585':'#f87171'}/>
           </div>
 
