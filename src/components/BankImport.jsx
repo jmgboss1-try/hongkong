@@ -376,6 +376,9 @@ export default function BankImport({ categories, onSaved }) {
           data[dd] = entry
           keys.push(r.key); keySet.add(r.key); savedKeys.add(r.key)
         }
+        // 이미 납부 처리된 고정지출과 같은 출금: 지출은 이미 들어가 있으니 금액은 더하지 않고 연결만 (통장 잔액 맞추기에서 '정리 안 된 출금'으로 안 나오게)
+        for (const r of rows.filter(r=>r.out && r.fixed?.paid && r.cat==='skip' && r.date.startsWith(ym)))
+          if (!keySet.has(r.key)) { keys.push(r.key); keySet.add(r.key) }
         // 영업 외 거래 (지출·실입금에 안 들어가는 돈) — 통장 잔액 맞추기에 쓰임
         for (const r of [...nonOpOut, ...nonOpIn].filter(r=>r.date.startsWith(ym))) {
           savedKeys.add(r.key)

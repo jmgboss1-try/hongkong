@@ -417,7 +417,11 @@ const [payingDate, setPayingDate]     = useState('')
       </div>
 
       {/* ── 통장 잔액 맞추기 (영업 잔액 vs 실제 통장) ── */}
-      <BankReconCard data={data} categories={categories}/>
+      <BankReconCard ym={curMonth} data={data} categories={categories} onChanged={()=>{
+        load()
+        getDoc(doc(db,'loans','hyung')).then(s=>setLoanRecords(s.exists() ? (s.data().list||[]) : [])).catch(e=>console.error(e))
+        setLoanReload(n=>n+1)
+      }}/>
 
       {/* ── 고정지출 체크리스트 ── */}
       <div style={{background:'#12141f',border:`1px solid ${unpaidFixed.length>0?'rgba(248,113,113,0.4)':'rgba(52,211,153,0.3)'}`,borderRadius:12,marginBottom:18,overflow:'hidden'}}>
