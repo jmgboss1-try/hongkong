@@ -760,7 +760,11 @@ const [payingDate, setPayingDate]     = useState('')
 
         {/* 📑 계좌내역 엑셀 */}
         {inputMode === 'bank' && (
-          <BankImport categories={categories} onSaved={load}/>
+          <BankImport categories={categories} onSaved={months=>{
+            // 반영한 달로 이동해서 바로 확인할 수 있게
+            const last = months?.[months.length-1]
+            if(last && last!==curMonth) setCurMonth(last); else load()
+          }}/>
         )}
 
         {/* ✏️ 직접 입력 */}
@@ -881,7 +885,7 @@ const [payingDate, setPayingDate]     = useState('')
                 </tr>
               </thead>
               <tbody>
-                {Object.keys(data).filter(dd=>dd!=='carryover').sort().map(dd=>{
+                {Object.keys(data).filter(dd=>/^\d{2}$/.test(dd)).sort().map(dd=>{
                   const e = data[dd]
                   if(typeof e !== 'object' || !e) return null
                   const expSum = categories.reduce((a,f)=>a+(e[f.id]||0),0)
@@ -917,7 +921,7 @@ const [payingDate, setPayingDate]     = useState('')
                     </tr>
                   )
                 })}
-                {Object.keys(data).filter(dd=>dd!=='carryover').length===0 && (
+                {Object.keys(data).filter(dd=>/^\d{2}$/.test(dd)).length===0 && (
                   <tr><td colSpan={categories.length+5} style={{padding:28,textAlign:'center',color:'#5e6585'}}>입력된 데이터가 없습니다</td></tr>
                 )}
               </tbody>

@@ -3,8 +3,10 @@ import { db } from '../firebase'
 import { doc, getDoc, setDoc } from 'firebase/firestore'
 
 // 은행 거래내역 엑셀(.xls/.xlsx/.csv) 또는 PDF(국민은행 '계좌 거래내역 조회', 비밀번호 가능)를 읽어 출금은 지출 카테고리로, 입금은 실입금액(deposit)으로 반영
-//  - 같은 거래를 두 번 올려도 중복 반영되지 않도록 expenseImports/{YYYY-MM}.keys 에 반영한 거래 키를 남김
+//  - 같은 거래를 두 번 올려도 중복 반영되지 않도록 반영한 거래 키를 expenses/{YYYY-MM}.importedKeys 에 같이 저장
+//    (지출과 같은 문서에 한 번에 쓰므로, 지출만 저장되고 중복 방지 기록은 빠지는 일이 없음)
 //  - 사용자가 고른 카테고리는 expenseImportRules/default 에 "내용 → 카테고리" 규칙으로 저장해 다음 달부터 자동 선택
+//    (규칙 저장이 안 돼도 지출 반영에는 영향 없음)
 
 const pad = n => String(n).padStart(2,'0')
 const wonFmt = n => (n||0).toLocaleString('ko-KR')
@@ -178,11 +180,12 @@ export default function BankImport({ categories, onSaved }) {
   const [check, setCheck]   = useState(null)  // PDF 총액과 읽은 합계 비교
   const [pwFile, setPwFile] = useState(null)  // 비밀번호가 필요한 PDF
   const [password, setPassword] = useState('')
+  const [rulesOk, setRulesOk]   = useState(true)  // 카테고리 기억 규칙을 읽고 쓸 수 있는지
 
   useEffect(()=>{
     getDoc(doc(db,'expenseImportRules','default'))
       .then(s=>{ if(s.exists()) setRules(s.data().list||[]) })
-      .catch(e=>console.error(e))
+      .catch(e=>{ console.error(e); setRulesOk(false) })
   },[])
 
   async function handleFile(file, pw) {
@@ -195,8 +198,8 @@ export default function BankImport({ categories, onSaved }) {
       if (!txs.length) throw new Error('읽을 거래가 없어요.')
       // 이미 반영한 거래 표시
       const months = [...new Set(txs.map(t=>t.date.slice(0,7)))]
-      const snaps = await Promise.all(months.map(ym=>getDoc(doc(db,'expenseImports',ym))))
-      const importedKeys = new Set(snaps.flatMap(s=>s.exists() ? (s.data().keys||[]) : []))
+      const snaps = await Promise.all(months.map(ym=>getDoc(doc(db,'expenses',ym))))
+      const importedKeys = new Set(snaps.flatMap(s=>s.exists() ? (s.data().importedKeys||[]) : []))
       setRows(txs.map(t=>{
         const imported = importedKeys.has(t.key)
         return { ...t, imported, cat: t.out ? ruleFor(rules, t) : '', include: !imported }
@@ -225,49 +228,61 @@ export default function BankImport({ categories, onSaved }) {
   const unassigned = pickedOut.filter(r=>!r.cat).length
 
   async function save() {
-    if (unassigned) return alert(`카테고리를 고르지 않은 출금이 ${unassigned}건 있어요. 고르거나 '반영 안 함'으로 바꿔주세요.`)
-    if (!pickedOut.length && !pickedIn.length) return alert('반영할 거래가 없어요.')
+    const toSave = [...pickedOut.filter(r=>r.cat), ...pickedIn]
+    if (!toSave.length) return alert(unassigned ? '카테고리를 고른 출금이 없어요. 카테고리를 먼저 골라주세요.' : '반영할 거래가 없어요.')
+    if (unassigned && !window.confirm(`카테고리를 안 고른 출금 ${unassigned}건은 빼고, 고른 ${toSave.length}건만 지금 반영할까요?\n빠진 건은 화면에 남아 있고, 나중에 같은 파일을 다시 올려도 다시 나와요.`)) return
     setBusy(true)
     try {
       const byMonth = {}
-      for (const r of [...pickedOut, ...pickedIn]) (byMonth[r.date.slice(0,7)] ||= []).push(r)
+      for (const r of toSave) (byMonth[r.date.slice(0,7)] ||= []).push(r)
+      const savedKeys = new Set()
       for (const [ym, list] of Object.entries(byMonth)) {
         // 저장 직전 최신 데이터 다시 읽기 (다른 화면에서 입력한 지출을 덮어쓰지 않도록)
-        const [expSnap, impSnap] = await Promise.all([getDoc(doc(db,'expenses',ym)), getDoc(doc(db,'expenseImports',ym))])
-        const data = expSnap.exists() ? expSnap.data() : {}
-        const keys = impSnap.exists() ? (impSnap.data().keys||[]) : []
+        const snap = await getDoc(doc(db,'expenses',ym))
+        const data = snap.exists() ? snap.data() : {}
+        const keys = [...(data.importedKeys||[])]
         const keySet = new Set(keys)
         for (const r of list) {
-          if (keySet.has(r.key)) continue
+          if (keySet.has(r.key)) { savedKeys.add(r.key); continue }
           const dd = r.date.slice(8,10)
           const entry = { ...(data[dd]||{}) }
           categories.forEach(c=>{ if(entry[c.id]===undefined) entry[c.id]=0 })
           if (r.out) entry[r.cat] = (entry[r.cat]||0) + r.out
           else entry.deposit = (entry.deposit||0) + r.in
           data[dd] = entry
-          keys.push(r.key); keySet.add(r.key)
+          keys.push(r.key); keySet.add(r.key); savedKeys.add(r.key)
         }
+        data.importedKeys = keys
         await setDoc(doc(db,'expenses',ym), data)
-        await setDoc(doc(db,'expenseImports',ym), { keys })
       }
-      // 고른 카테고리를 규칙으로 저장 (내용 → 카테고리)
+      // 고른 카테고리를 규칙으로 저장 (내용 → 카테고리). 실패해도 지출 반영은 이미 끝남
       const newRules = [...rules]
       for (const r of pickedOut) {
         const kw = String(r.matchText||'').trim()
-        if (norm(kw).length < 2) continue
+        if (!r.cat || norm(kw).length < 2) continue
         const ex = newRules.findIndex(x=>norm(x.keyword)===norm(kw))
         if (ex >= 0) newRules[ex] = { keyword: kw, categoryId: r.cat }
         else newRules.push({ keyword: kw, categoryId: r.cat })
       }
-      await setDoc(doc(db,'expenseImportRules','default'), { list: newRules })
       setRules(newRules)
-      const outSum = pickedOut.reduce((a,r)=>a+r.out,0)
-      const inSum  = pickedIn.reduce((a,r)=>a+r.in,0)
-      setDone(`출금 ${pickedOut.length}건 ${wonFmt(outSum)}원${pickedIn.length?`, 입금 ${pickedIn.length}건 ${wonFmt(inSum)}원`:''} 반영했어요.`)
-      setRows(null); setFileName('')
-      if (fileRef.current) fileRef.current.value = ''
-      onSaved?.()
-    } catch(e) { console.error(e); alert('저장 중 오류가 발생했어요. 다시 시도해 주세요.') }
+      try { await setDoc(doc(db,'expenseImportRules','default'), { list: newRules }); setRulesOk(true) }
+      catch(e) { console.error(e); setRulesOk(false) }
+
+      const savedOut = toSave.filter(r=>r.out), savedIn = toSave.filter(r=>r.in)
+      const months = Object.keys(byMonth).sort()
+      setDone(`${months.map(m=>`${+m.slice(5)}월`).join('·')} 지출관리에 출금 ${savedOut.length}건 ${wonFmt(savedOut.reduce((a,r)=>a+r.out,0))}원`
+        + `${savedIn.length?`, 입금 ${savedIn.length}건 ${wonFmt(savedIn.reduce((a,r)=>a+r.in,0))}원`:''} 반영했어요.`)
+      // 반영한 건은 '이미 반영됨'으로 바꾸고, 남은 건은 계속 고를 수 있게 화면에 둠
+      const remaining = rows.filter(r=>!savedKeys.has(r.key) && !r.imported && (r.out ? r.cat!=='skip' : withDeposits))
+      if (remaining.length === 0) { setRows(null); setFileName(''); if (fileRef.current) fileRef.current.value = '' }
+      else setRows(prev=>prev.map(r=> savedKeys.has(r.key) ? { ...r, imported:true } : r))
+      onSaved?.(months)
+    } catch(e) {
+      console.error(e)
+      alert(e?.code === 'permission-denied'
+        ? '저장 권한이 없어요. Firebase 보안 규칙에서 expenses 쓰기가 허용돼 있는지 확인해 주세요.'
+        : '저장 중 오류가 발생했어요. 다시 시도해 주세요.')
+    }
     setBusy(false)
   }
 
@@ -343,6 +358,16 @@ export default function BankImport({ categories, onSaved }) {
               </div>
             )
           })()}
+          {pickedOut.length + pickedIn.length > 0 && (
+            <div style={{fontSize:11,marginBottom:12,padding:'8px 12px',borderRadius:8,background:'rgba(249,185,52,0.08)',color:'#f9b934'}}>
+              ⚠️ 아직 저장 전이에요. 카테고리를 고른 뒤 맨 아래 <b>"지출관리에 반영"</b>을 눌러야 지출관리에 들어가요. 다 못 골라도 고른 것만 먼저 반영할 수 있어요.
+            </div>
+          )}
+          {!rulesOk && (
+            <div style={{fontSize:11,marginBottom:12,color:'#5e6585'}}>
+              ℹ️ 카테고리 기억 기능을 쓸 수 없어요(Firebase 보안 규칙에 expenseImportRules 허용 필요). 지출 반영은 정상적으로 돼요.
+            </div>
+          )}
           <div style={{fontSize:12,fontWeight:600,marginBottom:8,display:'flex',justifyContent:'space-between',flexWrap:'wrap',gap:6}}>
             <span style={{color:'#f87171'}}>💸 출금 {outs.length}건</span>
             <span style={{color:'#5e6585',fontWeight:400}}>
@@ -373,7 +398,7 @@ export default function BankImport({ categories, onSaved }) {
             <button onClick={save} disabled={busy}
               style={{flex:1,background:'#34d399',color:'#000',border:'none',borderRadius:8,padding:'11px',
                 fontSize:13,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
-              {busy ? '저장 중...' : '💾 지출관리에 반영'}
+              {busy ? '저장 중...' : `💾 지출관리에 반영 (${pickedOut.filter(r=>r.cat).length + pickedIn.length}건)`}
             </button>
             <button onClick={()=>{ setRows(null); setFileName(''); if(fileRef.current) fileRef.current.value='' }}
               style={{background:'#191c2b',color:'#5e6585',border:'1px solid #272a3d',borderRadius:8,
