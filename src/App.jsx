@@ -47,17 +47,24 @@ function PendingScreen() {
   )
 }
 
+// 역할별 첫 화면 — 권한 없는 화면에 들어오면 여기로 보냄
+function homePath({ isOwner, isStore, isInvestor }) {
+  return isOwner ? '/' : isStore ? '/revenue-input' : isInvestor ? '/revenue' : '/my-schedule'
+}
+
 function PrivateRoute({ children, ownerOnly, legendOnly, storeOk, storeOnly, investorOk }) {
-  const { user, isOwner, isStore, isInvestor, isPending, isLegend } = useAuth()
+  const auth = useAuth()
+  const { user, isOwner, isStore, isInvestor, isPending, isLegend } = auth
+  const home = homePath(auth)
   if (!user) return <Navigate to="/login" />
   if (isPending) return <PendingScreen />
   // 투자자 계정: investorOk 표시된 라우트만 접근 가능
   if (isInvestor && !investorOk) return <Navigate to="/revenue" />
-  if (ownerOnly && !isOwner && !isInvestor) return <Navigate to="/revenue-input" />
-  if (legendOnly && !isOwner && !isLegend) return <Navigate to="/revenue-input" />
+  if (ownerOnly && !isOwner && !isInvestor) return <Navigate to={home} />
+  if (legendOnly && !isOwner && !isLegend) return <Navigate to={home} />
   if (isStore && !storeOk) return <Navigate to="/revenue-input" />
   // 사장 + 매장계정 전용 화면 (일반 직원은 주소를 직접 쳐도 못 들어감)
-  if (storeOnly && !isOwner && !isStore) return <Navigate to="/my-schedule" />
+  if (storeOnly && !isOwner && !isStore) return <Navigate to={home} />
   return children
 }
 
@@ -104,7 +111,7 @@ function AppRoutes() {
         <Route path="/loss-claims" element={<PrivateRoute storeOk><LossClaims /></PrivateRoute>} />
         <Route path="/checklist" element={<PrivateRoute storeOk><Checklist /></PrivateRoute>} />
         <Route path="/prepaid" element={<PrivateRoute storeOk><Prepaid /></PrivateRoute>} />
-        <Route path="*" element={<Navigate to={isOwner ? "/" : isStore ? "/revenue-input" : isInvestor ? "/revenue" : "/my-schedule"} />} />
+        <Route path="*" element={<Navigate to={homePath({ isOwner, isStore, isInvestor })} />} />
       </Routes>
     </Layout>
   )

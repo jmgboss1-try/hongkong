@@ -247,6 +247,7 @@ export default function Members() {
 
       await setDoc(doc(db,'users',form.uid), {
         name: form.name,
+        role: form.role || 'staff',
         wage: newWage,
         joinDate: form.joinDate || '',
         phone: form.phone || '',
@@ -528,6 +529,30 @@ export default function Members() {
                   style={{background:'#191c2b',border:'1px solid #272a3d',borderRadius:7,color:'#dde1f2',padding:'8px 10px',fontSize:12,outline:'none',width:'100%',fontFamily:'inherit'}}/>
               </div>
             ))}
+          </div>
+
+          {/* 계정 역할 */}
+          <div style={{padding:'0 18px 14px'}}>
+            <label style={{fontSize:10,color:'#5e6585',fontWeight:600,display:'block',marginBottom:8}}>계정 역할 (볼 수 있는 메뉴가 바뀜)</label>
+            <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
+              {[
+                {key:'staff',    label:'👤 직원',     desc:'스케쥴·내 급여 등 직원 메뉴'},
+                {key:'store',    label:'🏪 매장계정', desc:'매출입력·체크리스트 등 매장 메뉴'},
+                {key:'investor', label:'🤝 투자자',   desc:'매출·투자관리 조회만'},
+              ].map(opt=>{
+                const selected = (form.role||'staff') === opt.key
+                return (
+                  <div key={opt.key} onClick={()=>setF('role', opt.key)}
+                    style={{flex:1,minWidth:140,padding:'10px 14px',borderRadius:8,cursor:'pointer',
+                      background:selected?'rgba(249,185,52,0.12)':'#191c2b',
+                      border:selected?'1px solid #f9b934':'1px solid #272a3d'}}>
+                    <div style={{fontSize:12,fontWeight:600,color:selected?'#f9b934':'#5e6585',marginBottom:3}}>{opt.label}</div>
+                    <div style={{fontSize:10,color:'#5e6585'}}>{opt.desc}</div>
+                  </div>
+                )
+              })}
+            </div>
+            <div style={{fontSize:10,color:'#5e6585',marginTop:6}}>💡 매장계정·투자자로 바꾸면 급여 목록에서 빠져요. 바뀐 역할은 그 사람이 앱을 새로 열면 적용돼요.</div>
           </div>
 
           {/* 급여 방식 */}
