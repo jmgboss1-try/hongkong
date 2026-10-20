@@ -4,6 +4,7 @@ import { doc, getDoc, setDoc } from 'firebase/firestore'
 import { useAuth } from '../AuthContext'
 
 const pad = n => String(n).padStart(2,'0')
+const mLabel = ym => { const[y,m]=ym.split('-'); return `${y}년 ${+m}월` }
 
 const BILLS = [
   { id:'w50000', label:'오만원권', value:50000 },
@@ -114,6 +115,8 @@ export default function Cash() {
   const [loading, setLoading] = useState(true)
   const [viewDate, setViewDate] = useState(todayDD)
   const [showHistory, setShowHistory] = useState(false)
+  const [histMonth, setHistMonth]     = useState(today)   // 이전 기록에서 볼 달
+  const [histRecords, setHistRecords] = useState(null)    // 이번 달이 아닌 달의 기록
 
   // 포스기에서 하루 종일 켜두므로 1분마다 날짜를 다시 확인 — 날짜가 바뀌면 그날 문서를 새로 불러옴
   const [, setTick] = useState(0)
@@ -139,6 +142,16 @@ export default function Cash() {
     }
     load()
   },[today, todayDD])
+
+  // 지난 달 기록 불러오기 (이번 달은 records를 그대로 사용)
+  useEffect(()=>{
+    if(!showHistory || histMonth===today) return
+    let ignore = false
+    getDoc(doc(db,'cash',histMonth))
+      .then(snap=>{ if(!ignore) setHistRecords(snap.exists() ? snap.data() : {}) })
+      .catch(e=>console.error(e))
+    return ()=>{ ignore = true }
+  },[showHistory, histMonth, today])
 
   async function saveBaseAmount() {
     const amt = +tempBase
@@ -176,7 +189,13 @@ async function saveRecord(type, data) {
 }
 
   const todayRecord = records[todayDD] || {}
-  const isOwnerView = isOwner
+  const shownRecords = histMonth===today ? records : (histRecords || {})
+  const monthOpts = []
+  for(let y=2022; y<=now.getFullYear(); y++) for(let m=1; m<=12; m++) {
+    const ym = `${y}-${pad(m)}`
+    if(ym <= today) monthOpts.push(ym)
+  }
+  monthOpts.reverse()
 
   return (
     <div>
@@ -222,6 +241,7 @@ async function saveRecord(type, data) {
     <div style={{fontSize:11,marginTop:4,color:rec.diff===0?'#34d399':rec.diff>0?'#f9b934':'#f87171'}}>
       차액: {rec.diff===0?'일치':rec.diff>0?`+${rec.diff?.toLocaleString()}원`:`${rec.diff?.toLocaleString()}원`}
     </div>
+    {rec.memo && <div style={{fontSize:11,marginTop:6,color:'#dde1f2',lineHeight:1.5}}>📝 {rec.memo}</div>}
   </>
 ) : (
   <div style={{fontSize:12,color:'#5e6585'}}>미입력</div>
@@ -269,12 +289,19 @@ async function saveRecord(type, data) {
           </button>
           {showHistory && (
             <div style={{background:'#12141f',border:'1px solid #272a3d',borderRadius:12,marginTop:10,overflow:'hidden'}}>
-              <div style={{padding:'14px 18px',borderBottom:'1px solid #272a3d',fontSize:13,fontWeight:600}}>이번달 시재 기록</div>
+              <div style={{padding:'12px 18px',borderBottom:'1px solid #272a3d',display:'flex',justifyContent:'space-between',alignItems:'center',gap:10}}>
+                <span style={{fontSize:13,fontWeight:600}}>{mLabel(histMonth)} 시재 기록</span>
+                <select value={histMonth} onChange={e=>{ setHistRecords(null); setHistMonth(e.target.value) }}
+                  style={{background:'#191c2b',border:'1px solid #272a3d',borderRadius:7,color:'#dde1f2',
+                    padding:'6px 10px',fontSize:12,fontFamily:'inherit',outline:'none'}}>
+                  {monthOpts.map(m=><option key={m} value={m}>{mLabel(m)}</option>)}
+                </select>
+              </div>
               <div style={{overflowX:'auto'}}>
                 <table style={{width:'100%',borderCollapse:'collapse',fontSize:12}}>
                   <thead>
                     <tr style={{background:'#191c2b'}}>
-                      {['날짜','오픈 시재','오픈 입력자','오픈 차액','마감 시재','마감 입력자','마감 차액','현금매출'].map(h=>(
+                      {['날짜','오픈 시재','오픈 입력자','오픈 차액','마감 시재','마감 입력자','마감 차액','현금매출','메모'].map(h=>(
                         <th key={h} style={{padding:'8px 14px',fontSize:10,fontWeight:600,color:'#5e6585',textAlign:'right',whiteSpace:'nowrap'}}>
                           {h==='날짜'?<span style={{float:'left'}}>{h}</span>:h}
                         </th>
@@ -282,8 +309,8 @@ async function saveRecord(type, data) {
                     </tr>
                   </thead>
                   <tbody>
-                    {Object.keys(records).sort().map(dd=>{
-                      const r=records[dd]
+                    {Object.keys(shownRecords).filter(k=>/^\d{2}$/.test(k)).sort().map(dd=>{
+                      const r=shownRecords[dd]
                       return(
                         <tr key={dd}>
                           <td style={{padding:'9px 14px',borderBottom:'1px solid #272a3d',color:'#dde1f2'}}>{+dd}일</td>
@@ -308,11 +335,21 @@ async function saveRecord(type, data) {
                           <td style={{padding:'9px 14px',borderBottom:'1px solid #272a3d',textAlign:'right',fontFamily:'DM Mono, monospace',color:'#f9b934'}}>
                             {r.close?.cashSales?r.close.cashSales.toLocaleString()+'원':'—'}
                           </td>
+                          <td style={{padding:'9px 14px',borderBottom:'1px solid #272a3d',fontSize:11,color:'#dde1f2',minWidth:160,lineHeight:1.5}}>
+                            {!r.open?.memo && !r.close?.memo ? <span style={{color:'#5e6585'}}>—</span> : (
+                              <>
+                                {r.open?.memo && <div>🌅 {r.open.memo}</div>}
+                                {r.close?.memo && <div>🌙 {r.close.memo}</div>}
+                              </>
+                            )}
+                          </td>
                         </tr>
                       )
                     })}
-                    {Object.keys(records).length===0&&(
-                      <tr><td colSpan={6} style={{padding:24,textAlign:'center',color:'#5e6585'}}>기록 없음</td></tr>
+                    {histMonth!==today && histRecords===null ? (
+                      <tr><td colSpan={9} style={{padding:24,textAlign:'center',color:'#5e6585'}}>불러오는 중...</td></tr>
+                    ) : Object.keys(shownRecords).length===0 && (
+                      <tr><td colSpan={9} style={{padding:24,textAlign:'center',color:'#5e6585'}}>기록 없음</td></tr>
                     )}
                   </tbody>
                 </table>
