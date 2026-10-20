@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { db } from '../firebase'
 import { doc, getDoc, setDoc } from 'firebase/firestore'
 
-// 은행 거래내역 엑셀(.xls/.xlsx/.csv)을 읽어 출금은 지출 카테고리로, 입금은 실입금액(deposit)으로 반영
+// 은행 거래내역 엑셀(.xls/.xlsx/.csv) 또는 PDF(국민은행 '계좌 거래내역 조회', 비밀번호 가능)를 읽어 출금은 지출 카테고리로, 입금은 실입금액(deposit)으로 반영
 //  - 같은 거래를 두 번 올려도 중복 반영되지 않도록 expenseImports/{YYYY-MM}.keys 에 반영한 거래 키를 남김
 //  - 사용자가 고른 카테고리는 expenseImportRules/default 에 "내용 → 카테고리" 규칙으로 저장해 다음 달부터 자동 선택
 
@@ -49,7 +49,81 @@ function parseDate(v) {
 const parseTime = v => (String(v??'').match(/(\d{1,2}):(\d{2})(?::(\d{2}))?/) || [''])[0]
 const parseAmount = v => typeof v === 'number' ? Math.round(Math.abs(v)) : (+String(v??'').replace(/[^0-9]/g,'') || 0)
 
-async function readTransactions(file) {
+// 거래 한 줄을 공통 형태로 — 같은 날 같은 금액·같은 내용 거래가 여러 건이어도 구분되도록 순번을 붙임
+function makeTxBuilder() {
+  const seen = {}
+  return ({ date, time, summary='', party='', memo='', out, inn, balance='' }) => {
+    if (memo === '-') memo = ''
+    const desc = [summary, party, memo].filter(Boolean).filter((v,i,a)=>a.indexOf(v)===i).join(' · ')
+    const base = [date, time, out, inn, balance, norm(desc)].join('|')
+    seen[base] = (seen[base]||0) + 1
+    return { key: `${base}|${seen[base]}`, date, time, desc, matchText: party || summary || memo, out, in: inn }
+  }
+}
+const byDateTime = (a,b)=> (a.date+a.time).localeCompare(b.date+b.time)
+
+// PDF: 글자를 줄 단위로 다시 모은 뒤 "날짜 시간 적요 받는분 출금 입금 잔액 메모 거래점" 모양의 줄을 읽음
+const PDF_ROW = /^(\d{4})\.(\d{2})\.(\d{2})\s*(\d{2}:\d{2}:\d{2})\s+(\S+)\s+(?:(.*?)\s+)?([\d,]+)\s+([\d,]+)\s+([\d,]+)\s+(.*?)\s+(\S+)$/
+async function readPdfTransactions(file, password) {
+  const pdfjs = await import('pdfjs-dist')
+  const { default: workerUrl } = await import('pdfjs-dist/build/pdf.worker.min.mjs?url')
+  pdfjs.GlobalWorkerOptions.workerSrc = workerUrl
+  const data = new Uint8Array(await file.arrayBuffer())
+  let pdf
+  try {
+    pdf = await pdfjs.getDocument({ data, password: password || undefined }).promise
+  } catch(e) {
+    if (e?.name === 'PasswordException') {
+      const err = new Error(password ? '비밀번호가 맞지 않아요.' : '비밀번호가 걸린 PDF예요. 비밀번호를 입력해 주세요.')
+      err.needPassword = true
+      throw err
+    }
+    throw e
+  }
+  const lines = []
+  for (let n = 1; n <= pdf.numPages; n++) {
+    const page = await pdf.getPage(n)
+    const { items } = await page.getTextContent()
+    const rows = []
+    for (const it of items) {
+      if (!it.str?.trim()) continue
+      const y = it.transform[5], x = it.transform[4]
+      let row = rows.find(r => Math.abs(r.y - y) < 3)
+      if (!row) { row = { y, parts: [] }; rows.push(row) }
+      row.parts.push({ x, w: it.width || 0, s: it.str })
+    }
+    rows.sort((a,b)=>b.y-a.y)
+    // 글자가 한 자씩 따로 들어있는 PDF도 있어서, 실제 간격이 벌어진 곳에만 띄어쓰기를 넣음
+    for (const r of rows) {
+      let line = '', end = null
+      for (const p of r.parts.sort((a,b)=>a.x-b.x)) {
+        if (end !== null && p.x - end > 0.8) line += ' '
+        line += p.s
+        end = p.x + p.w
+      }
+      lines.push(line.replace(/\s+/g,' ').trim())
+    }
+  }
+  const build = makeTxBuilder()
+  const list = []
+  for (const l of lines) {
+    const m = l.match(PDF_ROW)
+    if (!m) continue
+    const out = parseAmount(m[7]), inn = parseAmount(m[8])
+    if (!out && !inn) continue
+    list.push(build({ date:`${m[1]}-${m[2]}-${m[3]}`, time:m[4], summary:m[5], party:(m[6]||'').trim(), memo:m[10].trim(),
+      out, inn, balance: parseAmount(m[9]) }))
+  }
+  if (!list.length) throw new Error('PDF에서 거래내역을 찾지 못했어요. 은행 거래내역 PDF인지 확인해 주세요.')
+  // 맨 위 '총 출금금액 / 총 입금금액'과 읽은 합계 비교
+  const all = lines.join(' ')
+  const total = re => { const m = all.replace(/\s+/g,'').match(re); return m ? parseAmount(m[1]) : null }
+  const check = { out: total(/총출금금액([\d,]+)원/), in: total(/총입금금액([\d,]+)원/) }
+  return { list: list.sort(byDateTime), check }
+}
+
+async function readTransactions(file, password) {
+  if (/\.pdf$/i.test(file.name)) return readPdfTransactions(file, password)
   const XLSX = await import('xlsx')
   const buf = await file.arrayBuffer()
   const wb = XLSX.read(buf, { type:'array', cellDates:true })
@@ -58,7 +132,7 @@ async function readTransactions(file) {
     const h = findHeader(rows)
     if (!h) continue
     const { idx } = h
-    const seen = {}
+    const build = makeTxBuilder()
     const list = []
     for (const r of rows.slice(h.row + 1)) {
       const date = parseDate(r[idx.date])
@@ -71,14 +145,10 @@ async function readTransactions(file) {
       const party   = idx.party   !== undefined ? String(r[idx.party]).trim()   : ''
       const memo    = idx.memo    !== undefined ? String(r[idx.memo]).trim()    : ''
       const balance = idx.balance !== undefined ? parseAmount(r[idx.balance]) : ''
-      const desc = [summary, party, memo].filter(Boolean).filter((v,i,a)=>a.indexOf(v)===i).join(' · ')
-      // 같은 날 같은 금액·같은 내용 거래가 여러 건이어도 구분되도록 순번을 붙임
-      const base = [date, time, out, inn, balance, norm(desc)].join('|')
-      seen[base] = (seen[base]||0) + 1
-      list.push({ key: `${base}|${seen[base]}`, date, time, desc, matchText: party || summary || memo, out, in: inn })
+      list.push(build({ date, time, summary, party, memo, out, inn, balance }))
     }
     // 은행 엑셀은 최신순인 경우가 많아 날짜·시간 순으로 정렬
-    return list.sort((a,b)=> (a.date+a.time).localeCompare(b.date+b.time))
+    return { list: list.sort(byDateTime), check: null }
   }
   throw new Error('거래내역 표를 찾지 못했어요. 거래일자·출금 열이 있는 은행 엑셀인지 확인해 주세요.')
 }
@@ -105,6 +175,9 @@ export default function BankImport({ categories, onSaved }) {
   const [err, setErr]       = useState('')
   const [withDeposits, setWithDeposits] = useState(false)
   const [done, setDone]     = useState('')
+  const [check, setCheck]   = useState(null)  // PDF 총액과 읽은 합계 비교
+  const [pwFile, setPwFile] = useState(null)  // 비밀번호가 필요한 PDF
+  const [password, setPassword] = useState('')
 
   useEffect(()=>{
     getDoc(doc(db,'expenseImportRules','default'))
@@ -112,11 +185,13 @@ export default function BankImport({ categories, onSaved }) {
       .catch(e=>console.error(e))
   },[])
 
-  async function handleFile(file) {
+  async function handleFile(file, pw) {
     if (!file) return
-    setErr(''); setDone(''); setBusy(true); setFileName(file.name)
+    setErr(''); setDone(''); setBusy(true); setFileName(file.name); setCheck(null)
     try {
-      const txs = await readTransactions(file)
+      const { list: txs, check: chk } = await readTransactions(file, pw)
+      setPwFile(null); setPassword('')
+      setCheck(chk)
       if (!txs.length) throw new Error('읽을 거래가 없어요.')
       // 이미 반영한 거래 표시
       const months = [...new Set(txs.map(t=>t.date.slice(0,7)))]
@@ -128,6 +203,7 @@ export default function BankImport({ categories, onSaved }) {
       }))
     } catch(e) {
       console.error(e); setRows(null)
+      if (e.needPassword) setPwFile(file)
       setErr(e.message || '파일을 읽지 못했어요.')
     }
     setBusy(false)
@@ -228,22 +304,45 @@ export default function BankImport({ categories, onSaved }) {
   return (
     <div style={{padding:18}}>
       <div style={{fontSize:12,color:'#5e6585',marginBottom:14,lineHeight:1.7}}>
-        인터넷뱅킹에서 받은 <b style={{color:'#dde1f2'}}>거래내역 엑셀(.xls / .xlsx / .csv)</b>을 올리면 출금을 지출 카테고리별로 정리해요.<br/>
+        인터넷뱅킹에서 받은 <b style={{color:'#dde1f2'}}>거래내역 엑셀(.xls / .xlsx / .csv) 또는 PDF</b>를 올리면 출금을 지출 카테고리별로 정리해요.<br/>
         한 번 고른 카테고리는 기억해서 다음부터 자동으로 골라줘요. 같은 파일을 다시 올려도 중복 반영되지 않아요.
       </div>
 
       <div onClick={()=>!busy && fileRef.current?.click()}
         style={{border:'2px dashed #272a3d',borderRadius:10,padding:'24px',textAlign:'center',cursor:busy?'default':'pointer',marginBottom:14}}>
         <div style={{fontSize:28,marginBottom:6}}>📑</div>
-        <div style={{fontSize:13,color:'#dde1f2'}}>{busy ? '읽는 중...' : fileName || '클릭해서 거래내역 엑셀 선택'}</div>
+        <div style={{fontSize:13,color:'#dde1f2'}}>{busy ? '읽는 중...' : fileName || '클릭해서 거래내역 파일 선택 (엑셀·PDF)'}</div>
       </div>
-      <input ref={fileRef} type="file" accept=".xls,.xlsx,.csv" style={{display:'none'}}
+      <input ref={fileRef} type="file" accept=".xls,.xlsx,.csv,.pdf" style={{display:'none'}}
         onChange={e=>handleFile(e.target.files?.[0])}/>
       {err && <div style={{fontSize:12,color:'#f87171',marginBottom:12}}>{err}</div>}
+      {pwFile && (
+        <div style={{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap',marginBottom:14}}>
+          <input type="password" autoFocus value={password} onChange={e=>setPassword(e.target.value)}
+            onKeyDown={e=>e.key==='Enter' && handleFile(pwFile, password)}
+            placeholder="PDF 비밀번호" autoComplete="off"
+            style={{...selStyle,padding:'8px 10px',fontSize:12,width:180}}/>
+          <button onClick={()=>handleFile(pwFile, password)} disabled={busy||!password}
+            style={{background:'#f9b934',color:'#000',border:'none',borderRadius:7,padding:'8px 16px',
+              fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>열기</button>
+          <span style={{fontSize:10,color:'#5e6585'}}>비밀번호는 이 화면에서 파일을 여는 데만 쓰고 저장하지 않아요</span>
+        </div>
+      )}
       {done && <div style={{fontSize:12,color:'#34d399',marginBottom:12}}>✅ {done}</div>}
 
       {rows && (
         <>
+          {check && (check.out!==null || check.in!==null) && (()=>{
+            const outSum = outs.reduce((a,r)=>a+r.out,0), inSum = ins.reduce((a,r)=>a+r.in,0)
+            const ok = (check.out===null || check.out===outSum) && (check.in===null || check.in===inSum)
+            return (
+              <div style={{fontSize:11,marginBottom:12,padding:'8px 12px',borderRadius:8,
+                background: ok ? 'rgba(52,211,153,0.08)' : 'rgba(248,113,113,0.1)', color: ok ? '#34d399' : '#f87171'}}>
+                {ok ? '✅ PDF의 총 출금·입금 금액과 읽은 합계가 일치해요'
+                    : `⚠️ PDF 총액과 다르게 읽혔어요 (총 출금 ${wonFmt(check.out)}원 / 읽은 출금 ${wonFmt(outSum)}원, 총 입금 ${wonFmt(check.in)}원 / 읽은 입금 ${wonFmt(inSum)}원). 빠진 거래가 있을 수 있으니 알려주세요.`}
+              </div>
+            )
+          })()}
           <div style={{fontSize:12,fontWeight:600,marginBottom:8,display:'flex',justifyContent:'space-between',flexWrap:'wrap',gap:6}}>
             <span style={{color:'#f87171'}}>💸 출금 {outs.length}건</span>
             <span style={{color:'#5e6585',fontWeight:400}}>
