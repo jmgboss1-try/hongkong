@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { db } from '../firebase'
-import { doc, getDoc, setDoc } from 'firebase/firestore'
+import { doc, getDoc, setDoc, deleteDoc } from 'firebase/firestore'
+import { PhotoPicker, Lightbox } from '../components/PhotoAttach'
 
 const pad = n => String(n).padStart(2,'0')
 const todayStr = () => { const n=new Date(); return `${n.getFullYear()}-${pad(n.getMonth()+1)}-${pad(n.getDate())}` }
@@ -143,13 +144,43 @@ const eventKindOf = k => EVENT_KINDS.find(e=>e.key===k) || EVENT_KINDS[4]
 const receivedOf = r => (r.timeline||[]).filter(e=>e.kind==='paid').reduce((a,e)=>a+(e.amount||0),0)
 const mdLabel = d => d ? `${+d.slice(5,7)}/${+d.slice(8,10)}` : ''
 
+// 사진은 lossClaims/records(문서 하나에 모든 건)에 넣으면 1MB 한도를 금방 넘으므로
+// 기록마다 lossClaimPhotos/{기록 id} 별도 문서에 저장하고, 기록에는 장수(photoCount)만 남김
+function EventPhotos({ eventId, count }) {
+  const [images, setImages] = useState(null)
+  async function open() {
+    try {
+      const snap = await getDoc(doc(db,'lossClaimPhotos',eventId))
+      setImages(snap.exists() ? (snap.data().images||[]) : [])
+    } catch(e) { console.error(e); alert('사진을 불러오지 못했어요') }
+  }
+  return (
+    <>
+      <button onClick={open}
+        style={{background:'#191c2b',border:'1px solid #272a3d',color:'#dde1f2',borderRadius:5,
+          padding:'1px 7px',fontSize:10,cursor:'pointer',fontFamily:'inherit',marginLeft:6}}>
+        📷 {count}
+      </button>
+      {images && <Lightbox images={images} label="손실보상 첨부 사진" onClose={()=>setImages(null)}/>}
+    </>
+  )
+}
+
 function Timeline({ r, editable, saving, onAdd, onDelete, onNextCheck }) {
   const [ev, setEv] = useState({ date: todayStr(), kind:'contact', amount:'', note:'' })
+  const [images, setImages] = useState([])
+  const [showPhotos, setShowPhotos] = useState(false)
   const events = (r.timeline||[]).slice().sort((a,b)=>a.date.localeCompare(b.date) || a.id.localeCompare(b.id))
   async function add() {
-    if(!ev.note.trim() && !(+ev.amount)) return alert('내용이나 금액을 입력해주세요')
-    const ok = await onAdd({ id: Date.now().toString(), date: ev.date, kind: ev.kind, amount: +ev.amount||0, note: ev.note.trim() })
-    if(ok) setEv(v=>({ ...v, amount:'', note:'' }))
+    if(!ev.note.trim() && !(+ev.amount) && images.length===0) return alert('내용이나 금액, 사진을 입력해주세요')
+    const id = Date.now().toString()
+    if(images.length) {
+      try { await setDoc(doc(db,'lossClaimPhotos',id), { claimId: r.id, images }) }
+      catch(e) { console.error(e); return alert('사진 저장에 실패했어요. 다시 시도해 주세요') }
+    }
+    const ok = await onAdd({ id, date: ev.date, kind: ev.kind, amount: +ev.amount||0, note: ev.note.trim(),
+      ...(images.length ? { photoCount: images.length } : {}) })
+    if(ok) { setEv(v=>({ ...v, amount:'', note:'' })); setImages([]); setShowPhotos(false) }
   }
   return (
     <div style={{marginTop:12,borderTop:'1px solid #272a3d',paddingTop:12}}>
@@ -165,6 +196,7 @@ function Timeline({ r, editable, saving, onAdd, onDelete, onNextCheck }) {
               <span style={{flex:1,fontSize:12,color:'#dde1f2',lineHeight:1.5}}>
                 {e.note}
                 {e.amount>0 && <b style={{color:k.color,marginLeft:6,fontFamily:'DM Mono,monospace'}}>{wonFmt(e.amount)}원</b>}
+                {e.photoCount>0 && <EventPhotos eventId={e.id} count={e.photoCount}/>}
               </span>
               {editable && (
                 <button onClick={()=>onDelete(e.id)} disabled={saving}
@@ -194,8 +226,17 @@ function Timeline({ r, editable, saving, onAdd, onDelete, onNextCheck }) {
               placeholder="예: 쿠팡 상담원 - 나머지 금액 자동정산 예정 문자 받음" style={{...inputStyle,flex:1,minWidth:200,width:'auto'}}/>
             <input type="number" value={ev.amount} onChange={e=>setEv(v=>({...v,amount:e.target.value}))}
               placeholder="금액(선택)" style={{...inputStyle,width:110}}/>
+            <button type="button" onClick={()=>setShowPhotos(v=>!v)}
+              style={smallBtn(showPhotos||images.length?'rgba(249,185,52,0.12)':'transparent','#f9b934','1px solid rgba(249,185,52,0.4)')}>
+              📷{images.length?` ${images.length}`:''}
+            </button>
             <button onClick={add} disabled={saving} style={smallBtn('#f9b934','#000')}>+ 기록</button>
           </div>
+          {showPhotos && (
+            <div style={{marginTop:8}}>
+              <PhotoPicker images={images} onChange={setImages} max={3}/>
+            </div>
+          )}
           <div style={{display:'flex',gap:8,alignItems:'center',marginTop:10,flexWrap:'wrap'}}>
             <span style={{fontSize:11,color:'#5e6585'}}>📅 다음 확인일</span>
             <input type="date" value={r.nextCheck||''} onChange={e=>onNextCheck(e.target.value)}
@@ -249,10 +290,13 @@ export default function LossClaims() {
   const patch = (id, fields) => update(list => list.map(r => r.id===id ? { ...r, ...fields } : r))
 
   const addEvent = (id, ev) => update(list => list.map(r => r.id===id ? { ...r, timeline: [...(r.timeline||[]), ev] } : r))
-  const deleteEvent = (id, evId) => {
+  const deleteEvent = async (id, evId) => {
     if(!window.confirm('이 기록을 지울까요?')) return
-    return update(list => list.map(r => r.id===id ? { ...r, timeline: (r.timeline||[]).filter(e=>e.id!==evId) } : r))
+    const ok = await update(list => list.map(r => r.id===id ? { ...r, timeline: (r.timeline||[]).filter(e=>e.id!==evId) } : r))
+    if(ok) deletePhotos([evId])
   }
+  // 첨부 사진 문서 삭제 (없는 문서를 지워도 문제없음)
+  const deletePhotos = ids => Promise.all(ids.map(id => deleteDoc(doc(db,'lossClaimPhotos',id)).catch(e=>console.error(e))))
   const setNextCheck = (id, date) => patch(id, { nextCheck: date })
 
   const toNumbers = f => ({ ...f, lossAmount:+f.lossAmount||0, orderAmount:+f.orderAmount||0 })
@@ -299,7 +343,9 @@ export default function LossClaims() {
 
   async function deleteRecord(id) {
     if(!window.confirm('이 기록을 삭제하시겠습니까?')) return
-    await update(list => list.filter(r => r.id!==id))
+    const photoIds = (records.find(r=>r.id===id)?.timeline||[]).filter(e=>e.photoCount>0).map(e=>e.id)
+    const ok = await update(list => list.filter(r => r.id!==id))
+    if(ok) deletePhotos(photoIds)
   }
 
   const openList = records.filter(r => stageOf(r)==='open')
