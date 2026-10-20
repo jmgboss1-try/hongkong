@@ -2,8 +2,9 @@ import { useEffect, useRef, useState } from 'react'
 import { db } from '../firebase'
 import { doc, getDoc, setDoc } from 'firebase/firestore'
 
-// 은행 거래내역 엑셀(.xls/.xlsx/.csv) 또는 PDF(국민은행 '계좌 거래내역 조회', 비밀번호 가능)를 읽어 출금은 지출 카테고리로, 입금은 실입금액(deposit)으로 반영
-//  - 같은 거래를 두 번 올려도 중복 반영되지 않도록 반영한 거래 키를 expenses/{YYYY-MM}.importedKeys 에 같이 저장
+// 은행 거래내역 엑셀(.xls/.xlsx/.csv) 또는 PDF(국민은행 '계좌 거래내역 조회', 비밀번호 가능)를 읽어
+// 출금은 지출 카테고리로 더하고, 입금은 조회기간의 날짜별 실입금액(deposit)을 PDF 합계로 '맞춤'(더하지 않고 바꿈)
+//  - 같은 출금을 두 번 올려도 중복 반영되지 않도록 반영한 거래 키를 expenses/{YYYY-MM}.importedKeys 에 같이 저장
 //    (지출과 같은 문서에 한 번에 쓰므로, 지출만 저장되고 중복 방지 기록은 빠지는 일이 없음)
 //  - 사용자가 고른 카테고리는 expenseImportRules/default 에 "내용 → 카테고리" 규칙으로 저장해 다음 달부터 자동 선택
 //    (규칙 저장이 안 돼도 지출 반영에는 영향 없음)
@@ -120,7 +121,12 @@ async function readPdfTransactions(file, password) {
   // 맨 위 '총 출금금액 / 총 입금금액'과 읽은 합계 비교
   const all = lines.join(' ')
   const total = re => { const m = all.replace(/\s+/g,'').match(re); return m ? parseAmount(m[1]) : null }
-  const check = { out: total(/총출금금액([\d,]+)원/), in: total(/총입금금액([\d,]+)원/) }
+  const compact = all.replace(/\s+/g,'')
+  const pm = compact.match(/조회기간:?(\d{4})\.(\d{2})\.(\d{2})~(\d{4})\.(\d{2})\.(\d{2})/)
+  const hm = compact.match(/예금주([^(（]+)/)
+  const check = { out: total(/총출금금액([\d,]+)원/), in: total(/총입금금액([\d,]+)원/),
+    period: pm ? [`${pm[1]}-${pm[2]}-${pm[3]}`, `${pm[4]}-${pm[5]}-${pm[6]}`] : null,
+    holder: hm ? hm[1] : '' }
   return { list: list.sort(byDateTime), check }
 }
 
@@ -155,6 +161,8 @@ async function readTransactions(file, password) {
   throw new Error('거래내역 표를 찾지 못했어요. 거래일자·출금 열이 있는 은행 엑셀인지 확인해 주세요.')
 }
 
+// 규칙: 출금은 { keyword, categoryId }, 입금 제외는 { keyword, categoryId:'__skip_in' } (다시 포함하면 '__in')
+const isDepositRule = x => String(x.categoryId||'').startsWith('__')
 function ruleFor(rules, tx) {
   const text = norm(tx.matchText) + '|' + norm(tx.desc)
   let best = null
@@ -194,7 +202,10 @@ export default function BankImport({ categories, onSaved }) {
   const [fileName, setFileName] = useState('')
   const [busy, setBusy]     = useState(false)
   const [err, setErr]       = useState('')
-  const [withDeposits, setWithDeposits] = useState(false)
+  const [withDeposits, setWithDeposits] = useState(true)  // 실입금액을 PDF 입금으로 맞출지
+  const [existingDep, setExistingDep]   = useState({})    // 'YYYY-MM-DD' → 지금 앱에 적힌 실입금액
+  const [period, setPeriod]             = useState(null)  // [시작일, 끝일]
+  const [showDepRows, setShowDepRows]   = useState(false)
   const [done, setDone]     = useState('')
   const [check, setCheck]   = useState(null)  // PDF 총액과 읽은 합계 비교
   const [pwFile, setPwFile] = useState(null)  // 비밀번호가 필요한 PDF
@@ -219,6 +230,17 @@ export default function BankImport({ categories, onSaved }) {
       const months = [...new Set(txs.map(t=>t.date.slice(0,7)))]
       const snaps = await Promise.all(months.map(ym=>getDoc(doc(db,'expenses',ym))))
       const importedKeys = new Set(snaps.flatMap(s=>s.exists() ? (s.data().importedKeys||[]) : []))
+      const dep = {}
+      snaps.forEach((snap,i)=>{
+        if (!snap.exists()) return
+        for (const [dd, e] of Object.entries(snap.data())) if (/^\d{2}$/.test(dd) && e?.deposit) dep[`${months[i]}-${dd}`] = e.deposit
+      })
+      setExistingDep(dep)
+      const dates = txs.map(t=>t.date).sort()
+      setPeriod(chk?.period || [dates[0], dates[dates.length-1]])
+      setShowDepRows(false)
+      const depRules = rules.filter(isDepositRule), outRules = rules.filter(x=>!isDepositRule(x))
+      const holder = norm(chk?.holder)
       // 고정지출 항목·이번 달 납부 기록 (못 읽어도 가져오기는 계속)
       let fixedMap = new Map()
       try {
@@ -228,10 +250,17 @@ export default function BankImport({ categories, onSaved }) {
         fixedMap = matchFixed(txs.filter(t=>t.out && !importedKeys.has(t.key)), items, pays)
       } catch(e) { console.error(e) }
       setRows(txs.map(t=>{
+        // 입금: 날짜별로 다시 맞추는 방식이라 '이미 반영됨'이 없음. 예금주 본인 이체·제외 규칙에 걸린 건은 기본 제외
+        if (!t.out) {
+          const rule = ruleFor(depRules, t)
+          const self = holder && norm(t.matchText) === holder
+          const include = rule ? rule !== '__skip_in' : !self
+          return { ...t, imported:false, cat:'', include, selfTransfer: self && !rule }
+        }
         const imported = importedKeys.has(t.key)
         const fixed = !imported ? fixedMap.get(t.key) : null
         if (fixed) return { ...t, imported, fixed, cat: fixed.paid ? 'skip' : fixed.categoryId, include: !fixed.paid }
-        return { ...t, imported, cat: t.out ? ruleFor(rules, t) : '', include: !imported }
+        return { ...t, imported, cat: ruleFor(outRules, t), include: !imported }
       }))
     } catch(e) {
       console.error(e); setRows(null)
@@ -250,21 +279,41 @@ export default function BankImport({ categories, onSaved }) {
     })
   }
   const toggle = i => setRows(prev=>prev.map((r,j)=>j===i ? { ...r, include: !r.include } : r))
+  // 입금 포함/제외 — 같은 보낸분의 입금에 모두 적용
+  function toggleDeposit(i) {
+    setRows(prev=>{
+      const target = norm(prev[i].matchText), include = !prev[i].include
+      return prev.map((r,j)=> (j===i || (target && !r.out && norm(r.matchText)===target)) ? { ...r, include, selfTransfer:false } : r)
+    })
+  }
 
   const outs = rows ? rows.map((r,i)=>({ ...r, i })).filter(r=>r.out) : []
   const ins  = rows ? rows.map((r,i)=>({ ...r, i })).filter(r=>r.in) : []
   const pickedOut = outs.filter(r=>!r.imported && r.include && r.cat!=='skip')
-  const pickedIn  = withDeposits ? ins.filter(r=>!r.imported && r.include) : []
   const unassigned = pickedOut.filter(r=>!r.cat).length
 
+  // 조회기간 날짜별: 지금 적힌 실입금액 vs PDF 입금 합계(제외한 건 빼고)
+  const depDays = []
+  if (rows && period) {
+    const pdfByDay = {}
+    for (const r of ins) if (r.include) pdfByDay[r.date] = (pdfByDay[r.date]||0) + r.in
+    for (let d = new Date(period[0]+'T00:00:00'); ; d.setDate(d.getDate()+1)) {
+      const key = `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`
+      if (key > period[1]) break
+      depDays.push({ date:key, cur: existingDep[key]||0, pdf: pdfByDay[key]||0 })
+    }
+  }
+  const depChanged = withDeposits ? depDays.filter(d=>d.cur!==d.pdf) : []
+
   async function save() {
-    const toSave = [...pickedOut.filter(r=>r.cat), ...pickedIn]
-    if (!toSave.length) return alert(unassigned ? '카테고리를 고른 출금이 없어요. 카테고리를 먼저 골라주세요.' : '반영할 거래가 없어요.')
+    const toSave = pickedOut.filter(r=>r.cat)
+    if (!toSave.length && !depChanged.length) return alert(unassigned ? '카테고리를 고른 출금이 없어요. 카테고리를 먼저 골라주세요.' : '반영할 내용이 없어요.')
     if (unassigned && !window.confirm(`카테고리를 안 고른 출금 ${unassigned}건은 빼고, 고른 ${toSave.length}건만 지금 반영할까요?\n빠진 건은 화면에 남아 있고, 나중에 같은 파일을 다시 올려도 다시 나와요.`)) return
     setBusy(true)
     try {
       const byMonth = {}
       for (const r of toSave) (byMonth[r.date.slice(0,7)] ||= []).push(r)
+      for (const d of depChanged) byMonth[d.date.slice(0,7)] ||= []
       const savedKeys = new Set()
       for (const [ym, list] of Object.entries(byMonth)) {
         // 저장 직전 최신 데이터 다시 읽기 (다른 화면에서 입력한 지출을 덮어쓰지 않도록)
@@ -277,12 +326,21 @@ export default function BankImport({ categories, onSaved }) {
           const dd = r.date.slice(8,10)
           const entry = { ...(data[dd]||{}) }
           categories.forEach(c=>{ if(entry[c.id]===undefined) entry[c.id]=0 })
-          if (r.out) entry[r.cat] = (entry[r.cat]||0) + r.out
-          else entry.deposit = (entry.deposit||0) + r.in
+          entry[r.cat] = (entry[r.cat]||0) + r.out
           data[dd] = entry
           keys.push(r.key); keySet.add(r.key); savedKeys.add(r.key)
         }
-        data.importedKeys = keys
+        // 실입금액: 조회기간 날짜는 PDF 입금 합계로 바꿈 (더하지 않으므로 여러 번 올려도 같음)
+        for (const d of depChanged) {
+          if (!d.date.startsWith(ym)) continue
+          const dd = d.date.slice(8,10)
+          if (!data[dd] && !d.pdf) continue
+          const entry = { ...(data[dd]||{}) }
+          categories.forEach(c=>{ if(entry[c.id]===undefined) entry[c.id]=0 })
+          entry.deposit = d.pdf
+          data[dd] = entry
+        }
+        if (keys.length) data.importedKeys = keys
         await setDoc(doc(db,'expenses',ym), data)
         // 고정지출과 연결된 출금은 고정지출도 실제 출금일로 납부 처리 (지출관리에서 다시 '납부'를 눌러 중복되는 일이 없게)
         const fixedPaid = {}
@@ -291,23 +349,37 @@ export default function BankImport({ categories, onSaved }) {
       }
       // 고른 카테고리를 규칙으로 저장 (내용 → 카테고리). 실패해도 지출 반영은 이미 끝남
       const newRules = [...rules]
-      for (const r of pickedOut) {
-        const kw = String(r.matchText||'').trim()
-        if (!r.cat || norm(kw).length < 2) continue
-        const ex = newRules.findIndex(x=>norm(x.keyword)===norm(kw))
-        if (ex >= 0) newRules[ex] = { keyword: kw, categoryId: r.cat }
-        else newRules.push({ keyword: kw, categoryId: r.cat })
+      const upsert = (kw, categoryId, deposit) => {
+        if (norm(kw).length < 2) return
+        const ex = newRules.findIndex(x=>norm(x.keyword)===norm(kw) && isDepositRule(x)===deposit)
+        if (ex >= 0) newRules[ex] = { keyword: kw, categoryId }
+        else newRules.push({ keyword: kw, categoryId })
+      }
+      for (const r of pickedOut) if (r.cat) upsert(String(r.matchText||'').trim(), r.cat, false)
+      // 입금 제외/포함 기억 (예금주 본인 이체로 자동 제외된 건은 규칙으로 남기지 않음)
+      if (withDeposits) {
+        const seen = new Set()
+        for (const r of ins) {
+          const kw = String(r.matchText||'').trim()
+          if (r.selfTransfer || seen.has(norm(kw))) continue
+          seen.add(norm(kw))
+          const hadRule = newRules.some(x=>isDepositRule(x) && norm(x.keyword)===norm(kw))
+          if (!r.include) upsert(kw, '__skip_in', true)
+          else if (hadRule) upsert(kw, '__in', true)
+        }
       }
       setRules(newRules)
       try { await setDoc(doc(db,'expenseImportRules','default'), { list: newRules }); setRulesOk(true) }
       catch(e) { console.error(e); setRulesOk(false) }
 
-      const savedOut = toSave.filter(r=>r.out), savedIn = toSave.filter(r=>r.in)
       const months = Object.keys(byMonth).sort()
-      setDone(`${months.map(m=>`${+m.slice(5)}월`).join('·')} 지출관리에 출금 ${savedOut.length}건 ${wonFmt(savedOut.reduce((a,r)=>a+r.out,0))}원`
-        + `${savedIn.length?`, 입금 ${savedIn.length}건 ${wonFmt(savedIn.reduce((a,r)=>a+r.in,0))}원`:''} 반영했어요.`)
-      // 반영한 건은 '이미 반영됨'으로 바꾸고, 남은 건은 계속 고를 수 있게 화면에 둠
-      const remaining = rows.filter(r=>!savedKeys.has(r.key) && !r.imported && (r.out ? r.cat!=='skip' : withDeposits))
+      const parts = []
+      if (toSave.length) parts.push(`출금 ${toSave.length}건 ${wonFmt(toSave.reduce((a,r)=>a+r.out,0))}원`)
+      if (depChanged.length) parts.push(`실입금액 ${depChanged.length}일치를 PDF 기준으로 맞춤`)
+      setDone(`${months.map(m=>`${+m.slice(5)}월`).join('·')} 지출관리에 ${parts.join(', ')} 반영했어요.`)
+      // 반영한 출금은 '이미 반영됨'으로 바꾸고, 남은 출금은 계속 고를 수 있게 화면에 둠
+      const remaining = rows.filter(r=>r.out && !savedKeys.has(r.key) && !r.imported && r.cat!=='skip')
+      setExistingDep(prev=>{ const n = { ...prev }; for (const d of depChanged) n[d.date] = d.pdf; return n })
       if (remaining.length === 0) { setRows(null); setFileName(''); if (fileRef.current) fileRef.current.value = '' }
       else setRows(prev=>prev.map(r=> savedKeys.has(r.key) ? { ...r, imported:true } : r))
       onSaved?.(months)
@@ -327,7 +399,7 @@ export default function BankImport({ categories, onSaved }) {
     <div style={{background:'#191c2b',borderRadius:8,padding:'8px 12px',display:'flex',alignItems:'center',gap:10,
       flexWrap:'wrap',opacity:r.imported || !r.include || r.cat==='skip' ? (r.fixed?.paid ? 0.75 : 0.45) : 1}}>
       <input type="checkbox" checked={!r.imported && r.include && r.cat!=='skip'} disabled={r.imported}
-        onChange={()=> r.cat==='skip' ? setCat(r.i, r.fixed?.categoryId || '') : toggle(r.i)}
+        onChange={()=> !r.out ? toggleDeposit(r.i) : r.cat==='skip' ? setCat(r.i, r.fixed?.categoryId || '') : toggle(r.i)}
         style={{width:16,height:16,cursor:r.imported?'default':'pointer',flexShrink:0}}/>
       <span style={{fontSize:11,color:'#5e6585',fontFamily:'DM Mono,monospace',minWidth:80}}>{r.date.slice(5)} {r.time.slice(0,5)}</span>
       <span style={{flex:1,fontSize:12,color:'#dde1f2',minWidth:120}}>
@@ -341,6 +413,9 @@ export default function BankImport({ categories, onSaved }) {
         )}
       </span>
       <span style={{fontSize:13,fontWeight:700,color,fontFamily:'DM Mono,monospace',minWidth:90,textAlign:'right'}}>{wonFmt(amount)}원</span>
+      {!r.out && r.selfTransfer && (
+        <span style={{fontSize:10,color:'#5e6585'}}>예금주 본인 이체라 제외</span>
+      )}
       {r.imported ? (
         <span style={{fontSize:10,color:'#5e6585',minWidth:110,textAlign:'center'}}>✓ 이미 반영됨</span>
       ) : showCat && (
@@ -401,7 +476,7 @@ export default function BankImport({ categories, onSaved }) {
               </div>
             )
           })()}
-          {pickedOut.length + pickedIn.length > 0 && (
+          {pickedOut.length + depChanged.length > 0 && (
             <div style={{fontSize:11,marginBottom:12,padding:'8px 12px',borderRadius:8,background:'rgba(249,185,52,0.08)',color:'#f9b934'}}>
               ⚠️ 아직 저장 전이에요. 카테고리를 고른 뒤 맨 아래 <b>"지출관리에 반영"</b>을 눌러야 지출관리에 들어가요. 다 못 골라도 고른 것만 먼저 반영할 수 있어요.
             </div>
@@ -411,6 +486,63 @@ export default function BankImport({ categories, onSaved }) {
               ℹ️ 카테고리 기억 기능을 쓸 수 없어요(Firebase 보안 규칙에 expenseImportRules 허용 필요). 지출 반영은 정상적으로 돼요.
             </div>
           )}
+          {ins.length > 0 && period && (()=>{
+            const curSum = depDays.reduce((a,d)=>a+d.cur,0), pdfSum = depDays.reduce((a,d)=>a+d.pdf,0)
+            const excluded = ins.filter(r=>!r.include)
+            const shownDays = depDays.filter(d=>d.cur || d.pdf)
+            return (
+              <div style={{marginBottom:16,background:'rgba(52,211,153,0.04)',border:'1px solid rgba(52,211,153,0.2)',borderRadius:10,padding:12}}>
+                <label style={{display:'flex',alignItems:'center',gap:8,fontSize:12,fontWeight:600,color:'#34d399',cursor:'pointer'}}>
+                  <input type="checkbox" checked={withDeposits} onChange={e=>setWithDeposits(e.target.checked)} style={{width:16,height:16}}/>
+                  💰 실입금액을 PDF 입금으로 맞추기 ({+period[0].slice(5,7)}/{+period[0].slice(8)} ~ {+period[1].slice(5,7)}/{+period[1].slice(8)})
+                </label>
+                <div style={{fontSize:10,color:'#5e6585',margin:'6px 0 10px 24px',lineHeight:1.6}}>
+                  이 기간 날짜별 실입금액을 아래 'PDF' 금액으로 <b>바꿔요</b>(더하지 않아요). 직접 적어둔 금액은 PDF 금액으로 대체돼요.<br/>
+                  매출이 아닌 입금(본인 이체·대여금 등)은 아래 입금 내역에서 체크를 빼면 계산에서 빠지고, 다음부터 자동으로 빠져요.
+                </div>
+                {withDeposits && (
+                  <>
+                    <div style={{display:'flex',gap:16,flexWrap:'wrap',fontSize:12,marginBottom:8}}>
+                      <span style={{color:'#5e6585'}}>지금 적힌 합계 <b style={{color:'#dde1f2',fontFamily:'DM Mono,monospace'}}>{wonFmt(curSum)}원</b></span>
+                      <span style={{color:'#5e6585'}}>PDF 기준 합계 <b style={{color:'#34d399',fontFamily:'DM Mono,monospace'}}>{wonFmt(pdfSum)}원</b></span>
+                      <span style={{color: depChanged.length ? '#f9b934' : '#34d399'}}>{depChanged.length ? `${depChanged.length}일 금액이 달라요` : '✅ 모든 날짜가 일치해요'}</span>
+                    </div>
+                    <div style={{maxHeight:240,overflowY:'auto',border:'1px solid #272a3d',borderRadius:8,marginBottom:8}}>
+                      <table style={{width:'100%',borderCollapse:'collapse',fontSize:11}}>
+                        <thead><tr style={{background:'#191c2b',color:'#5e6585'}}>
+                          {['날짜','지금 적힌 금액','PDF 금액','차이'].map((h,i)=><th key={h} style={{padding:'6px 10px',textAlign:i?'right':'left',fontWeight:600}}>{h}</th>)}
+                        </tr></thead>
+                        <tbody>
+                          {shownDays.map(d=>{
+                            const diff = d.pdf - d.cur
+                            return (
+                              <tr key={d.date} style={{background: diff ? 'rgba(249,185,52,0.06)' : 'transparent'}}>
+                                <td style={{padding:'5px 10px',borderTop:'1px solid #272a3d',color:'#dde1f2'}}>{+d.date.slice(5,7)}/{+d.date.slice(8)}</td>
+                                <td style={{padding:'5px 10px',borderTop:'1px solid #272a3d',textAlign:'right',fontFamily:'DM Mono,monospace',color:'#5e6585'}}>{d.cur?wonFmt(d.cur):'—'}</td>
+                                <td style={{padding:'5px 10px',borderTop:'1px solid #272a3d',textAlign:'right',fontFamily:'DM Mono,monospace',color:'#34d399'}}>{wonFmt(d.pdf)}</td>
+                                <td style={{padding:'5px 10px',borderTop:'1px solid #272a3d',textAlign:'right',fontFamily:'DM Mono,monospace',
+                                  color: diff>0 ? '#f9b934' : diff<0 ? '#f87171' : '#5e6585'}}>{diff ? `${diff>0?'+':''}${wonFmt(diff)}` : '일치'}</td>
+                              </tr>
+                            )
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                    <button type="button" onClick={()=>setShowDepRows(v=>!v)}
+                      style={{background:'transparent',border:'none',color:'#93c5fd',fontSize:11,cursor:'pointer',fontFamily:'inherit',padding:0}}>
+                      {showDepRows ? '▾ 입금 내역 접기' : `▸ 입금 내역 ${ins.length}건 보기`}{excluded.length ? ` (제외 ${excluded.length}건 · ${wonFmt(excluded.reduce((a,r)=>a+r.in,0))}원)` : ''}
+                    </button>
+                    {showDepRows && (
+                      <div style={{display:'flex',flexDirection:'column',gap:6,marginTop:8}}>
+                        {ins.map(r=>renderRow(r, r.in, '#34d399', false))}
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+            )
+          })()}
+
           <div style={{fontSize:12,fontWeight:600,marginBottom:8,display:'flex',justifyContent:'space-between',flexWrap:'wrap',gap:6}}>
             <span style={{color:'#f87171'}}>💸 출금 {outs.length}건</span>
             <span style={{color:'#5e6585',fontWeight:400}}>
@@ -422,26 +554,11 @@ export default function BankImport({ categories, onSaved }) {
             {outs.map(r=>renderRow(r, r.out, '#f87171', true))}
           </div>
 
-          {ins.length > 0 && (
-            <div style={{marginBottom:16}}>
-              <label style={{display:'flex',alignItems:'center',gap:8,fontSize:12,fontWeight:600,color:'#34d399',cursor:'pointer',marginBottom:8}}>
-                <input type="checkbox" checked={withDeposits} onChange={e=>setWithDeposits(e.target.checked)} style={{width:16,height:16}}/>
-                💰 입금 {ins.length}건도 '실입금액'에 반영
-                <span style={{fontSize:10,color:'#5e6585',fontWeight:400}}>(배달앱 정산·카드 입금 등. 대여금처럼 매출이 아닌 입금은 체크 해제)</span>
-              </label>
-              {withDeposits && (
-                <div style={{display:'flex',flexDirection:'column',gap:6}}>
-                  {ins.map(r=>renderRow(r, r.in, '#34d399', false))}
-                </div>
-              )}
-            </div>
-          )}
-
           <div style={{display:'flex',gap:8}}>
             <button onClick={save} disabled={busy}
               style={{flex:1,background:'#34d399',color:'#000',border:'none',borderRadius:8,padding:'11px',
                 fontSize:13,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
-              {busy ? '저장 중...' : `💾 지출관리에 반영 (${pickedOut.filter(r=>r.cat).length + pickedIn.length}건)`}
+              {busy ? '저장 중...' : `💾 지출관리에 반영 (출금 ${pickedOut.filter(r=>r.cat).length}건${depChanged.length?` · 실입금 ${depChanged.length}일`:''})`}
             </button>
             <button onClick={()=>{ setRows(null); setFileName(''); if(fileRef.current) fileRef.current.value='' }}
               style={{background:'#191c2b',color:'#5e6585',border:'1px solid #272a3d',borderRadius:8,
