@@ -165,6 +165,25 @@ function ruleFor(rules, tx) {
   return best?.categoryId || ''
 }
 
+// 지출관리 '고정지출'(임대료 등)과 같은 출금 찾기 — 같은 달, 같은 금액, 납부 예정일에 가장 가까운 1건
+//  - 이미 고정지출에서 납부 처리했으면 그 금액이 지출에 들어가 있으므로 중복이라 기본 제외
+//  - 아직 납부 처리 전이면, 반영할 때 고정지출도 그 날짜로 납부 처리 (지출은 한 번만 더해짐)
+function matchFixed(txs, fixedItems, paysByMonth) {
+  const out = new Map()
+  for (const ym of new Set(txs.map(t=>t.date.slice(0,7)))) {
+    const pays = paysByMonth[ym] || {}
+    for (const item of fixedItems) {
+      if (!item.amount) continue
+      const cands = txs.filter(t => t.out === item.amount && t.date.startsWith(ym) && !out.has(t.key))
+      if (!cands.length) continue
+      const best = cands.sort((a,b)=>Math.abs(+a.date.slice(8)-(item.dueDay||1)) - Math.abs(+b.date.slice(8)-(item.dueDay||1)))[0]
+      const p = pays[item.id]
+      out.set(best.key, { id:item.id, label:item.label, categoryId:item.categoryId || 'omg', paid: !!p?.paid, paidDate: p?.paidDate || '' })
+    }
+  }
+  return out
+}
+
 const selStyle = {background:'#12141f',border:'1px solid #272a3d',borderRadius:6,color:'#dde1f2',
   padding:'5px 8px',fontSize:11,outline:'none',fontFamily:'inherit'}
 
@@ -200,8 +219,18 @@ export default function BankImport({ categories, onSaved }) {
       const months = [...new Set(txs.map(t=>t.date.slice(0,7)))]
       const snaps = await Promise.all(months.map(ym=>getDoc(doc(db,'expenses',ym))))
       const importedKeys = new Set(snaps.flatMap(s=>s.exists() ? (s.data().importedKeys||[]) : []))
+      // 고정지출 항목·이번 달 납부 기록 (못 읽어도 가져오기는 계속)
+      let fixedMap = new Map()
+      try {
+        const [cfg, ...paySnaps] = await Promise.all([getDoc(doc(db,'fixedExpenses','config')), ...months.map(ym=>getDoc(doc(db,'fixedExpenses',ym)))])
+        const items = cfg.exists() ? (cfg.data().list||[]) : []
+        const pays = Object.fromEntries(months.map((ym,i)=>[ym, paySnaps[i].exists() ? paySnaps[i].data() : {}]))
+        fixedMap = matchFixed(txs.filter(t=>t.out && !importedKeys.has(t.key)), items, pays)
+      } catch(e) { console.error(e) }
       setRows(txs.map(t=>{
         const imported = importedKeys.has(t.key)
+        const fixed = !imported ? fixedMap.get(t.key) : null
+        if (fixed) return { ...t, imported, fixed, cat: fixed.paid ? 'skip' : fixed.categoryId, include: !fixed.paid }
         return { ...t, imported, cat: t.out ? ruleFor(rules, t) : '', include: !imported }
       }))
     } catch(e) {
@@ -216,7 +245,8 @@ export default function BankImport({ categories, onSaved }) {
   function setCat(i, cat) {
     setRows(prev=>{
       const target = norm(prev[i].matchText)
-      return prev.map((r,j)=> (j===i || (target && !r.imported && r.out && norm(r.matchText)===target)) ? { ...r, cat, include: cat!=='skip' } : r)
+      // 고정지출과 연결된 건은 다른 줄을 고를 때 같이 바뀌지 않게 (중복 방지 상태 유지)
+      return prev.map((r,j)=> (j===i || (target && !r.imported && !r.fixed && r.out && norm(r.matchText)===target)) ? { ...r, cat, include: cat!=='skip' } : r)
     })
   }
   const toggle = i => setRows(prev=>prev.map((r,j)=>j===i ? { ...r, include: !r.include } : r))
@@ -254,6 +284,10 @@ export default function BankImport({ categories, onSaved }) {
         }
         data.importedKeys = keys
         await setDoc(doc(db,'expenses',ym), data)
+        // 고정지출과 연결된 출금은 고정지출도 실제 출금일로 납부 처리 (지출관리에서 다시 '납부'를 눌러 중복되는 일이 없게)
+        const fixedPaid = {}
+        for (const r of list) if (r.fixed && !r.fixed.paid && r.out) fixedPaid[r.fixed.id] = { paid:true, paidDate: r.date.slice(8,10), amount: r.out }
+        if (Object.keys(fixedPaid).length) await setDoc(doc(db,'fixedExpenses',ym), fixedPaid, { merge:true })
       }
       // 고른 카테고리를 규칙으로 저장 (내용 → 카테고리). 실패해도 지출 반영은 이미 끝남
       const newRules = [...rules]
@@ -291,12 +325,21 @@ export default function BankImport({ categories, onSaved }) {
     <div key={r.key} style={{display:'contents'}}>
     
     <div style={{background:'#191c2b',borderRadius:8,padding:'8px 12px',display:'flex',alignItems:'center',gap:10,
-      flexWrap:'wrap',opacity:r.imported || !r.include || r.cat==='skip' ? 0.45 : 1}}>
+      flexWrap:'wrap',opacity:r.imported || !r.include || r.cat==='skip' ? (r.fixed?.paid ? 0.75 : 0.45) : 1}}>
       <input type="checkbox" checked={!r.imported && r.include && r.cat!=='skip'} disabled={r.imported}
-        onChange={()=> r.cat==='skip' ? setCat(r.i,'') : toggle(r.i)}
+        onChange={()=> r.cat==='skip' ? setCat(r.i, r.fixed?.categoryId || '') : toggle(r.i)}
         style={{width:16,height:16,cursor:r.imported?'default':'pointer',flexShrink:0}}/>
       <span style={{fontSize:11,color:'#5e6585',fontFamily:'DM Mono,monospace',minWidth:80}}>{r.date.slice(5)} {r.time.slice(0,5)}</span>
-      <span style={{flex:1,fontSize:12,color:'#dde1f2',minWidth:120}}>{r.desc || '—'}</span>
+      <span style={{flex:1,fontSize:12,color:'#dde1f2',minWidth:120}}>
+        {r.desc || '—'}
+        {r.fixed && (
+          <span style={{display:'block',fontSize:10,marginTop:2,color: r.fixed.paid ? '#5e6585' : '#93c5fd'}}>
+            📌 고정지출 '{r.fixed.label}' {r.fixed.paid
+              ? `— ${+r.fixed.paidDate || ''}일 납부 처리돼 있어서 중복이라 제외했어요`
+              : '— 반영하면 고정지출도 이 날짜로 납부 처리돼요'}
+          </span>
+        )}
+      </span>
       <span style={{fontSize:13,fontWeight:700,color,fontFamily:'DM Mono,monospace',minWidth:90,textAlign:'right'}}>{wonFmt(amount)}원</span>
       {r.imported ? (
         <span style={{fontSize:10,color:'#5e6585',minWidth:110,textAlign:'center'}}>✓ 이미 반영됨</span>
