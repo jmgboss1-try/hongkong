@@ -284,6 +284,8 @@ export default function BankImport({ categories, onSaved }) {
           return { ...t, include:true, kind:'__nonop_other' }
         }
         if (rec) return { ...t, imported:true, cat: kindValue(rec.kind), include:false }
+        // 예전 버전에서 대여금 장부로만 보낸 출금: 영업 외 거래 기록이 없으니 다시 반영할 수 있게 (장부에는 다시 안 씀)
+        if (importedKeys.has(t.key) && ledgerKeys.has(t.key)) return { ...t, cat:'__loan', include:true, loanDup:true }
         const imported = importedKeys.has(t.key)
         if (imported) return { ...t, imported:true, cat:'', include:false }
         if (isHolder(t)) return { ...t, cat:'__loan', include:true, loanDup: ledgerHas(t,'lent') }
