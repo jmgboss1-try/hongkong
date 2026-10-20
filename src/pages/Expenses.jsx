@@ -1,4 +1,5 @@
-import { useEffect, useState, useRef } from 'react'
+import { useEffect, useState } from 'react'
+import BankImport from '../components/BankImport'
 import { db } from '../firebase'
 import { doc, getDoc, setDoc } from 'firebase/firestore'
 
@@ -25,31 +26,6 @@ const DEFAULT_CATEGORIES = [
 const getNowDD  = () => pad(new Date().getDate())
 const getYestDD = () => { const d=new Date(); d.setDate(d.getDate()-1); return pad(d.getDate()) }
 const todayFullStr = () => { const n=new Date(); return `${n.getFullYear()}-${pad(n.getMonth()+1)}-${pad(n.getDate())}` }
-
-async function extractFromImage(base64, mediaType) {
-  const response = await fetch('https://api.anthropic.com/v1/messages', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      model: 'claude-sonnet-4-20250514',
-      max_tokens: 1000,
-      messages: [{
-        role: 'user',
-        content: [
-          { type: 'image', source: { type: 'base64', media_type: mediaType, data: base64 } },
-          { type: 'text', text: `이 이미지는 국민은행 또는 다른 은행의 계좌 거래내역입니다.
-출금 거래내역만 추출해서 아래 JSON 형식으로만 응답하세요. 다른 텍스트는 절대 포함하지 마세요.
-{"transactions":[{"date":"MM-DD","description":"적요/내용","amount":숫자}]}
-주의: 입금 제외, 출금만, amount는 숫자만, 없으면 {"transactions":[]}` }
-        ]
-      }]
-    })
-  })
-  const data = await response.json()
-  const text = data.content?.[0]?.text || ''
-  try { return JSON.parse(text.replace(/```json|```/g,'').trim()) }
-  catch { return { transactions: [] } }
-}
 
 export default function Expenses() {
   const [curMonth, setCurMonth] = useState(() => {
@@ -93,12 +69,6 @@ const [payingDate, setPayingDate]     = useState('')
   // 입력 모드
   const [inputMode, setInputMode] = useState('manual')
 
-  // 이미지
-  const fileRef = useRef()
-  const [imageFile, setImageFile]       = useState(null)
-  const [imagePreview, setImagePreview] = useState(null)
-  const [extracting, setExtracting]     = useState(false)
-  const [extracted, setExtracted]       = useState([])
 
   const days = daysIn(curMonth)
   const monthOpts = []
@@ -327,57 +297,6 @@ const [payingDate, setPayingDate]     = useState('')
     delete newData[dd]
     await setDoc(doc(db,'expenses',curMonth), newData)
     setData(newData)
-  }
-
-  // ── 이미지 ──
-  function handleImageChange(e) {
-    const file = e.target.files[0]
-    if(!file) return
-    setImageFile(file)
-    const reader = new FileReader()
-    reader.onload = ev => setImagePreview(ev.target.result)
-    reader.readAsDataURL(file)
-    setExtracted([])
-  }
-
-  async function handleExtract() {
-    if(!imageFile) return
-    setExtracting(true)
-    try {
-      const base64 = await new Promise((res,rej)=>{
-        const r = new FileReader()
-        r.onload = ()=>res(r.result.split(',')[1])
-        r.onerror = rej
-        r.readAsDataURL(imageFile)
-      })
-      const result = await extractFromImage(base64, imageFile.type)
-      setExtracted((result.transactions||[]).map(t=>({...t, category:categories[0]?.id||'', checked:true})))
-    } catch(e) { console.error(e); alert('이미지 분석 중 오류가 발생했습니다.') }
-    setExtracting(false)
-  }
-
-  async function saveExtracted() {
-    const checked = extracted.filter(t=>t.checked && t.amount > 0)
-    if(!checked.length) return alert('저장할 항목을 선택해주세요')
-    setSaving(true)
-    try {
-      const newData = { ...data }
-      for(const t of checked) {
-        const dd = t.date ? pad(+t.date.split('-')[1]) : day
-        const existing = newData[dd] || {}
-        const entry = { ...existing }
-        categories.forEach(f=>{ if(!entry[f.id]) entry[f.id]=0 })
-        if(t.category && entry[t.category] !== undefined) entry[t.category] = (entry[t.category]||0)+t.amount
-        else entry['omg'] = (entry['omg']||0)+t.amount
-        newData[dd] = entry
-      }
-      await setDoc(doc(db,'expenses',curMonth), newData)
-      setData(newData)
-      setExtracted([]); setImageFile(null); setImagePreview(null)
-      if(fileRef.current) fileRef.current.value = ''
-      alert(`${checked.length}건 저장됐습니다!`)
-    } catch(e) { console.error(e) }
-    setSaving(false)
   }
 
   // ── 합계 ──
@@ -827,10 +746,10 @@ const [payingDate, setPayingDate]     = useState('')
       {/* 입력 영역 */}
       <div style={{background:'#12141f',border:'1px solid #272a3d',borderRadius:12,marginBottom:18}}>
         <div style={{display:'flex',borderBottom:'1px solid #272a3d'}}>
-          {[['image','📷 이미지로 입력'],['manual','✏️ 직접 입력']].map(([mode,label])=>(
+          {[['bank','📑 계좌내역 엑셀'],['manual','✏️ 직접 입력']].map(([mode,label])=>(
             <button key={mode} onClick={()=>setInputMode(mode)}
               style={{flex:1,padding:'12px',fontSize:12,fontWeight:600,border:'none',cursor:'pointer',
-                fontFamily:'inherit',borderRadius:mode==='image'?'12px 0 0 0':'0 12px 0 0',
+                fontFamily:'inherit',borderRadius:mode==='bank'?'12px 0 0 0':'0 12px 0 0',
                 background:inputMode===mode?'rgba(249,185,52,0.1)':'transparent',
                 color:inputMode===mode?'#f9b934':'#5e6585',
                 borderBottom:inputMode===mode?'2px solid #f9b934':'2px solid transparent'}}>
@@ -839,82 +758,9 @@ const [payingDate, setPayingDate]     = useState('')
           ))}
         </div>
 
-        {/* 📷 이미지 입력 */}
-        {inputMode === 'image' && (
-          <div style={{padding:18}}>
-            <div style={{fontSize:12,color:'#5e6585',marginBottom:14}}>
-              국민은행 계좌 거래내역 스크린샷을 업로드하면 자동으로 지출 항목을 추출해드려요.
-            </div>
-            <div onClick={()=>fileRef.current?.click()}
-              style={{border:'2px dashed #272a3d',borderRadius:10,padding:'28px',textAlign:'center',
-                cursor:'pointer',marginBottom:14,background:imagePreview?'rgba(249,185,52,0.04)':'transparent'}}>
-              {imagePreview ? (
-                <img src={imagePreview} alt="preview" style={{maxWidth:'100%',maxHeight:300,borderRadius:8,objectFit:'contain'}}/>
-              ) : (
-                <>
-                  <div style={{fontSize:32,marginBottom:8}}>📷</div>
-                  <div style={{fontSize:13,color:'#dde1f2',marginBottom:4}}>클릭하여 이미지 업로드</div>
-                  <div style={{fontSize:11,color:'#5e6585'}}>국민은행 거래내역 스크린샷 (PNG, JPG)</div>
-                </>
-              )}
-            </div>
-            <input ref={fileRef} type="file" accept="image/*" onChange={handleImageChange} style={{display:'none'}}/>
-            {imageFile && !extracted.length && (
-              <button onClick={handleExtract} disabled={extracting}
-                style={{width:'100%',background:'#f9b934',color:'#000',border:'none',borderRadius:8,
-                  padding:'12px',fontSize:13,fontWeight:700,cursor:'pointer',fontFamily:'inherit',marginBottom:14}}>
-                {extracting ? '🔍 분석 중...' : '🔍 거래내역 추출'}
-              </button>
-            )}
-            {extracted.length > 0 && (
-              <div>
-                <div style={{fontSize:12,fontWeight:600,color:'#34d399',marginBottom:10}}>
-                  ✅ {extracted.length}건 추출됨 — 카테고리를 선택하고 저장하세요
-                </div>
-                {imagePreview && (
-                  <a href={imagePreview} download={`지출내역_${curMonth}_${day}.png`}
-                    style={{display:'inline-block',marginBottom:12,background:'#191c2b',
-                      border:'1px solid rgba(52,211,153,0.3)',color:'#34d399',borderRadius:7,
-                      padding:'7px 14px',fontSize:11,fontWeight:600,textDecoration:'none',fontFamily:'inherit'}}>
-                    💾 이미지 PC 저장
-                  </a>
-                )}
-                <div style={{display:'flex',flexDirection:'column',gap:8,marginBottom:14}}>
-                  {extracted.map((t,i)=>(
-                    <div key={i} style={{background:'#191c2b',borderRadius:8,padding:'10px 14px',
-                      display:'flex',alignItems:'center',gap:10,flexWrap:'wrap',opacity:t.checked?1:0.5}}>
-                      <input type="checkbox" checked={t.checked}
-                        onChange={e=>setExtracted(prev=>prev.map((x,j)=>j===i?{...x,checked:e.target.checked}:x))}
-                        style={{width:16,height:16,cursor:'pointer',flexShrink:0}}/>
-                      <div style={{fontSize:11,color:'#5e6585',fontFamily:'DM Mono,monospace',minWidth:40}}>{t.date||'—'}</div>
-                      <div style={{flex:1,fontSize:12,color:'#dde1f2',minWidth:100}}>{t.description}</div>
-                      <div style={{fontSize:13,fontWeight:700,color:'#f87171',fontFamily:'DM Mono,monospace',minWidth:90,textAlign:'right'}}>
-                        {t.amount.toLocaleString()}원
-                      </div>
-                      <select value={t.category}
-                        onChange={e=>setExtracted(prev=>prev.map((x,j)=>j===i?{...x,category:e.target.value}:x))}
-                        style={{background:'#12141f',border:'1px solid #272a3d',borderRadius:6,color:'#dde1f2',
-                          padding:'5px 8px',fontSize:11,outline:'none',fontFamily:'inherit'}}>
-                        {categories.map(c=><option key={c.id} value={c.id}>{c.label}</option>)}
-                      </select>
-                    </div>
-                  ))}
-                </div>
-                <div style={{display:'flex',gap:8}}>
-                  <button onClick={saveExtracted} disabled={saving}
-                    style={{flex:1,background:'#34d399',color:'#000',border:'none',borderRadius:8,
-                      padding:'11px',fontSize:13,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
-                    {saving?'저장 중...':'💾 선택 항목 저장'}
-                  </button>
-                  <button onClick={()=>{setExtracted([]);setImageFile(null);setImagePreview(null);if(fileRef.current)fileRef.current.value=''}}
-                    style={{background:'#191c2b',color:'#5e6585',border:'1px solid #272a3d',borderRadius:8,
-                      padding:'11px 16px',fontSize:12,cursor:'pointer',fontFamily:'inherit'}}>
-                    다시 업로드
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
+        {/* 📑 계좌내역 엑셀 */}
+        {inputMode === 'bank' && (
+          <BankImport categories={categories} onSaved={load}/>
         )}
 
         {/* ✏️ 직접 입력 */}
