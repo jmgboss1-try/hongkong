@@ -4,6 +4,7 @@ import { doc, getDoc, setDoc } from 'firebase/firestore'
 import { useAuth } from '../AuthContext'
 
 const pad = n => String(n).padStart(2,'0')
+const newId = () => `${Date.now()}`
 const wonFmt = n => (n||0).toLocaleString('ko-KR') + '원'
 const dateFmt = d => d ? d.slice(0,10) : '—'
 
@@ -62,13 +63,31 @@ function calcInterest(principal, fromDate, toDate, rate = 0.05) {
   return Math.round(principal * rate * (days / 365))
 }
 
-function calcTotalInterest(config, toDate) {
-  const results = {}
-  for (const [uid, inv] of Object.entries(config)) {
-    if (!inv.amount || !inv.startDate) { results[uid] = 0; continue }
-    results[uid] = calcInterest(inv.amount, inv.startDate, toDate)
+// 투자 원금 조각: 최초 투자 + 추가 투입(additions: [{ id, month:'YYYY-MM', date?, amount, kind, noInterest, memo }])
+const additionStart = a => a.date || (a.month ? `${a.month}-01` : '')
+function principalPieces(cfg) {
+  return [
+    { amount: cfg.amount || 0, start: cfg.startDate || '', interest: true },
+    ...(cfg.additions || []).map(a => ({ amount: a.amount || 0, start: additionStart(a), interest: !a.noInterest })),
+  ].filter(p => p.amount)
+}
+// d 시점의 투자금 회수 목표 (그때까지 들어간 원금 + 각 원금의 연 5% 단리)
+function investTargetAt(pieces, d) {
+  return pieces.filter(p => !p.start || p.start <= d)
+    .reduce((a,p) => a + p.amount + (p.interest ? calcInterest(p.amount, p.start, d) : 0), 0)
+}
+// 투자금 회수 목표. 회수 누적이 목표에 닿은 날 이자 계산을 멈춤 (그 뒤 추가 투입이 있으면 계속)
+//   events: [{ date, amount }] 투자금 회수(+), 다른 항목으로 넘긴 금액(−)/넘겨받은 금액(+)
+function investTarget(pieces, events, today) {
+  const lastStart = pieces.reduce((m,p) => p.start > m ? p.start : m, '')
+  const dates = [...new Set(events.map(e=>e.date))].sort()
+  let cum = 0
+  for (const d of dates) {
+    cum += events.filter(e=>e.date===d).reduce((a,e)=>a+e.amount,0)
+    if (d > today) break
+    if (cum > 0 && d >= lastStart && cum >= investTargetAt(pieces, d)) return { target: investTargetAt(pieces, d), doneAt: d }
   }
-  return results
+  return { target: investTargetAt(pieces, today), doneAt: null }
 }
 
 // 대출금 연간 일시 이자 계산
@@ -139,6 +158,7 @@ export default function Investment() {
   const [showForm, setShowForm]       = useState(false)
   const [filterInv, setFilterInv]     = useState('all') // 'all' | 'terry' | 'hyung'
   const [form, setForm]               = useState({ date:todayStr(), amount:'', investor:'terry', category:'investment', memo:'' })
+  const [transferForm, setTransferForm] = useState({})  // { key:'uid:category', to, amount }
 
   async function load() {
     setLoading(true)
@@ -156,13 +176,46 @@ export default function Investment() {
   useEffect(()=>{ load() },[])
 
   async function saveConfig() {
+    for (const uid of Object.keys(INVESTORS)) {
+      const bad = (editConfig[uid]?.additions || []).find(a => !a.month || !a.amount)
+      if (bad) return alert(`${INVESTORS[uid].name}: 추가 투입은 투입 연월과 금액을 입력해 주세요`)
+    }
     setSaving(true)
     try {
-      await setDoc(doc(db,'investment','config'), editConfig)
-      setConfig(editConfig)
+      // 넘기기 기록(transfers)은 설정 화면 밖에서 바뀌므로 저장 직전 값을 유지
+      const snap = await getDoc(doc(db,'investment','config'))
+      const next = { ...editConfig, transfers: (snap.exists() ? snap.data().transfers : null) || [] }
+      await setDoc(doc(db,'investment','config'), next)
+      setConfig(next)
       setShowConfig(false)
-    } catch(e) { console.error(e) }
+    } catch(e) { console.error(e); alert('저장 중 오류가 발생했어요') }
     setSaving(false)
+  }
+
+  // 한 회수 항목에서 초과 회수된 금액을 같은 투자자의 다른 항목으로 넘기기
+  async function saveTransfer(uid, from) {
+    const t = transferForm
+    const amount = parseAmount(t.amount || '')
+    if (!t.to || !amount) return alert('넘길 항목과 금액을 골라주세요')
+    setSaving(true)
+    try {
+      const snap = await getDoc(doc(db,'investment','config'))
+      const cur = snap.exists() ? snap.data() : config
+      const transfers = [...(cur.transfers || []), { id: newId(), date: todayStr(), investor: uid, from, to: t.to, amount, memo: '초과 회수분 넘기기' }]
+      await setDoc(doc(db,'investment','config'), { transfers }, { merge: true })
+      setConfig({ ...cur, transfers })
+      setTransferForm({})
+    } catch(e) { console.error(e); alert('저장 중 오류가 발생했어요') }
+    setSaving(false)
+  }
+
+  async function deleteTransfer(id) {
+    if (!window.confirm('이 넘기기 기록을 취소할까요? 금액이 원래 항목으로 돌아가요.')) return
+    const snap = await getDoc(doc(db,'investment','config'))
+    const cur = snap.exists() ? snap.data() : config
+    const transfers = (cur.transfers || []).filter(t => t.id !== id)
+    await setDoc(doc(db,'investment','config'), { transfers }, { merge: true })
+    setConfig({ ...cur, transfers })
   }
 
   async function saveRecord() {
@@ -178,7 +231,9 @@ export default function Investment() {
         memo:      form.memo,
         createdAt: new Date().toISOString(),
       }
-      const newList = [...records, newRecord].sort((a,b)=>a.date>b.date?1:-1)
+      const snap = await getDoc(doc(db,'investment','records'))
+      const latest = snap.exists() ? (snap.data().list || []) : records
+      const newList = [...latest, newRecord].sort((a,b)=>a.date>b.date?1:-1)
       await setDoc(doc(db,'investment','records'), { list: newList })
       setRecords(newList)
       setForm({ date:todayStr(), amount:'', investor:'terry', category:'investment', memo:'' })
@@ -189,25 +244,34 @@ export default function Investment() {
 
   async function deleteRecord(id) {
     if (!window.confirm('이 회수 내역을 삭제하시겠습니까?')) return
-    const newList = records.filter(r => r.id !== id)
+    const snap = await getDoc(doc(db,'investment','records'))
+    const newList = (snap.exists() ? (snap.data().list || []) : records).filter(r => r.id !== id)
     await setDoc(doc(db,'investment','records'), { list: newList })
     setRecords(newList)
   }
 
-  const today = new Date().toISOString().slice(0,10)
-  const interests = calcTotalInterest(config, today)
+  const today = todayStr()
+  const transfers = config.transfers || []
+  // 항목별 회수 흐름: 회수 기록(+) · 넘긴 금액(−) · 넘겨받은 금액(+)
+  const flows = (uid, cat) => [
+    ...records.filter(r => r.investor===uid && r.category===cat).map(r => ({ date:r.date, amount:r.amount||0 })),
+    ...transfers.filter(t => t.investor===uid && t.from===cat).map(t => ({ date:t.date, amount:-(t.amount||0) })),
+    ...transfers.filter(t => t.investor===uid && t.to===cat).map(t => ({ date:t.date, amount:t.amount||0 })),
+  ]
 
   // 형 대출금 이자 계산 (연간 일시 부과, 매년 1월30일)
   const hyungLoanStartDate = config.hyung?.loanStartDate || ''
-  const hyungLoanPayments  = records.filter(r => r.investor==='hyung' && r.category==='loan')
+  const hyungLoanPayments  = flows('hyung','loan')
   const hyungLoanCalc      = calcLoanLumpSum(HYUNG_LOAN.amount, hyungLoanStartDate, hyungLoanPayments, today, HYUNG_LOAN.rate)
   const hyungLoanInterest  = hyungLoanCalc.totalInterest
 
   const summary = {}
   for (const uid of Object.keys(INVESTORS)) {
     const inv      = config[uid] || {}
-    const interest = interests[uid] || 0
-    const principal = inv.amount || 0
+    const pieces   = principalPieces(inv)
+    const principal = pieces.reduce((a,p)=>a+p.amount,0)
+    const invest   = investTarget(pieces, flows(uid,'investment'), today)
+    const interest = invest.target - principal
 
     // 형의 경우 대출금 원금+이자도 회수 목표에 포함
     const loanTarget = uid === 'hyung' ? HYUNG_LOAN.amount + hyungLoanInterest : 0
@@ -221,13 +285,9 @@ export default function Investment() {
       .reduce((a,r) => a + (r.amount||0), 0)
 
     const byCategory = {}
-    for (const cat of ALL_CATEGORIES) {
-      byCategory[cat.key] = records
-        .filter(r => r.investor === uid && r.category === cat.key)
-        .reduce((a,r) => a + (r.amount||0), 0)
-    }
+    for (const cat of ALL_CATEGORIES) byCategory[cat.key] = flows(uid, cat.key).reduce((a,f) => a + f.amount, 0)
 
-    summary[uid] = { principal, interest, totalTarget, recovered,
+    summary[uid] = { principal, interest, totalTarget, recovered, investDoneAt: invest.doneAt,
       remaining:      Math.max(0, totalTarget - recovered), byCategory,
       loanTarget:     uid === 'hyung' ? loanTarget : 0,
       loanInterest:   uid === 'hyung' ? hyungLoanInterest : 0,
@@ -392,6 +452,70 @@ export default function Investment() {
                         textAlign: isAmount ? 'right' : 'left'}}/>
                   </div>
                 )})}
+                {/* 추가 투입 (투자금·운영자금) */}
+                <div style={{borderTop:'1px solid #272a3d',marginTop:6,paddingTop:10,marginBottom:8}}>
+                  <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:8}}>
+                    <span style={{fontSize:11,fontWeight:600,color:'#dde1f2'}}>➕ 추가 투입</span>
+                    <button type="button" onClick={()=>setEditConfig(prev=>({ ...prev, [uid]: { ...(prev[uid]||{}),
+                        additions: [...(prev[uid]?.additions||[]), { id: newId(), month: todayStr().slice(0,7), date:'', amount:0, kind:'investment', noInterest:false, memo:'' }] } }))}
+                      style={{background:'transparent',border:`1px solid ${inv.color}66`,color:inv.color,borderRadius:6,
+                        padding:'4px 10px',fontSize:11,cursor:'pointer',fontFamily:'inherit'}}>
+                      + 추가
+                    </button>
+                  </div>
+                  {!(editConfig[uid]?.additions||[]).length && (
+                    <div style={{fontSize:10,color:'#5e6585'}}>최초 투자 뒤에 더 넣은 투자금·운영자금을 여기에 기록해요 (투입 연월부터 이자 계산)</div>
+                  )}
+                  {(editConfig[uid]?.additions||[]).map(a=>{
+                    const setA = patch => setEditConfig(prev=>({ ...prev, [uid]: { ...(prev[uid]||{}),
+                      additions: (prev[uid]?.additions||[]).map(x => x.id===a.id ? { ...x, ...patch } : x) } }))
+                    const inp = {background:'#12141f',border:'1px solid #272a3d',borderRadius:7,color:'#dde1f2',
+                      padding:'7px 8px',fontSize:12,outline:'none',fontFamily:'inherit',minWidth:0}
+                    return (
+                      <div key={a.id} style={{background:'#12141f',border:'1px solid #272a3d',borderRadius:8,padding:8,marginBottom:6,
+                        display:'grid',gridTemplateColumns:'1fr 1fr',gap:6}}>
+                        <div>
+                          <label style={{fontSize:9,color:'#5e6585',display:'block',marginBottom:3}}>투입 연월 *</label>
+                          <input type="month" value={a.month||''} onChange={e=>setA({ month:e.target.value, date: a.date && !a.date.startsWith(e.target.value) ? '' : a.date })}
+                            style={{...inp,width:'100%',borderColor: a.month ? '#272a3d' : '#f87171'}}/>
+                        </div>
+                        <div>
+                          <label style={{fontSize:9,color:'#5e6585',display:'block',marginBottom:3}}>정확한 날짜 (선택)</label>
+                          <input type="date" value={a.date||''} min={a.month ? `${a.month}-01` : undefined} max={a.month ? `${a.month}-31` : undefined}
+                            onChange={e=>setA({ date:e.target.value, month: e.target.value ? e.target.value.slice(0,7) : a.month })}
+                            style={{...inp,width:'100%'}}/>
+                        </div>
+                        <div>
+                          <label style={{fontSize:9,color:'#5e6585',display:'block',marginBottom:3}}>금액 (원) *</label>
+                          <input type="text" inputMode="numeric" value={a.amount ? Number(a.amount).toLocaleString('ko-KR') : ''}
+                            onChange={e=>setA({ amount: +e.target.value.replace(/[^0-9]/g,'') || 0 })} placeholder="0"
+                            style={{...inp,width:'100%',fontFamily:'DM Mono,monospace',textAlign:'right'}}/>
+                        </div>
+                        <div>
+                          <label style={{fontSize:9,color:'#5e6585',display:'block',marginBottom:3}}>종류</label>
+                          <select value={a.kind||'investment'} onChange={e=>setA({ kind:e.target.value })} style={{...inp,width:'100%'}}>
+                            <option value="investment">💰 투자금</option>
+                            <option value="operating">🏪 운영자금</option>
+                          </select>
+                        </div>
+                        <input type="text" value={a.memo||''} onChange={e=>setA({ memo:e.target.value })} placeholder="메모 (예: 냉장고 교체)"
+                          style={{...inp,gridColumn:'1/-1'}}/>
+                        <div style={{gridColumn:'1/-1',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+                          <label style={{fontSize:10,color:'#5e6585',display:'flex',alignItems:'center',gap:4,cursor:'pointer'}}>
+                            <input type="checkbox" checked={!a.noInterest} onChange={e=>setA({ noInterest: !e.target.checked })}/>
+                            연 5% 이자 붙이기
+                          </label>
+                          <button type="button" onClick={()=>setEditConfig(prev=>({ ...prev, [uid]: { ...(prev[uid]||{}),
+                              additions: (prev[uid]?.additions||[]).filter(x=>x.id!==a.id) } }))}
+                            style={{background:'transparent',border:'1px solid #3d1f1f',color:'#f87171',borderRadius:5,
+                              padding:'3px 8px',fontSize:10,cursor:'pointer',fontFamily:'inherit'}}>
+                            삭제
+                          </button>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
                 <div style={{fontSize:10,color:'#5e6585',marginTop:4}}>
                   투자 이자: 연 5% 단리
                   {uid==='hyung' && <span style={{color:'#93c5fd'}}> / 대출금 1,200만원 연 10% 단리</span>}
@@ -552,7 +676,7 @@ export default function Investment() {
                     <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:14}}>
                       {[
                         {label:'투자 원금',    val:s.principal,   color:'#dde1f2'},
-                        {label:'누적 이자(5%)', val:s.interest,    color:'#f87171'},
+                        {label: s.investDoneAt ? '이자(5%, 회수 완료)' : '누적 이자(5%)', val:s.interest, color:'#f87171'},
                         {label:'총 회수 목표',  val:s.totalTarget, color:inv.color},
                         {label:'회수 완료',     val:s.recovered,   color:'#34d399'},
                       ].map(k=>(
@@ -579,6 +703,9 @@ export default function Investment() {
                           : 0
                         const pct = target > 0 ? Math.min(100, Math.round(val/target*100)) : 0
                         const notSet = target === 0 && cat.key !== 'investment'
+                        const excess = target > 0 ? val - target : 0
+                        const tKey = `${uid}:${cat.key}`
+                        const others = (CATEGORIES_BY_INVESTOR[uid]||[]).filter(c=>c.key!==cat.key)
                         return (
                           <div key={cat.key} style={{background:'#191c2b',borderRadius:7,padding:'8px 10px'}}>
                             <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:target>0?6:0}}>
@@ -600,10 +727,89 @@ export default function Investment() {
                                 ⚠ 목표 금액 미설정 (⚙️ 투자금 설정에서 입력)
                               </div>
                             )}
+                            {cat.key==='investment' && s.investDoneAt && (
+                              <div style={{fontSize:9,color:'#34d399',marginTop:4}}>
+                                ✓ {s.investDoneAt}에 다 회수돼서 이자 계산을 멈췄어요
+                              </div>
+                            )}
+                            {excess > 0 && (
+                              <div style={{marginTop:6,fontSize:10,color:'#f9b934'}}>
+                                초과 회수 {wonFmt(excess)}
+                                {!isInvestor && others.length > 0 && transferForm.key !== tKey && (
+                                  <button type="button" onClick={()=>setTransferForm({ key:tKey, to: others[0].key, amount: excess.toLocaleString('ko-KR') })}
+                                    style={{marginLeft:8,background:'transparent',border:'1px solid rgba(249,185,52,0.5)',color:'#f9b934',
+                                      borderRadius:5,padding:'2px 8px',fontSize:10,cursor:'pointer',fontFamily:'inherit'}}>
+                                    ↪ 다른 항목으로 넘기기
+                                  </button>
+                                )}
+                              </div>
+                            )}
+                            {transferForm.key === tKey && (
+                              <div style={{display:'flex',gap:6,alignItems:'center',flexWrap:'wrap',marginTop:6}}>
+                                <input type="text" inputMode="numeric" value={transferForm.amount||''}
+                                  onChange={e=>setTransferForm(f=>({ ...f, amount: fmtAmount(e.target.value) }))}
+                                  style={{background:'#12141f',border:'1px solid #272a3d',borderRadius:6,color:'#dde1f2',padding:'5px 8px',
+                                    fontSize:11,outline:'none',width:110,fontFamily:'DM Mono,monospace',textAlign:'right'}}/>
+                                <span style={{fontSize:10,color:'#5e6585'}}>원 →</span>
+                                <select value={transferForm.to} onChange={e=>setTransferForm(f=>({ ...f, to:e.target.value }))}
+                                  style={{background:'#12141f',border:'1px solid #272a3d',borderRadius:6,color:'#dde1f2',padding:'5px 8px',
+                                    fontSize:11,outline:'none',fontFamily:'inherit'}}>
+                                  {others.map(c=><option key={c.key} value={c.key}>{c.label}</option>)}
+                                </select>
+                                <button type="button" disabled={saving} onClick={()=>saveTransfer(uid, cat.key)}
+                                  style={{background:'#f9b934',color:'#000',border:'none',borderRadius:6,padding:'5px 10px',
+                                    fontSize:11,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
+                                  넘기기
+                                </button>
+                                <button type="button" onClick={()=>setTransferForm({})}
+                                  style={{background:'transparent',border:'1px solid #272a3d',color:'#5e6585',borderRadius:6,padding:'5px 8px',
+                                    fontSize:11,cursor:'pointer',fontFamily:'inherit'}}>
+                                  취소
+                                </button>
+                              </div>
+                            )}
                           </div>
                         )
                       })}
                     </div>
+
+                    {/* 추가 투입 · 넘기기 기록 */}
+                    {(inv_cfg.additions||[]).length > 0 && (
+                      <div style={{marginTop:12,background:'#191c2b',borderRadius:8,padding:'8px 10px'}}>
+                        <div style={{fontSize:10,color:'#5e6585',fontWeight:600,marginBottom:6}}>➕ 투자 원금 구성</div>
+                        <div style={{display:'flex',justifyContent:'space-between',fontSize:10,color:'#5e6585',padding:'2px 0'}}>
+                          <span>최초 투자 {inv_cfg.startDate ? `(${inv_cfg.startDate.slice(0,7)})` : ''}</span>
+                          <span style={{fontFamily:'DM Mono,monospace',color:'#dde1f2'}}>{wonFmt(inv_cfg.amount)}</span>
+                        </div>
+                        {[...inv_cfg.additions].sort((a,b)=>additionStart(a).localeCompare(additionStart(b))).map(a=>(
+                          <div key={a.id} style={{display:'flex',justifyContent:'space-between',gap:8,fontSize:10,color:'#5e6585',padding:'2px 0'}}>
+                            <span style={{overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>
+                              {a.date || a.month} {a.kind==='operating' ? '🏪 운영자금' : '💰 투자금'}
+                              {a.noInterest && ' (이자 없음)'}{a.memo && ` · ${a.memo}`}
+                            </span>
+                            <span style={{fontFamily:'DM Mono,monospace',color:'#dde1f2',flexShrink:0}}>+{wonFmt(a.amount)}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    {transfers.some(t=>t.investor===uid) && (
+                      <div style={{marginTop:12,background:'#191c2b',borderRadius:8,padding:'8px 10px'}}>
+                        <div style={{fontSize:10,color:'#5e6585',fontWeight:600,marginBottom:6}}>↪ 넘기기 기록</div>
+                        {transfers.filter(t=>t.investor===uid).map(t=>(
+                          <div key={t.id} style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:8,fontSize:10,color:'#5e6585',padding:'2px 0'}}>
+                            <span>{t.date} {ALL_CATEGORIES.find(c=>c.key===t.from)?.label} → {ALL_CATEGORIES.find(c=>c.key===t.to)?.label}</span>
+                            <span style={{display:'flex',alignItems:'center',gap:6}}>
+                              <span style={{fontFamily:'DM Mono,monospace',color:'#f9b934'}}>{wonFmt(t.amount)}</span>
+                              {!isInvestor && (
+                                <button type="button" onClick={()=>deleteTransfer(t.id)}
+                                  style={{background:'transparent',border:'1px solid #3d1f1f',color:'#f87171',borderRadius:4,
+                                    padding:'1px 6px',fontSize:9,cursor:'pointer',fontFamily:'inherit'}}>취소</button>
+                              )}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
 
                     {/* 형 전용: 대출금 상환 정보 */}
                     {uid === 'hyung' && (
