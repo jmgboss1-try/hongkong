@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { parseTxKey, currentClass, classLabel, classOptions, reclassify } from '../lib/bankReclass'
+import { parseTxKey, currentClass, classLabel, classOptions, reclassify, guessFromCat } from '../lib/bankReclass'
 
 const wonFmt = n => (n||0).toLocaleString('ko-KR')
 const norm = s => String(s??'').replace(/\s+/g,'')
@@ -13,6 +13,7 @@ export default function BankTxList({ ym, data, categories, onChanged, day }) {
   const [q, setQ]         = useState('')
   const [edit, setEdit]   = useState({})      // key → { to, fromCat }
   const [busyKey, setBusyKey] = useState(null)
+  const [status, setStatus]   = useState({})      // key → { ok, msg } 바꾼 결과를 그 줄에 표시
 
   const txs = (data?.bankSeen||[]).map(parseTxKey)
     .filter(t => day ? t.date === `${ym}-${day}` : (dir==='out' ? t.out : t.in))
@@ -23,14 +24,18 @@ export default function BankTxList({ ym, data, categories, onChanged, day }) {
   async function apply(t) {
     const e = edit[t.key] || {}
     const cur = currentClass(data, t).value
-    if (e.to === undefined || e.to === cur) return
-    if (cur === '?expense' && !e.fromCat) return alert('원래 들어가 있던 카테고리를 먼저 골라주세요')
+    const fromCat = cur === '?expense' ? (e.fromCat ?? guessFromCat(data, t, categories)) : undefined
+    const say = (ok, msg) => setStatus(p=>({ ...p, [t.key]: { ok, msg } }))
+    if (e.to === undefined || (e.to === cur)) return
+    if (cur === '?expense' && !fromCat) return say(false, '원래 들어가 있던 카테고리를 먼저 골라주세요 (왼쪽 칸)')
     setBusyKey(t.key)
     try {
-      await reclassify({ ym, tx:t, to:e.to, fromCat:e.fromCat, categories })
+      const fromLabel = classLabel(cur === '?expense' ? fromCat : cur, categories)
+      await reclassify({ ym, tx:t, to:e.to, fromCat, categories })
       setEdit(p=>{ const n = { ...p }; delete n[t.key]; return n })
-      onChanged?.()
-    } catch(err) { console.error(err); alert(err.message || '바꾸는 중 오류가 발생했어요.') }
+      say(true, fromLabel === classLabel(e.to, categories) ? `✅ '${fromLabel}'(으)로 기록했어요` : `✅ ${fromLabel} → ${classLabel(e.to, categories)}(으)로 바꿨어요`)
+      await onChanged?.()
+    } catch(err) { console.error(err); say(false, err.message || '바꾸는 중 오류가 발생했어요. 다시 시도해 주세요.') }
     setBusyKey(null)
   }
 
@@ -70,22 +75,30 @@ export default function BankTxList({ ym, data, categories, onChanged, day }) {
             {txs.map(t=>{
               const cur = currentClass(data, t).value
               const e = edit[t.key] || {}
+              const fromCat = e.fromCat ?? (cur === '?expense' ? guessFromCat(data, t, categories) : '')
               const to = e.to ?? (cur === '?expense' ? '' : cur)
               const changed = e.to !== undefined && e.to !== cur
+              const st = status[t.key]
               return (
-                <div key={t.key} style={{display:'flex',alignItems:'center',gap:8,background:'#191c2b',borderRadius:6,padding:'6px 10px',flexWrap:'wrap'}}>
+                <div key={t.key} style={{display:'flex',alignItems:'center',gap:8,background:'#191c2b',borderRadius:6,padding:'6px 10px',flexWrap:'wrap',
+                  outline: st ? `1px solid ${st.ok ? 'rgba(52,211,153,0.5)' : 'rgba(248,113,113,0.5)'}` : 'none'}}>
                   <span style={{fontSize:11,color:'#5e6585',fontFamily:'DM Mono,monospace',minWidth:76}}>{t.date.slice(5)} {t.time.slice(0,5)}</span>
                   <span style={{flex:1,fontSize:11,color:'#dde1f2',minWidth:110}}>{t.desc||'—'}</span>
                   <span style={{fontSize:12,fontWeight:700,fontFamily:'DM Mono,monospace',color: t.out ? '#f87171' : '#34d399',minWidth:84,textAlign:'right'}}>{wonFmt(t.out||t.in)}</span>
                   <span style={{fontSize:10,color: cur ? '#5e6585' : '#f87171',minWidth:120}}>지금: {classLabel(cur, categories)}</span>
                   {cur === '?expense' && (
-                    <select value={e.fromCat||''} onChange={ev=>setEdit(p=>({ ...p, [t.key]: { ...e, fromCat: ev.target.value } }))}
-                      style={{...sel, borderColor: e.fromCat ? '#272a3d' : '#f9b934'}} title="이 출금이 원래 어느 카테고리에 들어가 있었는지">
-                      <option value="">원래 카테고리?</option>
-                      {categories.map(c=><option key={c.id} value={c.id}>{c.label}</option>)}
-                    </select>
+                    <span style={{display:'flex',alignItems:'center',gap:4,fontSize:10,color:'#5e6585'}}>
+                      원래
+                      <select value={fromCat} onChange={ev=>setEdit(p=>({ ...p, [t.key]: { ...e, fromCat: ev.target.value } }))}
+                        style={{...sel, borderColor: fromCat ? '#272a3d' : '#f9b934'}} title="이 출금이 원래 어느 카테고리 칸에 들어가 있었는지">
+                        <option value="">카테고리?</option>
+                        {categories.map(c=><option key={c.id} value={c.id}>{c.label}</option>)}
+                      </select>
+                      →
+                    </span>
                   )}
-                  <select value={to} onChange={ev=>setEdit(p=>({ ...p, [t.key]: { ...e, to: ev.target.value } }))} style={{...sel,minWidth:130}}>
+                  <select value={to} onChange={ev=>setEdit(p=>({ ...p, [t.key]: { ...e, to: ev.target.value } }))} style={{...sel,minWidth:130}}
+                    title="바꿀 분류">
                     <option value="">— 미분류 —</option>
                     {renderOptions(t)}
                   </select>
@@ -94,6 +107,7 @@ export default function BankTxList({ ym, data, categories, onChanged, day }) {
                       borderRadius:6,padding:'5px 10px',fontSize:11,fontWeight:700,cursor: changed ? 'pointer' : 'default',fontFamily:'inherit'}}>
                     {busyKey===t.key ? '...' : '바꾸기'}
                   </button>
+                  {st && <span style={{width:'100%',fontSize:10,color: st.ok ? '#34d399' : '#f87171',paddingLeft:84}}>{st.msg}</span>}
                 </div>
               )
             })}

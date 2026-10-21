@@ -322,6 +322,16 @@ const [payingDate, setPayingDate]     = useState('')
     } catch(e) { console.error(e) }
   }
 
+  // 통장 거래 분류를 바꾼 뒤: 화면을 '로딩 중'으로 바꾸지 않고 데이터만 다시 불러옴 (펼친 목록·결과 표시 유지)
+  async function refreshData() {
+    try {
+      const s = await getDoc(doc(db,'expenses',curMonth))
+      setData(s.exists() ? s.data() : {})
+      const ls = await getDoc(doc(db,'loans','hyung'))
+      setLoanRecords(ls.exists() ? (ls.data().list||[]) : [])
+    } catch(e) { console.error(e) }
+  }
+
   // 직접 입력한 이월을 다시 통장 잔액 기준(자동)으로
   async function resetCarryoverAuto() {
     await setDoc(doc(db,'expenses',curMonth), { carryoverSource:'auto' }, { merge:true })
@@ -457,10 +467,7 @@ const [payingDate, setPayingDate]     = useState('')
       </div>
 
       {/* ── 통장 잔액 맞추기 (영업 잔액 vs 실제 통장) ── */}
-      <BankReconCard ym={curMonth} data={data} categories={categories} onChanged={()=>{
-        load()
-        getDoc(doc(db,'loans','hyung')).then(s=>setLoanRecords(s.exists() ? (s.data().list||[]) : [])).catch(e=>console.error(e))
-      }}/>
+      <BankReconCard ym={curMonth} data={data} categories={categories} onChanged={refreshData}/>
 
       {/* ── 고정지출 체크리스트 ── */}
       <div style={{background:'#12141f',border:`1px solid ${unpaidFixed.length>0?'rgba(248,113,113,0.4)':'rgba(52,211,153,0.3)'}`,borderRadius:12,marginBottom:18,overflow:'hidden'}}>
@@ -998,10 +1005,7 @@ const [payingDate, setPayingDate]     = useState('')
                     {openDay===dd && (
                       <tr>
                         <td colSpan={5+categories.length} style={{padding:'8px 10px 12px',borderBottom:'1px solid #272a3d',background:'rgba(147,197,253,0.03)'}}>
-                          <BankTxList ym={curMonth} data={data} categories={categories} day={dd} onChanged={()=>{
-                            load()
-                            getDoc(doc(db,'loans','hyung')).then(s=>setLoanRecords(s.exists() ? (s.data().list||[]) : [])).catch(e=>console.error(e))
-                          }}/>
+                          <BankTxList ym={curMonth} data={data} categories={categories} day={dd} onChanged={refreshData}/>
                         </td>
                       </tr>
                     )}

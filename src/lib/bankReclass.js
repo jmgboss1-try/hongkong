@@ -33,6 +33,13 @@ export function currentClass(data, tx) {
   return { value:'' }
 }
 
+// 예전 건(카테고리 기록 없음)의 원래 카테고리 추측: 그날 그 금액 이상이 들어 있는 칸이 하나뿐이면 그 칸
+export function guessFromCat(data, tx, categories) {
+  const e = data[tx.date.slice(8,10)] || {}
+  const c = categories.filter(c => (e[c.id]||0) >= tx.out)
+  return c.length === 1 ? c[0].id : ''
+}
+
 export function classLabel(value, categories) {
   if (!value) return '미분류'
   if (value === 'deposit') return '💰 실입금'
@@ -70,7 +77,13 @@ export async function reclassify({ ym, tx, to, fromCat, categories }) {
   const d = snap.exists() ? snap.data() : {}
   const cur = currentClass(d, tx)
   const from = cur.value === '?expense' ? fromCat : cur.value
-  if (from === to) return
+  if (from === to) {
+    // 예전 건을 원래 카테고리 그대로 두는 경우: 금액은 그대로, 어느 칸인지 기록만 남김
+    if (cur.value === '?expense' && to) {
+      await setDoc(doc(db,'expenses',ym), { bankCls: { ...(d.bankCls||{}), [tx.key]: to } }, { merge:true })
+    }
+    return
+  }
   const dd = tx.date.slice(8,10)
   const day = () => { const e = { ...(d[dd]||{}) }; categories.forEach(c=>{ if(e[c.id]===undefined) e[c.id]=0 }); d[dd] = e; return e }
   const amount = tx.out || tx.in
