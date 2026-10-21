@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { db } from '../firebase'
 import { doc, getDoc, setDoc } from 'firebase/firestore'
-import { bankSummary, NONOP_LABELS } from '../lib/bankRecon'
+import { bankSummary, NONOP_LABELS, INVEST_OPTIONS, investOption, appendInvestmentRecords } from '../lib/bankRecon'
 
 const wonFmt = n => (n||0).toLocaleString('ko-KR')
 const sign = n => n > 0 ? `+${wonFmt(n)}` : n < 0 ? `−${wonFmt(-n)}` : '0'
@@ -48,11 +48,16 @@ export default function BankReconCard({ ym, data, categories, onChanged }) {
       const d = snap.exists() ? snap.data() : {}
       const keys = [...(d.importedKeys||[])], keySet = new Set(keys)
       const nonOp = [...(d.nonOp||[])], nonOpKeys = new Set(nonOp.map(x=>x.key))
-      const loans = {}
+      const loans = {}, invs = []
       for (const t of chosen) {
         if (keySet.has(t.key) || nonOpKeys.has(t.key)) continue
         const v = picks[t.key]
-        if (v.startsWith('nonop:')) {
+        const inv = investOption(v)
+        if (inv) {
+          nonOp.push({ key:t.key, date:t.date, dir:'out', amount:t.out, kind:'invest', desc:t.desc, investor:inv.investor, category:inv.category })
+          nonOpKeys.add(t.key)
+          invs.push({ key:t.key, date:t.date, amount:t.out, desc:t.desc, investor:inv.investor, category:inv.category })
+        } else if (v.startsWith('nonop:')) {
           const kind = v.slice(6)
           nonOp.push({ key:t.key, date:t.date, dir:'out', amount:t.out, kind, desc:t.desc })
           nonOpKeys.add(t.key)
@@ -83,6 +88,7 @@ export default function BankReconCard({ ym, data, categories, onChanged }) {
         cur.sort((a,b)=>a.date.localeCompare(b.date))
         await setDoc(doc(db,'loans',id), { list: cur })
       }
+      await appendInvestmentRecords(invs)
       setPicks({})
       onChanged?.()
     } catch(e) { console.error(e); alert('저장 중 오류가 발생했어요. 다시 시도해 주세요.') }
@@ -173,6 +179,9 @@ export default function BankReconCard({ ym, data, categories, onChanged }) {
                   ))}
                   <optgroup label="영업 외 (지출 아님)">
                     {Object.entries(NONOP_LABELS).map(([k,l])=><option key={k} value={`nonop:${k}`}>{l}</option>)}
+                  </optgroup>
+                  <optgroup label="투자관리 회수로 기록 (영업 외)">
+                    {INVEST_OPTIONS.map(o=><option key={o.value} value={o.value}>{o.label}</option>)}
                   </optgroup>
                   <option value="ack">✓ 이미 지출에 있음 (금액 안 더함)</option>
                 </select>

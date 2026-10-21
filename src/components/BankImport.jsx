@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { db } from '../firebase'
 import { doc, getDoc, setDoc } from 'firebase/firestore'
+import { INVEST_OPTIONS, investOption, appendInvestmentRecords } from '../lib/bankRecon'
 
 // 은행 거래내역 엑셀(.xls/.xlsx/.csv) 또는 PDF(국민은행 '계좌 거래내역 조회', 비밀번호 가능)를 읽어
 // 출금은 지출 카테고리로 더하고, 입금은 조회기간의 날짜별 실입금액(deposit)을 PDF 합계로 '맞춤'(더하지 않고 바꿈)
@@ -204,7 +205,8 @@ const NONOP_KINDS = [
   { value:'__nonop_personal', kind:'personal', label:'👤 개인 이체' },
   { value:'__nonop_other',    kind:'other',    label:'📎 기타 영업외' },
 ]
-const kindOf = v => NONOP_KINDS.find(k=>k.value===v)?.kind
+// '__inv:<투자자>:<종류>' = 투자·정산 중 투자관리 회수로도 기록되는 출금
+const kindOf = v => investOption(v) ? 'invest' : NONOP_KINDS.find(k=>k.value===v)?.kind
 // 대여금 장부(loans/{id})와 연결되는 종류 · 보낸분/받는분 이름으로 자동 인식
 //   형(김기억) = 예금주 이름. '홍콩반점0410 상'(상암점 계좌)으로 오간 돈도 결국 형이 가져가는 돈이라 같은 형 대여금으로 봄
 const LEDGERS = { '__loan': 'hyung' }
@@ -280,7 +282,8 @@ export default function BankImport({ categories, onSaved }) {
         const pays = Object.fromEntries(months.map((ym,i)=>[ym, paySnaps[i].exists() ? paySnaps[i].data() : {}]))
         fixedMap = matchFixed(txs.filter(t=>t.out && !importedKeys.has(t.key) && !nonOpByKey.has(t.key)), items, pays)
       } catch(e) { console.error(e) }
-      const kindValue = k => k==='loan_sangam' ? '__loan' : (NONOP_KINDS.find(x=>x.kind===k)?.value || '__nonop_other')
+      const kindValue = (k, rec) => rec?.investor ? `__inv:${rec.investor}:${rec.category}`
+        : k==='loan_sangam' ? '__loan' : (NONOP_KINDS.find(x=>x.kind===k)?.value || '__nonop_other')
       setRows(txs.map(t=>{
         const rec = nonOpByKey.get(t.key)
         if (!t.out) {
@@ -294,7 +297,7 @@ export default function BankImport({ categories, onSaved }) {
           if (isSangam(t)) return { ...t, include:false, kind:'__loan', sangam:true, loanDup: ledgerHas(t,'received') }
           return { ...t, include:true, kind:'__nonop_other' }
         }
-        if (rec) return { ...t, imported:true, cat: kindValue(rec.kind), include:false }
+        if (rec) return { ...t, imported:true, cat: kindValue(rec.kind, rec), include:false }
         // 예전 버전에서 대여금 장부로만 보낸 출금: 영업 외 거래 기록이 없으니 다시 반영할 수 있게 (장부에는 다시 안 씀)
         if (importedKeys.has(t.key) && ledgerKeys.has(t.key)) return { ...t, cat:'__loan', include:true, loanDup:true }
         const imported = importedKeys.has(t.key)
@@ -378,8 +381,9 @@ export default function BankImport({ categories, onSaved }) {
         for (const r of [...nonOpOut, ...nonOpIn].filter(r=>r.date.startsWith(ym))) {
           savedKeys.add(r.key)
           if (nonOpKeys.has(r.key)) continue
+          const inv = r.out ? investOption(r.cat) : null
           nonOp.push({ key:r.key, date:r.date, dir: r.out ? 'out' : 'in', amount: r.out || r.in,
-            kind: kindOf(r.out ? r.cat : r.kind), desc: r.desc })
+            kind: kindOf(r.out ? r.cat : r.kind), desc: r.desc, ...(inv ? { investor: inv.investor, category: inv.category } : {}) })
           nonOpKeys.add(r.key)
         }
         // 실입금액: 조회기간 날짜는 PDF 입금 합계로 바꿈 (더하지 않으므로 여러 번 올려도 같음)
@@ -421,6 +425,10 @@ export default function BankImport({ categories, onSaved }) {
         list.sort((a,b)=>a.date.localeCompare(b.date))
         await setDoc(doc(db,'loans',id), { list })
       }
+      // 투자관리 회수 내역에도 기록
+      const invCount = await appendInvestmentRecords(nonOpOut.filter(r=>investOption(r.cat)).map(r=>{
+        const o = investOption(r.cat); return { key:r.key, date:r.date, amount:r.out, desc:r.desc, investor:o.investor, category:o.category }
+      }))
       // 고른 카테고리·종류를 규칙으로 저장. 실패해도 반영은 이미 끝남
       const newRules = [...rules]
       const upsert = (kw, categoryId, deposit) => {
@@ -459,7 +467,7 @@ export default function BankImport({ categories, onSaved }) {
 
       const parts = []
       if (expOut.length) parts.push(`지출 ${expOut.length}건 ${wonFmt(expOut.reduce((a,r)=>a+r.out,0))}원`)
-      if (nonOpOut.length + nonOpIn.length) parts.push(`영업 외 거래 ${nonOpOut.length + nonOpIn.length}건${loanCount?`(대여금 장부 ${loanCount}건 포함)`:''}`)
+      if (nonOpOut.length + nonOpIn.length) parts.push(`영업 외 거래 ${nonOpOut.length + nonOpIn.length}건${loanCount?`(대여금 장부 ${loanCount}건 포함)`:''}${invCount?` · 투자관리 회수 ${invCount}건 기록`:''}`)
       if (depChanged.length) parts.push(`실입금액 ${depChanged.length}일치를 PDF 기준으로 맞춤`)
       setDone(`${months.map(m=>`${+m.slice(5)}월`).join('·')} 지출관리에 ${parts.length ? parts.join(', ') + ' 반영했어요.' : '통장 거래 기록을 저장했어요.'}`)
       setExistingDep(prev=>{ const n = { ...prev }; for (const d of depChanged) n[d.date] = d.pdf; return n })
@@ -507,7 +515,7 @@ export default function BankImport({ categories, onSaved }) {
         <span style={{fontSize:13,fontWeight:700,color,fontFamily:'DM Mono,monospace',minWidth:90,textAlign:'right'}}>{wonFmt(amount)}원</span>
         {(r.imported || r.recorded) ? (
           <span style={{fontSize:10,color:'#5e6585',minWidth:110,textAlign:'center'}}>
-            ✓ 이미 반영됨{(r.recorded || isNonOp(r.cat)) ? ` (${NONOP_KINDS.find(k=>k.value===(r.out?r.cat:r.kind))?.label||'영업외'})` : ''}
+            ✓ 이미 반영됨{(r.recorded || isNonOp(r.cat)) ? ` (${investOption(r.cat)?.label || NONOP_KINDS.find(k=>k.value===(r.out?r.cat:r.kind))?.label||'영업외'})` : ''}
           </span>
         ) : showCat ? (
           <select value={r.cat} onChange={e=>setCat(r.i, e.target.value)}
@@ -519,6 +527,9 @@ export default function BankImport({ categories, onSaved }) {
               </optgroup>
             ))}
             <optgroup label="영업 외 (지출 아님 · 통장 잔액 맞추기에만)">{nonOpOptions}</optgroup>
+            <optgroup label="투자관리 회수로 기록 (영업 외)">
+              {INVEST_OPTIONS.map(o=><option key={o.value} value={o.value}>{o.label}</option>)}
+            </optgroup>
             <option value="skip">반영 안 함 (이미 직접 적은 지출 등)</option>
           </select>
         ) : !r.include && (

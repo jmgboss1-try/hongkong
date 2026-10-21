@@ -1,3 +1,6 @@
+import { db } from '../firebase'
+import { doc, getDoc, setDoc } from 'firebase/firestore'
+
 // 통장 잔액 맞추기 계산 — expenses/{YYYY-MM} 문서 하나로 계산
 //
 //   전월 이월 + 실입금 − 지출                      = 영업 잔액 (앱)
@@ -65,4 +68,34 @@ export function bankSummary(data, categories) {
     },
   }
   return { carryover, deposit, expense, operating, nonOpIn, nonOpOut, byKind, expected, bank }
+}
+
+// 투자관리(investment/records) 회수로 연결되는 영업 외 출금 — 선택값 '__inv:<투자자>:<종류>'
+// 투자자·종류는 Investment.jsx의 INVESTORS / CATEGORIES_BY_INVESTOR와 같음
+export const INVEST_OPTIONS = [
+  { value:'__inv:terry:investment', investor:'terry', category:'investment', label:'💰 테리 투자금 회수' },
+  { value:'__inv:terry:loss',       investor:'terry', category:'loss',       label:'📉 테리 운영 손해분 회수' },
+  { value:'__inv:terry:severance',  investor:'terry', category:'severance',  label:'📦 테리 퇴직금 대납 회수' },
+  { value:'__inv:hyung:investment', investor:'hyung', category:'investment', label:'💰 형 투자금 회수' },
+  { value:'__inv:hyung:loan',       investor:'hyung', category:'loan',       label:'🏦 형 대출금 상환 회수' },
+]
+export const investOption = v => INVEST_OPTIONS.find(o=>o.value===v)
+
+// 투자관리 회수 내역에 추가 (저장 직전 다시 읽고, 같은 은행 거래(bankKey)는 한 번만)
+//   txs: [{ key, date, amount, desc, investor, category }]
+export async function appendInvestmentRecords(txs) {
+  if (!txs.length) return 0
+  const snap = await getDoc(doc(db,'investment','records'))
+  const list = snap.exists() ? (snap.data().list||[]) : []
+  const have = new Set(list.map(r=>r.bankKey).filter(Boolean))
+  let n = Date.now(), added = 0
+  for (const t of txs) {
+    if (have.has(t.key)) continue
+    list.push({ id:String(n++), date:t.date, amount:t.amount, investor:t.investor, category:t.category,
+      memo:`계좌내역 자동 기록 (${t.desc})`, createdAt:new Date().toISOString(), bankKey:t.key })
+    have.add(t.key); added++
+  }
+  list.sort((a,b)=>a.date>b.date?1:-1)
+  await setDoc(doc(db,'investment','records'), { list })
+  return added
 }
