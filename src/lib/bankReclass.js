@@ -40,11 +40,53 @@ export function guessFromCat(data, tx, categories) {
   return c.length === 1 ? c[0].id : ''
 }
 
+// 예전 건(카테고리 기록 없음)을 한꺼번에 추정 — 금액은 이미 맞게 들어가 있고 '어느 칸인지' 기록만 채움
+//  1) 가져오기 규칙(expenseImportRules) · '홍콩반점0410중'(본사 물류대금) → 그 칸에 금액이 남아 있으면 확정
+//  2) 그날 칸 중 남은 금액이 그 출금 이상인 칸이 하나뿐이면 확정 (확정할 때마다 남은 금액을 줄이며 반복)
+//  여러 칸이 가능한 건은 그대로 두고 화면에서 고르게 함
+//  rules: [{ keyword, categoryId }]  → 돌려주는 값: { 키: 카테고리 id }
+export function inferLegacyCls(data, categories, rules = []) {
+  const ids = new Set(categories.map(c=>c.id))
+  const cls = data.bankCls || {}
+  const legacy = (data.bankSeen||[]).map(parseTxKey).filter(t => t.out && currentClass(data, t).value === '?expense')
+  const norm = s => String(s??'').replace(/\s+/g,'')
+  const ruleCat = t => {
+    let best = null
+    for (const r of rules) {
+      const k = norm(r.keyword)
+      if (k && ids.has(r.categoryId) && t.desc.includes(k) && (!best || k.length > norm(best.keyword).length)) best = r
+    }
+    if (best) return best.categoryId
+    return t.desc.includes('홍콩반점0410중') && ids.has('hq') ? 'hq' : ''
+  }
+  const out = {}
+  for (const dd of new Set(legacy.map(t=>t.date.slice(8,10)))) {
+    const e = data[dd] || {}
+    const cap = Object.fromEntries(categories.map(c=>[c.id, e[c.id]||0]))
+    // 이미 칸이 기록된 같은 날 출금은 그 칸에서 먼저 뺌
+    for (const k of data.importedKeys||[]) {
+      const t = parseTxKey(k)
+      if (t.date.slice(8,10) === dd && cls[k] && cap[cls[k]] !== undefined) cap[cls[k]] -= t.out
+    }
+    let rest = legacy.filter(t=>t.date.slice(8,10) === dd).sort((a,b)=>b.out-a.out)
+    const take = (t, c) => { out[t.key] = c; cap[c] -= t.out; rest = rest.filter(x=>x!==t) }
+    for (const t of [...rest]) { const c = ruleCat(t); if (c && cap[c] >= t.out) take(t, c) }
+    for (let changed = true; changed; ) {
+      changed = false
+      for (const t of [...rest]) {
+        const fit = categories.filter(c => cap[c.id] >= t.out)
+        if (fit.length === 1) { take(t, fit[0].id); changed = true }
+      }
+    }
+  }
+  return out
+}
+
 export function classLabel(value, categories) {
   if (!value) return '미분류'
   if (value === 'deposit') return '💰 실입금'
   if (value === 'ack') return '✓ 다른 곳에 적은 지출과 연결'
-  if (value === '?expense') return '지출 (카테고리 기록 없음)'
+  if (value === '?expense') return '지출 (어느 칸인지 확인 필요)'
   if (value.startsWith('nonop:')) return NONOP_LABELS[value.slice(6)] || '영업 외'
   const inv = investOption(value)
   if (inv) return inv.label

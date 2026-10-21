@@ -3,6 +3,7 @@ import BankImport from '../components/BankImport'
 import BankReconCard from '../components/BankReconCard'
 import BankTxList from '../components/BankTxList'
 import { bankSummary } from '../lib/bankRecon'
+import { inferLegacyCls } from '../lib/bankReclass'
 import { db } from '../firebase'
 import { doc, getDoc, setDoc } from 'firebase/firestore'
 
@@ -106,6 +107,16 @@ const [payingDate, setPayingDate]     = useState('')
         if(auto != null && (d.carryover !== auto || d.carryoverSource !== src)) {
           await setDoc(doc(db,'expenses',curMonth), { carryover: auto, carryoverSource: src }, { merge:true })
           d = { ...d, carryover: auto, carryoverSource: src }
+        }
+      }
+      // 카테고리 기록(bankCls) 전에 가져온 출금: 어느 칸인지 추정해서 기록만 채움 (금액은 그대로)
+      const cats = catSnap.exists() ? (catSnap.data().list || DEFAULT_CATEGORIES) : DEFAULT_CATEGORIES
+      if((d.importedKeys||[]).some(k=>!(d.bankCls||{})[k])) {
+        const rules = await getDoc(doc(db,'expenseImportRules','default')).then(s=>s.exists() ? (s.data().list||[]) : []).catch(()=>[])
+        const guessed = inferLegacyCls(d, cats, rules)
+        if(Object.keys(guessed).length) {
+          d = { ...d, bankCls: { ...(d.bankCls||{}), ...guessed } }
+          await setDoc(doc(db,'expenses',curMonth), { bankCls: d.bankCls }, { merge:true })
         }
       }
       setData(d); setCarryover(d.carryover||'')

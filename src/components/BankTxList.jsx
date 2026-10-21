@@ -25,15 +25,16 @@ export default function BankTxList({ ym, data, categories, onChanged, day }) {
     const e = edit[t.key] || {}
     const cur = currentClass(data, t).value
     const fromCat = cur === '?expense' ? (e.fromCat ?? guessFromCat(data, t, categories)) : undefined
+    const to = e.to ?? (cur === '?expense' ? fromCat : cur)
     const say = (ok, msg) => setStatus(p=>({ ...p, [t.key]: { ok, msg } }))
-    if (e.to === undefined || (e.to === cur)) return
-    if (cur === '?expense' && !fromCat) return say(false, '원래 들어가 있던 카테고리를 먼저 골라주세요 (왼쪽 칸)')
+    if (!to || to === cur) return
+    if (cur === '?expense' && !fromCat) return say(false, '이 출금이 지금 어느 칸에 들어가 있는지 먼저 골라주세요 (왼쪽 칸)')
     setBusyKey(t.key)
     try {
       const fromLabel = classLabel(cur === '?expense' ? fromCat : cur, categories)
-      await reclassify({ ym, tx:t, to:e.to, fromCat, categories })
+      await reclassify({ ym, tx:t, to, fromCat, categories })
       setEdit(p=>{ const n = { ...p }; delete n[t.key]; return n })
-      say(true, fromLabel === classLabel(e.to, categories) ? `✅ '${fromLabel}'(으)로 기록했어요` : `✅ ${fromLabel} → ${classLabel(e.to, categories)}(으)로 바꿨어요`)
+      say(true, fromLabel === classLabel(to, categories) ? `✅ '${fromLabel}'(으)로 확인했어요` : `✅ ${fromLabel} → ${classLabel(to, categories)}(으)로 바꿨어요`)
       await onChanged?.()
     } catch(err) { console.error(err); say(false, err.message || '바꾸는 중 오류가 발생했어요. 다시 시도해 주세요.') }
     setBusyKey(null)
@@ -76,8 +77,9 @@ export default function BankTxList({ ym, data, categories, onChanged, day }) {
               const cur = currentClass(data, t).value
               const e = edit[t.key] || {}
               const fromCat = e.fromCat ?? (cur === '?expense' ? guessFromCat(data, t, categories) : '')
-              const to = e.to ?? (cur === '?expense' ? '' : cur)
-              const changed = e.to !== undefined && e.to !== cur
+              const to = e.to ?? (cur === '?expense' ? fromCat : cur)
+              const changed = cur === '?expense' ? !!(to && fromCat) : (e.to !== undefined && e.to !== cur)
+              const confirmOnly = cur === '?expense' && to === fromCat
               const st = status[t.key]
               return (
                 <div key={t.key} style={{display:'flex',alignItems:'center',gap:8,background:'#191c2b',borderRadius:6,padding:'6px 10px',flexWrap:'wrap',
@@ -88,10 +90,10 @@ export default function BankTxList({ ym, data, categories, onChanged, day }) {
                   <span style={{fontSize:10,color: cur ? '#5e6585' : '#f87171',minWidth:120}}>지금: {classLabel(cur, categories)}</span>
                   {cur === '?expense' && (
                     <span style={{display:'flex',alignItems:'center',gap:4,fontSize:10,color:'#5e6585'}}>
-                      원래
+                      지금 칸
                       <select value={fromCat} onChange={ev=>setEdit(p=>({ ...p, [t.key]: { ...e, fromCat: ev.target.value } }))}
                         style={{...sel, borderColor: fromCat ? '#272a3d' : '#f9b934'}} title="이 출금이 원래 어느 카테고리 칸에 들어가 있었는지">
-                        <option value="">카테고리?</option>
+                        <option value="">어느 칸?</option>
                         {categories.map(c=><option key={c.id} value={c.id}>{c.label}</option>)}
                       </select>
                       →
@@ -105,7 +107,7 @@ export default function BankTxList({ ym, data, categories, onChanged, day }) {
                   <button onClick={()=>apply(t)} disabled={!changed || busyKey===t.key}
                     style={{background: changed ? '#f9b934' : '#191c2b',color: changed ? '#000' : '#5e6585',border: changed ? 'none' : '1px solid #272a3d',
                       borderRadius:6,padding:'5px 10px',fontSize:11,fontWeight:700,cursor: changed ? 'pointer' : 'default',fontFamily:'inherit'}}>
-                    {busyKey===t.key ? '...' : '바꾸기'}
+                    {busyKey===t.key ? '...' : confirmOnly ? '맞아요' : '바꾸기'}
                   </button>
                   {st && <span style={{width:'100%',fontSize:10,color: st.ok ? '#34d399' : '#f87171',paddingLeft:84}}>{st.msg}</span>}
                 </div>
