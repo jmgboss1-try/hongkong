@@ -313,22 +313,18 @@ export default function BankImport({ categories, onSaved }) {
     setBusy(false)
   }
 
-  // 카테고리를 고르면 같은 내용의 (아직 반영 안 된) 출금 거래에 모두 적용
+  // 카테고리를 고르면 그 줄만 바뀜. 같은 이름의 다른 줄은 아직 아무것도 안 고른 빈칸일 때만 같이 채움
+  // (동명이인·같은 업체라도 목적이 다를 수 있어서, 이미 골라진 줄은 건드리지 않음)
   function setCat(i, cat) {
     setRows(prev=>{
       const target = norm(prev[i].matchText)
-      // 고정지출과 연결된 건은 다른 줄을 고를 때 같이 바뀌지 않게 (중복 방지 상태 유지)
-      return prev.map((r,j)=> (j===i || (target && !r.imported && !r.fixed && r.out && norm(r.matchText)===target)) ? { ...r, cat, include: cat!=='skip' } : r)
+      return prev.map((r,j)=> (j===i || (cat && cat!=='skip' && target && !r.imported && !r.fixed && r.out && !r.cat && r.include && norm(r.matchText)===target))
+        ? { ...r, cat, include: cat!=='skip' } : r)
     })
   }
   const toggle = i => setRows(prev=>prev.map((r,j)=>j===i ? { ...r, include: !r.include } : r))
-  // 입금 포함/제외·종류 — 같은 보낸분의 (아직 기록 안 된) 입금에 모두 적용
-  function updateDeposit(i, patch) {
-    setRows(prev=>{
-      const target = norm(prev[i].matchText)
-      return prev.map((r,j)=> (j===i || (target && !r.out && !r.recorded && norm(r.matchText)===target)) ? { ...r, ...patch, selfTransfer:false } : r)
-    })
-  }
+  // 입금 포함/제외·종류 — 그 줄만 바뀜 (같은 이름이라도 목적이 다를 수 있음)
+  const updateDeposit = (i, patch) => setRows(prev=>prev.map((r,j)=> j===i ? { ...r, ...patch, selfTransfer:false } : r))
 
   const outs = rows ? rows.map((r,i)=>({ ...r, i })).filter(r=>r.out) : []
   const ins  = rows ? rows.map((r,i)=>({ ...r, i })).filter(r=>r.in) : []
@@ -433,14 +429,28 @@ export default function BankImport({ categories, onSaved }) {
         if (ex >= 0) newRules[ex] = { keyword: kw, categoryId }
         else newRules.push({ keyword: kw, categoryId })
       }
-      for (const r of pickedOut) if (r.cat && !r.fixed) upsert(String(r.matchText||'').trim(), r.cat, false)
-      const seen = new Set()
-      for (const r of ins) {
+      // 같은 이름에 이번에 서로 다른 걸 골랐으면 기억하지 않음 (다음에 엉뚱하게 자동 선택되지 않게) + 기존 기억도 지움
+      const removeRule = (kw, deposit) => {
+        const ex = newRules.findIndex(x=>norm(x.keyword)===norm(kw) && isDepositRule(x)===deposit)
+        if (ex >= 0) newRules.splice(ex, 1)
+      }
+      const outChoices = new Map()
+      for (const r of pickedOut) if (r.cat && !r.fixed) {
         const kw = String(r.matchText||'').trim()
-        if (r.recorded || r.selfTransfer || r.sangam || seen.has(norm(kw))) continue
-        seen.add(norm(kw))
+        ;(outChoices.get(norm(kw)) || outChoices.set(norm(kw), { kw, set:new Set() }).get(norm(kw))).set.add(r.cat)
+      }
+      for (const { kw, set } of outChoices.values()) set.size === 1 ? upsert(kw, [...set][0], false) : removeRule(kw, false)
+      const inChoices = new Map()
+      for (const r of ins) {
+        if (r.recorded || r.selfTransfer || r.sangam) continue
+        const kw = String(r.matchText||'').trim()
+        ;(inChoices.get(norm(kw)) || inChoices.set(norm(kw), { kw, set:new Set() }).get(norm(kw))).set.add(r.include ? 'include' : (r.kind || 'none'))
+      }
+      for (const { kw, set } of inChoices.values()) {
         const hadRule = newRules.some(x=>isDepositRule(x) && norm(x.keyword)===norm(kw))
-        if (!r.include) upsert(kw, `in:${r.kind || 'none'}`, true)
+        if (set.size > 1) { removeRule(kw, true); continue }
+        const v = [...set][0]
+        if (v !== 'include') upsert(kw, `in:${v}`, true)
         else if (hadRule) upsert(kw, 'in:include', true)
       }
       setRules(newRules)
