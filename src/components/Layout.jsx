@@ -225,7 +225,7 @@ export default function Layout({ children }) {
       )}
 
       {/* ── MAIN ── */}
-      <div className="main-content" style={{marginLeft:214, flex:1, padding:'28px 30px', minHeight:'100vh'}}>
+      <div className="main-content" style={{marginLeft:214, flex:1, minWidth:0, padding:'28px 30px', minHeight:'100vh'}}>
         {children}
       </div>
 
