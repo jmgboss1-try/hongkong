@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react'
 import BankImport from '../components/BankImport'
 import BankReconCard from '../components/BankReconCard'
-import StoreLoanLedger from '../components/StoreLoanLedger'
 import { db } from '../firebase'
 import { doc, getDoc, setDoc } from 'firebase/firestore'
 
@@ -70,7 +69,6 @@ const [payingDate, setPayingDate]     = useState('')
 
   // 입력 모드
   const [inputMode, setInputMode] = useState('manual')
-  const [loanReload, setLoanReload] = useState(0) // 계좌내역 가져오기 후 상암점 대여금 장부 다시 불러오기
 
 
   const days = daysIn(curMonth)
@@ -106,6 +104,18 @@ const [payingDate, setPayingDate]     = useState('')
   useEffect(()=>{
     async function loadLoans() {
       try {
+        // 예전에 따로 두던 '상암점 대여금'(loans/sangam)은 형 대여금과 같은 돈이라 형 장부로 합침 (한 번만, 중복 없이)
+        const sg = await getDoc(doc(db,'loans','sangam'))
+        const sangam = sg.exists() ? (sg.data().list || []) : []
+        if(sangam.length) {
+          const hs = await getDoc(doc(db,'loans','hyung'))
+          const list = hs.exists() ? (hs.data().list || []) : []
+          const has = r => list.some(x => (r.bankKey && x.bankKey===r.bankKey) || (x.type===r.type && x.date===r.date && x.amount===r.amount))
+          for(const r of sangam) if(!has(r)) list.push({ ...r, memo: `[상암점 계좌] ${r.memo||''}`.trim() })
+          list.sort((a,b)=>a.date.localeCompare(b.date))
+          await setDoc(doc(db,'loans','hyung'), { list })
+          await setDoc(doc(db,'loans','sangam'), { list: [], mergedInto: 'hyung' })
+        }
         const snap = await getDoc(doc(db,'loans','hyung'))
         if(snap.exists()) setLoanRecords(snap.data().list || [])
       } catch(e) { console.error(e) }
@@ -420,7 +430,6 @@ const [payingDate, setPayingDate]     = useState('')
       <BankReconCard ym={curMonth} data={data} categories={categories} onChanged={()=>{
         load()
         getDoc(doc(db,'loans','hyung')).then(s=>setLoanRecords(s.exists() ? (s.data().list||[]) : [])).catch(e=>console.error(e))
-        setLoanReload(n=>n+1)
       }}/>
 
       {/* ── 고정지출 체크리스트 ── */}
@@ -753,9 +762,6 @@ const [payingDate, setPayingDate]     = useState('')
         )}
       </div>
 
-      {/* ── 상암점과의 대여금 (계좌내역 가져오기가 자동 기록) ── */}
-      <StoreLoanLedger ledgerId="sangam" title="🏪 상암점과의 대여금" partner="상암점" reloadKey={loanReload}/>
-
       {/* 입력 영역 */}
       <div style={{background:'#12141f',border:'1px solid #272a3d',borderRadius:12,marginBottom:18}}>
         <div style={{display:'flex',borderBottom:'1px solid #272a3d'}}>
@@ -779,7 +785,6 @@ const [payingDate, setPayingDate]     = useState('')
             if(last && last!==curMonth) setCurMonth(last); else load()
             // 대여금 장부도 바뀌었을 수 있으니 다시 불러옴
             getDoc(doc(db,'loans','hyung')).then(s=>setLoanRecords(s.exists() ? (s.data().list||[]) : [])).catch(e=>console.error(e))
-            setLoanReload(n=>n+1)
           }}/>
         )}
 

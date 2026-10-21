@@ -8,7 +8,7 @@ const sign = n => n > 0 ? `+${wonFmt(n)}` : n < 0 ? `−${wonFmt(-n)}` : '0'
 const md = d => d ? `${+d.slice(5,7)}/${+d.slice(8,10)}` : ''
 
 // 영업 외 종류 → 연결되는 대여금 장부 (BankImport와 같음)
-const LEDGER_OF = { loan:'hyung', loan_sangam:'sangam' }
+const LEDGER_OF = { loan:'hyung' }
 
 // 통장 거래 키 '날짜|시간|출금|입금|잔액|내용|순번'
 const parseKey = k => { const [date, time, out, inn, , desc] = String(k).split('|'); return { key:k, date, time, out:+out||0, in:+inn||0, desc } }
@@ -198,7 +198,7 @@ export default function BankReconCard({ ym, data, categories, onChanged }) {
               {nonOp.map(x=>(
                 <div key={x.key} style={{display:'flex',gap:10,fontSize:11,background:'#191c2b',borderRadius:6,padding:'6px 10px',flexWrap:'wrap'}}>
                   <span style={{color:'#5e6585',fontFamily:'DM Mono,monospace',minWidth:44}}>{md(x.date)}</span>
-                  <span style={{minWidth:96}}>{NONOP_LABELS[x.kind]||x.kind}</span>
+                  <span style={{minWidth:96}}>{NONOP_LABELS[x.kind==='loan_sangam'?'loan':x.kind]||x.kind}</span>
                   <span style={{flex:1,color:'#dde1f2'}}>{x.desc}</span>
                   <span style={{fontFamily:'DM Mono,monospace',color: x.dir==='in' ? '#34d399' : '#f87171'}}>{x.dir==='in'?'+':'−'}{wonFmt(x.amount)}</span>
                 </div>

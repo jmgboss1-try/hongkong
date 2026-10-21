@@ -9,7 +9,9 @@
 //   importedKeys: 지출로 반영한 출금 키 목록
 //   nonOp       : 영업 외 거래 [{ key, date, dir:'in'|'out', amount, kind, desc }]
 
-export const NONOP_LABELS = { loan:'🤝 대여금(형)', loan_sangam:'🏪 상암점 대여금', invest:'💼 투자·정산', personal:'👤 개인 이체', other:'📎 기타 영업외' }
+// 예전 'loan_sangam'(상암점 계좌) 기록은 형 대여금과 같은 것으로 합쳐서 봄
+const normKind = k => k === 'loan_sangam' ? 'loan' : (k || 'other')
+export const NONOP_LABELS = { loan:'🤝 대여금(형)', invest:'💼 투자·정산', personal:'👤 개인 이체', other:'📎 기타 영업외' }
 
 const parseKey = k => {
   const [date, time, out, inn, balance] = String(k).split('|')
@@ -33,7 +35,7 @@ export function bankSummary(data, categories) {
   const nonOpOut = nonOp.filter(x=>x.dir==='out').reduce((a,x)=>a+(x.amount||0),0)
   const byKind = {}
   for (const x of nonOp) {
-    const b = (byKind[x.kind||'other'] ||= { in:0, out:0 })
+    const b = (byKind[normKind(x.kind)] ||= { in:0, out:0 })
     b[x.dir==='in'?'in':'out'] += x.amount||0
   }
   const expected = operating + nonOpIn - nonOpOut

@@ -200,15 +200,14 @@ function matchFixed(txs, fixedItems, paysByMonth) {
 
 const NONOP_KINDS = [
   { value:'__loan',           kind:'loan',     label:'🤝 대여금(형)' },
-  { value:'__loan_sangam',    kind:'loan_sangam', label:'🏪 상암점 대여금' },
   { value:'__nonop_invest',   kind:'invest',   label:'💼 투자·정산' },
   { value:'__nonop_personal', kind:'personal', label:'👤 개인 이체' },
   { value:'__nonop_other',    kind:'other',    label:'📎 기타 영업외' },
 ]
 const kindOf = v => NONOP_KINDS.find(k=>k.value===v)?.kind
 // 대여금 장부(loans/{id})와 연결되는 종류 · 보낸분/받는분 이름으로 자동 인식
-//   형(김기억) = 예금주 이름, 상암점 = '홍콩반점0410 상'(홍콩반점 상암점 계좌. '홍콩반점0410중'은 중앙대점 계좌)
-const LEDGERS = { '__loan': 'hyung', '__loan_sangam': 'sangam' }
+//   형(김기억) = 예금주 이름. '홍콩반점0410 상'(상암점 계좌)으로 오간 돈도 결국 형이 가져가는 돈이라 같은 형 대여금으로 봄
+const LEDGERS = { '__loan': 'hyung' }
 const isSangam = t => norm(t.matchText).startsWith('홍콩반점0410상')
 // 기본 카테고리 (사용자가 고른 규칙이 없을 때): '홍콩반점0410중'은 본사 물류대금 가상계좌 → 본사발주
 const builtinCat = (t, categories) => norm(t.matchText).startsWith('홍콩반점0410중') && categories.some(c=>c.id==='hq') ? 'hq' : ''
@@ -281,7 +280,7 @@ export default function BankImport({ categories, onSaved }) {
         const pays = Object.fromEntries(months.map((ym,i)=>[ym, paySnaps[i].exists() ? paySnaps[i].data() : {}]))
         fixedMap = matchFixed(txs.filter(t=>t.out && !importedKeys.has(t.key) && !nonOpByKey.has(t.key)), items, pays)
       } catch(e) { console.error(e) }
-      const kindValue = k => NONOP_KINDS.find(x=>x.kind===k)?.value || '__nonop_other'
+      const kindValue = k => k==='loan_sangam' ? '__loan' : (NONOP_KINDS.find(x=>x.kind===k)?.value || '__nonop_other')
       setRows(txs.map(t=>{
         const rec = nonOpByKey.get(t.key)
         if (!t.out) {
@@ -292,7 +291,7 @@ export default function BankImport({ categories, onSaved }) {
           if (rv && rv !== 'none') return { ...t, include:false, kind: rv }
           if (rv === 'none') return { ...t, include:false, kind:'' }
           if (isHolder(t)) return { ...t, include:false, kind:'__loan', selfTransfer:true, loanDup: ledgerHas(t,'received') }
-          if (isSangam(t)) return { ...t, include:false, kind:'__loan_sangam', sangam:true, loanDup: ledgerHas(t,'received','sangam') }
+          if (isSangam(t)) return { ...t, include:false, kind:'__loan', sangam:true, loanDup: ledgerHas(t,'received') }
           return { ...t, include:true, kind:'__nonop_other' }
         }
         if (rec) return { ...t, imported:true, cat: kindValue(rec.kind), include:false }
@@ -301,7 +300,7 @@ export default function BankImport({ categories, onSaved }) {
         const imported = importedKeys.has(t.key)
         if (imported) return { ...t, imported:true, cat:'', include:false }
         if (isHolder(t)) return { ...t, cat:'__loan', include:true, loanDup: ledgerHas(t,'lent') }
-        if (isSangam(t)) return { ...t, cat:'__loan_sangam', include:true, sangam:true, loanDup: ledgerHas(t,'lent','sangam') }
+        if (isSangam(t)) return { ...t, cat:'__loan', include:true, sangam:true, loanDup: ledgerHas(t,'lent') }
         const fixed = fixedMap.get(t.key)
         if (fixed) return { ...t, fixed, cat: fixed.paid ? 'skip' : fixed.categoryId, include: !fixed.paid }
         return { ...t, cat: ruleFor(outRules, t) || builtinCat(t, categories), include:true }
@@ -420,7 +419,7 @@ export default function BankImport({ categories, onSaved }) {
         const have = new Set(list.map(x=>x.bankKey).filter(Boolean))
         for (const { type, amount, r } of loanNew) {
           if (have.has(r.key)) continue
-          list.push({ id: String(n++), date: r.date, type, amount, memo: `계좌내역 자동 기록 (${r.desc})`, bankKey: r.key })
+          list.push({ id: String(n++), date: r.date, type, amount, memo: `${r.sangam ? '[상암점 계좌] ' : ''}계좌내역 자동 기록 (${r.desc})`, bankKey: r.key })
           have.add(r.key); loanCount++
         }
         list.sort((a,b)=>a.date.localeCompare(b.date))
@@ -493,7 +492,7 @@ export default function BankImport({ categories, onSaved }) {
             <span style={{display:'block',fontSize:10,marginTop:2,color:'#5e6585'}}>대여금 장부에 이미 같은 기록이 있어서 장부에는 다시 쓰지 않아요</span>
           )}
           {r.selfTransfer && <span style={{display:'block',fontSize:10,marginTop:2,color:'#5e6585'}}>예금주(형) 본인 이체라 실입금에서 뺐어요</span>}
-          {r.sangam && !r.imported && !r.recorded && <span style={{display:'block',fontSize:10,marginTop:2,color:'#93c5fd'}}>상암점 계좌와 주고받은 돈이라 상암점 대여금 장부로 보내요</span>}
+          {r.sangam && !r.imported && !r.recorded && <span style={{display:'block',fontSize:10,marginTop:2,color:'#93c5fd'}}>상암점 계좌로 형과 주고받은 돈이라 형과의 대여금으로 보내요</span>}
         </span>
         <span style={{fontSize:13,fontWeight:700,color,fontFamily:'DM Mono,monospace',minWidth:90,textAlign:'right'}}>{wonFmt(amount)}원</span>
         {(r.imported || r.recorded) ? (
