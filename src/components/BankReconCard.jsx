@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { db } from '../firebase'
 import { doc, getDoc, setDoc } from 'firebase/firestore'
 import { bankSummary, NONOP_LABELS, INVEST_OPTIONS, investOption, appendInvestmentRecords } from '../lib/bankRecon'
+import BankTxList from './BankTxList'
 
 const wonFmt = n => (n||0).toLocaleString('ko-KR')
 const sign = n => n > 0 ? `+${wonFmt(n)}` : n < 0 ? `−${wonFmt(-n)}` : '0'
@@ -47,6 +48,7 @@ export default function BankReconCard({ ym, data, categories, onChanged }) {
       const snap = await getDoc(doc(db,'expenses',ym))
       const d = snap.exists() ? snap.data() : {}
       const keys = [...(d.importedKeys||[])], keySet = new Set(keys)
+      const bankCls = { ...(d.bankCls||{}) }
       const nonOp = [...(d.nonOp||[])], nonOpKeys = new Set(nonOp.map(x=>x.key))
       const loans = {}, invs = []
       for (const t of chosen) {
@@ -71,10 +73,11 @@ export default function BankReconCard({ ym, data, categories, onChanged }) {
             entry[v] = (entry[v]||0) + t.out
             d[dd] = entry
           }
-          keys.push(t.key); keySet.add(t.key)
+          keys.push(t.key); keySet.add(t.key); bankCls[t.key] = v
         }
       }
       d.importedKeys = keys
+      d.bankCls = bankCls
       if (nonOp.length) d.nonOp = nonOp
       await setDoc(doc(db,'expenses',ym), d)
       // 대여금 장부(형·상암점)에도 기록 — 같은 은행 거래는 한 번만
@@ -195,6 +198,8 @@ export default function BankReconCard({ ym, data, categories, onChanged }) {
           </button>
         </div>
       )}
+
+      <BankTxList ym={ym} data={data} categories={categories} onChanged={onChanged}/>
 
       {nonOp.length > 0 && (
         <div style={{marginTop:10}}>

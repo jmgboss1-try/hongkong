@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import BankImport from '../components/BankImport'
 import BankReconCard from '../components/BankReconCard'
+import { bankSummary } from '../lib/bankRecon'
 import { db } from '../firebase'
 import { doc, getDoc, setDoc } from 'firebase/firestore'
 
@@ -89,8 +90,23 @@ const [payingDate, setPayingDate]     = useState('')
         getDoc(doc(db,'fixedExpenses','config')),
         getDoc(doc(db,'fixedExpenses',curMonth)),
       ])
-      if(expSnap.exists()) { setData(expSnap.data()); setCarryover(expSnap.data().carryover||'') }
-      else { setData({}); setCarryover('') }
+      let d = expSnap.exists() ? expSnap.data() : {}
+      // 전월 이월 자동: 이 달 통장 시작 잔액(PDF) → 없으면 지난달 말일 통장 잔액. 직접 고친 값(manual)은 그대로
+      if(d.carryoverSource !== 'manual') {
+        let auto = bankSummary(d).bank?.opening, src = 'bank'
+        if(auto == null) {
+          const [y,m] = curMonth.split('-').map(Number)
+          const prev = m===1 ? `${y-1}-12` : `${y}-${pad(m-1)}`
+          const ps = await getDoc(doc(db,'expenses',prev))
+          auto = ps.exists() ? bankSummary(ps.data()).bank?.closing : null
+          src = 'bank-prev'
+        }
+        if(auto != null && (d.carryover !== auto || d.carryoverSource !== src)) {
+          await setDoc(doc(db,'expenses',curMonth), { carryover: auto, carryoverSource: src }, { merge:true })
+          d = { ...d, carryover: auto, carryoverSource: src }
+        }
+      }
+      setData(d); setCarryover(d.carryover||'')
       if(catSnap.exists()) setCategories(catSnap.data().list || DEFAULT_CATEGORIES)
       if(fixedCfgSnap.exists()) setFixedItems(fixedCfgSnap.data().list || [])
       if(fixedPaySnap.exists()) setFixedPayments(fixedPaySnap.data() || {})
@@ -297,11 +313,23 @@ const [payingDate, setPayingDate]     = useState('')
 
   async function saveCarryover() {
     try {
-      const newData = { ...data, carryover: +carryover||0 }
+      const newData = { ...data, carryover: +carryover||0, carryoverSource:'manual' }
       await setDoc(doc(db,'expenses',curMonth), newData)
       setData(newData)
       alert('이월 잔액이 저장됐습니다!')
     } catch(e) { console.error(e) }
+  }
+
+  // 직접 입력한 이월을 다시 통장 잔액 기준(자동)으로
+  async function resetCarryoverAuto() {
+    await setDoc(doc(db,'expenses',curMonth), { carryoverSource:'auto' }, { merge:true })
+    load()
+  }
+
+  // 지출 내역 표의 ✏️ 수정: 그 날짜를 직접 입력 화면에 불러옴
+  function editDay(dd) {
+    setInputMode('manual'); setDay(dd)
+    document.getElementById('expense-input')?.scrollIntoView({ behavior:'smooth', block:'start' })
   }
 
   async function del_row(dd) {
@@ -763,7 +791,7 @@ const [payingDate, setPayingDate]     = useState('')
       </div>
 
       {/* 입력 영역 */}
-      <div style={{background:'#12141f',border:'1px solid #272a3d',borderRadius:12,marginBottom:18}}>
+      <div id="expense-input" style={{background:'#12141f',border:'1px solid #272a3d',borderRadius:12,marginBottom:18,scrollMarginTop:70}}>
         <div style={{display:'flex',borderBottom:'1px solid #272a3d'}}>
           {[['bank','📑 계좌내역 엑셀'],['manual','✏️ 직접 입력']].map(([mode,label])=>(
             <button key={mode} onClick={()=>setInputMode(mode)}
@@ -804,6 +832,17 @@ const [payingDate, setPayingDate]     = useState('')
                     padding:'10px 16px',fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'inherit',whiteSpace:'nowrap'}}>
                   저장
                 </button>
+              </div>
+              <div style={{fontSize:10,color:'#5e6585',marginTop:6,display:'flex',gap:8,alignItems:'center',flexWrap:'wrap'}}>
+                {data.carryoverSource==='bank' ? '🏦 이 달 통장 거래내역(PDF)의 시작 잔액으로 자동 입력됐어요'
+                  : data.carryoverSource==='bank-prev' ? '🏦 지난달 통장 거래내역(PDF)의 말일 잔액으로 자동 입력됐어요'
+                  : data.carryoverSource==='manual' ? '✏️ 직접 입력한 값이에요 (PDF를 올려도 바뀌지 않아요)'
+                  : 'PDF를 올리면 통장 잔액으로 자동 입력돼요'}
+                {data.carryoverSource==='manual' && (
+                  <button onClick={resetCarryoverAuto}
+                    style={{background:'transparent',border:'1px solid rgba(147,197,253,0.3)',color:'#93c5fd',borderRadius:5,
+                      padding:'2px 8px',fontSize:10,cursor:'pointer',fontFamily:'inherit'}}>통장 잔액 기준으로 되돌리기</button>
+                )}
               </div>
             </div>
             <div style={{marginBottom:16}}>
@@ -933,6 +972,11 @@ const [payingDate, setPayingDate]     = useState('')
                         </td>
                       ))}
                       <td style={{padding:'8px 10px',borderBottom:'1px solid #272a3d',textAlign:'right'}}>
+                        <button onClick={()=>editDay(dd)}
+                          style={{background:'transparent',border:'1px solid #272a3d',color:'#dde1f2',marginRight:4,
+                            padding:'3px 8px',fontSize:10,borderRadius:4,cursor:'pointer',fontFamily:'inherit'}}>
+                          ✏️ 수정
+                        </button>
                         <button onClick={()=>del_row(dd)}
                           style={{background:'transparent',border:'1px solid #3d1f1f',color:'#f87171',
                             padding:'3px 8px',fontSize:10,borderRadius:4,cursor:'pointer',fontFamily:'inherit'}}>

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { db } from '../firebase'
 import { doc, getDoc, setDoc } from 'firebase/firestore'
-import { INVEST_OPTIONS, investOption, appendInvestmentRecords } from '../lib/bankRecon'
+import { INVEST_OPTIONS, investOption, appendInvestmentRecords, bankSummary } from '../lib/bankRecon'
 
 // 은행 거래내역 엑셀(.xls/.xlsx/.csv) 또는 PDF(국민은행 '계좌 거래내역 조회', 비밀번호 가능)를 읽어
 // 출금은 지출 카테고리로 더하고, 입금은 조회기간의 날짜별 실입금액(deposit)을 PDF 합계로 '맞춤'(더하지 않고 바꿈)
@@ -365,6 +365,7 @@ export default function BankImport({ categories, onSaved }) {
         const data = snap.exists() ? snap.data() : {}
         const keys = [...(data.importedKeys||[])], keySet = new Set(keys)
         const nonOp = [...(data.nonOp||[])], nonOpKeys = new Set(nonOp.map(x=>x.key))
+        const bankCls = { ...(data.bankCls||{}) } // 지출 출금이 어느 카테고리에 들어갔는지 (나중에 분류 바꿀 때 사용)
         for (const r of expOut.filter(r=>r.date.startsWith(ym))) {
           if (keySet.has(r.key)) { savedKeys.add(r.key); continue }
           const dd = r.date.slice(8,10)
@@ -373,10 +374,11 @@ export default function BankImport({ categories, onSaved }) {
           entry[r.cat] = (entry[r.cat]||0) + r.out
           data[dd] = entry
           keys.push(r.key); keySet.add(r.key); savedKeys.add(r.key)
+          bankCls[r.key] = r.cat
         }
         // 이미 납부 처리된 고정지출과 같은 출금: 지출은 이미 들어가 있으니 금액은 더하지 않고 연결만 (통장 잔액 맞추기에서 '정리 안 된 출금'으로 안 나오게)
         for (const r of rows.filter(r=>r.out && r.fixed?.paid && r.cat==='skip' && r.date.startsWith(ym)))
-          if (!keySet.has(r.key)) { keys.push(r.key); keySet.add(r.key) }
+          if (!keySet.has(r.key)) { keys.push(r.key); keySet.add(r.key); bankCls[r.key] = 'ack' }
         // 영업 외 거래 (지출·실입금에 안 들어가는 돈) — 통장 잔액 맞추기에 쓰임
         for (const r of [...nonOpOut, ...nonOpIn].filter(r=>r.date.startsWith(ym))) {
           savedKeys.add(r.key)
@@ -399,7 +401,20 @@ export default function BankImport({ categories, onSaved }) {
         data.bankSeen = [...new Set([...(data.bankSeen||[]), ...rows.filter(r=>r.date.startsWith(ym)).map(r=>r.key)])]
         if (keys.length) data.importedKeys = keys
         if (nonOp.length) data.nonOp = nonOp
+        data.bankCls = bankCls
+        // 전월 이월 = 이 달 통장 시작 잔액 (직접 고친 값은 그대로)
+        const bank = bankSummary(data, categories).bank
+        if (bank?.opening != null && data.carryoverSource !== 'manual') { data.carryover = bank.opening; data.carryoverSource = 'bank' }
         await setDoc(doc(db,'expenses',ym), data)
+        // 다음 달 전월 이월 = 이 달 말일 통장 잔액 (다음 달 PDF가 이미 있거나 직접 고친 값이면 그대로)
+        if (bank?.closing != null) {
+          const [y,m] = ym.split('-').map(Number)
+          const next = m===12 ? `${y+1}-01` : `${y}-${pad(m+1)}`
+          const ns = await getDoc(doc(db,'expenses',next))
+          const nd = ns.exists() ? ns.data() : {}
+          if (nd.carryoverSource !== 'manual' && !(nd.bankSeen||[]).length)
+            await setDoc(doc(db,'expenses',next), { carryover: bank.closing, carryoverSource:'bank-prev' }, { merge:true })
+        }
         // 고정지출과 연결된 출금은 고정지출도 실제 출금일로 납부 처리 (지출관리에서 다시 '납부'를 눌러 중복되는 일이 없게)
         const fixedPaid = {}
         for (const r of expOut) if (r.date.startsWith(ym) && r.fixed && !r.fixed.paid) fixedPaid[r.fixed.id] = { paid:true, paidDate: r.date.slice(8,10), amount: r.out }
