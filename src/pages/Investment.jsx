@@ -63,31 +63,48 @@ function calcInterest(principal, fromDate, toDate, rate = 0.05) {
   return Math.round(principal * rate * (days / 365))
 }
 
-// 투자 원금 조각: 최초 투자 + 추가 투입(additions: [{ id, month:'YYYY-MM', date?, amount, kind, noInterest, memo }])
+// 추가 투입(additions: [{ id, month:'YYYY-MM', date?, amount, kind, noInterest, memo }])은 각각 따로 회수 항목('add:<id>')
+// 투자금 회수(category 'investment')는 추가 투입분부터 먼저 채우고(먼저 들어간 것부터), 다 채우면 최초 투자금으로
 const additionStart = a => a.date || (a.month ? `${a.month}-01` : '')
-function principalPieces(cfg) {
-  return [
-    { amount: cfg.amount || 0, start: cfg.startDate || '', interest: true },
-    ...(cfg.additions || []).map(a => ({ amount: a.amount || 0, start: additionStart(a), interest: !a.noInterest })),
-  ].filter(p => p.amount)
-}
-// d 시점의 투자금 회수 목표 (그때까지 들어간 원금 + 각 원금의 연 5% 단리)
-function investTargetAt(pieces, d) {
-  return pieces.filter(p => !p.start || p.start <= d)
-    .reduce((a,p) => a + p.amount + (p.interest ? calcInterest(p.amount, p.start, d) : 0), 0)
-}
-// 투자금 회수 목표. 회수 누적이 목표에 닿은 날 이자 계산을 멈춤 (그 뒤 추가 투입이 있으면 계속)
-//   events: [{ date, amount }] 투자금 회수(+), 다른 항목으로 넘긴 금액(−)/넘겨받은 금액(+)
-function investTarget(pieces, events, today) {
-  const lastStart = pieces.reduce((m,p) => p.start > m ? p.start : m, '')
-  const dates = [...new Set(events.map(e=>e.date))].sort()
-  let cum = 0
-  for (const d of dates) {
-    cum += events.filter(e=>e.date===d).reduce((a,e)=>a+e.amount,0)
-    if (d > today) break
-    if (cum > 0 && d >= lastStart && cum >= investTargetAt(pieces, d)) return { target: investTargetAt(pieces, d), doneAt: d }
+const sortedAdditions = cfg => [...(cfg.additions || [])].filter(a=>a.amount).sort((a,b)=>additionStart(a).localeCompare(additionStart(b)))
+const additionLabel = a => `${a.kind==='operating' ? '🏪 추가 운영자금' : '➕ 추가 투자금'} 회수 (${(a.date||a.month||'').replace(/-/g,'.')}${a.memo ? ` · ${a.memo}` : ''})`
+// 투자자별 회수 항목: 추가 투입분(회수 순서대로) → 기본 항목
+const categoriesFor = (uid, cfg) => [
+  ...sortedAdditions(cfg || {}).map(a => ({ key:`add:${a.id}`, label: additionLabel(a), addition:a })),
+  ...(CATEGORIES_BY_INVESTOR[uid] || CATEGORIES_BY_INVESTOR.terry),
+]
+
+// 투자금 회수 배분. 각 원금 조각은 연 5% 단리(조각마다 시작일부터), 다 회수된 날 이자 계산을 멈춤
+//   flowsOf(key) → [{ date, amount }]  회수 기록(+) · 넘긴 금액(−) · 넘겨받은 금액(+)
+//   돌려주는 값: { pieces:[{ key, amount, target, paid, doneAt }], surplus } — surplus는 모든 조각을 채우고 남은 투자금 회수
+function allocateInvest(cfg, flowsOf, today) {
+  const pieces = [
+    ...sortedAdditions(cfg).map(a => ({ key:`add:${a.id}`, amount:a.amount, start:additionStart(a), interest:!a.noInterest })),
+    { key:'investment', amount: cfg.amount || 0, start: cfg.startDate || '', interest: true },
+  ].map(p => ({ ...p, paid:0, doneAt:null }))
+  const owedAt = (p, d) => p.amount + (p.interest ? calcInterest(p.amount, p.start, d) : 0)
+  const events = [
+    ...flowsOf('investment').map(f => ({ ...f, to:null })),
+    ...pieces.filter(p=>p.key!=='investment').flatMap(p => flowsOf(p.key).map(f => ({ ...f, to:p.key }))),
+    ...pieces.filter(p=>p.start).map(p => ({ date:p.start, amount:0, to:null })), // 새 투입일에 남은 회수분을 먼저 채우도록
+  ].filter(e => e.date <= today)
+  let surplus = 0
+  for (const d of [...new Set(events.map(e=>e.date))].sort()) {
+    const evs = events.filter(e=>e.date===d)
+    for (const e of evs.filter(e=>e.to)) pieces.find(p=>p.key===e.to).paid += e.amount
+    let avail = surplus + evs.filter(e=>!e.to).reduce((a,e)=>a+e.amount,0)
+    for (const p of pieces) {
+      if (avail <= 0) break
+      if (p.doneAt || (p.start && p.start > d) || !p.amount) continue
+      const pay = Math.min(avail, Math.max(0, owedAt(p, d) - p.paid))
+      p.paid += pay; avail -= pay
+    }
+    if (avail < 0) { pieces[pieces.length-1].paid += avail; avail = 0 }
+    surplus = avail
+    for (const p of pieces) if (!p.doneAt && p.amount && p.paid > 0 && (!p.start || p.start <= d) && p.paid >= owedAt(p, d)) p.doneAt = d
   }
-  return { target: investTargetAt(pieces, today), doneAt: null }
+  for (const p of pieces) p.target = p.amount ? owedAt(p, p.doneAt || today) : 0
+  return { pieces, surplus }
 }
 
 // 대출금 연간 일시 이자 계산
@@ -252,6 +269,8 @@ export default function Investment() {
 
   const today = todayStr()
   const transfers = config.transfers || []
+  const catLabel = (uid, key) => categoriesFor(uid, config[uid]).find(c=>c.key===key)?.label
+    || ALL_CATEGORIES.find(c=>c.key===key)?.label || (String(key).startsWith('add:') ? '➕ 추가 투입 회수 (삭제된 항목)' : key)
   // 항목별 회수 흐름: 회수 기록(+) · 넘긴 금액(−) · 넘겨받은 금액(+)
   const flows = (uid, cat) => [
     ...records.filter(r => r.investor===uid && r.category===cat).map(r => ({ date:r.date, amount:r.amount||0 })),
@@ -268,10 +287,10 @@ export default function Investment() {
   const summary = {}
   for (const uid of Object.keys(INVESTORS)) {
     const inv      = config[uid] || {}
-    const pieces   = principalPieces(inv)
-    const principal = pieces.reduce((a,p)=>a+p.amount,0)
-    const invest   = investTarget(pieces, flows(uid,'investment'), today)
-    const interest = invest.target - principal
+    const alloc    = allocateInvest(inv, key => flows(uid, key), today)
+    const principal = alloc.pieces.reduce((a,p)=>a+p.amount,0)
+    const interest = alloc.pieces.reduce((a,p)=>a+p.target-p.amount,0)
+    const pieceOf  = key => alloc.pieces.find(p=>p.key===key)
 
     // 형의 경우 대출금 원금+이자도 회수 목표에 포함
     const loanTarget = uid === 'hyung' ? HYUNG_LOAN.amount + hyungLoanInterest : 0
@@ -284,10 +303,12 @@ export default function Investment() {
       .filter(r => r.investor === uid)
       .reduce((a,r) => a + (r.amount||0), 0)
 
-    const byCategory = {}
+    const byCategory = {}, targetOf = {}, doneAt = {}
     for (const cat of ALL_CATEGORIES) byCategory[cat.key] = flows(uid, cat.key).reduce((a,f) => a + f.amount, 0)
+    for (const p of alloc.pieces) { byCategory[p.key] = p.paid; targetOf[p.key] = p.target; doneAt[p.key] = p.doneAt }
+    byCategory.investment = pieceOf('investment').paid + alloc.surplus
 
-    summary[uid] = { principal, interest, totalTarget, recovered, investDoneAt: invest.doneAt,
+    summary[uid] = { principal, interest, totalTarget, recovered, targetOf, doneAt,
       remaining:      Math.max(0, totalTarget - recovered), byCategory,
       loanTarget:     uid === 'hyung' ? loanTarget : 0,
       loanInterest:   uid === 'hyung' ? hyungLoanInterest : 0,
@@ -336,7 +357,7 @@ export default function Investment() {
             </div>
             {rows.map((r,i)=>{
               const inv = INVESTORS[r.investor]
-              const cat = ALL_CATEGORIES.find(c=>c.key===r.category)
+              const cat = { label: catLabel(r.investor, r.category) }
               return (
                 <div key={r.id} style={{display:'flex',alignItems:'center',gap:12,
                   padding:'10px 18px 10px 30px',position:'relative',
@@ -464,7 +485,7 @@ export default function Investment() {
                     </button>
                   </div>
                   {!(editConfig[uid]?.additions||[]).length && (
-                    <div style={{fontSize:10,color:'#5e6585'}}>최초 투자 뒤에 더 넣은 투자금·운영자금을 여기에 기록해요 (투입 연월부터 이자 계산)</div>
+                    <div style={{fontSize:10,color:'#5e6585'}}>최초 투자 뒤에 더 넣은 투자금·운영자금을 기록해요. 항목마다 따로 회수 현황이 생기고, 투자금 회수는 추가 투입분(먼저 넣은 것부터)을 먼저 채워요</div>
                   )}
                   {(editConfig[uid]?.additions||[]).map(a=>{
                     const setA = patch => setEditConfig(prev=>({ ...prev, [uid]: { ...(prev[uid]||{}),
@@ -564,8 +585,7 @@ export default function Investment() {
               <select value={form.investor}
                 onChange={e=>{
                   const newInvestor = e.target.value
-                  const cats = CATEGORIES_BY_INVESTOR[newInvestor] || CATEGORIES_BY_INVESTOR.terry
-                  setForm(f=>({...f, investor:newInvestor, category:cats[0].key}))
+                  setForm(f=>({...f, investor:newInvestor, category:'investment'}))
                 }}
                 style={{background:'#191c2b',border:'1px solid #272a3d',borderRadius:7,color:'#dde1f2',
                   padding:'8px 10px',fontSize:12,outline:'none',width:'100%',fontFamily:'inherit'}}>
@@ -581,7 +601,7 @@ export default function Investment() {
                 onChange={e=>setForm(f=>({...f,category:e.target.value}))}
                 style={{background:'#191c2b',border:'1px solid #272a3d',borderRadius:7,color:'#dde1f2',
                   padding:'8px 10px',fontSize:12,outline:'none',width:'100%',fontFamily:'inherit'}}>
-                {(CATEGORIES_BY_INVESTOR[form.investor]||CATEGORIES_BY_INVESTOR.terry).map(c=>(
+                {categoriesFor(form.investor, config[form.investor]).map(c=>(
                   <option key={c.key} value={c.key}>{c.label}</option>
                 ))}
               </select>
@@ -676,7 +696,7 @@ export default function Investment() {
                     <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:14}}>
                       {[
                         {label:'투자 원금',    val:s.principal,   color:'#dde1f2'},
-                        {label: s.investDoneAt ? '이자(5%, 회수 완료)' : '누적 이자(5%)', val:s.interest, color:'#f87171'},
+                        {label:'누적 이자(5%)', val:s.interest, color:'#f87171'},
                         {label:'총 회수 목표',  val:s.totalTarget, color:inv.color},
                         {label:'회수 완료',     val:s.recovered,   color:'#34d399'},
                       ].map(k=>(
@@ -694,22 +714,22 @@ export default function Investment() {
                     {/* 카테고리별 회수 — 투자자별로 해당 카테고리만 표시 */}
                     <div style={{marginTop:14,display:'flex',flexDirection:'column',gap:8}}>
                       <div style={{fontSize:10,color:'#5e6585',fontWeight:600,marginBottom:2}}>카테고리별 회수 현황</div>
-                      {(CATEGORIES_BY_INVESTOR[uid]||CATEGORIES_BY_INVESTOR.terry).map(cat=>{
+                      {categoriesFor(uid, inv_cfg).map(cat=>{
                         const val = s.byCategory[cat.key] || 0
-                        const target = cat.key==='investment' ? (s.principal + s.interest)
+                        const target = s.targetOf[cat.key] !== undefined ? s.targetOf[cat.key]
                           : cat.key==='loss'       ? s.lossTarget
                           : cat.key==='severance'  ? s.severanceTarget
                           : cat.key==='loan'       ? s.loanTarget
                           : 0
                         const pct = target > 0 ? Math.min(100, Math.round(val/target*100)) : 0
-                        const notSet = target === 0 && cat.key !== 'investment'
+                        const notSet = target === 0 && cat.key !== 'investment' && !cat.addition
                         const excess = target > 0 ? val - target : 0
                         const tKey = `${uid}:${cat.key}`
-                        const others = (CATEGORIES_BY_INVESTOR[uid]||[]).filter(c=>c.key!==cat.key)
+                        const others = categoriesFor(uid, inv_cfg).filter(c=>c.key!==cat.key)
                         return (
                           <div key={cat.key} style={{background:'#191c2b',borderRadius:7,padding:'8px 10px'}}>
                             <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:target>0?6:0}}>
-                              <span style={{fontSize:11,color:'#5e6585'}}>{cat.label}</span>
+                              <span style={{fontSize:11,color:'#5e6585'}}>{cat.key==='investment' && (inv_cfg.additions||[]).length ? '💰 최초 투자금 회수' : cat.label}</span>
                               <span style={{fontSize:11,color:val>0?inv.color:'#3d4060',
                                 fontFamily:'DM Mono,monospace',fontWeight:val>0?700:400}}>
                                 {val>0 ? wonFmt(val) : '—'}
@@ -727,9 +747,14 @@ export default function Investment() {
                                 ⚠ 목표 금액 미설정 (⚙️ 투자금 설정에서 입력)
                               </div>
                             )}
-                            {cat.key==='investment' && s.investDoneAt && (
+                            {s.doneAt[cat.key] && (
                               <div style={{fontSize:9,color:'#34d399',marginTop:4}}>
-                                ✓ {s.investDoneAt}에 다 회수돼서 이자 계산을 멈췄어요
+                                ✓ {s.doneAt[cat.key]}에 다 회수{cat.addition?.noInterest ? '됐어요' : '돼서 이자 계산을 멈췄어요'}
+                              </div>
+                            )}
+                            {cat.addition && !s.doneAt[cat.key] && (
+                              <div style={{fontSize:9,color:'#5e6585',marginTop:4}}>
+                                {cat.addition.noInterest ? '이자 없음' : `${additionStart(cat.addition)}부터 연 5% 단리`} · 투자금 회수는 이 항목부터 먼저 채워져요
                               </div>
                             )}
                             {excess > 0 && (
@@ -774,30 +799,12 @@ export default function Investment() {
                     </div>
 
                     {/* 추가 투입 · 넘기기 기록 */}
-                    {(inv_cfg.additions||[]).length > 0 && (
-                      <div style={{marginTop:12,background:'#191c2b',borderRadius:8,padding:'8px 10px'}}>
-                        <div style={{fontSize:10,color:'#5e6585',fontWeight:600,marginBottom:6}}>➕ 투자 원금 구성</div>
-                        <div style={{display:'flex',justifyContent:'space-between',fontSize:10,color:'#5e6585',padding:'2px 0'}}>
-                          <span>최초 투자 {inv_cfg.startDate ? `(${inv_cfg.startDate.slice(0,7)})` : ''}</span>
-                          <span style={{fontFamily:'DM Mono,monospace',color:'#dde1f2'}}>{wonFmt(inv_cfg.amount)}</span>
-                        </div>
-                        {[...inv_cfg.additions].sort((a,b)=>additionStart(a).localeCompare(additionStart(b))).map(a=>(
-                          <div key={a.id} style={{display:'flex',justifyContent:'space-between',gap:8,fontSize:10,color:'#5e6585',padding:'2px 0'}}>
-                            <span style={{overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>
-                              {a.date || a.month} {a.kind==='operating' ? '🏪 운영자금' : '💰 투자금'}
-                              {a.noInterest && ' (이자 없음)'}{a.memo && ` · ${a.memo}`}
-                            </span>
-                            <span style={{fontFamily:'DM Mono,monospace',color:'#dde1f2',flexShrink:0}}>+{wonFmt(a.amount)}</span>
-                          </div>
-                        ))}
-                      </div>
-                    )}
                     {transfers.some(t=>t.investor===uid) && (
                       <div style={{marginTop:12,background:'#191c2b',borderRadius:8,padding:'8px 10px'}}>
                         <div style={{fontSize:10,color:'#5e6585',fontWeight:600,marginBottom:6}}>↪ 넘기기 기록</div>
                         {transfers.filter(t=>t.investor===uid).map(t=>(
                           <div key={t.id} style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:8,fontSize:10,color:'#5e6585',padding:'2px 0'}}>
-                            <span>{t.date} {ALL_CATEGORIES.find(c=>c.key===t.from)?.label} → {ALL_CATEGORIES.find(c=>c.key===t.to)?.label}</span>
+                            <span>{t.date} {catLabel(uid, t.from)} → {catLabel(uid, t.to)}</span>
                             <span style={{display:'flex',alignItems:'center',gap:6}}>
                               <span style={{fontFamily:'DM Mono,monospace',color:'#f9b934'}}>{wonFmt(t.amount)}</span>
                               {!isInvestor && (
