@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react'
+import { Fragment, useEffect, useState } from 'react'
 import BankImport from '../components/BankImport'
 import BankReconCard from '../components/BankReconCard'
+import BankTxList from '../components/BankTxList'
 import { bankSummary } from '../lib/bankRecon'
 import { db } from '../firebase'
 import { doc, getDoc, setDoc } from 'firebase/firestore'
@@ -70,6 +71,7 @@ const [payingDate, setPayingDate]     = useState('')
 
   // 입력 모드
   const [inputMode, setInputMode] = useState('manual')
+  const [openDay, setOpenDay] = useState(null) // 지출 내역 표에서 통장 거래를 펼친 날짜
 
 
   const days = daysIn(curMonth)
@@ -952,10 +954,19 @@ const [payingDate, setPayingDate]     = useState('')
                   const dep = e.deposit||0
                   const profit = dep - expSum
                   if(!expSum && !dep) return null
+                  const txCount = (data.bankSeen||[]).filter(k=>k.startsWith(`${curMonth}-${dd}|`)).length
                   return (
-                    <tr key={dd}>
-                      <td style={{padding:'8px 10px',borderBottom:'1px solid #272a3d',color:getDowColor(dd),fontWeight:600}}>
+                    <Fragment key={dd}>
+                    <tr>
+                      <td style={{padding:'8px 10px',borderBottom:'1px solid #272a3d',color:getDowColor(dd),fontWeight:600,whiteSpace:'nowrap'}}>
                         {+dd}일 ({getDow(dd)})
+                        {txCount>0 && (
+                          <button onClick={()=>setOpenDay(openDay===dd?null:dd)}
+                            style={{marginLeft:6,background:openDay===dd?'rgba(147,197,253,0.15)':'transparent',border:'1px solid rgba(147,197,253,0.3)',
+                              color:'#93c5fd',borderRadius:4,padding:'1px 6px',fontSize:10,cursor:'pointer',fontFamily:'inherit',fontWeight:500}}>
+                            {openDay===dd?'▾':'▸'} 거래 {txCount}건
+                          </button>
+                        )}
                       </td>
                       <td style={{padding:'8px 10px',borderBottom:'1px solid #272a3d',textAlign:'right',color:'#34d399',fontFamily:'DM Mono,monospace',fontWeight:700}}>
                         {dep>0?dep.toLocaleString():'—'}
@@ -984,6 +995,17 @@ const [payingDate, setPayingDate]     = useState('')
                         </button>
                       </td>
                     </tr>
+                    {openDay===dd && (
+                      <tr>
+                        <td colSpan={5+categories.length} style={{padding:'8px 10px 12px',borderBottom:'1px solid #272a3d',background:'rgba(147,197,253,0.03)'}}>
+                          <BankTxList ym={curMonth} data={data} categories={categories} day={dd} onChanged={()=>{
+                            load()
+                            getDoc(doc(db,'loans','hyung')).then(s=>setLoanRecords(s.exists() ? (s.data().list||[]) : [])).catch(e=>console.error(e))
+                          }}/>
+                        </td>
+                      </tr>
+                    )}
+                    </Fragment>
                   )
                 })}
                 {Object.keys(data).filter(dd=>/^\d{2}$/.test(dd)).length===0 && (

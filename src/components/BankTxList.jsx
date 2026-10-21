@@ -5,15 +5,17 @@ const wonFmt = n => (n||0).toLocaleString('ko-KR')
 const norm = s => String(s??'').replace(/\s+/g,'')
 
 // 통장 잔액 맞추기 안: 이 달 통장 거래 전체와 지금 분류를 보여주고, 한 건씩 분류를 바꿀 수 있게
-export default function BankTxList({ ym, data, categories, onChanged }) {
-  const [open, setOpen]   = useState(false)
+// day='09' 처럼 주면 그날 거래만 펼친 채로 보여줌 (지출 내역 표에서 날짜 줄을 펼칠 때)
+export default function BankTxList({ ym, data, categories, onChanged, day }) {
+  const [openState, setOpen] = useState(false)
+  const open = !!day || openState
   const [dir, setDir]     = useState('out')   // 'out' | 'in'
   const [q, setQ]         = useState('')
   const [edit, setEdit]   = useState({})      // key → { to, fromCat }
   const [busyKey, setBusyKey] = useState(null)
 
   const txs = (data?.bankSeen||[]).map(parseTxKey)
-    .filter(t => dir==='out' ? t.out : t.in)
+    .filter(t => day ? t.date === `${ym}-${day}` : (dir==='out' ? t.out : t.in))
     .filter(t => !q || norm(t.desc).includes(norm(q)) || String(t.out||t.in).includes(q.replace(/[^0-9]/g,'') || '__'))
     .sort((a,b)=>(a.date+a.time).localeCompare(b.date+b.time))
   if (!(data?.bankSeen||[]).length) return null
@@ -43,14 +45,18 @@ export default function BankTxList({ ym, data, categories, onChanged }) {
   }
 
   return (
-    <div style={{marginTop:12}}>
-      <button type="button" onClick={()=>setOpen(v=>!v)}
+    <div style={{marginTop: day ? 0 : 12}}>
+      {!day && <button type="button" onClick={()=>setOpen(v=>!v)}
         style={{background:'transparent',border:'none',color:'#93c5fd',fontSize:11,cursor:'pointer',fontFamily:'inherit',padding:0}}>
         {open ? '▾ 통장 거래 분류 접기' : `▸ 🔁 통장 거래 분류 보기·바꾸기 (${(data.bankSeen||[]).length}건)`}
-      </button>
+      </button>}
       {open && (
         <div style={{marginTop:8}}>
-          <div style={{display:'flex',gap:6,alignItems:'center',flexWrap:'wrap',marginBottom:8}}>
+          {day ? (
+            <div style={{fontSize:10,color:'#5e6585',marginBottom:6}}>
+              {+day}일 통장 거래 — 한 건씩 분류를 바꿀 수 있어요. 바꾸면 위 표의 칸 금액도 같이 바뀌어요.
+            </div>
+          ) : <div style={{display:'flex',gap:6,alignItems:'center',flexWrap:'wrap',marginBottom:8}}>
             {[['out','💸 출금'],['in','💰 입금']].map(([k,l])=>(
               <button key={k} onClick={()=>setDir(k)}
                 style={{padding:'5px 12px',borderRadius:6,border:'none',fontSize:11,fontWeight:600,cursor:'pointer',fontFamily:'inherit',
@@ -59,7 +65,7 @@ export default function BankTxList({ ym, data, categories, onChanged }) {
             <input value={q} onChange={e=>setQ(e.target.value)} placeholder="이름·금액 검색"
               style={{...sel,padding:'6px 10px',width:160}}/>
             <span style={{fontSize:10,color:'#5e6585'}}>분류를 바꾸면 원래 들어간 곳(지출 칸·실입금·대여금 장부·투자관리)에서 빼고 새 곳에 넣어요</span>
-          </div>
+          </div>}
           <div style={{display:'flex',flexDirection:'column',gap:4,maxHeight:420,overflowY:'auto'}}>
             {txs.map(t=>{
               const cur = currentClass(data, t).value
