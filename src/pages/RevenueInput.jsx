@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
-import { db } from '../firebase'
+import { db, auth } from '../firebase'
+import { compressImage } from '../components/PhotoAttach'
 import { doc, getDoc, setDoc } from 'firebase/firestore'
 import { useAuth } from '../AuthContext'
 
@@ -44,6 +45,7 @@ export default function RevenueInput() {
 
   // 포스기에서 하루 종일 켜두므로 1분마다 날짜를 다시 확인 — 날짜가 바뀌면 그날 문서를 새로 불러옴
   const [, setTick] = useState(0)
+  const [scan, setScan] = useState(null) // 사진 인식: { busy } | { result, photo } | { error }
   useEffect(()=>{
     const id = setInterval(()=>setTick(t=>t+1), 60000)
     return ()=>clearInterval(id)
@@ -67,6 +69,7 @@ export default function RevenueInput() {
   }
 
   useEffect(()=>{
+    setScan(null)
     const rec = data[todayDD]
     if(!rec) { resetInputs(); return }
     if(activeSession === 'middle') {
@@ -86,6 +89,30 @@ export default function RevenueInput() {
       setDdangyeo(rec[fieldKey(activeSession,'ddangyeo')] || '')
     }
   },[activeSession, data])
+
+  // 마감 출력물 사진 → 서버(/api/read-receipt)에서 Claude로 읽어 칸을 채움. 저장은 확인 후 직접
+  async function readPhoto(file) {
+    if (!file) return
+    setScan({ busy:true })
+    try {
+      const photo = await compressImage(file, 1600, 600)
+      const token = await auth.currentUser?.getIdToken()
+      const r = await fetch('/api/read-receipt', {
+        method:'POST',
+        headers:{ 'Content-Type':'application/json', Authorization:`Bearer ${token||''}` },
+        body: JSON.stringify({ image: photo }),
+      })
+      const result = await r.json().catch(()=>({}))
+      if (!r.ok) throw new Error(result.error || `사진 인식 실패 (${r.status})`)
+      const v = n => n == null ? '' : String(n)
+      setKiosk(v(result.kiosk)); setPos(v(result.pos))
+      setBaemin(v(result.baemin)); setCoupang(v(result.coupang)); setYogiyo(v(result.yogiyo)); setDdangyeo(v(result.ddangyeo))
+      setScan({ result, photo })
+    } catch(e) {
+      console.error(e)
+      setScan({ error: e.message || '사진을 읽지 못했어요' })
+    }
+  }
 
   async function save() {
     setSaving(true)
@@ -243,6 +270,36 @@ export default function RevenueInput() {
                   : '미입력'})을 자동으로 빼서 미들타임 순수 매출만 저장돼요.
               </div>
             )}
+          </div>
+
+          {/* 사진으로 채우기 */}
+          <div style={{marginBottom:16}}>
+            <label style={{display:'flex',alignItems:'center',justifyContent:'center',gap:6,
+              background: scan?.busy ? '#191c2b' : `${si.color}18`, border:`1px dashed ${si.color}88`,borderRadius:8,
+              padding:'11px',fontSize:12,fontWeight:700,color:si.color,cursor: scan?.busy ? 'default' : 'pointer'}}>
+              {scan?.busy ? '⏳ 사진 읽는 중... (10~30초)' : '📷 마감 출력물 사진으로 채우기'}
+              <input type="file" accept="image/*" capture="environment" disabled={!!scan?.busy} style={{display:'none'}}
+                onChange={e=>{ readPhoto(e.target.files?.[0]); e.target.value='' }}/>
+            </label>
+            {scan?.error && <div style={{fontSize:11,color:'#f87171',marginTop:6}}>⚠️ {scan.error}</div>}
+            {scan?.result && (()=>{
+              const r = scan.result
+              const sum = (+kiosk||0) + delTotal + (+pos||0)
+              const warns = []
+              if (r.total != null && r.total !== sum) warns.push(`적힌 합계 ${r.total.toLocaleString()}원과 칸 합계 ${sum.toLocaleString()}원이 달라요`)
+              if (r.delivery != null && r.delivery !== delTotal) warns.push(`적힌 배달 합계 ${r.delivery.toLocaleString()}원과 배달 칸 합계 ${delTotal.toLocaleString()}원이 달라요`)
+              if (r.date && r.date !== `${today}-${todayDD}`) warns.push(`출력물 날짜가 ${r.date}예요 (오늘이 아니에요)`)
+              if (r.notes) warns.push(r.notes)
+              return (
+                <div style={{display:'flex',gap:10,marginTop:8,background:'#191c2b',borderRadius:8,padding:10,alignItems:'flex-start'}}>
+                  <img src={scan.photo} alt="출력물" style={{width:56,height:72,objectFit:'cover',borderRadius:4,flexShrink:0}}/>
+                  <div style={{fontSize:11,lineHeight:1.6,color:'#dde1f2',minWidth:0}}>
+                    <div style={{color:'#34d399',fontWeight:700}}>✅ 사진에서 읽은 숫자로 아래 칸을 채웠어요. 확인하고 저장하세요.</div>
+                    {warns.map((w,i)=><div key={i} style={{color:'#f9b934'}}>⚠️ {w}</div>)}
+                  </div>
+                </div>
+              )
+            })()}
           </div>
 
           <div style={{display:'flex',flexDirection:'column',gap:12}}>
