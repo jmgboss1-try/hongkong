@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { db, auth } from '../firebase'
-import { compressImage } from '../components/PhotoAttach'
+import { compressImage, PhoneReceiveModal } from '../components/PhotoAttach'
 import { doc, getDoc, setDoc } from 'firebase/firestore'
 import { useAuth } from '../AuthContext'
 
@@ -46,6 +46,7 @@ export default function RevenueInput() {
   // 포스기에서 하루 종일 켜두므로 1분마다 날짜를 다시 확인 — 날짜가 바뀌면 그날 문서를 새로 불러옴
   const [, setTick] = useState(0)
   const [scan, setScan] = useState(null) // 사진 인식: { busy } | { result, photo } | { error }
+  const [phoneOpen, setPhoneOpen] = useState(false) // 폰에서 출력물 사진 받기 (QR)
   useEffect(()=>{
     const id = setInterval(()=>setTick(t=>t+1), 60000)
     return ()=>clearInterval(id)
@@ -90,12 +91,11 @@ export default function RevenueInput() {
     }
   },[activeSession, data])
 
-  // 마감 출력물 사진 → 서버(/api/read-receipt)에서 Claude로 읽어 칸을 채움. 저장은 확인 후 직접
-  async function readPhoto(file) {
-    if (!file) return
+  // 마감 출력물 사진(JPEG data URL) → 서버(/api/read-receipt)에서 Claude로 읽어 칸을 채움. 저장은 확인 후 직접
+  async function readPhoto(photo) {
+    if (!photo) return
     setScan({ busy:true })
     try {
-      const photo = await compressImage(file, 1600, 600)
       const token = await auth.currentUser?.getIdToken()
       const r = await fetch('/api/read-receipt', {
         method:'POST',
@@ -272,15 +272,26 @@ export default function RevenueInput() {
             )}
           </div>
 
-          {/* 사진으로 채우기 */}
-          <div style={{marginBottom:16}}>
-            <label style={{display:'flex',alignItems:'center',justifyContent:'center',gap:6,
-              background: scan?.busy ? '#191c2b' : `${si.color}18`, border:`1px dashed ${si.color}88`,borderRadius:8,
-              padding:'11px',fontSize:12,fontWeight:700,color:si.color,cursor: scan?.busy ? 'default' : 'pointer'}}>
-              {scan?.busy ? '⏳ 사진 읽는 중... (10~30초)' : '📷 마감 출력물 사진으로 채우기'}
-              <input type="file" accept="image/*" capture="environment" disabled={!!scan?.busy} style={{display:'none'}}
-                onChange={e=>{ readPhoto(e.target.files?.[0]); e.target.value='' }}/>
-            </label>
+          {/* 마감 출력물 사진으로 채우기 (마감만) */}
+          {activeSession==='close' && <div style={{marginBottom:16}}>
+            <button type="button" disabled={!!scan?.busy} onClick={()=>setPhoneOpen(true)}
+              style={{width:'100%',background: scan?.busy ? '#191c2b' : `${si.color}18`, border:`1px dashed ${si.color}88`,borderRadius:8,
+                padding:'11px',fontSize:12,fontWeight:700,color:si.color,cursor: scan?.busy ? 'default' : 'pointer',fontFamily:'inherit'}}>
+              {scan?.busy ? '⏳ 사진 읽는 중... (10~30초)' : '📲 폰으로 마감 출력물 찍어서 채우기 (QR)'}
+            </button>
+            {!scan?.busy && (
+              <label style={{display:'block',textAlign:'center',fontSize:10,color:'#5e6585',marginTop:6,cursor:'pointer'}}>
+                또는 이 기기로 찍기·사진 고르기
+                <input type="file" accept="image/*" capture="environment" style={{display:'none'}}
+                  onChange={async e=>{ const f = e.target.files?.[0]; e.target.value=''; if (f) readPhoto(await compressImage(f, 1600, 450)) }}/>
+              </label>
+            )}
+            {phoneOpen && (
+              <PhoneReceiveModal hiRes title="📲 마감 출력물 사진 받기"
+                hint={<>폰 카메라로 QR을 찍고 마감 출력물을 찍어 보내세요.<br/>받으면 바로 숫자를 읽어 칸을 채워요.</>}
+                onAdd={fresh=>{ setPhoneOpen(false); readPhoto(fresh[fresh.length-1]); return '' }}
+                onClose={()=>setPhoneOpen(false)}/>
+            )}
             {scan?.error && <div style={{fontSize:11,color:'#f87171',marginTop:6}}>⚠️ {scan.error}</div>}
             {scan?.result && (()=>{
               const r = scan.result
@@ -300,7 +311,7 @@ export default function RevenueInput() {
                 </div>
               )
             })()}
-          </div>
+          </div>}
 
           <div style={{display:'flex',flexDirection:'column',gap:12}}>
             {/* 키오스크 */}

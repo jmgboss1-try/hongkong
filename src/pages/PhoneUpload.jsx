@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react'
-import { useParams } from 'react-router-dom'
+import { useParams, useSearchParams } from 'react-router-dom'
 import { db } from '../firebase'
 import { doc, updateDoc, arrayUnion } from 'firebase/firestore'
 import { compressImage } from '../components/PhotoAttach'
@@ -9,6 +9,8 @@ const MAX_PER_SESSION = 6
 // 로그인 없이 접속하는 폰 전용 업로드 페이지 (포스에서 만든 QR로 진입)
 export default function PhoneUpload() {
   const { sid } = useParams()
+  const [params] = useSearchParams()
+  const hiRes = params.get('hi') === '1' // 매출 출력물처럼 글씨를 읽어야 하는 사진은 크게
   const camRef = useRef(null)
   const galRef = useRef(null)
   const [sent, setSent] = useState([])   // 전송 완료된 썸네일
@@ -24,7 +26,7 @@ export default function PhoneUpload() {
     for (const f of files) {
       if (sent.length >= MAX_PER_SESSION) { setErr(`한 번에 최대 ${MAX_PER_SESSION}장까지 보낼 수 있어요`); break }
       try {
-        const url = await compressImage(f)
+        const url = hiRes ? await compressImage(f, 1600, 450) : await compressImage(f)
         await updateDoc(doc(db,'photoInbox',sid), { images: arrayUnion(url) })
         setSent(prev => [...prev, url])
       } catch(e) {

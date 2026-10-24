@@ -79,7 +79,8 @@ export function PhotoGrid({ images, label }) {
 }
 
 // 폰에서 받기: QR 세션을 만들고, 폰이 보낸 사진을 실시간으로 받아서 onAdd로 넘김
-function PhoneReceiveModal({ onAdd, onClose, attachedText }) {
+//   hiRes: 글씨를 읽어야 하는 사진(매출 출력물)은 폰에서 더 크게 압축해서 보냄
+export function PhoneReceiveModal({ onAdd, onClose, attachedText, title = '📲 폰에서 사진 받기', hint, hiRes = false }) {
   const [qr, setQr] = useState('')
   const [status, setStatus] = useState('creating') // creating | ready | error
   const [received, setReceived] = useState(0)
@@ -103,7 +104,7 @@ function PhoneReceiveModal({ onAdd, onClose, attachedText }) {
           expiresAt: Timestamp.fromMillis(Date.now() + 10*60*1000),
         })
         if(cancelled) return
-        const url = `${window.location.origin}/upload/${sid}`
+        const url = `${window.location.origin}/upload/${sid}${hiRes ? '?hi=1' : ''}`
         const dataUrl = await QRCode.toDataURL(url, { width:260, margin:1 })
         if(cancelled) return
         setQr(dataUrl)
@@ -129,7 +130,7 @@ function PhoneReceiveModal({ onAdd, onClose, attachedText }) {
       if(unsub) unsub()
       if(sid) deleteDoc(doc(db,'photoInbox',sid)).catch(()=>{})
     }
-  },[])
+  },[hiRes])
 
   return (
     <div onClick={onClose}
@@ -138,7 +139,7 @@ function PhoneReceiveModal({ onAdd, onClose, attachedText }) {
       <div onClick={e=>e.stopPropagation()}
         style={{background:'#12141f',border:'1px solid #f9b934',borderRadius:14,padding:22,
           maxWidth:340,width:'100%',textAlign:'center'}}>
-        <div style={{fontSize:15,fontWeight:800,color:'#f9b934',marginBottom:4}}>📲 폰에서 사진 받기</div>
+        <div style={{fontSize:15,fontWeight:800,color:'#f9b934',marginBottom:4}}>{title}</div>
         <div style={{fontSize:11,color:'#5e6585',marginBottom:14}}>폰 카메라로 아래 QR을 찍어보세요 (10분간 유효)</div>
         {status==='creating' && <div style={{color:'#5e6585',fontSize:12,padding:'60px 0'}}>QR 만드는 중...</div>}
         {status==='error' && (
@@ -150,7 +151,7 @@ function PhoneReceiveModal({ onAdd, onClose, attachedText }) {
           <>
             <img src={qr} alt="QR" style={{width:220,height:220,background:'#fff',borderRadius:10,padding:6}}/>
             <div style={{fontSize:12,color:'#dde1f2',marginTop:12,lineHeight:1.7}}>
-              폰으로 찍으면 이 화면의 사진 칸에 바로 들어와요.<br/>여러 장 연속으로 보내도 돼요.
+              {hint || <>폰으로 찍으면 이 화면의 사진 칸에 바로 들어와요.<br/>여러 장 연속으로 보내도 돼요.</>}
             </div>
             <div style={{fontSize:13,fontWeight:700,marginTop:10,color: received>0 ? '#34d399' : '#5e6585'}}>
               {received>0 ? `✓ ${received}장 받음` : '사진 기다리는 중...'}

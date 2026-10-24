@@ -5,7 +5,7 @@
 //   응답: { kiosk, baemin, coupang, yogiyo, ddangyeo, pos, total, date, notes }
 // Vercel 환경변수: ANTHROPIC_API_KEY (필수). 로그인 확인용 Firebase 프로젝트 ID는 VITE_FIREBASE_PROJECT_ID, 없으면 앱의 .env와 같은 값
 import Anthropic from '@anthropic-ai/sdk'
-import { betaZodOutputFormat } from '@anthropic-ai/sdk/helpers/beta/zod'
+import { zodOutputFormat } from '@anthropic-ai/sdk/helpers/zod'
 import { z } from 'zod'
 import { createRemoteJWKSet, jwtVerify } from 'jose'
 
@@ -15,10 +15,10 @@ const amount = z.number().int().nullable()
 const Receipt = z.object({
   kiosk:    amount.describe('키오스크 매출 (손글씨 "키")'),
   baemin:   amount.describe('배달의민족 매출 (인쇄된 매출요약의 총 결제금액)'),
-  coupang:  amount.describe('쿠팡이츠 매출 (배달 옆 손글씨 "ㄴ 금액")'),
-  yogiyo:   amount.describe('요기요 매출 (따로 적혀 있을 때만)'),
-  ddangyeo: amount.describe('땡겨요 매출 (따로 적혀 있을 때만)'),
-  pos:      amount.describe('포스(현장) 매출 (손글씨 "현")'),
+  coupang:  amount.describe('쿠팡이츠 매출 (손글씨 "c")'),
+  yogiyo:   amount.describe('요기요 매출 (손글씨 "y")'),
+  ddangyeo: amount.describe('땡겨요 매출 (손글씨 "d")'),
+  pos:      amount.describe('포스(현장) 매출 (손글씨 "포")'),
   delivery: amount.describe('손글씨 "배" 배달 합계'),
   total:    amount.describe('맨 위 손글씨 하루 전체 합계'),
   date:     z.string().nullable().describe('출력물의 날짜 YYYY-MM-DD (연도는 출력 시각 기준)'),
@@ -29,10 +29,10 @@ const PROMPT = `홍콩반점 중앙대점의 마감 출력물 사진이에요. �
 
 이 가게 출력물의 규칙:
 - 인쇄된 "매출요약"은 배달의민족 것이에요. 맨 위 "총 결제금액"이 배달의민족(baemin) 매출이에요.
-- 배달 줄 옆에 손으로 쓴 "ㄴ 273,500" 같은 금액은 쿠팡이츠(coupang) 매출이에요.
-- 아래쪽 손글씨: "키"(또는 "카")는 키오스크(kiosk), "배"는 배달 합계(delivery), "현"은 포스·현장(pos) 매출이에요.
-- 맨 위 손글씨 큰 숫자는 하루 전체 합계(total)예요. 보통 키 + 배 + 현 = 합계, 배 = 배민 + 쿠팡(+ 요기요 + 땡겨요)이에요.
-- 요기요·땡겨요는 따로 적혀 있을 때만 넣고, 없으면 null.
+- 손글씨 배달앱 매출: "c" = 쿠팡이츠(coupang), "y" = 요기요(yogiyo), "d" = 땡겨요(ddangyeo). 배달 줄 옆에 "ㄴ 금액"으로만 적혀 있으면 쿠팡이츠예요.
+- 손글씨 합계: "키" = 키오스크(kiosk), "배" = 배달 플랫폼 합계(delivery), "포" = 포스(pos) 매출이에요.
+- 맨 위 손글씨 큰 숫자는 하루 전체 합계(total)예요. 보통 키 + 배 + 포 = 합계, 배 = 배민 + c + y + d 예요.
+- 적혀 있지 않은 항목은 null.
 - 손글씨 숫자는 위 합계 관계로 맞는지 검산하고, 안 맞거나 흐린 숫자가 있으면 notes에 적어주세요.
 - 금액은 원 단위 정수(쉼표 없이). 보이지 않는 값은 null.`
 
@@ -54,12 +54,11 @@ export default async function handler(req, res) {
 
   try {
     const client = new Anthropic()
-    const response = await client.beta.messages.parse({
-      model: 'claude-opus-5-5',
+    // 비용 때문에 Haiku (사진 1장당 1원 미만)
+    const response = await client.messages.parse({
+      model: 'claude-haiku-5-5',
       max_tokens: 16000,
-      betas: ['server-side-fallback-2026-07-01'],
-      fallbacks: 'default',
-      output_config: { effort: 'low', format: betaZodOutputFormat(Receipt) },
+      output_config: { effort: 'low', format: zodOutputFormat(Receipt) },
       messages: [{
         role: 'user',
         content: [
