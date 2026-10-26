@@ -5,6 +5,7 @@
 //   배민 정산명세서('상세' 시트, 비밀번호가 걸려 있음): 정산대상일·주문유형별 합계 한 줄. 주문 건수 칸은 없어서
 //     배민 배달(알뜰·한집)은 건당 배달비(3,400원)로 건수를 셈 — 출력물의 '배달 N건'과 맞음
 //     포장·가게배달은 배달비가 없어 그날 배달 1건 평균 금액으로 추정 (ordersEstimated)
+//   땡겨요 부가세신고내역: 주문 1건이 한 줄 (주문번호·주문일시·주문결제·매출할인), 맨 아래 '합 계' 줄
 // 결과는 revenue/_apps-{YYYY-MM} 문서에 { [앱]: { [dd]: { orders, orderAmount, payAmount, totalAmount, discount, payout, ads } } } 로 저장
 //   (없는 값은 null — 배민 orders, 아직 입금 전인 날의 payout 등)
 //   (매장 계정도 revenue 문서는 쓸 수 있어서 같은 컬렉션에 둠)
@@ -123,9 +124,29 @@ function parseBaemin(rows, XLSX) {
   return days
 }
 
+function parseDdangyeo(rows, XLSX) {
+  const head = rows[0]
+  const at = name => head.findIndex(c => norm(c) === name)
+  const col = { date: at('주문일'), pay: at('주문결제'), disc: at('매출할인') }
+  const days = {}
+  for (const r of rows.slice(1)) {
+    if (norm(r[0]).startsWith('합계')) break
+    const date = toDate(r[col.date], XLSX)
+    if (!date || !norm(r[0])) continue
+    const pay = num(r[col.pay]), disc = Math.abs(col.disc >= 0 ? num(r[col.disc]) : 0)
+    const d = days[date] ||= { orders:0, orderAmount:0, payAmount:0, totalAmount:null, discount:0, payout:null }
+    d.orders += pay < 0 ? -1 : 1           // 취소가 마이너스 줄로 오면 빼기
+    d.payAmount += pay
+    d.orderAmount += pay + (pay < 0 ? -disc : disc)
+    d.discount += pay < 0 ? -disc : disc
+  }
+  return days
+}
+
 // 형식 알아보기: 머리글에 있는 이름으로 (rows, h = 머리글 첫 줄 번호)
 const FORMATS = [
   { platform:'coupang', label:'쿠팡이츠', test: (rows, h) => (rows[h+1] || []).some(c => norm(c) === '쿠팡부담') && rows[h].some(c => norm(c) === '매출액'), parse: parseCoupang },
+  { platform:'ddangyeo', label:'땡겨요', test: (rows, h) => ['주문번호','주문일','주문결제'].every(n => rows[h].some(c => norm(c) === n)) && rows.slice(0, h).some(r => r.some(c => norm(c).includes('땡겨요'))), parse: parseDdangyeo },
   { platform:'baemin',  label:'배달의민족', test: (rows, h) => rows[h].some(c => norm(c) === '정산대상기간') && (rows[h+2] || []).some(c => norm(c) === '바로결제주문금액'), parse: parseBaemin },
 ]
 
@@ -146,7 +167,7 @@ export async function readDeliveryExcel(file, password) {
       if (f) return { platform: f.platform, label: f.label, days: f.parse(rows.slice(h), XLSX) }
     }
   }
-  throw new Error('아직 읽을 수 없는 엑셀 형식이에요. 지금은 쿠팡이츠 매출내역과 배민 정산명세서가 돼요 (다른 앱은 샘플을 보내주시면 추가할게요)')
+  throw new Error('아직 읽을 수 없는 엑셀 형식이에요. 지금은 쿠팡이츠 매출내역, 배민 정산명세서, 땡겨요 부가세신고내역이 돼요 (다른 앱은 샘플을 보내주시면 추가할게요)')
 }
 
 // 앱에 적힌 하루 매출과 가장 가까운 엑셀 금액 칸 (없으면 결제금액 — 배민 출력물의 '총 결제금액'과 같은 기준)

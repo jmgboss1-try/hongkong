@@ -418,7 +418,7 @@ export default function SalesAnalysis() {
         <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',gap:8,flexWrap:'wrap'}}>
           <div>
             <div style={{fontSize:14,fontWeight:700}}>📥 배달앱 엑셀로 예전 자료 넣기</div>
-            <div style={{fontSize:11,color:'#5e6585',marginTop:2}}>사장님 사이트에서 받은 주문·매출내역 엑셀 (쿠팡이츠 매출내역, 배민 정산명세서). 같은 날짜는 엑셀 값으로 덮어써요</div>
+            <div style={{fontSize:11,color:'#5e6585',marginTop:2}}>사장님 사이트에서 받은 주문·매출내역 엑셀 (쿠팡이츠 매출내역, 배민 정산명세서, 땡겨요 부가세신고내역). 같은 날짜는 엑셀 값으로 덮어써요</div>
           </div>
           <label style={{background:'#191c2b',border:'1px solid #272a3d',color:'#dde1f2',borderRadius:8,padding:'8px 14px',fontSize:12,fontWeight:600,
             cursor: imp?.busy ? 'default' : 'pointer'}}>
