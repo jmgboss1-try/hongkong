@@ -457,7 +457,9 @@ export default function SalesAnalysis() {
                 {hasOrders ? <>주문 <b style={{color:'#dde1f2'}}>{tot.o}건</b>{tot.est > 0 && <span style={{color:'#5e6585'}}> (그중 포장·가게배달 {tot.est}건은 금액으로 추정)</span>} · </> : null}매출 <b style={{color:'#dde1f2'}}>{won(tot.s)}원</b>
                 {' · '}가게 부담 할인 <b style={{color:'#dde1f2'}}>{won(tot.disc)}원</b>
                 {tot.ads > 0 && <> · 광고비 <b style={{color:'#dde1f2'}}>{won(tot.ads)}원</b></>}
-                {' · '}정산(입금)금액 <b style={{color:'#dde1f2'}}>{won(tot.out)}원</b>{unpaid > 0 && <span style={{color:'#5e6585'}}> (아직 입금 전 {unpaid}일 제외)</span>}
+                {unpaid < dates.length
+                  ? <>{' · '}정산(입금)금액 <b style={{color:'#dde1f2'}}>{won(tot.out)}원</b>{unpaid > 0 && <span style={{color:'#5e6585'}}> (아직 입금 전 {unpaid}일 제외)</span>}</>
+                  : <span style={{color:'#5e6585'}}> · 이 엑셀엔 정산금액이 없어요</span>}
               </div>
               {!hasOrders && <div style={{fontSize:11,color:'#f9b934'}}>이 엑셀엔 주문 건수가 없어요. 주문수·객단가는 마감 때 적은 건수로 계산해요</div>}
               {tot.est > 0 && <div style={{fontSize:11,color:'#5e6585'}}>배민 배달 건수는 건당 배달비로 정확히 세요. 마감 때 건수를 적은 날은 그 건수를 먼저 써요</div>}
