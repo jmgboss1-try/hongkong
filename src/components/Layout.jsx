@@ -29,6 +29,7 @@ export default function Layout({ children }) {
   const ownerMenus = [
     { path:'/',              icon:'📊', label:'대시보드' },
     { path:'/revenue',      icon:'💰', label:'매출' },
+    { path:'/sales-analysis', icon:'🎯', label:'매출분석' },
     { path:'/expenses',     icon:'📋', label:'지출' },
     { path:'/staff',        icon:'📅', label:'스케쥴' },
     { path:'/work-manage',  icon:'⏱',  label:'근무관리' },
@@ -56,6 +57,7 @@ export default function Layout({ children }) {
 
   const storeMenus = [
   { path:'/revenue-input', icon:'💰', label:'매출입력' },
+  { path:'/sales-analysis', icon:'🎯', label:'매출분석' },
   { path:'/checklist',     icon:'✅', label:'체크리스트' },
   { path:'/prepaid',       icon:'💳', label:'선결제' },
   { path:'/substitute',    icon:'🔄', label:'대타 구함' },

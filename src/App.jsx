@@ -21,6 +21,7 @@ import SubstituteBoard from './pages/SubstituteBoard'
 import LossClaims from './pages/LossClaims'
 import Checklist from './pages/Checklist'
 import Prepaid from './pages/Prepaid'
+import SalesAnalysis from './pages/SalesAnalysis'
 import PhoneUpload from './pages/PhoneUpload'
 import Layout from './components/Layout'
 
@@ -111,6 +112,7 @@ function AppRoutes() {
         <Route path="/loss-claims" element={<PrivateRoute storeOk><LossClaims /></PrivateRoute>} />
         <Route path="/checklist" element={<PrivateRoute storeOk><Checklist /></PrivateRoute>} />
         <Route path="/prepaid" element={<PrivateRoute storeOk><Prepaid /></PrivateRoute>} />
+        <Route path="/sales-analysis" element={<PrivateRoute storeOk storeOnly><SalesAnalysis /></PrivateRoute>} />
         <Route path="*" element={<Navigate to={homePath({ isOwner, isStore, isInvestor })} />} />
       </Routes>
     </Layout>

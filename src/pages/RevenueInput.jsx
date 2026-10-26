@@ -40,6 +40,8 @@ export default function RevenueInput() {
   const [coupang,  setCoupang]  = useState('')
   const [yogiyo,   setYogiyo]   = useState('')
   const [ddangyeo, setDdangyeo] = useState('')
+  // 마감 때만: 배달앱별 주문 건수 (매출분석에서 객단가·할인 효과 계산에 씀)
+  const [orders, setOrders] = useState({ baemin:'', coupang:'', yogiyo:'', ddangyeo:'' })
 
   const delTotal = (+baemin||0)+(+coupang||0)+(+yogiyo||0)+(+ddangyeo||0)
 
@@ -67,6 +69,7 @@ export default function RevenueInput() {
   function resetInputs() {
     setKiosk(''); setPos('')
     setBaemin(''); setCoupang(''); setYogiyo(''); setDdangyeo('')
+    setOrders({ baemin:'', coupang:'', yogiyo:'', ddangyeo:'' })
   }
 
   useEffect(()=>{
@@ -89,6 +92,8 @@ export default function RevenueInput() {
       setYogiyo(rec[fieldKey(activeSession,'yogiyo')] || '')
       setDdangyeo(rec[fieldKey(activeSession,'ddangyeo')] || '')
     }
+    const o = k => rec[`${k}Orders`] != null ? String(rec[`${k}Orders`]) : ''
+    setOrders({ baemin:o('baemin'), coupang:o('coupang'), yogiyo:o('yogiyo'), ddangyeo:o('ddangyeo') })
   },[activeSession, data])
 
   // 마감 출력물 사진(JPEG data URL) → 서버(/api/read-receipt)에서 Claude로 읽어 칸을 채움. 저장은 확인 후 직접
@@ -107,6 +112,7 @@ export default function RevenueInput() {
       const v = n => n == null ? '' : String(n)
       setKiosk(v(result.kiosk)); setPos(v(result.pos))
       setBaemin(v(result.baemin)); setCoupang(v(result.coupang)); setYogiyo(v(result.yogiyo)); setDdangyeo(v(result.ddangyeo))
+      setOrders({ baemin:v(result.baeminOrders), coupang:v(result.coupangOrders), yogiyo:v(result.yogiyoOrders), ddangyeo:v(result.ddangyeoOrders) })
       setScan({ result, photo })
     } catch(e) {
       console.error(e)
@@ -147,6 +153,9 @@ export default function RevenueInput() {
         [fieldKey(activeSession,'yogiyo')]:   yogiyoVal,
         [fieldKey(activeSession,'ddangyeo')]: ddangyeoVal,
         [fieldKey(activeSession,'pos')]:      posVal,
+        // 마감: 앱별 주문 건수 (비워두면 기록 안 함)
+        ...(activeSession==='close' ? Object.fromEntries(Object.entries(orders)
+          .filter(([,v])=>v!=='' && v!=null).map(([k,v])=>[`${k}Orders`, Math.max(0, Math.round(+v)||0)])) : {}),
         [activeSession==='morning'?'morningBy':activeSession==='middle'?'middleBy':'closeBy']: userData?.name || '매장전용',
         [activeSession==='morning'?'morningAt':activeSession==='middle'?'middleAt':'closeAt']: new Date().toISOString(),
       }
@@ -338,11 +347,11 @@ export default function RevenueInput() {
               </div>
               <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
                 {[
-                  [baemin,   setBaemin,   '배달의민족', '#34d399'],
-                  [coupang,  setCoupang,  '쿠팡이츠',   '#f87171'],
-                  [yogiyo,   setYogiyo,   '요기요',     '#f9b934'],
-                  [ddangyeo, setDdangyeo, '땡겨요',     '#93c5fd'],
-                ].map(([val, set, label, color])=>(
+                  [baemin,   setBaemin,   '배달의민족', '#34d399', 'baemin'],
+                  [coupang,  setCoupang,  '쿠팡이츠',   '#f87171', 'coupang'],
+                  [yogiyo,   setYogiyo,   '요기요',     '#f9b934', 'yogiyo'],
+                  [ddangyeo, setDdangyeo, '땡겨요',     '#93c5fd', 'ddangyeo'],
+                ].map(([val, set, label, color, key])=>(
                   <div key={label}>
                     <label style={{fontSize:9,color:color,fontWeight:600,display:'block',marginBottom:4}}>
                       {label}
@@ -351,7 +360,22 @@ export default function RevenueInput() {
                       placeholder="0" min="0"
                       style={{background:'#191c2b',border:`1px solid ${color}33`,borderRadius:7,
                         color:'#dde1f2',padding:'8px 10px',fontSize:13,outline:'none',
-                        width:'100%',fontFamily:'DM Mono,monospace'}}/>
+                        width:'100%',boxSizing:'border-box',fontFamily:'DM Mono,monospace'}}/>
+                    {activeSession==='close' && (
+                      <div style={{display:'flex',alignItems:'center',gap:6,marginTop:4}}>
+                        <input type="number" value={orders[key]} min="0" placeholder="0"
+                          onChange={e=>{ const v = e.target.value; setOrders(o=>({ ...o, [key]: v })) }}
+                          aria-label={`${label} 주문 건수`}
+                          style={{background:'#191c2b',border:'1px solid #272a3d',borderRadius:6,color:'#dde1f2',
+                            padding:'5px 8px',fontSize:12,outline:'none',width:64,boxSizing:'border-box',fontFamily:'DM Mono,monospace'}}/>
+                        <span style={{fontSize:10,color:'#5e6585'}}>건</span>
+                        {+orders[key] > 0 && +val > 0 && (
+                          <span style={{fontSize:10,color:'#5e6585',marginLeft:'auto',fontFamily:'DM Mono,monospace'}}>
+                            객단가 {Math.round(+val / +orders[key]).toLocaleString()}
+                          </span>
+                        )}
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>

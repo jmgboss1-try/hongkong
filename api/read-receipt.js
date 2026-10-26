@@ -2,7 +2,7 @@
 //
 // Vercel 서버 함수 (POST /api/read-receipt)
 //   요청: Authorization: Bearer <Firebase ID 토큰>, body { image: 'data:image/jpeg;base64,...' }
-//   응답: { kiosk, baemin, coupang, yogiyo, ddangyeo, pos, total, date, notes }
+//   응답: { kiosk, baemin, coupang, yogiyo, ddangyeo, pos, 앱별 주문 건수(baeminOrders…), delivery, total, date, notes }
 // Vercel 환경변수: ANTHROPIC_API_KEY (필수). 로그인 확인용 Firebase 프로젝트 ID는 VITE_FIREBASE_PROJECT_ID, 없으면 앱의 .env와 같은 값
 import Anthropic from '@anthropic-ai/sdk'
 import { zodOutputFormat } from '@anthropic-ai/sdk/helpers/zod'
@@ -19,6 +19,10 @@ const Receipt = z.object({
   yogiyo:   amount.describe('요기요 매출 (손글씨 "y")'),
   ddangyeo: amount.describe('땡겨요 매출 (손글씨 "d")'),
   pos:      amount.describe('포스(현장) 매출 (손글씨 "포")'),
+  baeminOrders:   amount.describe('배달의민족 주문 건수 (인쇄된 매출요약의 총 주문건수)'),
+  coupangOrders:  amount.describe('쿠팡이츠 주문 건수 (손글씨 "c" 옆 건수)'),
+  yogiyoOrders:   amount.describe('요기요 주문 건수 (손글씨 "y" 옆 건수)'),
+  ddangyeoOrders: amount.describe('땡겨요 주문 건수 (손글씨 "d" 옆 건수)'),
   delivery: amount.describe('손글씨 "배" 배달 합계'),
   total:    amount.describe('맨 위 손글씨 하루 전체 합계'),
   date:     z.string().nullable().describe('출력물의 날짜 YYYY-MM-DD (연도는 출력 시각 기준)'),
@@ -32,6 +36,7 @@ const PROMPT = `홍콩반점 중앙대점의 마감 출력물 사진이에요. �
 - 손글씨 배달앱 매출: "c" = 쿠팡이츠(coupang), "y" = 요기요(yogiyo), "d" = 땡겨요(ddangyeo). 배달 줄 옆에 "ㄴ 금액"으로만 적혀 있으면 쿠팡이츠예요.
 - 손글씨 합계: "키" = 키오스크(kiosk), "배" = 배달 플랫폼 합계(delivery), "포" = 포스(pos) 매출이에요.
 - 맨 위 손글씨 큰 숫자는 하루 전체 합계(total)예요. 보통 키 + 배 + 포 = 합계, 배 = 배민 + c + y + d 예요.
+- 주문 건수: 배달의민족은 인쇄된 "총 주문건수", 다른 앱은 금액 옆에 손으로 쓴 "9건" 같은 숫자예요. 금액과 건수를 헷갈리지 마세요 (건수는 보통 두 자리 이하).
 - 적혀 있지 않은 항목은 null.
 - 손글씨 숫자는 위 합계 관계로 맞는지 검산하고, 안 맞거나 흐린 숫자가 있으면 notes에 적어주세요.
 - 금액은 원 단위 정수(쉼표 없이). 보이지 않는 값은 null.`

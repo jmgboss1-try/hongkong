@@ -243,7 +243,10 @@ export default function Revenue() {
         delete existing[fieldKey(type,base)]
       })
       if(type==='morning') delete existing.open
-      if(type==='close')   delete existing.close
+      if(type==='close') {
+        delete existing.close
+        ;['baemin','coupang','yogiyo','ddangyeo'].forEach(k=>delete existing[`${k}Orders`])
+      }
       const m = getMorning(existing), mid = getMiddle(existing), t = getTotal(existing)
       if(m.kiosk+m.del+m.pos+mid.kiosk+mid.del+mid.pos+t.kiosk+t.del+t.pos === 0) delete newData[dd]
       else newData[dd] = existing
