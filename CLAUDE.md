@@ -8,6 +8,10 @@ Store management web app for 홍콩반점 중앙대점 (a single restaurant): re
 
 Business context that affects features: the store's bank account holder (예금주) is 김기억, who appears in the app as "형" (co-investor; `loans/hyung`, `investor:'hyung'` in 투자관리). The user who manages the app is the largest investor. Money moving between the store account and 김기억 is loans, investment or profit sharing, never revenue or an expense. Transfers with the 홍콩반점 상암점 account (bank name '홍콩반점0410 상') are also money 형 takes, so they belong to the same 형 대여금 (`loans/hyung`, memo prefixed "[상암점 계좌]"). The old separate `loans/sangam` ledger is merged into `loans/hyung` once when 지출관리 loads; legacy `nonOp` kind `loan_sangam` is treated as `loan`. '홍콩반점0410중' is the 본사 물류대금 virtual account, so withdrawals to it default to 본사발주 (`hq`) unless a user rule says otherwise.
 
+## Skills and plugins
+
+The owner wants Claude to pick tools for a task on its own, without being told which skill or plugin to use. Before a task where a skill or plugin could help (design work, documents, spreadsheets, reports and the like), search the plugin catalog first. If something fits, show the install card; the owner only clicks it. If the catalog has nothing and a good skill exists elsewhere (e.g. on GitHub, installed with `npx skills add <owner/repo> -a claude-code -y`), ask the owner once before installing it. Install it at project level (`.claude/skills/`), review its files for anything that sends data out or runs unexpected commands, then commit and push it so later sessions keep it (cloud sessions lose global installs). Skip all of this when the task doesn't need it; most changes don't. Installed so far: `hallmark` (`.claude/skills/hallmark`, design for new pages; use on existing screens only when the owner names it), plus the `frontend-design` plugin on the owner's account.
+
 ## Commands
 
 ```bash
