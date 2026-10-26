@@ -2,7 +2,9 @@
 //
 // 지금 읽을 수 있는 형식
 //   쿠팡이츠 매출내역: 주문 1건이 한 줄, 취소는 금액이 마이너스인 '취소' 줄
-//   배민 정산명세서('상세' 시트, 비밀번호가 걸려 있음): 정산대상일·주문유형별 합계 한 줄. 주문 건수는 없음
+//   배민 정산명세서('상세' 시트, 비밀번호가 걸려 있음): 정산대상일·주문유형별 합계 한 줄. 주문 건수 칸은 없어서
+//     배민 배달(알뜰·한집)은 건당 배달비(3,400원)로 건수를 셈 — 출력물의 '배달 N건'과 맞음
+//     포장·가게배달은 배달비가 없어 그날 배달 1건 평균 금액으로 추정 (ordersEstimated)
 // 결과는 revenue/_apps-{YYYY-MM} 문서에 { [앱]: { [dd]: { orders, orderAmount, payAmount, totalAmount, discount, payout, ads } } } 로 저장
 //   (없는 값은 null — 배민 orders, 아직 입금 전인 날의 payout 등)
 //   (매장 계정도 revenue 문서는 쓸 수 있어서 같은 컬렉션에 둠)
@@ -64,6 +66,8 @@ function parseCoupang(rows, XLSX) {
   return days
 }
 
+const DELIVERY_FEE = 3400   // 배민 배달(알뜰·한집) 건당 배달비 — 바뀌면 여기만 고치면 됨
+
 // 배민 정산명세서: 머리글 3줄(묶음 / 항목 / 세부 항목), 맨 아래 줄 이름으로 열을 찾음
 function parseBaemin(rows, XLSX) {
   const head = rows[2]
@@ -73,12 +77,13 @@ function parseBaemin(rows, XLSX) {
     orderNow: at('바로결제주문금액'), orderMeet: at('만나서결제주문금액'),
     coupon: at('파트너부담쿠폰'), instant: at('주문금액 즉시할인'), menu: at('메뉴할인'),
     tipOne: at('한집배달 배달팁 즉시할인'), tipSave: at('알뜰배달 배달팁 즉시할인'),
+    feeOne: at('배민1 한집배달 배달비'), feeSave: at('알뜰배달 배달비'),
     ad: at('우리가게클릭 이용요금'), adVat: head.findIndex((c, i) => i > at('우리가게클릭 이용요금') && norm(c) === '부가세'),
   }
   if ([col.date, col.type, col.orderNow].some(i => i < 0)) throw new Error('배민 정산명세서의 칸(정산대상기간·주문유형·주문금액)을 찾지 못했어요')
   const v = (r, i) => i >= 0 ? num(r[i]) : 0
-  const days = {}, paid = {}
-  const day = date => days[date] ||= { orders:null, orderAmount:0, payAmount:0, totalAmount:null, discount:0, payout:0, ads:0 }
+  const days = {}, paid = {}, count = {}
+  const day = date => days[date] ||= { orders:null, ordersEstimated:0, orderAmount:0, payAmount:0, totalAmount:null, discount:0, payout:0, ads:0 }
   for (const r of rows.slice(3)) {
     const dates = String(r[col.date] ?? '').split('~').map(x => toDate(x.trim(), XLSX)).filter(Boolean)
     if (!dates.length) continue
@@ -98,6 +103,16 @@ function parseBaemin(rows, XLSX) {
     d.discount += -(disc + v(r, col.tipOne) + v(r, col.tipSave))
     d.payout += v(r, col.payout)
     paid[dates[0]] = (paid[dates[0]] ?? true) && (col.status < 0 || norm(r[col.status]) === '입금완료')
+    const c = count[dates[0]] ||= { delivered:0, deliveredAmount:0, others:[] }
+    const fee = -(v(r, col.feeOne) + v(r, col.feeSave))
+    if (fee > 0) { c.delivered += fee / DELIVERY_FEE; c.deliveredAmount += order }
+    else if (order > 0) c.others.push(order)
+  }
+  if (col.feeOne >= 0 || col.feeSave >= 0) for (const [date, c] of Object.entries(count)) {
+    const avg = c.delivered ? c.deliveredAmount / c.delivered : 25000
+    const est = c.others.reduce((a, amt) => a + Math.max(1, Math.round(amt / avg)), 0)
+    days[date].orders = Math.round(c.delivered) + est
+    days[date].ordersEstimated = est
   }
   for (const [date, d] of Object.entries(days)) {
     if (!paid[date]) d.payout = null      // 아직 입금 전이면 입금금액이 0으로 나와서 비워 둠

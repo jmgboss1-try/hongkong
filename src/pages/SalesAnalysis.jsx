@@ -52,8 +52,8 @@ function dayValue(months, date, p) {
   const x = m?.apps?.[p]?.[dd]
   const rec = m?.rev?.[dd]
   const entered = rec && typeof rec[`${p}Orders`] === 'number' ? rec[`${p}Orders`] : null
-  // 배민 정산명세서처럼 엑셀에 주문 건수가 없으면 마감 때 적은 건수를 씀
-  if (x) return { sales:x.sales, orders: x.orders ?? entered, discount:x.discount ?? null, payout:x.payout ?? null, ads:x.ads ?? null, excel:true }
+  // 주문 건수: 마감 때 적은 건수가 있으면 그것(출력물 기준이라 정확), 없으면 엑셀 (배민은 포장·가게배달이 추정치)
+  if (x) return { sales:x.sales, orders: entered ?? x.orders ?? null, discount:x.discount ?? null, payout:x.payout ?? null, ads:x.ads ?? null, excel:true }
   if (!rec) return { sales:null, orders:null, discount:null, payout:null, ads:null }
   const sales = typeof rec[p] === 'number' ? rec[p] : null
   const orders = typeof rec[`${p}Orders`] === 'number' ? rec[`${p}Orders`] : null
@@ -444,7 +444,7 @@ export default function SalesAnalysis() {
         {imp?.done && <div style={{fontSize:12,color:'#34d399',marginTop:10}}>✅ {imp.done}</div>}
         {imp?.result && (()=>{
           const { result, dates, entered, match, field } = imp
-          const tot = dates.reduce((a,d)=>{ const v = result.days[d]; return { o:a.o+(v.orders||0), s:a.s+(v[field]||0), disc:a.disc+(v.discount||0), out:a.out+(v.payout||0), ads:a.ads+(v.ads||0) } }, { o:0, s:0, disc:0, out:0, ads:0 })
+          const tot = dates.reduce((a,d)=>{ const v = result.days[d]; return { est:(a.est||0)+(v.ordersEstimated||0), o:a.o+(v.orders||0), s:a.s+(v[field]||0), disc:a.disc+(v.discount||0), out:a.out+(v.payout||0), ads:a.ads+(v.ads||0) } }, { o:0, s:0, disc:0, out:0, ads:0 })
           const hasOrders = dates.some(d => result.days[d].orders != null)
           const unpaid = dates.filter(d => result.days[d].payout == null).length
           const fields = SALES_FIELDS.filter(f => dates.some(d => result.days[d][f.key] != null))
@@ -454,12 +454,13 @@ export default function SalesAnalysis() {
             <div style={{background:'#191c2b',borderRadius:10,padding:14,marginTop:12,fontSize:12,lineHeight:1.8}}>
               <div style={{fontWeight:700}}>{result.label} · {dates[0]} ~ {dates[dates.length-1]} ({dates.length}일)</div>
               <div style={{color:'#8b92b0'}}>
-                {hasOrders ? <>주문 <b style={{color:'#dde1f2'}}>{tot.o}건</b> · </> : null}매출 <b style={{color:'#dde1f2'}}>{won(tot.s)}원</b>
+                {hasOrders ? <>주문 <b style={{color:'#dde1f2'}}>{tot.o}건</b>{tot.est > 0 && <span style={{color:'#5e6585'}}> (그중 포장·가게배달 {tot.est}건은 금액으로 추정)</span>} · </> : null}매출 <b style={{color:'#dde1f2'}}>{won(tot.s)}원</b>
                 {' · '}가게 부담 할인 <b style={{color:'#dde1f2'}}>{won(tot.disc)}원</b>
                 {tot.ads > 0 && <> · 광고비 <b style={{color:'#dde1f2'}}>{won(tot.ads)}원</b></>}
                 {' · '}정산(입금)금액 <b style={{color:'#dde1f2'}}>{won(tot.out)}원</b>{unpaid > 0 && <span style={{color:'#5e6585'}}> (아직 입금 전 {unpaid}일 제외)</span>}
               </div>
               {!hasOrders && <div style={{fontSize:11,color:'#f9b934'}}>이 엑셀엔 주문 건수가 없어요. 주문수·객단가는 마감 때 적은 건수로 계산해요</div>}
+              {tot.est > 0 && <div style={{fontSize:11,color:'#5e6585'}}>배민 배달 건수는 건당 배달비로 정확히 세요. 마감 때 건수를 적은 날은 그 건수를 먼저 써요</div>}
               <div style={{display:'flex',alignItems:'center',gap:6,flexWrap:'wrap',marginTop:6}}>
                 <span style={{color:'#8b92b0'}}>매출로 쓸 금액</span>
                 {fields.map(f => <button key={f.key} type="button" onClick={()=>setImp(v=>({ ...v, field:f.key }))} style={chip(field===f.key)}>{f.label}</button>)}
