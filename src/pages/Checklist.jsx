@@ -316,14 +316,14 @@ export default function Checklist() {
   function ItemPhotoPanel(item) {
     if(photoEditId!==item.id) return null
     return (
-      <div style={{background:'#12141f',border:'1px solid #272a3d',borderRadius:7,padding:10,marginTop:4}}>
-        <div style={{fontSize:11,color:'#93c5fd',fontWeight:700,marginBottom:8}}>📷 {item.label} — 참고 사진 (완성 기준·위치 등)</div>
+      <div style={{background:'#FFFFFF',border:'1px solid #DCD7CE',borderRadius:4,padding:10,marginTop:4}}>
+        <div style={{fontSize:11,color:'#2B5C9E',fontWeight:700,marginBottom:8}}>{item.label} — 참고 사진 (완성 기준·위치 등)</div>
         <PhotoPicker images={photoEditImages} onChange={setPhotoEditImages} max={3}/>
         <div style={{display:'flex',gap:8}}>
           <button onClick={saveItemPhotos} disabled={saving}
-            style={{background:'#f9b934',color:'#000',border:'none',borderRadius:5,padding:'6px 14px',fontSize:11,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>사진 저장</button>
+            style={{background:'#C3261C',color:'#FFFFFF',border:'none',borderRadius:5,padding:'6px 14px',fontSize:11,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>사진 저장</button>
           <button onClick={()=>{setPhotoEditId(null);setPhotoEditImages([])}}
-            style={{background:'transparent',border:'1px solid #272a3d',color:'#5e6585',borderRadius:5,padding:'6px 14px',fontSize:11,cursor:'pointer',fontFamily:'inherit'}}>취소</button>
+            style={{background:'transparent',border:'1px solid #DCD7CE',color:'#6E6A63',borderRadius:5,padding:'6px 14px',fontSize:11,cursor:'pointer',fontFamily:'inherit'}}>취소</button>
         </div>
       </div>
     )
@@ -332,9 +332,9 @@ export default function Checklist() {
     if(!(item.photoCount>0)) return null
     return (
       <button onClick={e=>{ e.stopPropagation(); openItemPhotos(item) }}
-        style={{border:'none',cursor:'pointer',background:'rgba(147,197,253,0.15)',color:'#93c5fd',
+        style={{border:'none',cursor:'pointer',background:'rgba(43,92,158,0.15)',color:'#2B5C9E',
           borderRadius:6,padding:'4px 8px',fontSize:10,fontWeight:700,fontFamily:'inherit',flexShrink:0}}>
-        📷 {item.photoCount}
+        {item.photoCount}
       </button>
     )
   }
@@ -421,7 +421,7 @@ export default function Checklist() {
   const historyWeeklyDone = historyWeekly.filter(it=>isChecked(historyDate, it.id)).length
 
   const inputStyle = {
-    background:'#191c2b',border:'1px solid #272a3d',borderRadius:7,color:'#dde1f2',
+    background:'#F3F1EC',border:'1px solid #DCD7CE',borderRadius:4,color:'#1D1B18',
     padding:'8px 10px',fontSize:12,outline:'none',fontFamily:'inherit'
   }
 
@@ -434,13 +434,13 @@ export default function Checklist() {
       <div key={item.id+date} style={{
         display:'flex',alignItems:'center',gap:8,
         padding: big ? '10px 12px' : '7px 10px',
-        borderRadius:8,
-        background: bothDone ? 'rgba(52,211,153,0.08)' : '#191c2b',
-        border: bothDone ? '1px solid rgba(52,211,153,0.3)' : '1px solid #272a3d',
+        borderRadius:4,
+        background: bothDone ? 'rgba(46,125,69,0.08)' : '#F3F1EC',
+        border: bothDone ? '1px solid rgba(46,125,69,0.3)' : '1px solid #DCD7CE',
       }}>
         <span style={{
           flex:1,fontSize: big?14:12, fontWeight: bothDone?400:600,
-          color: bothDone ? '#5e6585' : '#dde1f2',
+          color: bothDone ? '#6E6A63' : '#1D1B18',
           textDecoration: bothDone ? 'line-through' : 'none',
         }}>
           {item.label}
@@ -449,8 +449,8 @@ export default function Checklist() {
         <button onClick={()=>toggleCheck(date, item.id+'_am')}
           style={{
             display:'flex',alignItems:'center',gap:4,border:'none',cursor:'pointer',
-            background: amDone ? 'rgba(249,185,52,0.18)' : '#0b0d16',
-            color: amDone ? '#f9b934' : '#5e6585',
+            background: amDone ? 'rgba(195,38,28,0.18)' : '#FAF9F6',
+            color: amDone ? '#C3261C' : '#6E6A63',
             borderRadius:6,padding:'4px 8px',fontSize:10,fontWeight:700,fontFamily:'inherit'
           }}>
           {amDone ? '✓' : '○'} 오전
@@ -458,8 +458,8 @@ export default function Checklist() {
         <button onClick={()=>toggleCheck(date, item.id+'_pm')}
           style={{
             display:'flex',alignItems:'center',gap:4,border:'none',cursor:'pointer',
-            background: pmDone ? 'rgba(147,197,253,0.18)' : '#0b0d16',
-            color: pmDone ? '#93c5fd' : '#5e6585',
+            background: pmDone ? 'rgba(43,92,158,0.18)' : '#FAF9F6',
+            color: pmDone ? '#2B5C9E' : '#6E6A63',
             borderRadius:6,padding:'4px 8px',fontSize:10,fontWeight:700,fontFamily:'inherit'
           }}>
           {pmDone ? '✓' : '○'} 오후
@@ -483,28 +483,28 @@ export default function Checklist() {
             display:'flex',alignItems:'center',gap:8,
             padding: big ? '10px 12px' : '7px 10px',
             borderRadius: hasAlert ? '8px 8px 0 0' : 8,cursor:'pointer',
-            background: done ? 'rgba(52,211,153,0.08)' : '#191c2b',
-            border: done ? '1px solid rgba(52,211,153,0.3)' : '1px solid #272a3d',
+            background: done ? 'rgba(46,125,69,0.08)' : '#F3F1EC',
+            border: done ? '1px solid rgba(46,125,69,0.3)' : '1px solid #DCD7CE',
             borderBottom: hasAlert ? 'none' : undefined,
           }}>
           <div style={{
             width: big?22:18, height: big?22:18, borderRadius:6,flexShrink:0,
             display:'flex',alignItems:'center',justifyContent:'center',
-            background: done ? '#34d399' : 'transparent',
-            border: done ? 'none' : '1.5px solid #3d4060',
-            fontSize: big?13:11, color:'#000',fontWeight:900,
+            background: done ? '#2E7D45' : 'transparent',
+            border: done ? 'none' : '1.5px solid #A8A39A',
+            fontSize: big?13:11, color:'#FFFFFF',fontWeight:900,
           }}>
             {done && '✓'}
           </div>
           <span style={{
             fontSize: big?14:12, fontWeight: done?400:600,
-            color: done ? '#5e6585' : '#dde1f2',
+            color: done ? '#6E6A63' : '#1D1B18',
             textDecoration: done ? 'line-through' : 'none',
           }}>
             {item.label}
-            <span style={{fontSize:big?11:10,color:'#f9b934',marginLeft:6,fontWeight:700}}>({item.time})</span>
+            <span style={{fontSize:big?11:10,color:'#C3261C',marginLeft:6,fontWeight:700}}>({item.time})</span>
             {item.interval==='biweekly' && (
-              <span style={{fontSize:big?10:9,color:'#a78bfa',marginLeft:5,fontWeight:700}}>2주마다</span>
+              <span style={{fontSize:big?10:9,color:'#6B4FA0',marginLeft:5,fontWeight:700}}>2주마다</span>
             )}
           </span>
           {PhotoBadge(item)}
@@ -513,12 +513,12 @@ export default function Checklist() {
           <div style={{
             padding: big ? '7px 12px' : '5px 10px',
             borderRadius:'0 0 8px 8px',
-            background:'rgba(248,113,113,0.12)',
-            border:'1px solid rgba(248,113,113,0.3)',borderTop:'none',
-            fontSize: big?11:10, color:'#f87171', fontWeight:700,
+            background:'rgba(180,35,24,0.12)',
+            border:'1px solid rgba(180,35,24,0.3)',borderTop:'none',
+            fontSize: big?11:10, color:'#B42318', fontWeight:700,
             display:'flex',alignItems:'center',gap:5,
           }}>
-            ⏰ {item.alertUid && alertNameOf(item.alertUid) ? `${alertNameOf(item.alertUid)}님 ` : ''}
+            {item.alertUid && alertNameOf(item.alertUid) ? `${alertNameOf(item.alertUid)}님 ` : ''}
             {item.alertMsg || '일찍 출근 필요'}
           </div>
         )}
@@ -530,62 +530,62 @@ export default function Checklist() {
     <div>
       <div style={{display:'flex',alignItems:'flex-end',justifyContent:'space-between',marginBottom:22,flexWrap:'wrap',gap:10}}>
         <div>
-          <div style={{fontSize:20,fontWeight:700}}>✅ 오늘의 체크리스트</div>
-          <div style={{fontSize:12,color:'#5e6585',marginTop:2}}>매일(오전·오후)·요일별 필수 업무</div>
+          <div style={{fontSize:20,fontWeight:700}}>오늘의 체크리스트</div>
+          <div style={{fontSize:12,color:'#6E6A63',marginTop:2}}>매일(오전·오후)·요일별 필수 업무</div>
         </div>
         <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
           <button onClick={()=>setShowManage(v=>!v)}
-            style={{background: showManage ? '#f9b934' : '#191c2b',border:'1px solid #272a3d',
-              color: showManage ? '#000' : '#dde1f2',borderRadius:8,
+            style={{background: showManage ? '#C3261C' : '#F3F1EC',border:'1px solid #DCD7CE',
+              color: showManage ? '#FFFFFF' : '#1D1B18',borderRadius:4,
               padding:'8px 14px',fontSize:12,fontWeight:showManage?700:400,cursor:'pointer',fontFamily:'inherit'}}>
-            ⚙️ 항목 관리
+            항목 관리
           </button>
           <button onClick={()=>setShowHolidayManage(v=>!v)}
-            style={{background: showHolidayManage ? '#f87171' : '#191c2b',border:'1px solid #272a3d',
-              color: showHolidayManage ? '#000' : '#dde1f2',borderRadius:8,
+            style={{background: showHolidayManage ? '#B42318' : '#F3F1EC',border:'1px solid #DCD7CE',
+              color: showHolidayManage ? '#FFFFFF' : '#1D1B18',borderRadius:4,
               padding:'8px 14px',fontSize:12,fontWeight:showHolidayManage?700:400,cursor:'pointer',fontFamily:'inherit'}}>
-            🗓 임시휴무 설정
+            임시휴무 설정
           </button>
           <button onClick={()=>{ setShowHistory(v=>!v); setHistoryDate(today) }}
-            style={{background:'#191c2b',border:'1px solid #272a3d',color:'#dde1f2',borderRadius:8,
+            style={{background:'#F3F1EC',border:'1px solid #DCD7CE',color:'#1D1B18',borderRadius:4,
               padding:'8px 14px',fontSize:12,cursor:'pointer',fontFamily:'inherit'}}>
-            📖 지난 기록 보기
+            지난 기록 보기
           </button>
         </div>
       </div>
 
       {/* 임시휴무 설정 패널 */}
       {showHolidayManage && (
-        <div style={{background:'#12141f',border:'1px solid rgba(248,113,113,0.4)',borderRadius:12,padding:18,marginBottom:18}}>
-          <div style={{fontSize:13,fontWeight:600,color:'#f87171',marginBottom:4}}>🗓 임시휴무 설정</div>
-          <div style={{fontSize:11,color:'#5e6585',marginBottom:16}}>추석·설 연휴처럼 매장 문을 닫는 기간을 등록하면, 그 기간엔 일요일과 동일하게 체크리스트가 쉬어요.</div>
+        <div style={{background:'#FFFFFF',border:'1px solid rgba(180,35,24,0.4)',borderRadius:6,padding:18,marginBottom:18}}>
+          <div style={{fontSize:13,fontWeight:600,color:'#B42318',marginBottom:4}}>임시휴무 설정</div>
+          <div style={{fontSize:11,color:'#6E6A63',marginBottom:16}}>추석·설 연휴처럼 매장 문을 닫는 기간을 등록하면, 그 기간엔 일요일과 동일하게 체크리스트가 쉬어요.</div>
           <div style={{display:'flex',flexDirection:'column',gap:6,marginBottom:14}}>
             {holidays.length===0 && (
-              <div style={{fontSize:11,color:'#5e6585'}}>등록된 임시휴무가 없습니다</div>
+              <div style={{fontSize:11,color:'#6E6A63'}}>등록된 임시휴무가 없습니다</div>
             )}
             {holidays.slice().sort((a,b)=>a.startDate.localeCompare(b.startDate)).map(h=>(
-              <div key={h.id} style={{background:'#191c2b',borderRadius:7,padding:'8px 10px',
+              <div key={h.id} style={{background:'#F3F1EC',borderRadius:4,padding:'8px 10px',
                 display:'flex',alignItems:'center',gap:8}}>
-                <span style={{flex:1,fontSize:12,color:'#dde1f2'}}>
+                <span style={{flex:1,fontSize:12,color:'#1D1B18'}}>
                   {h.startDate} ~ {h.endDate}
-                  <span style={{color:'#f87171',marginLeft:8,fontWeight:600}}>{h.reason}</span>
+                  <span style={{color:'#B42318',marginLeft:8,fontWeight:600}}>{h.reason}</span>
                 </span>
                 <button onClick={()=>deleteHoliday(h.id)}
-                  style={{background:'transparent',border:'none',color:'#f87171',fontSize:12,cursor:'pointer',padding:0}}>🗑</button>
+                  style={{background:'transparent',border:'none',color:'#B42318',fontSize:12,cursor:'pointer',padding:0}}>삭제</button>
               </div>
             ))}
           </div>
           <div style={{display:'flex',gap:8,flexWrap:'wrap',alignItems:'center'}}>
-            <span style={{fontSize:10,color:'#5e6585'}}>시작일</span>
+            <span style={{fontSize:10,color:'#6E6A63'}}>시작일</span>
             <input type="date" value={newHoliday.startDate}
               onChange={e=>setNewHoliday(f=>({...f,startDate:e.target.value}))} style={inputStyle}/>
-            <span style={{fontSize:10,color:'#5e6585'}}>종료일</span>
+            <span style={{fontSize:10,color:'#6E6A63'}}>종료일</span>
             <input type="date" value={newHoliday.endDate}
               onChange={e=>setNewHoliday(f=>({...f,endDate:e.target.value}))} style={inputStyle}/>
             <input value={newHoliday.reason} onChange={e=>setNewHoliday(f=>({...f,reason:e.target.value}))}
               placeholder="사유 (예: 추석 연휴)" style={{...inputStyle,flex:1,minWidth:140}}/>
             <button onClick={addHoliday} disabled={saving}
-              style={{background:'#f87171',color:'#000',border:'none',borderRadius:7,
+              style={{background:'#B42318',color:'#FFFFFF',border:'none',borderRadius:4,
                 padding:'8px 16px',fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'inherit',whiteSpace:'nowrap'}}>
               + 등록
             </button>
@@ -595,36 +595,36 @@ export default function Checklist() {
 
       {/* 항목 관리 패널 */}
       {showManage && (
-        <div style={{background:'#12141f',border:'1px solid #f9b934',borderRadius:12,padding:18,marginBottom:18}}>
-          <div style={{fontSize:13,fontWeight:600,color:'#f9b934',marginBottom:16}}>⚙️ 체크리스트 항목 관리</div>
+        <div style={{background:'#FFFFFF',border:'1px solid #C3261C',borderRadius:6,padding:18,marginBottom:18}}>
+          <div style={{fontSize:13,fontWeight:600,color:'#C3261C',marginBottom:16}}>체크리스트 항목 관리</div>
 
           <div style={{marginBottom:20}}>
-            <div style={{fontSize:11,color:'#5e6585',fontWeight:600,marginBottom:8}}>
-              📌 매일 필수 항목 <span style={{color:'#3d4060'}}>(오전·오후 각각 체크)</span>
+            <div style={{fontSize:11,color:'#6E6A63',fontWeight:600,marginBottom:8}}>
+              매일 필수 항목 <span style={{color:'#A8A39A'}}>(오전·오후 각각 체크)</span>
             </div>
             <div style={{display:'flex',flexDirection:'column',gap:6,marginBottom:10}}>
               {dailyItems.map(item=>(
                 <div key={item.id}>
-                <div style={{background:'#191c2b',borderRadius:7,padding:'7px 10px',
+                <div style={{background:'#F3F1EC',borderRadius:4,padding:'7px 10px',
                   display:'flex',alignItems:'center',gap:8}}>
                   {editItemId===item.id ? (
                     <>
                       <input value={editItemForm.label} onChange={e=>setEditItemForm(f=>({...f,label:e.target.value}))}
                         style={{...inputStyle,flex:1}}/>
                       <button onClick={saveEditItem} disabled={saving}
-                        style={{background:'#f9b934',color:'#000',border:'none',borderRadius:5,padding:'5px 10px',fontSize:11,cursor:'pointer',fontFamily:'inherit'}}>저장</button>
+                        style={{background:'#C3261C',color:'#FFFFFF',border:'none',borderRadius:5,padding:'5px 10px',fontSize:11,cursor:'pointer',fontFamily:'inherit'}}>저장</button>
                       <button onClick={()=>{setEditItemId(null);setEditItemForm(null)}}
-                        style={{background:'transparent',border:'none',color:'#5e6585',fontSize:12,cursor:'pointer'}}>✕</button>
+                        style={{background:'transparent',border:'none',color:'#6E6A63',fontSize:12,cursor:'pointer'}}>✕</button>
                     </>
                   ) : (
                     <>
-                      <span style={{flex:1,fontSize:12,color:'#dde1f2'}}>{item.label}</span>
+                      <span style={{flex:1,fontSize:12,color:'#1D1B18'}}>{item.label}</span>
                       <button onClick={()=>startEditPhotos(item)}
-                        style={{background:'transparent',border:'none',color: item.photoCount>0 ? '#93c5fd' : '#5e6585',fontSize:12,cursor:'pointer',padding:0}}>📷{item.photoCount>0 ? item.photoCount : ''}</button>
+                        style={{background:'transparent',border:'none',color: item.photoCount>0 ? '#2B5C9E' : '#6E6A63',fontSize:12,cursor:'pointer',padding:0}}>사진{item.photoCount>0 ? ` ${item.photoCount}` : ''}</button>
                       <button onClick={()=>startEditItem(item,'daily')}
-                        style={{background:'transparent',border:'none',color:'#5e6585',fontSize:12,cursor:'pointer',padding:0}}>✏️</button>
+                        style={{background:'transparent',border:'none',color:'#6E6A63',fontSize:12,cursor:'pointer',padding:0}}>수정</button>
                       <button onClick={()=>deleteItem(item.id,'daily')}
-                        style={{background:'transparent',border:'none',color:'#f87171',fontSize:12,cursor:'pointer',padding:0}}>🗑</button>
+                        style={{background:'transparent',border:'none',color:'#B42318',fontSize:12,cursor:'pointer',padding:0}}>삭제</button>
                     </>
                   )}
                 </div>
@@ -637,7 +637,7 @@ export default function Checklist() {
                 placeholder="새 항목 이름 (예: 물수건 채우기)"
                 style={{...inputStyle,flex:1}}/>
               <button onClick={addDailyItem} disabled={saving}
-                style={{background:'#34d399',color:'#000',border:'none',borderRadius:7,
+                style={{background:'#2E7D45',color:'#FFFFFF',border:'none',borderRadius:4,
                   padding:'8px 16px',fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'inherit',whiteSpace:'nowrap'}}>
                 + 추가
               </button>
@@ -645,11 +645,11 @@ export default function Checklist() {
           </div>
 
           <div>
-            <div style={{fontSize:11,color:'#5e6585',fontWeight:600,marginBottom:8}}>📅 요일별 필수 항목</div>
+            <div style={{fontSize:11,color:'#6E6A63',fontWeight:600,marginBottom:8}}>요일별 필수 항목</div>
             <div style={{display:'flex',flexDirection:'column',gap:6,marginBottom:10}}>
               {weeklyItems.map(item=>(
                 <div key={item.id}>
-                <div style={{background:'#191c2b',borderRadius:7,padding:'7px 10px',
+                <div style={{background:'#F3F1EC',borderRadius:4,padding:'7px 10px',
                   display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}>
                   {editItemId===item.id ? (
                     <div style={{display:'flex',flexDirection:'column',gap:8,width:'100%'}}>
@@ -673,7 +673,7 @@ export default function Checklist() {
                         )}
                       </div>
                       <div style={{display:'flex',gap:8,flexWrap:'wrap',alignItems:'center'}}>
-                        <span style={{fontSize:10,color:'#5e6585'}}>⏰ 알림(선택):</span>
+                        <span style={{fontSize:10,color:'#6E6A63'}}>알림(선택):</span>
                         <select value={editItemForm.alertUid||''} onChange={e=>setEditItemForm(f=>({...f,alertUid:e.target.value}))} style={inputStyle}>
                           <option value="">담당자 없음</option>
                           {employees.map(e=><option key={e.uid} value={e.uid}>{e.name}</option>)}
@@ -683,32 +683,32 @@ export default function Checklist() {
                       </div>
                       <div style={{display:'flex',gap:8}}>
                         <button onClick={saveEditItem} disabled={saving}
-                          style={{background:'#f9b934',color:'#000',border:'none',borderRadius:5,padding:'6px 14px',fontSize:11,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>저장</button>
+                          style={{background:'#C3261C',color:'#FFFFFF',border:'none',borderRadius:5,padding:'6px 14px',fontSize:11,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>저장</button>
                         <button onClick={()=>{setEditItemId(null);setEditItemForm(null)}}
-                          style={{background:'transparent',border:'1px solid #272a3d',color:'#5e6585',borderRadius:5,padding:'6px 14px',fontSize:11,cursor:'pointer',fontFamily:'inherit'}}>취소</button>
+                          style={{background:'transparent',border:'1px solid #DCD7CE',color:'#6E6A63',borderRadius:5,padding:'6px 14px',fontSize:11,cursor:'pointer',fontFamily:'inherit'}}>취소</button>
                       </div>
                     </div>
                   ) : (
                     <>
                       <div style={{flex:1}}>
-                        <div style={{fontSize:12,color:'#dde1f2'}}>
+                        <div style={{fontSize:12,color:'#1D1B18'}}>
                           {item.label}
-                          {item.interval==='biweekly' && <span style={{fontSize:10,color:'#a78bfa',marginLeft:6,fontWeight:700}}>2주마다</span>}
+                          {item.interval==='biweekly' && <span style={{fontSize:10,color:'#6B4FA0',marginLeft:6,fontWeight:700}}>2주마다</span>}
                         </div>
                         {(item.alertUid||item.alertMsg) && (
-                          <div style={{fontSize:10,color:'#f87171',marginTop:2}}>
-                            ⏰ {item.alertUid && alertNameOf(item.alertUid) ? `${alertNameOf(item.alertUid)}님 ` : ''}{item.alertMsg||'일찍 출근 필요'}
+                          <div style={{fontSize:10,color:'#B42318',marginTop:2}}>
+                            {item.alertUid && alertNameOf(item.alertUid) ? `${alertNameOf(item.alertUid)}님 ` : ''}{item.alertMsg||'일찍 출근 필요'}
                           </div>
                         )}
                       </div>
-                      <span style={{fontSize:11,color:'#93c5fd',fontWeight:600}}>{DOW_LABELS[item.dow]}요일</span>
-                      <span style={{fontSize:11,color:'#f9b934',fontWeight:600}}>{item.time}</span>
+                      <span style={{fontSize:11,color:'#2B5C9E',fontWeight:600}}>{DOW_LABELS[item.dow]}요일</span>
+                      <span style={{fontSize:11,color:'#C3261C',fontWeight:600}}>{item.time}</span>
                       <button onClick={()=>startEditPhotos(item)}
-                        style={{background:'transparent',border:'none',color: item.photoCount>0 ? '#93c5fd' : '#5e6585',fontSize:12,cursor:'pointer',padding:0}}>📷{item.photoCount>0 ? item.photoCount : ''}</button>
+                        style={{background:'transparent',border:'none',color: item.photoCount>0 ? '#2B5C9E' : '#6E6A63',fontSize:12,cursor:'pointer',padding:0}}>사진{item.photoCount>0 ? ` ${item.photoCount}` : ''}</button>
                       <button onClick={()=>startEditItem(item,'weekly')}
-                        style={{background:'transparent',border:'none',color:'#5e6585',fontSize:12,cursor:'pointer',padding:0}}>✏️</button>
+                        style={{background:'transparent',border:'none',color:'#6E6A63',fontSize:12,cursor:'pointer',padding:0}}>수정</button>
                       <button onClick={()=>deleteItem(item.id,'weekly')}
-                        style={{background:'transparent',border:'none',color:'#f87171',fontSize:12,cursor:'pointer',padding:0}}>🗑</button>
+                        style={{background:'transparent',border:'none',color:'#B42318',fontSize:12,cursor:'pointer',padding:0}}>삭제</button>
                     </>
                   )}
                 </div>
@@ -734,14 +734,14 @@ export default function Checklist() {
                 </select>
                 {newWeekly.interval==='biweekly' && (
                   <div style={{display:'flex',alignItems:'center',gap:6}}>
-                    <span style={{fontSize:10,color:'#5e6585'}}>기준일</span>
+                    <span style={{fontSize:10,color:'#6E6A63'}}>기준일</span>
                     <input type="date" value={newWeekly.baseDate}
                       onChange={e=>setNewWeekly(f=>({...f,baseDate:e.target.value}))} style={inputStyle}/>
                   </div>
                 )}
               </div>
               <div style={{display:'flex',gap:8,flexWrap:'wrap',alignItems:'center'}}>
-                <span style={{fontSize:10,color:'#5e6585'}}>⏰ 알림(선택):</span>
+                <span style={{fontSize:10,color:'#6E6A63'}}>알림(선택):</span>
                 <select value={newWeekly.alertUid} onChange={e=>setNewWeekly(f=>({...f,alertUid:e.target.value}))} style={inputStyle}>
                   <option value="">담당자 없음</option>
                   {employees.map(e=><option key={e.uid} value={e.uid}>{e.name}</option>)}
@@ -749,7 +749,7 @@ export default function Checklist() {
                 <input value={newWeekly.alertMsg} onChange={e=>setNewWeekly(f=>({...f,alertMsg:e.target.value}))}
                   placeholder="알림 문구 (예: 1시간 일찍 출근 필요)" style={{...inputStyle,flex:1,minWidth:160}}/>
                 <button onClick={addWeeklyItem} disabled={saving}
-                  style={{background:'#34d399',color:'#000',border:'none',borderRadius:7,
+                  style={{background:'#2E7D45',color:'#FFFFFF',border:'none',borderRadius:4,
                     padding:'8px 16px',fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'inherit',whiteSpace:'nowrap'}}>
                   + 추가
                 </button>
@@ -761,35 +761,35 @@ export default function Checklist() {
 
       {/* 지난 기록 조회 */}
       {showHistory && (
-        <div style={{background:'#12141f',border:'1px solid rgba(147,197,253,0.3)',borderRadius:12,
+        <div style={{background:'#FFFFFF',border:'1px solid rgba(43,92,158,0.3)',borderRadius:6,
           padding:16,marginBottom:18}}>
           <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:14,flexWrap:'wrap'}}>
-            <span style={{fontSize:12,fontWeight:700,color:'#93c5fd'}}>📖 지난 기록 조회</span>
+            <span style={{fontSize:12,fontWeight:700,color:'#2B5C9E'}}>지난 기록 조회</span>
             <input type="date" value={historyDate} max={today}
               onChange={e=>setHistoryDate(e.target.value)}
               style={{...inputStyle}}/>
             <button onClick={()=>setShowHistory(false)}
-              style={{background:'transparent',border:'1px solid #272a3d',color:'#5e6585',borderRadius:6,
+              style={{background:'transparent',border:'1px solid #DCD7CE',color:'#6E6A63',borderRadius:6,
                 padding:'5px 10px',fontSize:11,cursor:'pointer',fontFamily:'inherit'}}>
               닫기
             </button>
           </div>
           {historyClosed ? (
-            <div style={{fontSize:12,color:'#5e6585',padding:'12px 0'}}>
-              😴 {historyDow===CLOSED_DOW ? '일요일은 휴무일입니다' : `임시휴무일입니다 (${historyHolidayInfo?.reason||'임시휴무'})`}
+            <div style={{fontSize:12,color:'#6E6A63',padding:'12px 0'}}>
+              {historyDow===CLOSED_DOW ? '일요일은 휴무일입니다' : `임시휴무일입니다 (${historyHolidayInfo?.reason||'임시휴무'})`}
             </div>
           ) : (
             <>
-              <div style={{fontSize:11,color:'#5e6585',marginBottom:10}}>
+              <div style={{fontSize:11,color:'#6E6A63',marginBottom:10}}>
                 {historyDate} ({DAYS_KR[historyDow]}) — 매일 {historyDailyDone}/{dailyTotalSlots} · 요일 {historyWeeklyDone}/{historyWeekly.length}
               </div>
-              <div style={{fontSize:10,color:'#5e6585',fontWeight:600,marginBottom:6}}>매일 항목</div>
+              <div style={{fontSize:10,color:'#6E6A63',fontWeight:600,marginBottom:6}}>매일 항목</div>
               <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(240px,1fr))',gap:8,marginBottom:14}}>
                 {dailyItems.map(it=>DailyRow(it, historyDate))}
               </div>
               {historyWeekly.length>0 && (
                 <>
-                  <div style={{fontSize:10,color:'#5e6585',fontWeight:600,marginBottom:6}}>요일별 항목</div>
+                  <div style={{fontSize:10,color:'#6E6A63',fontWeight:600,marginBottom:6}}>요일별 항목</div>
                   <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(220px,1fr))',gap:8}}>
                     {historyWeekly.map(it=>WeeklyRow(it, historyDate))}
                   </div>
@@ -805,17 +805,17 @@ export default function Checklist() {
         <div style={{marginBottom:18,display:'flex',flexDirection:'column',gap:8}}>
           {pinnedNotices.map(n=>(
             <div key={n.type+n.id} style={{
-              background: n.type==='notice' ? 'rgba(249,185,52,0.10)' : 'rgba(147,197,253,0.10)',
-              border: n.type==='notice' ? '1.5px solid rgba(249,185,52,0.4)' : '1.5px solid rgba(147,197,253,0.35)',
-              borderRadius:10,padding:'12px 16px',display:'flex',alignItems:'flex-start',gap:10,
+              background: n.type==='notice' ? 'rgba(195,38,28,0.10)' : 'rgba(43,92,158,0.10)',
+              border: n.type==='notice' ? '1.5px solid rgba(195,38,28,0.4)' : '1.5px solid rgba(43,92,158,0.35)',
+              borderRadius:6,padding:'12px 16px',display:'flex',alignItems:'flex-start',gap:10,
             }}>
-              <span style={{fontSize:18}}>{n.type==='notice' ? '📢' : '💬'}</span>
+              <span style={{fontSize:18}}>{n.type==='notice' ? '공지' : '메모'}</span>
               <div>
                 <div style={{fontSize:11,fontWeight:800,
-                  color: n.type==='notice' ? '#f9b934' : '#93c5fd', marginBottom:2}}>
+                  color: n.type==='notice' ? '#C3261C' : '#2B5C9E', marginBottom:2}}>
                   {n.type==='notice' ? `공지 · ${n.authorName}` : `메모 · ${n.authorName}`}
                 </div>
-                <div style={{fontSize:13,color:'#dde1f2',lineHeight:1.6,whiteSpace:'pre-wrap'}}>
+                <div style={{fontSize:13,color:'#1D1B18',lineHeight:1.6,whiteSpace:'pre-wrap'}}>
                   {n.content}
                 </div>
                 <div style={{marginTop:8}}><PhotoGrid images={n.images} label={n.type==='notice' ? '공지 사진' : '메모 사진'}/></div>
@@ -826,11 +826,11 @@ export default function Checklist() {
       )}
 
       {loading ? (
-        <div style={{textAlign:'center',color:'#5e6585',padding:60}}>로딩 중...</div>
+        <div style={{textAlign:'center',color:'#6E6A63',padding:60}}>로딩 중...</div>
       ) : todayClosed ? (
-        <div style={{background:'#12141f',border:'1px solid #272a3d',borderRadius:12,padding:40,textAlign:'center'}}>
-          <div style={{fontSize:24,marginBottom:8}}>😴</div>
-          <div style={{fontSize:14,color:'#5e6585',fontWeight:600}}>
+        <div style={{background:'#FFFFFF',border:'1px solid #DCD7CE',borderRadius:6,padding:40,textAlign:'center'}}>
+          <div style={{fontSize:24,marginBottom:8}}></div>
+          <div style={{fontSize:14,color:'#6E6A63',fontWeight:600}}>
             {todayDow===CLOSED_DOW ? '오늘은 일요일 휴무일입니다' : `오늘은 임시휴무일입니다 (${todayHolidayInfo?.reason||'임시휴무'})`}
           </div>
         </div>
@@ -838,10 +838,10 @@ export default function Checklist() {
         <>
           {/* 직전 영업일 못한 일 (일요일+임시휴무 건너뜀) */}
           {hasPrevUnfinished && (
-            <div style={{background:'#12141f',border:'1px solid rgba(248,113,113,0.4)',borderRadius:12,
+            <div style={{background:'#FFFFFF',border:'1px solid rgba(180,35,24,0.4)',borderRadius:6,
               padding:16,marginBottom:18}}>
-              <div style={{fontSize:12,fontWeight:700,color:'#f87171',marginBottom:10}}>
-                ⚠ {+prevBusinessDate.split('-')[2]}일({DAYS_KR[prevBusinessDow]}) 못한 일 {prevDailyUnfinished.length+prevWeeklyUnfinished.length}건
+              <div style={{fontSize:12,fontWeight:700,color:'#B42318',marginBottom:10}}>
+                {+prevBusinessDate.split('-')[2]}일({DAYS_KR[prevBusinessDow]}) 못한 일 {prevDailyUnfinished.length+prevWeeklyUnfinished.length}건
               </div>
               <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(240px,1fr))',gap:8}}>
                 {prevDailyUnfinished.map(it=>DailyRow(it, prevBusinessDate))}
@@ -858,17 +858,17 @@ export default function Checklist() {
                 const dDow = DAYS_KR[dowOfDate(r.date)]
                 return (
                   <div key={r.id} style={{
-                    background:'rgba(248,113,113,0.10)',border:'1.5px solid rgba(248,113,113,0.35)',
-                    borderRadius:10,padding:'12px 16px',display:'flex',alignItems:'center',gap:10,
+                    background:'rgba(180,35,24,0.10)',border:'1.5px solid rgba(180,35,24,0.35)',
+                    borderRadius:6,padding:'12px 16px',display:'flex',alignItems:'center',gap:10,
                   }}>
-                    <span style={{fontSize:18}}>🙋</span>
+                    <span style={{fontSize:18}}></span>
                     <div>
-                      <div style={{fontSize:13,fontWeight:800,color:'#f87171'}}>
+                      <div style={{fontSize:13,fontWeight:800,color:'#B42318'}}>
                         {dLabel}({dDow}) {nameOf(r.requesterUid)} 대타 구함!
                       </div>
-                      <div style={{fontSize:11,color:'#f87171',marginTop:2,fontWeight:600}}>
-                        ⏰ {r.startH}:{r.startM}~{r.endH}:{r.endM}
-                        <span style={{color:'#5e6585',fontWeight:400,marginLeft:6}}>({r.date}) — 지원 가능해요!</span>
+                      <div style={{fontSize:11,color:'#B42318',marginTop:2,fontWeight:600}}>
+                        {r.startH}:{r.startM}~{r.endH}:{r.endM}
+                        <span style={{color:'#6E6A63',fontWeight:400,marginLeft:6}}>({r.date}) — 지원 가능해요!</span>
                       </div>
                     </div>
                   </div>
@@ -885,17 +885,17 @@ export default function Checklist() {
                 const dDow = DAYS_KR[dowOfDate(r.date)]
                 return (
                   <div key={r.id} style={{
-                    background:'rgba(52,211,153,0.10)',border:'1.5px solid rgba(52,211,153,0.35)',
-                    borderRadius:10,padding:'12px 16px',display:'flex',alignItems:'center',gap:10,
+                    background:'rgba(46,125,69,0.10)',border:'1.5px solid rgba(46,125,69,0.35)',
+                    borderRadius:6,padding:'12px 16px',display:'flex',alignItems:'center',gap:10,
                   }}>
-                    <span style={{fontSize:18}}>🔄</span>
+                    <span style={{fontSize:18}}></span>
                     <div>
-                      <div style={{fontSize:13,fontWeight:800,color:'#34d399'}}>
+                      <div style={{fontSize:13,fontWeight:800,color:'#2E7D45'}}>
                         {dLabel}({dDow}) 대타 확정: {nameOf(r.requesterUid)} → {nameOf(r.confirmedUid)}
                       </div>
-                      <div style={{fontSize:11,color:'#34d399',marginTop:2,fontWeight:600}}>
-                        ⏰ {r.startH}:{r.startM}~{r.endH}:{r.endM}
-                        <span style={{color:'#5e6585',fontWeight:400,marginLeft:6}}>({r.date})</span>
+                      <div style={{fontSize:11,color:'#2E7D45',marginTop:2,fontWeight:600}}>
+                        {r.startH}:{r.startM}~{r.endH}:{r.endM}
+                        <span style={{color:'#6E6A63',fontWeight:400,marginLeft:6}}>({r.date})</span>
                       </div>
                     </div>
                   </div>
@@ -911,17 +911,17 @@ export default function Checklist() {
                 const dLabel = found.offset===1 ? '내일' : `${found.offset}일 후`
                 return (
                   <div key={item.id} style={{
-                    background:'rgba(167,139,250,0.10)',border:'1.5px solid rgba(167,139,250,0.35)',
-                    borderRadius:10,padding:'12px 16px',display:'flex',alignItems:'center',gap:10,
+                    background:'rgba(107,79,160,0.10)',border:'1.5px solid rgba(107,79,160,0.35)',
+                    borderRadius:6,padding:'12px 16px',display:'flex',alignItems:'center',gap:10,
                   }}>
-                    <span style={{fontSize:18}}>📌</span>
+                    <span style={{fontSize:18}}></span>
                     <div>
-                      <div style={{fontSize:13,fontWeight:800,color:'#a78bfa'}}>
+                      <div style={{fontSize:13,fontWeight:800,color:'#6B4FA0'}}>
                         {dLabel}({DAYS_KR[found.dow]}) {item.label} 있는 날!
                       </div>
-                      <div style={{fontSize:11,color:'#a78bfa',marginTop:2,fontWeight:600}}>
-                        {item.alertUid && alertNameOf(item.alertUid) && `👤 ${alertNameOf(item.alertUid)}님 — `}
-                        {item.alertMsg || '일찍 출근 필요'} <span style={{color:'#5e6585',fontWeight:400}}>({found.dateStr})</span>
+                      <div style={{fontSize:11,color:'#6B4FA0',marginTop:2,fontWeight:600}}>
+                        {item.alertUid && alertNameOf(item.alertUid) && `${alertNameOf(item.alertUid)}님 — `}
+                        {item.alertMsg || '일찍 출근 필요'} <span style={{color:'#6E6A63',fontWeight:400}}>({found.dateStr})</span>
                       </div>
                     </div>
                   </div>
@@ -931,21 +931,21 @@ export default function Checklist() {
           )}
 
           {/* 오늘 할 일 (강조) */}
-          <div style={{background:'linear-gradient(135deg,rgba(249,185,52,0.10),rgba(249,185,52,0.02))',
-            border:'2px solid #f9b934',borderRadius:14,padding:20,marginBottom:24,
-            boxShadow:'0 0 30px rgba(249,185,52,0.08)'}}>
+          <div style={{background:'linear-gradient(135deg,rgba(195,38,28,0.10),rgba(195,38,28,0.02))',
+            border:'2px solid #C3261C',borderRadius:6,padding:20,marginBottom:24,
+            boxShadow:'0 0 30px rgba(195,38,28,0.08)'}}>
             <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:16,flexWrap:'wrap',gap:8}}>
               <div>
-                <div style={{fontSize:16,fontWeight:800,color:'#f9b934'}}>
-                  🔥 오늘 ({DAYS_KR[todayDow]}) 할 일
+                <div style={{fontSize:16,fontWeight:800,color:'#C3261C'}}>
+                  오늘 ({DAYS_KR[todayDow]}) 할 일
                 </div>
-                <div style={{fontSize:11,color:'#5e6585',marginTop:2}}>{today}</div>
+                <div style={{fontSize:11,color:'#6E6A63',marginTop:2}}>{today}</div>
               </div>
-              <div style={{background:'#191c2b',borderRadius:8,padding:'8px 14px'}}>
-                <span style={{fontSize:16,fontWeight:800,color: todayDoneCount===todayTotalCount ? '#34d399' : '#f9b934'}}>
+              <div style={{background:'#F3F1EC',borderRadius:4,padding:'8px 14px'}}>
+                <span style={{fontSize:16,fontWeight:800,color: todayDoneCount===todayTotalCount ? '#2E7D45' : '#C3261C'}}>
                   {todayDoneCount}
                 </span>
-                <span style={{fontSize:13,color:'#5e6585'}}> / {todayTotalCount}</span>
+                <span style={{fontSize:13,color:'#6E6A63'}}> / {todayTotalCount}</span>
               </div>
             </div>
 
@@ -954,16 +954,16 @@ export default function Checklist() {
               <div style={{marginBottom:16,display:'flex',flexDirection:'column',gap:8}}>
                 {todayWeekly.filter(it=>it.alertUid||it.alertMsg).map(it=>(
                   <div key={it.id} style={{
-                    background:'rgba(248,113,113,0.12)',border:'1.5px solid rgba(248,113,113,0.4)',
-                    borderRadius:10,padding:'12px 16px',display:'flex',alignItems:'center',gap:10,
+                    background:'rgba(180,35,24,0.12)',border:'1.5px solid rgba(180,35,24,0.4)',
+                    borderRadius:6,padding:'12px 16px',display:'flex',alignItems:'center',gap:10,
                   }}>
-                    <span style={{fontSize:18}}>🔔</span>
+                    <span style={{fontSize:18}}></span>
                     <div>
-                      <div style={{fontSize:13,fontWeight:800,color:'#f87171'}}>
+                      <div style={{fontSize:13,fontWeight:800,color:'#B42318'}}>
                         오늘은 {it.label} 있는 날!
                       </div>
-                      <div style={{fontSize:11,color:'#f87171',marginTop:2,fontWeight:600}}>
-                        {it.alertUid && alertNameOf(it.alertUid) && `👤 ${alertNameOf(it.alertUid)}님 — `}
+                      <div style={{fontSize:11,color:'#B42318',marginTop:2,fontWeight:600}}>
+                        {it.alertUid && alertNameOf(it.alertUid) && `${alertNameOf(it.alertUid)}님 — `}
                         {it.alertMsg || '일찍 출근 필요'}
                       </div>
                     </div>
@@ -972,8 +972,8 @@ export default function Checklist() {
               </div>
             )}
 
-            <div style={{fontSize:11,color:'#5e6585',fontWeight:600,marginBottom:8}}>
-              📌 매일 항목 <span style={{color:'#3d4060'}}>({todayDailyDone}/{dailyTotalSlots})</span>
+            <div style={{fontSize:11,color:'#6E6A63',fontWeight:600,marginBottom:8}}>
+              매일 항목 <span style={{color:'#A8A39A'}}>({todayDailyDone}/{dailyTotalSlots})</span>
             </div>
             <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(260px,1fr))',gap:8,marginBottom: todayWeekly.length>0?16:0}}>
               {dailyItems.map(it=>DailyRow(it, today, true))}
@@ -981,8 +981,8 @@ export default function Checklist() {
 
             {todayWeekly.length > 0 && (
               <>
-                <div style={{fontSize:11,color:'#5e6585',fontWeight:600,marginBottom:8}}>
-                  📅 오늘의 요일별 항목 <span style={{color:'#3d4060'}}>({todayWeeklyDone}/{todayWeekly.length})</span>
+                <div style={{fontSize:11,color:'#6E6A63',fontWeight:600,marginBottom:8}}>
+                  오늘의 요일별 항목 <span style={{color:'#A8A39A'}}>({todayWeeklyDone}/{todayWeekly.length})</span>
                 </div>
                 <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(240px,1fr))',gap:8}}>
                   {todayWeekly.map(it=>WeeklyRow(it, today, true))}
@@ -992,9 +992,9 @@ export default function Checklist() {
           </div>
 
           {/* 이번주 전체 보기 */}
-          <div style={{background:'#12141f',border:'1px solid #272a3d',borderRadius:12,overflow:'hidden'}}>
-            <div style={{padding:'14px 18px',borderBottom:'1px solid #272a3d',fontSize:13,fontWeight:600}}>
-              📅 이번주 전체 보기 <span style={{fontSize:10,color:'#5e6585',fontWeight:400}}>— 요일을 클릭하면 전체 목록이 보여요</span>
+          <div style={{background:'#FFFFFF',border:'1px solid #DCD7CE',borderRadius:6,overflow:'hidden'}}>
+            <div style={{padding:'14px 18px',borderBottom:'1px solid #DCD7CE',fontSize:13,fontWeight:600}}>
+              이번주 전체 보기 <span style={{fontSize:10,color:'#6E6A63',fontWeight:400}}>— 요일을 클릭하면 전체 목록이 보여요</span>
             </div>
             <div style={{display:'grid',gridTemplateColumns:'repeat(7,1fr)',gap:0}}>
               {DAYS_KR.map((dayName, dow)=>{
@@ -1010,21 +1010,21 @@ export default function Checklist() {
                   <div key={dow} onClick={()=>!isClosed && setExpandedDow(v=>v===dow?null:dow)}
                     style={{
                     padding:'12px 8px',cursor: isClosed?'default':'pointer',
-                    borderRight: dow<6 ? '1px solid #191c2b' : 'none',
-                    background: isClosed ? 'rgba(94,101,133,0.04)' : expandedDow===dow ? 'rgba(249,185,52,0.12)' : isToday ? 'rgba(249,185,52,0.06)' : 'transparent',
-                    outline: expandedDow===dow ? '1px solid rgba(249,185,52,0.5)' : 'none',
+                    borderRight: dow<6 ? '1px solid #F3F1EC' : 'none',
+                    background: isClosed ? 'rgba(94,101,133,0.04)' : expandedDow===dow ? 'rgba(195,38,28,0.12)' : isToday ? 'rgba(195,38,28,0.06)' : 'transparent',
+                    outline: expandedDow===dow ? '1px solid rgba(195,38,28,0.5)' : 'none',
                     opacity: isClosed ? 0.5 : 1,
                   }}>
                     <div style={{textAlign:'center',marginBottom:8}}>
                       <div style={{fontSize:11,fontWeight:800,
-                        color: isToday ? '#f9b934' : dow===0?'#f87171':dow===6?'#93c5fd':'#dde1f2'}}>
+                        color: isToday ? '#C3261C' : dow===0?'#B42318':dow===6?'#2B5C9E':'#1D1B18'}}>
                         {dayName}
                       </div>
-                      <div style={{fontSize:9,color:'#5e6585',marginTop:2}}>{+date.split('-')[2]}일</div>
+                      <div style={{fontSize:9,color:'#6E6A63',marginTop:2}}>{+date.split('-')[2]}일</div>
                       {isClosed ? (
-                        <div style={{fontSize:9,color:'#5e6585',marginTop:3,fontWeight:600}}>휴무</div>
+                        <div style={{fontSize:9,color:'#6E6A63',marginTop:3,fontWeight:600}}>휴무</div>
                       ) : (
-                        <div style={{fontSize:9,color: done===total && total>0 ?'#34d399':'#5e6585',
+                        <div style={{fontSize:9,color: done===total && total>0 ?'#2E7D45':'#6E6A63',
                           marginTop:3,fontWeight:600}}>
                           {done}/{total}
                         </div>
@@ -1037,8 +1037,8 @@ export default function Checklist() {
                           return (
                             <div key={it.id} style={{
                               fontSize:8.5,padding:'3px 4px',borderRadius:4,textAlign:'center',
-                              background: wdone?'rgba(52,211,153,0.15)':'rgba(94,101,133,0.1)',
-                              color: wdone?'#34d399':'#5e6585',
+                              background: wdone?'rgba(46,125,69,0.15)':'rgba(94,101,133,0.1)',
+                              color: wdone?'#2E7D45':'#6E6A63',
                               textDecoration: wdone?'line-through':'none',
                               lineHeight:1.3,
                             }}>
@@ -1046,7 +1046,7 @@ export default function Checklist() {
                             </div>
                           )
                         })}
-                        <div style={{fontSize:8,color:'#3d4060',textAlign:'center',marginTop:2}}>
+                        <div style={{fontSize:8,color:'#A8A39A',textAlign:'center',marginTop:2}}>
                           +매일 {dailyItems.length}개
                         </div>
                       </div>
@@ -1057,17 +1057,17 @@ export default function Checklist() {
             </div>
 
             {expandedDow !== null && (
-              <div style={{borderTop:'1px solid #272a3d',padding:16,background:'rgba(249,185,52,0.03)'}}>
-                <div style={{fontSize:12,fontWeight:700,color:'#f9b934',marginBottom:10}}>
+              <div style={{borderTop:'1px solid #DCD7CE',padding:16,background:'rgba(195,38,28,0.03)'}}>
+                <div style={{fontSize:12,fontWeight:700,color:'#C3261C',marginBottom:10}}>
                   {DAYS_KR[expandedDow]}요일 ({+dateOfDow(expandedDow).split('-')[2]}일) 전체 할 일
                 </div>
-                <div style={{fontSize:10,color:'#5e6585',fontWeight:600,marginBottom:6}}>매일 항목</div>
+                <div style={{fontSize:10,color:'#6E6A63',fontWeight:600,marginBottom:6}}>매일 항목</div>
                 <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(240px,1fr))',gap:8,marginBottom:14}}>
                   {dailyItems.map(it=>DailyRow(it, dateOfDow(expandedDow)))}
                 </div>
                 {getWeeklyForDate(dateOfDow(expandedDow)).length>0 && (
                   <>
-                    <div style={{fontSize:10,color:'#5e6585',fontWeight:600,marginBottom:6}}>요일별 항목</div>
+                    <div style={{fontSize:10,color:'#6E6A63',fontWeight:600,marginBottom:6}}>요일별 항목</div>
                     <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(220px,1fr))',gap:8}}>
                       {getWeeklyForDate(dateOfDow(expandedDow)).map(it=>WeeklyRow(it, dateOfDow(expandedDow)))}
                     </div>

@@ -241,16 +241,16 @@ function getEmpStats(emp) {
   const todayEmps = allStats.filter(s => s.emp.workDays.includes(todayDow))
 
   const todayContent = (
-    <div style={{background:'#12141f',border:'1px solid #34d399',borderRadius:12,overflow:'hidden',marginBottom:18}}>
-      <div style={{padding:'14px 18px',borderBottom:'1px solid #272a3d',fontSize:13,fontWeight:600,color:'#34d399'}}>
-        📅 오늘 ({+todayDD}일) 근무 인원 — {todayEmps.length}명
+    <div style={{background:'#FFFFFF',border:'1px solid #2E7D45',borderRadius:6,overflow:'hidden',marginBottom:18}}>
+      <div style={{padding:'14px 18px',borderBottom:'1px solid #DCD7CE',fontSize:13,fontWeight:600,color:'#2E7D45'}}>
+        오늘 ({+todayDD}일) 근무 인원 — {todayEmps.length}명
       </div>
       {todayEmps.length === 0 ? (
-        <div style={{padding:24,textAlign:'center',color:'#5e6585',fontSize:12}}>오늘 근무 예정 인원이 없습니다</div>
+        <div style={{padding:24,textAlign:'center',color:'#6E6A63',fontSize:12}}>오늘 근무 예정 인원이 없습니다</div>
       ) : (
         <div>
           <div style={{display:'flex',alignItems:'center',gap:14,padding:'8px 18px',
-            background:'#191c2b',fontSize:10,fontWeight:600,color:'#5e6585'}}>
+            background:'#F3F1EC',fontSize:10,fontWeight:600,color:'#6E6A63'}}>
             <div style={{minWidth:80}}>이름</div>
             <div style={{minWidth:120}}>근무시간 (h)</div>
             <div style={{minWidth:120}}>추가근무 (분)</div>
@@ -265,35 +265,35 @@ function getEmpStats(emp) {
             const hasToday = (wh[todayDD]||0) > 0
             return (
               <div key={emp.uid} style={{display:'flex',alignItems:'center',gap:14,padding:'10px 18px',
-                borderBottom:'1px solid #1a1d2e',
-                background:hasToday?'rgba(249,185,52,0.04)':'transparent'}}>
+                borderBottom:'1px solid #ECE8E1',
+                background:hasToday?'rgba(195,38,28,0.04)':'transparent'}}>
                 <div style={{minWidth:80,fontSize:13,fontWeight:700,
-                  color:hasMissing?'#f87171':hasToday?'#f9b934':'#dde1f2'}}>
+                  color:hasMissing?'#B42318':hasToday?'#C3261C':'#1D1B18'}}>
                   {emp.name}
                   {hasMissing && <span style={{fontSize:9,marginLeft:4}}>⚠{missing.length}</span>}
                 </div>
                 <input type="number" defaultValue={wh[todayDD]||''} min="0" max="24" step="0.5" placeholder="0"
                   onBlur={e=>saveWorkHours(emp.uid,todayDD,e.target.value)}
                   onKeyDown={e=>e.key==='Enter'&&e.target.blur()}
-                  style={{width:100,background:wh[todayDD]>0?'rgba(249,185,52,0.15)':'#191c2b',
-                    border:wh[todayDD]>0?'1px solid #f9b934':'1px solid #272a3d',
-                    borderRadius:6,color:wh[todayDD]>0?'#f9b934':'#dde1f2',
+                  style={{width:100,background:wh[todayDD]>0?'rgba(195,38,28,0.15)':'#F3F1EC',
+                    border:wh[todayDD]>0?'1px solid #C3261C':'1px solid #DCD7CE',
+                    borderRadius:6,color:wh[todayDD]>0?'#C3261C':'#1D1B18',
                     padding:'7px 8px',fontSize:13,fontWeight:wh[todayDD]>0?700:400,
-                    textAlign:'center',outline:'none',fontFamily:'DM Mono,monospace'}}/>
+                    textAlign:'center',outline:'none',fontFamily:'inherit',fontVariantNumeric:'tabular-nums'}}/>
                 <input type="number" defaultValue={ex[todayDD]||''} min="0" max="180" step="5" placeholder="0"
                   onBlur={e=>saveWorkExtra(emp.uid,todayDD,e.target.value)}
                   onKeyDown={e=>e.key==='Enter'&&e.target.blur()}
-                  style={{width:100,background:ex[todayDD]>0?'rgba(249,185,52,0.15)':'#191c2b',
-                    border:ex[todayDD]>0?'1px solid #f9b934':'1px solid #272a3d',
-                    borderRadius:6,color:ex[todayDD]>0?'#f9b934':'#dde1f2',
+                  style={{width:100,background:ex[todayDD]>0?'rgba(195,38,28,0.15)':'#F3F1EC',
+                    border:ex[todayDD]>0?'1px solid #C3261C':'1px solid #DCD7CE',
+                    borderRadius:6,color:ex[todayDD]>0?'#C3261C':'#1D1B18',
                     padding:'7px 8px',fontSize:13,fontWeight:ex[todayDD]>0?700:400,
-                    textAlign:'center',outline:'none',fontFamily:'DM Mono,monospace'}}/>
+                    textAlign:'center',outline:'none',fontFamily:'inherit',fontVariantNumeric:'tabular-nums'}}/>
                 <input type="text" defaultValue={empMemos[todayDD]||''} placeholder="비고..."
                   onBlur={e=>saveMemo(emp.uid,todayDD,e.target.value)}
                   onKeyDown={e=>e.key==='Enter'&&e.target.blur()}
                   style={{flex:1,background:'transparent',border:'none',
-                    borderBottom:empMemos[todayDD]?'1px solid #272a3d':'1px solid transparent',
-                    color:empMemos[todayDD]?'#f87171':'#3d4060',
+                    borderBottom:empMemos[todayDD]?'1px solid #DCD7CE':'1px solid transparent',
+                    color:empMemos[todayDD]?'#B42318':'#A8A39A',
                     padding:'4px 2px',fontSize:11,outline:'none',fontFamily:'inherit'}}/>
               </div>
             )
@@ -311,11 +311,11 @@ function getEmpStats(emp) {
     <div>
       <div style={{display:'flex',alignItems:'flex-end',justifyContent:'space-between',marginBottom:22}}>
         <div>
-          <div style={{fontSize:20,fontWeight:700}}>⏱ 근무관리</div>
-          <div style={{fontSize:12,color:'#5e6585',marginTop:2}}>{mLabel(curMonth)} — 사장 전용</div>
+          <div style={{fontSize:20,fontWeight:700}}>근무관리</div>
+          <div style={{fontSize:12,color:'#6E6A63',marginTop:2}}>{mLabel(curMonth)} — 사장 전용</div>
         </div>
         <select value={curMonth} onChange={e=>setCurMonth(e.target.value)}
-          style={{background:'#191c2b',border:'1px solid #272a3d',borderRadius:8,color:'#dde1f2',padding:'8px 12px',fontSize:12,fontFamily:'inherit',outline:'none'}}>
+          style={{background:'#F3F1EC',border:'1px solid #DCD7CE',borderRadius:4,color:'#1D1B18',padding:'8px 12px',fontSize:12,fontFamily:'inherit',outline:'none'}}>
           {monthOpts.map(m=><option key={m} value={m}>{mLabel(m)}</option>)}
         </select>
       </div>
@@ -323,43 +323,43 @@ function getEmpStats(emp) {
       {/* 월 합계 */}
       <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:14,marginBottom:20}}>
         {[
-          {label:'기본급 합계', val:grandBase, color:'#f9b934'},
-          {label:'주휴수당 합계', val:grandHoliday, color:'#93c5fd'},
-          {label:'총 인건비', val:grandTotal, color:'#34d399'},
+          {label:'기본급 합계', val:grandBase, color:'#C3261C'},
+          {label:'주휴수당 합계', val:grandHoliday, color:'#2B5C9E'},
+          {label:'총 인건비', val:grandTotal, color:'#2E7D45'},
         ].map(k=>(
-          <div key={k.label} style={{background:'#12141f',border:'1px solid #272a3d',borderRadius:12,padding:'18px 20px',position:'relative',overflow:'hidden'}}>
+          <div key={k.label} style={{background:'#FFFFFF',border:'1px solid #DCD7CE',borderRadius:6,padding:'18px 20px',position:'relative',overflow:'hidden'}}>
             <div style={{position:'absolute',top:0,left:0,right:0,height:3,background:k.color}}></div>
-            <div style={{fontSize:10,fontWeight:600,color:'#5e6585',textTransform:'uppercase',letterSpacing:.8,marginBottom:6}}>{k.label}</div>
-            <div style={{fontSize:20,fontWeight:700,color:k.color,fontFamily:'DM Mono,monospace'}}>{k.val.toLocaleString()}원</div>
+            <div style={{fontSize:10,fontWeight:600,color:'#6E6A63',textTransform:'uppercase',letterSpacing:.8,marginBottom:6}}>{k.label}</div>
+            <div style={{fontSize:20,fontWeight:700,color:k.color,fontFamily:'inherit',fontVariantNumeric:'tabular-nums'}}>{k.val.toLocaleString()}원</div>
           </div>
         ))}
       </div>
 
       {/* 이번달 퇴직금 지급 내역 */}
       {Object.keys(severance).length > 0 && (
-        <div style={{background:'#12141f',border:'1px solid rgba(251,146,60,0.3)',borderRadius:12,
+        <div style={{background:'#FFFFFF',border:'1px solid rgba(180,83,9,0.3)',borderRadius:6,
           overflow:'hidden',marginBottom:18}}>
-          <div style={{padding:'14px 18px',borderBottom:'1px solid #272a3d',fontSize:13,fontWeight:600,color:'#fb923c'}}>
-            📤 {mLabel(curMonth)} 퇴직금 지급 내역
+          <div style={{padding:'14px 18px',borderBottom:'1px solid #DCD7CE',fontSize:13,fontWeight:600,color:'#B45309'}}>
+            {mLabel(curMonth)} 퇴직금 지급 내역
           </div>
           <div style={{padding:'8px 0'}}>
             {Object.entries(severance).map(([uid,s])=>(
               <div key={uid} style={{display:'flex',alignItems:'center',gap:14,padding:'10px 18px',
-                borderBottom:'1px solid #1a1d2e',flexWrap:'wrap'}}>
-                <div style={{minWidth:80,fontSize:13,fontWeight:700,color:'#dde1f2'}}>
+                borderBottom:'1px solid #ECE8E1',flexWrap:'wrap'}}>
+                <div style={{minWidth:80,fontSize:13,fontWeight:700,color:'#1D1B18'}}>
                   {nameMap[uid]||'—'}
                 </div>
-                <div style={{fontSize:11,color:'#5e6585'}}>
+                <div style={{fontSize:11,color:'#6E6A63'}}>
                   {s.paidDate?.slice(0,10)} 지급
                 </div>
                 <div style={{flex:1}}/>
-                <div style={{fontSize:11,color:'#5e6585'}}>
+                <div style={{fontSize:11,color:'#6E6A63'}}>
                   총액 {s.amount.toLocaleString()}원
                 </div>
-                <div style={{fontSize:11,color:'#f87171'}}>
+                <div style={{fontSize:11,color:'#B42318'}}>
                   원천징수 -{s.tax.toLocaleString()}원
                 </div>
-                <div style={{fontSize:13,fontWeight:700,color:'#34d399',fontFamily:'DM Mono,monospace'}}>
+                <div style={{fontSize:13,fontWeight:700,color:'#2E7D45',fontFamily:'inherit',fontVariantNumeric:'tabular-nums'}}>
                   실지급 {s.net.toLocaleString()}원
                 </div>
               </div>
@@ -371,38 +371,38 @@ function getEmpStats(emp) {
       {/* 직원 탭 */}
       <div style={{display:'flex',gap:8,marginBottom:14,flexWrap:'wrap'}}>
         <button onClick={()=>{ setShowTodayOnly(v=>!v); setActiveEmp(null) }}
-          style={{padding:'7px 14px',borderRadius:7,border:'none',fontSize:12,fontWeight:600,cursor:'pointer',fontFamily:'inherit',
-            background:showTodayOnly?'#34d399':'#191c2b',color:showTodayOnly?'#000':'#5e6585'}}>
-          📅 오늘 근무
+          style={{padding:'7px 14px',borderRadius:4,border:'none',fontSize:12,fontWeight:600,cursor:'pointer',fontFamily:'inherit',
+            background:showTodayOnly?'#2E7D45':'#F3F1EC',color:showTodayOnly?'#FFFFFF':'#6E6A63'}}>
+          오늘 근무
         </button>
         <button onClick={()=>{ setActiveEmp(null); setShowTodayOnly(false) }}
-          style={{padding:'7px 14px',borderRadius:7,border:'none',fontSize:12,fontWeight:600,cursor:'pointer',fontFamily:'inherit',
-            background:activeEmp===null&&!showTodayOnly?'#f9b934':'#191c2b',color:activeEmp===null&&!showTodayOnly?'#000':'#5e6585'}}>
+          style={{padding:'7px 14px',borderRadius:4,border:'none',fontSize:12,fontWeight:600,cursor:'pointer',fontFamily:'inherit',
+            background:activeEmp===null&&!showTodayOnly?'#C3261C':'#F3F1EC',color:activeEmp===null&&!showTodayOnly?'#FFFFFF':'#6E6A63'}}>
           전체 요약
         </button>
         {employees.map(e=>(
           <button key={e.uid} onClick={()=>setActiveEmp(e.uid)}
-            style={{padding:'7px 14px',borderRadius:7,border:'none',fontSize:12,fontWeight:600,cursor:'pointer',fontFamily:'inherit',
-              background:activeEmp===e.uid?'#f9b934':'#191c2b',color:activeEmp===e.uid?'#000':'#5e6585'}}>
+            style={{padding:'7px 14px',borderRadius:4,border:'none',fontSize:12,fontWeight:600,cursor:'pointer',fontFamily:'inherit',
+              background:activeEmp===e.uid?'#C3261C':'#F3F1EC',color:activeEmp===e.uid?'#FFFFFF':'#6E6A63'}}>
             {e.name}
           </button>
         ))}
       </div>
 
-      {loading ? <div style={{textAlign:'center',color:'#5e6585',padding:60}}>로딩 중...</div> : (
+      {loading ? <div style={{textAlign:'center',color:'#6E6A63',padding:60}}>로딩 중...</div> : (
         <>
           {showTodayOnly && todayContent}
 
           {/* 전체 요약 */}
           {activeEmp===null && !showTodayOnly && (
-            <div style={{background:'#12141f',border:'1px solid #272a3d',borderRadius:12,overflow:'hidden',marginBottom:18}}>
-              <div style={{padding:'14px 18px',borderBottom:'1px solid #272a3d',fontSize:13,fontWeight:600}}>직원별 급여 요약</div>
+            <div style={{background:'#FFFFFF',border:'1px solid #DCD7CE',borderRadius:6,overflow:'hidden',marginBottom:18}}>
+              <div style={{padding:'14px 18px',borderBottom:'1px solid #DCD7CE',fontSize:13,fontWeight:600}}>직원별 급여 요약</div>
               <div style={{overflowX:'auto'}}>
                 <table style={{width:'100%',borderCollapse:'collapse',fontSize:12}}>
                   <thead>
-                    <tr style={{background:'#191c2b'}}>
+                    <tr style={{background:'#F3F1EC'}}>
                       {['직원','시급','근무시간','추가(분)','기본급','주휴수당','총 지급액'].map(h=>(
-                        <th key={h} style={{padding:'8px 14px',fontSize:10,fontWeight:600,color:'#5e6585',
+                        <th key={h} style={{padding:'8px 14px',fontSize:10,fontWeight:600,color:'#6E6A63',
                           textAlign:h==='직원'?'left':'right',whiteSpace:'nowrap'}}>{h}</th>
                       ))}
                     </tr>
@@ -410,25 +410,25 @@ function getEmpStats(emp) {
                   <tbody>
                     {allStats.map(({emp,totalHours,totalMins,basePay,totalWeeklyHoliday,totalPay})=>(
                       <tr key={emp.uid} onClick={()=>setActiveEmp(emp.uid)} style={{cursor:'pointer'}}>
-                        <td style={{padding:'10px 14px',borderBottom:'1px solid #272a3d',color:'#dde1f2',fontWeight:600}}>{emp.name}</td>
-                        <td style={{padding:'10px 14px',borderBottom:'1px solid #272a3d',textAlign:'right',fontFamily:'DM Mono,monospace',color:'#dde1f2'}}>{(emp.wage||10030).toLocaleString()}</td>
-                        <td style={{padding:'10px 14px',borderBottom:'1px solid #272a3d',textAlign:'right',fontFamily:'DM Mono,monospace',color:'#dde1f2'}}>{totalHours}h</td>
-                        <td style={{padding:'10px 14px',borderBottom:'1px solid #272a3d',textAlign:'right',fontFamily:'DM Mono,monospace',color:totalMins>0?'#f9b934':'#5e6585'}}>{totalMins>0?`${totalMins}m`:'—'}</td>
-                        <td style={{padding:'10px 14px',borderBottom:'1px solid #272a3d',textAlign:'right',fontFamily:'DM Mono,monospace',color:'#dde1f2'}}>{basePay.toLocaleString()}</td>
-                        <td style={{padding:'10px 14px',borderBottom:'1px solid #272a3d',textAlign:'right',fontFamily:'DM Mono,monospace',color:'#93c5fd'}}>{totalWeeklyHoliday.toLocaleString()}</td>
-                        <td style={{padding:'10px 14px',borderBottom:'1px solid #272a3d',textAlign:'right',fontFamily:'DM Mono,monospace',color:'#34d399',fontWeight:700}}>{totalPay.toLocaleString()}</td>
+                        <td style={{padding:'10px 14px',borderBottom:'1px solid #DCD7CE',color:'#1D1B18',fontWeight:600}}>{emp.name}</td>
+                        <td style={{padding:'10px 14px',borderBottom:'1px solid #DCD7CE',textAlign:'right',fontFamily:'inherit',fontVariantNumeric:'tabular-nums',color:'#1D1B18'}}>{(emp.wage||10030).toLocaleString()}</td>
+                        <td style={{padding:'10px 14px',borderBottom:'1px solid #DCD7CE',textAlign:'right',fontFamily:'inherit',fontVariantNumeric:'tabular-nums',color:'#1D1B18'}}>{totalHours}h</td>
+                        <td style={{padding:'10px 14px',borderBottom:'1px solid #DCD7CE',textAlign:'right',fontFamily:'inherit',fontVariantNumeric:'tabular-nums',color:totalMins>0?'#C3261C':'#6E6A63'}}>{totalMins>0?`${totalMins}m`:'—'}</td>
+                        <td style={{padding:'10px 14px',borderBottom:'1px solid #DCD7CE',textAlign:'right',fontFamily:'inherit',fontVariantNumeric:'tabular-nums',color:'#1D1B18'}}>{basePay.toLocaleString()}</td>
+                        <td style={{padding:'10px 14px',borderBottom:'1px solid #DCD7CE',textAlign:'right',fontFamily:'inherit',fontVariantNumeric:'tabular-nums',color:'#2B5C9E'}}>{totalWeeklyHoliday.toLocaleString()}</td>
+                        <td style={{padding:'10px 14px',borderBottom:'1px solid #DCD7CE',textAlign:'right',fontFamily:'inherit',fontVariantNumeric:'tabular-nums',color:'#2E7D45',fontWeight:700}}>{totalPay.toLocaleString()}</td>
                       </tr>
                     ))}
                   </tbody>
                   <tfoot>
-                    <tr style={{background:'#1f2236'}}>
-                      <td style={{padding:'10px 14px',fontWeight:700,color:'#f9b934'}}>합 계</td>
+                    <tr style={{background:'#ECE8E1'}}>
+                      <td style={{padding:'10px 14px',fontWeight:700,color:'#C3261C'}}>합 계</td>
                       <td></td>
-                      <td style={{padding:'10px 14px',textAlign:'right',fontWeight:700,color:'#f9b934',fontFamily:'DM Mono,monospace'}}>{allStats.reduce((a,s)=>a+s.totalHours,0)}h</td>
-                      <td style={{padding:'10px 14px',textAlign:'right',fontWeight:700,color:'#f9b934',fontFamily:'DM Mono,monospace'}}>{allStats.reduce((a,s)=>a+s.totalMins,0)}m</td>
-                      <td style={{padding:'10px 14px',textAlign:'right',fontWeight:700,color:'#f9b934',fontFamily:'DM Mono,monospace'}}>{grandBase.toLocaleString()}</td>
-                      <td style={{padding:'10px 14px',textAlign:'right',fontWeight:700,color:'#f9b934',fontFamily:'DM Mono,monospace'}}>{grandHoliday.toLocaleString()}</td>
-                      <td style={{padding:'10px 14px',textAlign:'right',fontWeight:700,color:'#f9b934',fontFamily:'DM Mono,monospace'}}>{grandTotal.toLocaleString()}</td>
+                      <td style={{padding:'10px 14px',textAlign:'right',fontWeight:700,color:'#C3261C',fontFamily:'inherit',fontVariantNumeric:'tabular-nums'}}>{allStats.reduce((a,s)=>a+s.totalHours,0)}h</td>
+                      <td style={{padding:'10px 14px',textAlign:'right',fontWeight:700,color:'#C3261C',fontFamily:'inherit',fontVariantNumeric:'tabular-nums'}}>{allStats.reduce((a,s)=>a+s.totalMins,0)}m</td>
+                      <td style={{padding:'10px 14px',textAlign:'right',fontWeight:700,color:'#C3261C',fontFamily:'inherit',fontVariantNumeric:'tabular-nums'}}>{grandBase.toLocaleString()}</td>
+                      <td style={{padding:'10px 14px',textAlign:'right',fontWeight:700,color:'#C3261C',fontFamily:'inherit',fontVariantNumeric:'tabular-nums'}}>{grandHoliday.toLocaleString()}</td>
+                      <td style={{padding:'10px 14px',textAlign:'right',fontWeight:700,color:'#C3261C',fontFamily:'inherit',fontVariantNumeric:'tabular-nums'}}>{grandTotal.toLocaleString()}</td>
                     </tr>
                   </tfoot>
                 </table>
@@ -445,42 +445,42 @@ function getEmpStats(emp) {
             const empMemos = memos[emp.uid] || {}
 
             return (
-              <div style={{background:'#12141f',border:'1px solid #272a3d',borderRadius:12,overflow:'hidden'}}>
-                <div style={{padding:'14px 18px',borderBottom:'1px solid #272a3d',fontSize:13,fontWeight:600,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+              <div style={{background:'#FFFFFF',border:'1px solid #DCD7CE',borderRadius:6,overflow:'hidden'}}>
+                <div style={{padding:'14px 18px',borderBottom:'1px solid #DCD7CE',fontSize:13,fontWeight:600,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
                   <span>{emp.name} 근무 상세</span>
-                  <span style={{fontSize:11,color:'#5e6585'}}>시급 {(emp.wage||10030).toLocaleString()}원/h</span>
+                  <span style={{fontSize:11,color:'#6E6A63'}}>시급 {(emp.wage||10030).toLocaleString()}원/h</span>
                 </div>
 
                 {/* 급여 요약 */}
-                <div style={{padding:'14px 18px',borderBottom:'1px solid #272a3d',display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:10}}>
+                <div style={{padding:'14px 18px',borderBottom:'1px solid #DCD7CE',display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:10}}>
                   {[
-                    {label:'총 근무시간', val:`${totalHours}h ${totalMins>0?totalMins+'m':''}`, color:'#f9b934'},
-                    {label:'기본급', val:`${basePay.toLocaleString()}원`, color:'#dde1f2'},
-                    {label:'주휴수당', val:`${totalWeeklyHoliday.toLocaleString()}원`, color:'#93c5fd'},
-                    {label:'이달 월급', val:`${totalPay.toLocaleString()}원`, color:'#34d399'},
+                    {label:'총 근무시간', val:`${totalHours}h ${totalMins>0?totalMins+'m':''}`, color:'#C3261C'},
+                    {label:'기본급', val:`${basePay.toLocaleString()}원`, color:'#1D1B18'},
+                    {label:'주휴수당', val:`${totalWeeklyHoliday.toLocaleString()}원`, color:'#2B5C9E'},
+                    {label:'이달 월급', val:`${totalPay.toLocaleString()}원`, color:'#2E7D45'},
                   ].map(k=>(
-                    <div key={k.label} style={{background:'#191c2b',borderRadius:8,padding:'10px 12px'}}>
-                      <div style={{fontSize:10,color:'#5e6585',marginBottom:3}}>{k.label}</div>
-                      <div style={{fontSize:13,fontWeight:700,color:k.color,fontFamily:'DM Mono,monospace'}}>{k.val}</div>
+                    <div key={k.label} style={{background:'#F3F1EC',borderRadius:4,padding:'10px 12px'}}>
+                      <div style={{fontSize:10,color:'#6E6A63',marginBottom:3}}>{k.label}</div>
+                      <div style={{fontSize:13,fontWeight:700,color:k.color,fontFamily:'inherit',fontVariantNumeric:'tabular-nums'}}>{k.val}</div>
                     </div>
                   ))}
                 </div>
 
                 {/* 테이블 */}
-                <div style={{padding:'12px 18px',borderBottom:'1px solid #272a3d',fontSize:12,fontWeight:600,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+                <div style={{padding:'12px 18px',borderBottom:'1px solid #DCD7CE',fontSize:12,fontWeight:600,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
                   <span>일별 근무시간 입력</span>
-                  <span style={{fontSize:10,color:'#5e6585'}}>일요일에 주휴수당 자동계산</span>
+                  <span style={{fontSize:10,color:'#6E6A63'}}>일요일에 주휴수당 자동계산</span>
                 </div>
                 <div style={{overflowX:'auto'}}>
                   <table style={{width:'100%',borderCollapse:'collapse',fontSize:12}}>
                     <thead>
-                      <tr style={{background:'#191c2b'}}>
-                        <th style={{padding:'8px 10px',fontSize:10,fontWeight:600,color:'#5e6585',textAlign:'left',width:45}}>날짜</th>
-                        <th style={{padding:'8px 6px',fontSize:10,fontWeight:600,color:'#5e6585',textAlign:'left',width:28}}>요일</th>
-                        <th style={{padding:'8px 10px',fontSize:10,fontWeight:600,color:'#5e6585',textAlign:'center',width:110}}>근무시간(h)</th>
-                        <th style={{padding:'8px 10px',fontSize:10,fontWeight:600,color:'#f9b934',textAlign:'center',width:110}}>추가근무(분)</th>
-                        <th style={{padding:'8px 10px',fontSize:10,fontWeight:600,color:'#93c5fd',textAlign:'center',width:110}}>주휴수당</th>
-                        <th style={{padding:'8px 10px',fontSize:10,fontWeight:600,color:'#5e6585',textAlign:'left'}}>비고</th>
+                      <tr style={{background:'#F3F1EC'}}>
+                        <th style={{padding:'8px 10px',fontSize:10,fontWeight:600,color:'#6E6A63',textAlign:'left',width:45}}>날짜</th>
+                        <th style={{padding:'8px 6px',fontSize:10,fontWeight:600,color:'#6E6A63',textAlign:'left',width:28}}>요일</th>
+                        <th style={{padding:'8px 10px',fontSize:10,fontWeight:600,color:'#6E6A63',textAlign:'center',width:110}}>근무시간(h)</th>
+                        <th style={{padding:'8px 10px',fontSize:10,fontWeight:600,color:'#C3261C',textAlign:'center',width:110}}>추가근무(분)</th>
+                        <th style={{padding:'8px 10px',fontSize:10,fontWeight:600,color:'#2B5C9E',textAlign:'center',width:110}}>주휴수당</th>
+                        <th style={{padding:'8px 10px',fontSize:10,fontWeight:600,color:'#6E6A63',textAlign:'left'}}>비고</th>
                       </tr>
                     </thead>
 <tbody key={activeEmp}>
@@ -492,70 +492,70 @@ function getEmpStats(emp) {
 
                         return (
                           <tr key={dd} style={{
-                            background: isSun&&weeklyHoliday>0?'rgba(147,197,253,0.05)':h>0||m>0?'rgba(249,185,52,0.04)':'transparent',
-                            borderLeft: isSun&&weeklyHoliday>0?'3px solid #93c5fd':h>0||m>0?'3px solid #f9b934':'3px solid transparent'
+                            background: isSun&&weeklyHoliday>0?'rgba(43,92,158,0.05)':h>0||m>0?'rgba(195,38,28,0.04)':'transparent',
+                            borderLeft: isSun&&weeklyHoliday>0?'3px solid #2B5C9E':h>0||m>0?'3px solid #C3261C':'3px solid transparent'
                           }}>
-                            <td style={{padding:'6px 10px',borderBottom:'1px solid #1a1d2e',
-                              color:isToday?'#f9b934':dow===0?'#f87171':dow===6?'#93c5fd':'#dde1f2',
+                            <td style={{padding:'6px 10px',borderBottom:'1px solid #ECE8E1',
+                              color:isToday?'#C3261C':dow===0?'#B42318':dow===6?'#2B5C9E':'#1D1B18',
                               fontWeight:isToday?700:500,fontSize:12}}>
                               {d}일
                             </td>
-                            <td style={{padding:'6px 6px',borderBottom:'1px solid #1a1d2e',
-                              color:dow===0?'#f87171':dow===6?'#93c5fd':'#5e6585',fontSize:11,fontWeight:600}}>
+                            <td style={{padding:'6px 6px',borderBottom:'1px solid #ECE8E1',
+                              color:dow===0?'#B42318':dow===6?'#2B5C9E':'#6E6A63',fontSize:11,fontWeight:600}}>
                               {DAYS_KR[dow]}
                             </td>
                             {/* 근무시간 */}
-                            <td style={{padding:'4px 10px',borderBottom:'1px solid #1a1d2e',textAlign:'center'}}>
+                            <td style={{padding:'4px 10px',borderBottom:'1px solid #ECE8E1',textAlign:'center'}}>
                               {!isSun ? (
 <input key={`${activeEmp}_${dd}_h`} type="number" defaultValue={h||''} min="0" max="24" step="0.5" placeholder="0"
   onBlur={e=>saveWorkHours(emp.uid,dd,e.target.value)}
   onKeyDown={e=>e.key==='Enter'&&e.target.blur()}
                                   style={{
-                                    width:80, background:h>0?'rgba(249,185,52,0.15)':'#191c2b',
-                                    border:h>0?'1px solid #f9b934':'1px solid #272a3d',
-                                    borderRadius:6, color:h>0?'#f9b934':'#dde1f2',
+                                    width:80, background:h>0?'rgba(195,38,28,0.15)':'#F3F1EC',
+                                    border:h>0?'1px solid #C3261C':'1px solid #DCD7CE',
+                                    borderRadius:6, color:h>0?'#C3261C':'#1D1B18',
                                     padding:'6px 8px', fontSize:13, fontWeight:h>0?700:400,
-                                    textAlign:'center', outline:'none', fontFamily:'DM Mono,monospace'
+                                    textAlign:'center', outline:'none', fontFamily:'inherit',fontVariantNumeric:'tabular-nums'
                                   }}/>
                               ) : (
-                                <span style={{fontSize:11,color:'#5e6585'}}>주휴일</span>
+                                <span style={{fontSize:11,color:'#6E6A63'}}>주휴일</span>
                               )}
                             </td>
                             {/* 추가근무(분) */}
-                            <td style={{padding:'4px 10px',borderBottom:'1px solid #1a1d2e',textAlign:'center'}}>
+                            <td style={{padding:'4px 10px',borderBottom:'1px solid #ECE8E1',textAlign:'center'}}>
                               {!isSun ? (
 <input key={`${activeEmp}_${dd}_m`} type="number" defaultValue={m||''} min="0" max="180" step="5" placeholder="0"
   onBlur={e=>saveWorkExtra(emp.uid,dd,e.target.value)}
   onKeyDown={e=>e.key==='Enter'&&e.target.blur()}
                                   style={{
-                                    width:80, background:m>0?'rgba(249,185,52,0.15)':'#191c2b',
-                                    border:m>0?'1px solid #f9b934':'1px solid #272a3d',
-                                    borderRadius:6, color:m>0?'#f9b934':'#dde1f2',
+                                    width:80, background:m>0?'rgba(195,38,28,0.15)':'#F3F1EC',
+                                    border:m>0?'1px solid #C3261C':'1px solid #DCD7CE',
+                                    borderRadius:6, color:m>0?'#C3261C':'#1D1B18',
                                     padding:'6px 8px', fontSize:13, fontWeight:m>0?700:400,
-                                    textAlign:'center', outline:'none', fontFamily:'DM Mono,monospace'
+                                    textAlign:'center', outline:'none', fontFamily:'inherit',fontVariantNumeric:'tabular-nums'
                                   }}/>
-                              ) : <span style={{color:'#272a3d'}}>—</span>}
+                              ) : <span style={{color:'#DCD7CE'}}>—</span>}
                             </td>
                             {/* 주휴수당 */}
-                            <td style={{padding:'6px 10px',borderBottom:'1px solid #1a1d2e',textAlign:'center',fontFamily:'DM Mono,monospace'}}>
+                            <td style={{padding:'6px 10px',borderBottom:'1px solid #ECE8E1',textAlign:'center',fontFamily:'inherit',fontVariantNumeric:'tabular-nums'}}>
 {isSun && weeklyHoliday>0 ? (
-  <span style={{color:'#93c5fd',fontWeight:700,fontSize:12}}>{weeklyHoliday.toLocaleString()}원</span>
+  <span style={{color:'#2B5C9E',fontWeight:700,fontSize:12}}>{weeklyHoliday.toLocaleString()}원</span>
 ) : isSun ? (
-  <span style={{color:'#3d4060',fontSize:11}}>미지급</span>
+  <span style={{color:'#A8A39A',fontSize:11}}>미지급</span>
 ) : (
-  <span style={{color:'#272a3d'}}>—</span>
+  <span style={{color:'#DCD7CE'}}>—</span>
 )}
                             </td>
                             {/* 비고 */}
-                            <td style={{padding:'4px 10px',borderBottom:'1px solid #1a1d2e'}}>
+                            <td style={{padding:'4px 10px',borderBottom:'1px solid #ECE8E1'}}>
 <input key={`${activeEmp}_${dd}_memo`} type="text" defaultValue={empMemos[dd]||''}
   placeholder={isSun?'':'결석사유 등...'}
   onBlur={e=>saveMemo(emp.uid,dd,e.target.value)}
   onKeyDown={e=>e.key==='Enter'&&e.target.blur()}
                                 style={{
                                   width:'100%', background:'transparent', border:'none',
-                                  borderBottom:empMemos[dd]?'1px solid #272a3d':'1px solid transparent',
-                                  color:empMemos[dd]?'#f87171':'#3d4060',
+                                  borderBottom:empMemos[dd]?'1px solid #DCD7CE':'1px solid transparent',
+                                  color:empMemos[dd]?'#B42318':'#A8A39A',
                                   padding:'4px 2px', fontSize:11, outline:'none', fontFamily:'inherit'
                                 }}/>
                             </td>
@@ -564,16 +564,16 @@ function getEmpStats(emp) {
                       })}
                     </tbody>
                     <tfoot>
-                      <tr style={{background:'#1f2236'}}>
-                        <td colSpan={2} style={{padding:'12px 10px',fontWeight:700,color:'#f9b934',fontSize:12}}>이달 합계</td>
-                        <td style={{padding:'12px 10px',textAlign:'center',fontWeight:700,color:'#f9b934',fontFamily:'DM Mono,monospace'}}>{totalHours}h</td>
-                        <td style={{padding:'12px 10px',textAlign:'center',fontWeight:700,color:'#f9b934',fontFamily:'DM Mono,monospace'}}>{totalMins>0?`${totalMins}m`:'—'}</td>
-                        <td style={{padding:'12px 10px',textAlign:'center',fontWeight:700,color:'#93c5fd',fontFamily:'DM Mono,monospace'}}>{totalWeeklyHoliday.toLocaleString()}원</td>
+                      <tr style={{background:'#ECE8E1'}}>
+                        <td colSpan={2} style={{padding:'12px 10px',fontWeight:700,color:'#C3261C',fontSize:12}}>이달 합계</td>
+                        <td style={{padding:'12px 10px',textAlign:'center',fontWeight:700,color:'#C3261C',fontFamily:'inherit',fontVariantNumeric:'tabular-nums'}}>{totalHours}h</td>
+                        <td style={{padding:'12px 10px',textAlign:'center',fontWeight:700,color:'#C3261C',fontFamily:'inherit',fontVariantNumeric:'tabular-nums'}}>{totalMins>0?`${totalMins}m`:'—'}</td>
+                        <td style={{padding:'12px 10px',textAlign:'center',fontWeight:700,color:'#2B5C9E',fontFamily:'inherit',fontVariantNumeric:'tabular-nums'}}>{totalWeeklyHoliday.toLocaleString()}원</td>
                         <td style={{padding:'12px 10px'}}>
-                          <span style={{color:'#34d399',fontWeight:700,fontFamily:'DM Mono,monospace',fontSize:14}}>
+                          <span style={{color:'#2E7D45',fontWeight:700,fontFamily:'inherit',fontVariantNumeric:'tabular-nums',fontSize:14}}>
                             월급 {totalPay.toLocaleString()}원
                           </span>
-                          <span style={{color:'#5e6585',fontSize:10,marginLeft:8}}>
+                          <span style={{color:'#6E6A63',fontSize:10,marginLeft:8}}>
                             (기본급 {basePay.toLocaleString()} + 주휴 {totalWeeklyHoliday.toLocaleString()})
                           </span>
                         </td>

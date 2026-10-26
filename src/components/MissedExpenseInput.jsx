@@ -114,16 +114,16 @@ export default function MissedExpenseInput({ curMonth, onSaved }) {
     setSaving(false)
   }
 
-  const inputStyle = {background:'#191c2b',border:'1px solid #272a3d',borderRadius:7,color:'#dde1f2',
+  const inputStyle = {background:'#F3F1EC',border:'1px solid #DCD7CE',borderRadius:4,color:'#1D1B18',
     padding:'8px 10px',fontSize:12,outline:'none',fontFamily:'inherit'}
   const secs = ['재료비','관리비','인건비']
 
   return (
-    <div style={{background:'#12141f',border:'1px solid #272a3d',borderRadius:12,overflow:'hidden'}}>
-      <div style={{padding:'14px 18px',borderBottom:'1px solid #272a3d',display:'flex',
+    <div style={{background:'#FFFFFF',border:'1px solid #DCD7CE',borderRadius:6,overflow:'hidden'}}>
+      <div style={{padding:'14px 18px',borderBottom:'1px solid #DCD7CE',display:'flex',
         justifyContent:'space-between',alignItems:'center',flexWrap:'wrap',gap:8}}>
-        <div style={{fontSize:13,fontWeight:600}}>✍️ 못 적은 지출 입력</div>
-        <div style={{fontSize:10,color:'#5e6585'}}>지출관리 탭과 같은 내역에 바로 반영돼요</div>
+        <div style={{fontSize:13,fontWeight:600}}>못 적은 지출 입력</div>
+        <div style={{fontSize:10,color:'#6E6A63'}}>지출관리 탭과 같은 내역에 바로 반영돼요</div>
       </div>
 
       <div style={{padding:18,display:'flex',flexDirection:'column',gap:14}}>
@@ -140,29 +140,29 @@ export default function MissedExpenseInput({ curMonth, onSaved }) {
           <input type="number" placeholder="금액" min="0" value={amount}
             onChange={e=>setAmount(e.target.value)}
             onKeyDown={e=>e.key==='Enter' && save()}
-            style={{...inputStyle,width:140,fontFamily:'DM Mono,monospace'}}/>
+            style={{...inputStyle,width:140,fontFamily:'inherit',fontVariantNumeric:'tabular-nums'}}/>
           <button onClick={save} disabled={saving}
-            style={{background:'#f9b934',color:'#000',border:'none',borderRadius:7,padding:'8px 18px',
+            style={{background:'#C3261C',color:'#FFFFFF',border:'none',borderRadius:4,padding:'8px 18px',
               fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
             {saving ? '저장 중...' : '+ 추가'}
           </button>
         </div>
 
         {/* 선택한 날짜의 현재 지출 */}
-        <div style={{background:'#191c2b',borderRadius:8,padding:'10px 14px'}}>
-          <div style={{display:'flex',justifyContent:'space-between',fontSize:11,color:'#5e6585',marginBottom:dayItems.length?8:0}}>
+        <div style={{background:'#F3F1EC',borderRadius:4,padding:'10px 14px'}}>
+          <div style={{display:'flex',justifyContent:'space-between',fontSize:11,color:'#6E6A63',marginBottom:dayItems.length?8:0}}>
             <span>{+m}월 {+dd}일 ({DAYS_KR[new Date(y,m-1,+dd).getDay()]}) 기록된 지출</span>
-            <span style={{color:'#f87171',fontWeight:700,fontFamily:'DM Mono,monospace'}}>
+            <span style={{color:'#B42318',fontWeight:700,fontFamily:'inherit',fontVariantNumeric:'tabular-nums'}}>
               {dayTotal>0 ? `${dayTotal.toLocaleString()}원` : '없음'}
             </span>
           </div>
           {dayItems.map(c=>(
             <div key={c.id} style={{display:'flex',alignItems:'center',gap:10,padding:'5px 0',
-              borderTop:'1px solid #272a3d',fontSize:12}}>
-              <span style={{flex:1,color:'#dde1f2'}}>{c.label}</span>
-              <span style={{color:'#f87171',fontFamily:'DM Mono,monospace'}}>{dayEntry[c.id].toLocaleString()}</span>
+              borderTop:'1px solid #DCD7CE',fontSize:12}}>
+              <span style={{flex:1,color:'#1D1B18'}}>{c.label}</span>
+              <span style={{color:'#B42318',fontFamily:'inherit',fontVariantNumeric:'tabular-nums'}}>{dayEntry[c.id].toLocaleString()}</span>
               <button onClick={()=>removeItem(c.id)} disabled={saving}
-                style={{background:'transparent',border:'1px solid #3d1f1f',color:'#f87171',
+                style={{background:'transparent',border:'1px solid #E8C4BF',color:'#B42318',
                   padding:'2px 8px',fontSize:10,borderRadius:4,cursor:'pointer',fontFamily:'inherit'}}>
                 삭제
               </button>
@@ -173,8 +173,8 @@ export default function MissedExpenseInput({ curMonth, onSaved }) {
         {/* 지출이 없는 날짜 */}
         {lastDay>0 && (
           <div>
-            <div style={{fontSize:11,color:'#5e6585',marginBottom:6}}>
-              {+m}월 지출이 하나도 없는 날 {emptyDays.length>0 ? `${emptyDays.length}일` : '— 모두 입력됨 ✅'}
+            <div style={{fontSize:11,color:'#6E6A63',marginBottom:6}}>
+              {+m}월 지출이 하나도 없는 날 {emptyDays.length>0 ? `${emptyDays.length}일` : '— 모두 입력됨'}
             </div>
             <div style={{display:'flex',gap:5,flexWrap:'wrap'}}>
               {emptyDays.map(d=>{
@@ -183,10 +183,10 @@ export default function MissedExpenseInput({ curMonth, onSaved }) {
                 return (
                   <button key={d} onClick={()=>setDate(`${ym}-${d}`)}
                     style={{padding:'4px 8px',borderRadius:5,fontSize:11,fontWeight:600,cursor:'pointer',
-                      fontFamily:'DM Mono,monospace',border:'none',
-                      background:active?'#f9b934':'#191c2b',
-                      color:active?'#000':dow===0?'#f87171':dow===6?'#93c5fd':'#dde1f2',
-                      outline:active?'none':'1px solid #272a3d'}}>
+                      fontFamily:'inherit',fontVariantNumeric:'tabular-nums',border:'none',
+                      background:active?'#C3261C':'#F3F1EC',
+                      color:active?'#FFFFFF':dow===0?'#B42318':dow===6?'#2B5C9E':'#1D1B18',
+                      outline:active?'none':'1px solid #DCD7CE'}}>
                     {+d}일
                   </button>
                 )

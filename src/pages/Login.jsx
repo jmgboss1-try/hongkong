@@ -49,26 +49,26 @@ export default function Login() {
   }
 
   const inputStyle = {
-    background:'#191c2b', border:'1px solid #272a3d', borderRadius:8,
-    color:'#dde1f2', padding:'10px 12px', fontSize:13, outline:'none', width:'100%'
+    background:'#F3F1EC', border:'1px solid #DCD7CE', borderRadius:4,
+    color:'#1D1B18', padding:'10px 12px', fontSize:13, outline:'none', width:'100%'
   }
 
   return (
-    <div style={{minHeight:'100vh', background:'#0b0d16', display:'flex', alignItems:'center', justifyContent:'center', fontFamily:'Noto Sans KR, sans-serif'}}>
-      <div style={{background:'#12141f', border:'1px solid #272a3d', borderRadius:16, padding:'40px 36px', width:380}}>
+    <div style={{minHeight:'100vh', background:'#FAF9F6', display:'flex', alignItems:'center', justifyContent:'center', fontFamily:'Noto Sans KR, sans-serif'}}>
+      <div style={{background:'#FFFFFF', border:'1px solid #DCD7CE', borderRadius:6, padding:'40px 36px', width:380}}>
         <div style={{textAlign:'center', marginBottom:28}}>
-          <div style={{fontSize:28, marginBottom:6}}>🍜</div>
-          <div style={{fontSize:18, fontWeight:700, color:'#f9b934'}}>홍콩반점 중앙대점</div>
-          <div style={{fontSize:11, color:'#5e6585', marginTop:4, letterSpacing:1}}>STORE MANAGEMENT</div>
+          <div style={{fontSize:28, marginBottom:6}}></div>
+          <div style={{fontSize:18, fontWeight:700, color:'#C3261C'}}>홍콩반점 중앙대점</div>
+          <div style={{fontSize:11, color:'#6E6A63', marginTop:4, letterSpacing:1}}>STORE MANAGEMENT</div>
         </div>
 
         {/* 탭 */}
-        <div style={{display:'flex', border:'1px solid #272a3d', borderRadius:8, overflow:'hidden', marginBottom:24}}>
+        <div style={{display:'flex', border:'1px solid #DCD7CE', borderRadius:4, overflow:'hidden', marginBottom:24}}>
           {[['login','로그인'],['register','회원가입']].map(([m,label])=>(
             <button key={m} onClick={()=>{setMode(m);setError('');setDone(false)}}
               style={{flex:1, padding:'9px', fontSize:12, fontWeight:600, border:'none', cursor:'pointer', fontFamily:'inherit',
-                background: mode===m ? '#f9b934' : 'transparent',
-                color: mode===m ? '#000' : '#5e6585'}}>
+                background: mode===m ? '#C3261C' : 'transparent',
+                color: mode===m ? '#FFFFFF' : '#6E6A63'}}>
               {label}
             </button>
           ))}
@@ -76,14 +76,14 @@ export default function Login() {
 
         {done ? (
           <div style={{textAlign:'center', padding:'20px 0'}}>
-            <div style={{fontSize:32, marginBottom:12}}>✅</div>
-            <div style={{fontSize:14, fontWeight:700, color:'#34d399', marginBottom:8}}>가입 신청 완료!</div>
-            <div style={{fontSize:12, color:'#5e6585', lineHeight:1.8}}>
+            <div style={{fontSize:32, marginBottom:12}}></div>
+            <div style={{fontSize:14, fontWeight:700, color:'#2E7D45', marginBottom:8}}>가입 신청 완료!</div>
+            <div style={{fontSize:12, color:'#6E6A63', lineHeight:1.8}}>
               사장님 승인 후 로그인 가능합니다.<br/>
               승인이 완료되면 알려드릴게요.
             </div>
             <button onClick={()=>{setMode('login');setDone(false);setEmail('');setPassword('');setName('')}}
-              style={{marginTop:20, background:'#f9b934', color:'#000', border:'none', borderRadius:8, padding:'10px 24px', fontSize:12, fontWeight:700, cursor:'pointer', fontFamily:'inherit'}}>
+              style={{marginTop:20, background:'#C3261C', color:'#FFFFFF', border:'none', borderRadius:4, padding:'10px 24px', fontSize:12, fontWeight:700, cursor:'pointer', fontFamily:'inherit'}}>
               로그인 화면으로
             </button>
           </div>
@@ -92,35 +92,35 @@ export default function Login() {
             style={{display:'flex', flexDirection:'column', gap:12}}>
             {mode==='register' && (
               <div style={{display:'flex', flexDirection:'column', gap:4}}>
-                <label style={{fontSize:11, color:'#5e6585', fontWeight:600}}>이름</label>
+                <label style={{fontSize:11, color:'#6E6A63', fontWeight:600}}>이름</label>
                 <input type="text" value={name} onChange={e=>setName(e.target.value)}
                   placeholder="실명 입력" required style={inputStyle}/>
               </div>
             )}
             <div style={{display:'flex', flexDirection:'column', gap:4}}>
-              <label style={{fontSize:11, color:'#5e6585', fontWeight:600}}>이메일</label>
+              <label style={{fontSize:11, color:'#6E6A63', fontWeight:600}}>이메일</label>
               <input type="email" value={email} onChange={e=>setEmail(e.target.value)}
                 placeholder="이메일 입력" required style={inputStyle}/>
             </div>
             <div style={{display:'flex', flexDirection:'column', gap:4}}>
-              <label style={{fontSize:11, color:'#5e6585', fontWeight:600}}>비밀번호</label>
+              <label style={{fontSize:11, color:'#6E6A63', fontWeight:600}}>비밀번호</label>
               <input type="password" value={password} onChange={e=>setPassword(e.target.value)}
                 placeholder={mode==='register' ? '6자 이상' : '비밀번호 입력'} required style={inputStyle}/>
             </div>
 
-            {error && <div style={{fontSize:12, color:'#f87171', textAlign:'center'}}>{error}</div>}
+            {error && <div style={{fontSize:12, color:'#B42318', textAlign:'center'}}>{error}</div>}
 
             <button type="submit" disabled={loading}
-              style={{background:'#f9b934', color:'#000', border:'none', borderRadius:8, padding:'11px', fontSize:13, fontWeight:700, cursor:'pointer', marginTop:6, fontFamily:'inherit'}}>
+              style={{background:'#C3261C', color:'#FFFFFF', border:'none', borderRadius:4, padding:'11px', fontSize:13, fontWeight:700, cursor:'pointer', marginTop:6, fontFamily:'inherit'}}>
               {loading ? '처리 중...' : mode==='login' ? '로그인' : '가입 신청'}
             </button>
           </form>
         )}
 
         {mode==='login' && !done && (
-          <div style={{fontSize:11, color:'#5e6585', textAlign:'center', marginTop:20, lineHeight:1.8}}>
+          <div style={{fontSize:11, color:'#6E6A63', textAlign:'center', marginTop:20, lineHeight:1.8}}>
             계정이 없으신가요?<br/>
-            <span style={{color:'#f9b934', cursor:'pointer'}} onClick={()=>setMode('register')}>회원가입 신청하기</span>
+            <span style={{color:'#C3261C', cursor:'pointer'}} onClick={()=>setMode('register')}>회원가입 신청하기</span>
           </div>
         )}
       </div>

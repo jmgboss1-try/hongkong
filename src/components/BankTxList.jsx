@@ -34,13 +34,13 @@ export default function BankTxList({ ym, data, categories, onChanged, day }) {
       const fromLabel = classLabel(cur === '?expense' ? fromCat : cur, categories)
       await reclassify({ ym, tx:t, to, fromCat, categories })
       setEdit(p=>{ const n = { ...p }; delete n[t.key]; return n })
-      say(true, fromLabel === classLabel(to, categories) ? `✅ '${fromLabel}'(으)로 확인했어요` : `✅ ${fromLabel} → ${classLabel(to, categories)}(으)로 바꿨어요`)
+      say(true, fromLabel === classLabel(to, categories) ? `'${fromLabel}'(으)로 확인했어요` : `${fromLabel} → ${classLabel(to, categories)}(으)로 바꿨어요`)
       await onChanged?.()
     } catch(err) { console.error(err); say(false, err.message || '바꾸는 중 오류가 발생했어요. 다시 시도해 주세요.') }
     setBusyKey(null)
   }
 
-  const sel = {background:'#12141f',border:'1px solid #272a3d',borderRadius:6,color:'#dde1f2',
+  const sel = {background:'#FFFFFF',border:'1px solid #DCD7CE',borderRadius:6,color:'#1D1B18',
     padding:'5px 8px',fontSize:11,outline:'none',fontFamily:'inherit'}
   const renderOptions = t => {
     const opts = classOptions(t, categories)
@@ -53,24 +53,24 @@ export default function BankTxList({ ym, data, categories, onChanged, day }) {
   return (
     <div style={{marginTop: day ? 0 : 12}}>
       {!day && <button type="button" onClick={()=>setOpen(v=>!v)}
-        style={{background:'transparent',border:'none',color:'#93c5fd',fontSize:11,cursor:'pointer',fontFamily:'inherit',padding:0}}>
-        {open ? '▾ 통장 거래 분류 접기' : `▸ 🔁 통장 거래 분류 보기·바꾸기 (${(data.bankSeen||[]).length}건)`}
+        style={{background:'transparent',border:'none',color:'#2B5C9E',fontSize:11,cursor:'pointer',fontFamily:'inherit',padding:0}}>
+        {open ? '▾ 통장 거래 분류 접기' : `▸ 통장 거래 분류 보기·바꾸기 (${(data.bankSeen||[]).length}건)`}
       </button>}
       {open && (
         <div style={{marginTop:8}}>
           {day ? (
-            <div style={{fontSize:10,color:'#5e6585',marginBottom:6}}>
+            <div style={{fontSize:10,color:'#6E6A63',marginBottom:6}}>
               {+day}일 통장 거래 — 한 건씩 분류를 바꿀 수 있어요. 바꾸면 위 표의 칸 금액도 같이 바뀌어요.
             </div>
           ) : <div style={{display:'flex',gap:6,alignItems:'center',flexWrap:'wrap',marginBottom:8}}>
-            {[['out','💸 출금'],['in','💰 입금']].map(([k,l])=>(
+            {[['out','출금'],['in','입금']].map(([k,l])=>(
               <button key={k} onClick={()=>setDir(k)}
                 style={{padding:'5px 12px',borderRadius:6,border:'none',fontSize:11,fontWeight:600,cursor:'pointer',fontFamily:'inherit',
-                  background:dir===k?'#f9b934':'#191c2b',color:dir===k?'#000':'#5e6585'}}>{l}</button>
+                  background:dir===k?'#C3261C':'#F3F1EC',color:dir===k?'#FFFFFF':'#6E6A63'}}>{l}</button>
             ))}
             <input value={q} onChange={e=>setQ(e.target.value)} placeholder="이름·금액 검색"
               style={{...sel,padding:'6px 10px',width:160}}/>
-            <span style={{fontSize:10,color:'#5e6585'}}>분류를 바꾸면 원래 들어간 곳(지출 칸·실입금·대여금 장부·투자관리)에서 빼고 새 곳에 넣어요</span>
+            <span style={{fontSize:10,color:'#6E6A63'}}>분류를 바꾸면 원래 들어간 곳(지출 칸·실입금·대여금 장부·투자관리)에서 빼고 새 곳에 넣어요</span>
           </div>}
           <div style={{display:'flex',flexDirection:'column',gap:4,maxHeight:420,overflowY:'auto'}}>
             {txs.map(t=>{
@@ -82,17 +82,17 @@ export default function BankTxList({ ym, data, categories, onChanged, day }) {
               const confirmOnly = cur === '?expense' && to === fromCat
               const st = status[t.key]
               return (
-                <div key={t.key} style={{display:'flex',alignItems:'center',gap:8,background:'#191c2b',borderRadius:6,padding:'6px 10px',flexWrap:'wrap',
-                  outline: st ? `1px solid ${st.ok ? 'rgba(52,211,153,0.5)' : 'rgba(248,113,113,0.5)'}` : 'none'}}>
-                  <span style={{fontSize:11,color:'#5e6585',fontFamily:'DM Mono,monospace',minWidth:76}}>{t.date.slice(5)} {t.time.slice(0,5)}</span>
-                  <span style={{flex:1,fontSize:11,color:'#dde1f2',minWidth:110}}>{t.desc||'—'}</span>
-                  <span style={{fontSize:12,fontWeight:700,fontFamily:'DM Mono,monospace',color: t.out ? '#f87171' : '#34d399',minWidth:84,textAlign:'right'}}>{wonFmt(t.out||t.in)}</span>
-                  <span style={{fontSize:10,color: cur ? '#5e6585' : '#f87171',minWidth:120}}>지금: {classLabel(cur, categories)}</span>
+                <div key={t.key} style={{display:'flex',alignItems:'center',gap:8,background:'#F3F1EC',borderRadius:6,padding:'6px 10px',flexWrap:'wrap',
+                  outline: st ? `1px solid ${st.ok ? 'rgba(46,125,69,0.5)' : 'rgba(180,35,24,0.5)'}` : 'none'}}>
+                  <span style={{fontSize:11,color:'#6E6A63',fontFamily:'inherit',fontVariantNumeric:'tabular-nums',minWidth:76}}>{t.date.slice(5)} {t.time.slice(0,5)}</span>
+                  <span style={{flex:1,fontSize:11,color:'#1D1B18',minWidth:110}}>{t.desc||'—'}</span>
+                  <span style={{fontSize:12,fontWeight:700,fontFamily:'inherit',fontVariantNumeric:'tabular-nums',color: t.out ? '#B42318' : '#2E7D45',minWidth:84,textAlign:'right'}}>{wonFmt(t.out||t.in)}</span>
+                  <span style={{fontSize:10,color: cur ? '#6E6A63' : '#B42318',minWidth:120}}>지금: {classLabel(cur, categories)}</span>
                   {cur === '?expense' && (
-                    <span style={{display:'flex',alignItems:'center',gap:4,fontSize:10,color:'#5e6585'}}>
+                    <span style={{display:'flex',alignItems:'center',gap:4,fontSize:10,color:'#6E6A63'}}>
                       지금 칸
                       <select value={fromCat} onChange={ev=>setEdit(p=>({ ...p, [t.key]: { ...e, fromCat: ev.target.value } }))}
-                        style={{...sel, borderColor: fromCat ? '#272a3d' : '#f9b934'}} title="이 출금이 원래 어느 카테고리 칸에 들어가 있었는지">
+                        style={{...sel, borderColor: fromCat ? '#DCD7CE' : '#C3261C'}} title="이 출금이 원래 어느 카테고리 칸에 들어가 있었는지">
                         <option value="">어느 칸?</option>
                         {categories.map(c=><option key={c.id} value={c.id}>{c.label}</option>)}
                       </select>
@@ -105,15 +105,15 @@ export default function BankTxList({ ym, data, categories, onChanged, day }) {
                     {renderOptions(t)}
                   </select>
                   <button onClick={()=>apply(t)} disabled={!changed || busyKey===t.key}
-                    style={{background: changed ? '#f9b934' : '#191c2b',color: changed ? '#000' : '#5e6585',border: changed ? 'none' : '1px solid #272a3d',
+                    style={{background: changed ? '#C3261C' : '#F3F1EC',color: changed ? '#FFFFFF' : '#6E6A63',border: changed ? 'none' : '1px solid #DCD7CE',
                       borderRadius:6,padding:'5px 10px',fontSize:11,fontWeight:700,cursor: changed ? 'pointer' : 'default',fontFamily:'inherit'}}>
                     {busyKey===t.key ? '...' : confirmOnly ? '맞아요' : '바꾸기'}
                   </button>
-                  {st && <span style={{width:'100%',fontSize:10,color: st.ok ? '#34d399' : '#f87171',paddingLeft:84}}>{st.msg}</span>}
+                  {st && <span style={{width:'100%',fontSize:10,color: st.ok ? '#2E7D45' : '#B42318',paddingLeft:84}}>{st.msg}</span>}
                 </div>
               )
             })}
-            {!txs.length && <div style={{fontSize:11,color:'#5e6585',padding:10}}>해당하는 거래가 없어요</div>}
+            {!txs.length && <div style={{fontSize:11,color:'#6E6A63',padding:10}}>해당하는 거래가 없어요</div>}
           </div>
         </div>
       )}

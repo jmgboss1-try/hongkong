@@ -8,26 +8,15 @@ const pad = n => String(n).padStart(2,'0')
 const DAYS_KR = ['일','월','화','수','목','금','토']
 
 const DELIVERY_PLATFORMS = [
-  { key:'baemin',  label:'배달의민족', color:'#34d399', emoji:'🟢' },
-  { key:'coupang', label:'쿠팡이츠',   color:'#f87171', emoji:'🔴' },
-  { key:'yogiyo',  label:'요기요',     color:'#f9b934', emoji:'🟡' },
-  { key:'ddangyeo',label:'땡겨요',     color:'#93c5fd', emoji:'🔵' },
+  { key:'baemin',  label:'배달의민족', color:'#2E7D45', emoji:'' },
+  { key:'coupang', label:'쿠팡이츠',   color:'#B42318', emoji:'' },
+  { key:'yogiyo',  label:'요기요',     color:'#C3261C', emoji:'' },
+  { key:'ddangyeo',label:'땡겨요',     color:'#2B5C9E', emoji:'' },
 ]
 
-// 디자인 시안 (미리보기에서 비교 중): ?theme=paper | dusk
-//   paper — 주문전표·장부: 종이 흰색 바탕, 먹색 글씨, 강조는 짬뽕 빨강 하나, 영수증 같은 점선 줄
-//   dusk  — 어두운 화면 다듬기: 숯색 바탕, 차분한 호박색 강조, 카드 대신 여백과 선
-const THEMES = {
-  paper: { name:'주문전표·장부', bg:'#FAF9F6', ink:'#1D1B18', sub:'#6E6A63', faint:'#A8A39A', rule:'#DCD7CE', strong:'#1D1B18',
-    accent:'#C3261C', onAccent:'#FFFFFF', accentSoft:'#F7E6E3', warn:'#8A5300', ok:'#2E6A3A', field:'#FFFFFF', fieldLine:'#CBC5BA', leader:true },
-  dusk:  { name:'어두운 화면', bg:'#17191E', ink:'#ECEDEF', sub:'#9BA1AB', faint:'#5F6570', rule:'#2C3038', strong:'#3A3F48',
-    accent:'#E3A84E', onAccent:'#17191E', accentSoft:'rgba(227,168,78,0.12)', warn:'#E3A84E', ok:'#86C796', field:'#22252B', fieldLine:'#363B44', leader:false },
-}
-const pickTheme = () => {
-  try { const t = new URLSearchParams(window.location.search).get('theme'); if (THEMES[t]) { localStorage.setItem('revTheme', t); return t } } catch { /* 무시 */ }
-  try { const t = localStorage.getItem('revTheme'); if (THEMES[t]) return t } catch { /* 무시 */ }
-  return 'paper'
-}
+// 화면 색 — 주문전표·장부 디자인 (종이 흰색 바탕, 먹색 글씨, 강조는 짬뽕 빨강 하나, 영수증 같은 점선 줄)
+const T = { bg:'#FAF9F6', ink:'#1D1B18', sub:'#6E6A63', faint:'#A8A39A', rule:'#DCD7CE', strong:'#1D1B18',
+  accent:'#C3261C', onAccent:'#FFFFFF', accentSoft:'#F7E6E3', warn:'#8A5300', ok:'#2E6A3A', field:'#FFFFFF', fieldLine:'#CBC5BA', leader:true }
 const won = n => (n || 0).toLocaleString('ko-KR')
 
 
@@ -65,7 +54,6 @@ export default function RevenueInput() {
   const [, setTick] = useState(0)
   const [scan, setScan] = useState(null) // 사진 인식: { busy } | { result, photo } | { error }
   const [phoneOpen, setPhoneOpen] = useState(false) // 폰에서 출력물 사진 받기 (QR)
-  const [theme, setTheme] = useState(pickTheme)
   useEffect(()=>{
     const id = setInterval(()=>setTick(t=>t+1), 60000)
     return ()=>clearInterval(id)
@@ -211,7 +199,6 @@ export default function RevenueInput() {
     close:   { label:'마감',     hint:'하루 전체 합계를 입력해요. 오후 매출은 자동으로 계산돼요' },
   }
   const si = sessionInfo[activeSession]
-  const T = THEMES[theme]
   const num = { fontVariantNumeric:'tabular-nums', fontFeatureSettings:'"tnum"' }
   const subtotal = (+kiosk||0) + delTotal + (+pos||0)
   const morningTotal = (rec.morningKiosk||0)+(rec.morningDel||0)+(rec.morningPos||0)
@@ -259,17 +246,6 @@ export default function RevenueInput() {
   return (
     <div className="page-surface" style={{background:T.bg, color:T.ink}}>
       <div style={{maxWidth:640}}>
-        {/* 시안 바꾸기 — 디자인을 고르면 없앰 */}
-        <div style={{display:'flex', gap:6, alignItems:'center', marginBottom:18, fontSize:12, color:T.sub, flexWrap:'wrap'}}>
-          디자인 시안
-          {Object.entries(THEMES).map(([k,v]) => (
-            <button key={k} type="button" onClick={()=>{ setTheme(k); try { localStorage.setItem('revTheme', k) } catch { /* 무시 */ } }}
-              style={{padding:'5px 10px', borderRadius:4, fontSize:12, fontFamily:'inherit', cursor:'pointer',
-                border:`1px solid ${theme===k ? T.accent : T.rule}`, background: theme===k ? T.accentSoft : 'transparent',
-                color: theme===k ? T.accent : T.sub, fontWeight: theme===k ? 700 : 400}}>{v.name}</button>
-          ))}
-        </div>
-
         <header style={{display:'flex', justifyContent:'space-between', alignItems:'baseline', gap:12, paddingBottom:10,
           borderBottom: T.leader ? `3px double ${T.strong}` : `1px solid ${T.rule}`}}>
           <h1 style={{fontSize:22, fontWeight:800, margin:0, letterSpacing:'-0.01em'}}>매출 입력</h1>

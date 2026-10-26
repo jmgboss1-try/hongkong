@@ -30,14 +30,14 @@ const wonK   = n => n>=10000 ? (n/10000).toFixed(0)+'만' : n.toLocaleString()
 const pct = (a,b) => b>0 ? Math.round(a/b*100) : 0
 
 const CHANNELS = [
-  { key:'total',    label:'전체',      color:'#f9b934' },
-  { key:'kiosk',    label:'키오스크',  color:'#93c5fd' },
-  { key:'del',      label:'배달 합계', color:'#34d399' },
-  { key:'baemin',   label:'배달의민족',color:'#34d399' },
-  { key:'coupang',  label:'쿠팡이츠',  color:'#f87171' },
-  { key:'yogiyo',   label:'요기요',    color:'#f9b934' },
-  { key:'ddangyeo', label:'땡겨요',    color:'#a78bfa' },
-  { key:'pos',      label:'포스',      color:'#fb923c' },
+  { key:'total',    label:'전체',      color:'#C3261C' },
+  { key:'kiosk',    label:'키오스크',  color:'#2B5C9E' },
+  { key:'del',      label:'배달 합계', color:'#2E7D45' },
+  { key:'baemin',   label:'배달의민족',color:'#2E7D45' },
+  { key:'coupang',  label:'쿠팡이츠',  color:'#B42318' },
+  { key:'yogiyo',   label:'요기요',    color:'#C3261C' },
+  { key:'ddangyeo', label:'땡겨요',    color:'#6B4FA0' },
+  { key:'pos',      label:'포스',      color:'#B45309' },
 ]
 
 const CHART_TYPES = [
@@ -67,8 +67,8 @@ function getRevValue(r, channel) {
 const CustomTooltip = ({active,payload,label}) => {
   if(!active||!payload?.length) return null
   return (
-    <div style={{background:'#12141f',border:'1px solid #272a3d',borderRadius:8,padding:'10px 14px',fontSize:12}}>
-      <div style={{color:'#5e6585',marginBottom:6,fontWeight:600}}>{label}</div>
+    <div style={{background:'#FFFFFF',border:'1px solid #DCD7CE',borderRadius:4,padding:'10px 14px',fontSize:12}}>
+      <div style={{color:'#6E6A63',marginBottom:6,fontWeight:600}}>{label}</div>
       {payload.map((p,i)=>(
         <div key={i} style={{color:p.color,marginBottom:2}}>
           {p.name}: {(p.value||0).toLocaleString()}원
@@ -320,11 +320,11 @@ export default function Dashboard() {
   const ch = CHANNELS.find(c=>c.key===chartChannel)
 
   const KPI = ({label,value,note,color}) => (
-    <div style={{background:'#12141f',border:'1px solid #272a3d',borderRadius:12,padding:'18px 20px',position:'relative',overflow:'hidden'}}>
+    <div style={{background:'#FFFFFF',border:'1px solid #DCD7CE',borderRadius:6,padding:'18px 20px',position:'relative',overflow:'hidden'}}>
       <div style={{position:'absolute',top:0,left:0,right:0,height:3,background:color}}/>
-      <div style={{fontSize:10,fontWeight:600,color:'#5e6585',textTransform:'uppercase',letterSpacing:.8,marginBottom:6}}>{label}</div>
-      <div style={{fontSize:20,fontWeight:700,color,fontFamily:'DM Mono, monospace'}}>{value}</div>
-      <div style={{fontSize:10,color:'#5e6585',marginTop:4,lineHeight:1.6}}>{note}</div>
+      <div style={{fontSize:10,fontWeight:600,color:'#6E6A63',textTransform:'uppercase',letterSpacing:.8,marginBottom:6}}>{label}</div>
+      <div style={{fontSize:20,fontWeight:700,color,fontFamily:'inherit',fontVariantNumeric:'tabular-nums'}}>{value}</div>
+      <div style={{fontSize:10,color:'#6E6A63',marginTop:4,lineHeight:1.6}}>{note}</div>
     </div>
   )
 
@@ -332,31 +332,31 @@ export default function Dashboard() {
     <div>
       <div style={{display:'flex',alignItems:'flex-end',justifyContent:'space-between',marginBottom:22}}>
         <div>
-          <div style={{fontSize:20,fontWeight:700}}>📊 대시보드</div>
-          <div style={{fontSize:12,color:'#5e6585',marginTop:2}}>{mLabel(curMonth)} 전체 현황</div>
+          <div style={{fontSize:20,fontWeight:700}}>대시보드</div>
+          <div style={{fontSize:12,color:'#6E6A63',marginTop:2}}>{mLabel(curMonth)} 전체 현황</div>
         </div>
         <select value={curMonth} onChange={e=>setCurMonth(e.target.value)}
-          style={{background:'#191c2b',border:'1px solid #272a3d',borderRadius:8,color:'#dde1f2',
+          style={{background:'#F3F1EC',border:'1px solid #DCD7CE',borderRadius:4,color:'#1D1B18',
             padding:'8px 12px',fontSize:12,fontFamily:'inherit',outline:'none'}}>
           {monthOpts.map(m=><option key={m} value={m}>{mLabel(m)}</option>)}
         </select>
       </div>
 
-      {loading ? <div style={{textAlign:'center',color:'#5e6585',padding:60}}>로딩 중...</div> : (
+      {loading ? <div style={{textAlign:'center',color:'#6E6A63',padding:60}}>로딩 중...</div> : (
         <>
           <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:14,marginBottom:14}}>
-            <KPI label="월 총 매출" value={wonFmt(rev.total)} note={`배달 ${pct(rev.del,rev.total)}% · 포스 ${pct(rev.pos,rev.total)}% · 키오스크 ${pct(rev.kiosk,rev.total)}%`} color="#f9b934"/>
-            <KPI label="월 총 지출" value={wonFmt(exp.total)} note={`재료비 ${wonFmt(exp.mat)} · 관리비 ${wonFmt(exp.mgmt)}`} color="#f87171"/>
-            <KPI label="인건비" value={wonFmt(totalLaborCost)} note={`인건비율 ${pct(totalLaborCost,rev.total)}% · ${staff.length}명`} color="#93c5fd"/>
+            <KPI label="월 총 매출" value={wonFmt(rev.total)} note={`배달 ${pct(rev.del,rev.total)}% · 포스 ${pct(rev.pos,rev.total)}% · 키오스크 ${pct(rev.kiosk,rev.total)}%`} color="#C3261C"/>
+            <KPI label="월 총 지출" value={wonFmt(exp.total)} note={`재료비 ${wonFmt(exp.mat)} · 관리비 ${wonFmt(exp.mgmt)}`} color="#B42318"/>
+            <KPI label="인건비" value={wonFmt(totalLaborCost)} note={`인건비율 ${pct(totalLaborCost,rev.total)}% · ${staff.length}명`} color="#2B5C9E"/>
           </div>
           <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:14,marginBottom:20}}>
-            <KPI label="총 실입금액" value={wonFmt(exp.deposit||0)} note="수수료 제외 계좌 실입금" color="#34d399"/>
+            <KPI label="총 실입금액" value={wonFmt(exp.deposit||0)} note="수수료 제외 계좌 실입금" color="#2E7D45"/>
             <KPI label="영업 잔액" value={wonFmt(Math.abs(exp.balance||0))}
               note={exp.bank?.closing!=null
                 ? `실제 통장 ${(exp.bank.closing||0).toLocaleString('ko-KR')}원 · ${exp.bank.diff===0?'장부와 일치':'지출관리에서 차이 확인'}`
                 : `이월 ${wonFmt(exp.carryover||0)} + 입금 - 지출 (통장 잔액과는 다를 수 있어요)`}
-              color={(exp.balance||0)>=0?'#f9b934':'#f87171'}/>
-            <KPI label="매출 기준 순이익" value={wonFmt(Math.abs(profit))} note={profit>=0?'흑자 ▲':'적자 ▼'} color={profit>=0?'#5e6585':'#f87171'}/>
+              color={(exp.balance||0)>=0?'#C3261C':'#B42318'}/>
+            <KPI label="매출 기준 순이익" value={wonFmt(Math.abs(profit))} note={profit>=0?'흑자 ▲':'적자 ▼'} color={profit>=0?'#6E6A63':'#B42318'}/>
           </div>
 
           {/* ── 못 적은 지출 입력 (지출관리와 동기화) ── */}
@@ -365,10 +365,10 @@ export default function Dashboard() {
           </div>
 
           {/* ── 매출 추이 그래프 ── */}
-          <div style={{background:'#12141f',border:'1px solid #272a3d',borderRadius:12,padding:18,marginBottom:20}}>
+          <div style={{background:'#FFFFFF',border:'1px solid #DCD7CE',borderRadius:6,padding:18,marginBottom:20}}>
             {/* 헤더 */}
             <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:12,flexWrap:'wrap',gap:10}}>
-              <div style={{fontSize:13,fontWeight:600}}>📈 매출 추이</div>
+              <div style={{fontSize:13,fontWeight:600}}>매출 추이</div>
               <div style={{display:'flex',gap:14,alignItems:'center',flexWrap:'wrap'}}>
                 {/* 일별/월별 탭 */}
                 <div style={{display:'flex',gap:6}}>
@@ -376,9 +376,9 @@ export default function Dashboard() {
                     <button key={key} onClick={()=>setChartTab(key)}
                       style={{padding:'5px 12px',borderRadius:6,border:'none',fontSize:11,fontWeight:600,
                         cursor:'pointer',fontFamily:'inherit',
-                        background:chartTab===key?'#f9b934':'#191c2b',
-                        color:chartTab===key?'#000':'#5e6585',
-                        outline:chartTab===key?'none':'1px solid #272a3d'}}>
+                        background:chartTab===key?'#C3261C':'#F3F1EC',
+                        color:chartTab===key?'#FFFFFF':'#6E6A63',
+                        outline:chartTab===key?'none':'1px solid #DCD7CE'}}>
                       {label}
                     </button>
                   ))}
@@ -389,9 +389,9 @@ export default function Dashboard() {
                     <button key={t.key} onClick={()=>setChartType(t.key)}
                       style={{padding:'5px 12px',borderRadius:6,border:'none',fontSize:11,fontWeight:600,
                         cursor:'pointer',fontFamily:'inherit',
-                        background:chartType===t.key?'#93c5fd':'#191c2b',
-                        color:chartType===t.key?'#000':'#5e6585',
-                        outline:chartType===t.key?'none':'1px solid #272a3d'}}>
+                        background:chartType===t.key?'#2B5C9E':'#F3F1EC',
+                        color:chartType===t.key?'#FFFFFF':'#6E6A63',
+                        outline:chartType===t.key?'none':'1px solid #DCD7CE'}}>
                       {t.label}
                     </button>
                   ))}
@@ -400,10 +400,10 @@ export default function Dashboard() {
                 <button onClick={()=>setShowCompare(v=>!v)}
                   style={{padding:'5px 12px',borderRadius:6,border:'none',fontSize:11,fontWeight:600,
                     cursor:'pointer',fontFamily:'inherit',
-                    background:showCompare?'#34d399':'#191c2b',
-                    color:showCompare?'#000':'#5e6585',
-                    outline:showCompare?'none':'1px solid #272a3d'}}>
-                  {chartTab==='daily' ? '📊 전월 비교' : '📊 전년 비교'}
+                    background:showCompare?'#2E7D45':'#F3F1EC',
+                    color:showCompare?'#FFFFFF':'#6E6A63',
+                    outline:showCompare?'none':'1px solid #DCD7CE'}}>
+                  {chartTab==='daily' ? '전월 비교' : '전년 비교'}
                 </button>
               </div>
             </div>
@@ -414,9 +414,9 @@ export default function Dashboard() {
                 <button key={c.key} onClick={()=>setChartChannel(c.key)}
                   style={{padding:'4px 10px',borderRadius:5,border:'none',fontSize:11,fontWeight:600,
                     cursor:'pointer',fontFamily:'inherit',
-                    background:chartChannel===c.key?c.color:'#191c2b',
-                    color:chartChannel===c.key?'#000':'#5e6585',
-                    outline:chartChannel===c.key?'none':'1px solid #272a3d'}}>
+                    background:chartChannel===c.key?c.color:'#F3F1EC',
+                    color:chartChannel===c.key?'#FFFFFF':'#6E6A63',
+                    outline:chartChannel===c.key?'none':'1px solid #DCD7CE'}}>
                   {c.label}
                 </button>
               ))}
@@ -425,16 +425,16 @@ export default function Dashboard() {
             {/* 비교 요약 배지 */}
             {showCompare && compareSummary && (
               <div style={{display:'flex',gap:16,alignItems:'center',flexWrap:'wrap',
-                background:'#191c2b',borderRadius:8,padding:'10px 14px',marginBottom:14,fontSize:12}}>
-                <span style={{color:'#5e6585'}}>
-                  이번 기간 <b style={{color:'#f9b934'}}>{compareSummary.curTotal.toLocaleString()}원</b>
+                background:'#F3F1EC',borderRadius:4,padding:'10px 14px',marginBottom:14,fontSize:12}}>
+                <span style={{color:'#6E6A63'}}>
+                  이번 기간 <b style={{color:'#C3261C'}}>{compareSummary.curTotal.toLocaleString()}원</b>
                 </span>
-                <span style={{color:'#5e6585'}}>
-                  {compareSummary.prevLabel} <b style={{color:'#93c5fd'}}>{compareSummary.prevTotal.toLocaleString()}원</b>
+                <span style={{color:'#6E6A63'}}>
+                  {compareSummary.prevLabel} <b style={{color:'#2B5C9E'}}>{compareSummary.prevTotal.toLocaleString()}원</b>
                 </span>
                 {compareSummary.diffPct !== null && (
                   <span style={{fontWeight:700,
-                    color: compareSummary.diffPct>=0 ? '#34d399' : '#f87171'}}>
+                    color: compareSummary.diffPct>=0 ? '#2E7D45' : '#B42318'}}>
                     {compareSummary.diffPct>=0?'▲':'▼'} {Math.abs(compareSummary.diffPct)}%
                   </span>
                 )}
@@ -443,34 +443,34 @@ export default function Dashboard() {
 
             {/* 그래프 */}
             {chartLoading ? (
-              <div style={{textAlign:'center',color:'#5e6585',padding:40}}>로딩 중...</div>
+              <div style={{textAlign:'center',color:'#6E6A63',padding:40}}>로딩 중...</div>
             ) : chartData.length === 0 ? (
-              <div style={{textAlign:'center',color:'#5e6585',padding:40}}>데이터가 없습니다</div>
+              <div style={{textAlign:'center',color:'#6E6A63',padding:40}}>데이터가 없습니다</div>
             ) : (
               <ResponsiveContainer width="100%" height={280}>
                 <ComposedChart data={chartData} margin={{top:4,right:4,left:0,bottom:0}}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#272a3d" vertical={false}/>
-                  <XAxis dataKey="label" tick={{fill:'#5e6585',fontSize:10}} axisLine={false} tickLine={false}
+                  <CartesianGrid strokeDasharray="3 3" stroke="#DCD7CE" vertical={false}/>
+                  <XAxis dataKey="label" tick={{fill:'#6E6A63',fontSize:10}} axisLine={false} tickLine={false}
                     interval={chartTab==='daily'?3:0}/>
-                  <YAxis tickFormatter={wonK} tick={{fill:'#5e6585',fontSize:10}} axisLine={false} tickLine={false} width={50}/>
+                  <YAxis tickFormatter={wonK} tick={{fill:'#6E6A63',fontSize:10}} axisLine={false} tickLine={false} width={50}/>
                   <Tooltip content={<CustomTooltip/>}/>
 
                   {chartType==='bar' && (
-                    <Bar dataKey="value" name={ch?.label||'매출'} fill={ch?.color||'#f9b934'} radius={[4,4,0,0]}/>
+                    <Bar dataKey="value" name={ch?.label||'매출'} fill={ch?.color||'#C3261C'} radius={[4,4,0,0]}/>
                   )}
                   {chartType==='line' && (
-                    <Line type="monotone" dataKey="value" name={ch?.label||'매출'} stroke={ch?.color||'#f9b934'}
-                      strokeWidth={2.5} dot={{r:3,fill:ch?.color||'#f9b934'}}/>
+                    <Line type="monotone" dataKey="value" name={ch?.label||'매출'} stroke={ch?.color||'#C3261C'}
+                      strokeWidth={2.5} dot={{r:3,fill:ch?.color||'#C3261C'}}/>
                   )}
                   {chartType==='area' && (
                     <Area type="monotone" dataKey="value" name={ch?.label||'매출'}
-                      stroke={ch?.color||'#f9b934'} fill={ch?.color||'#f9b934'} fillOpacity={0.25} strokeWidth={2}/>
+                      stroke={ch?.color||'#C3261C'} fill={ch?.color||'#C3261C'} fillOpacity={0.25} strokeWidth={2}/>
                   )}
 
                   {showCompare && (
                     <Line type="monotone" dataKey="compareValue"
                       name={chartTab==='daily'?'전월':'전년 동월'}
-                      stroke="#5e6585" strokeWidth={1.5} strokeDasharray="5 4" dot={false}/>
+                      stroke="#6E6A63" strokeWidth={1.5} strokeDasharray="5 4" dot={false}/>
                   )}
                 </ComposedChart>
               </ResponsiveContainer>

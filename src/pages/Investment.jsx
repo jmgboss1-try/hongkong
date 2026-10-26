@@ -24,8 +24,8 @@ function parseAmount(val) {
 }
 
 const INVESTORS = {
-  terry: { name: '테리', ratio: 0.7, color: '#f9b934', emoji: '👑' },
-  hyung:  { name: '형',   ratio: 0.3, color: '#93c5fd', emoji: '🤝' },
+  terry: { name: '테리', ratio: 0.7, color: '#C3261C', emoji: '' },
+  hyung:  { name: '형',   ratio: 0.3, color: '#2B5C9E', emoji: '' },
 }
 
 // 형 대출금 별도 설정 (투자금과 이자율 다름)
@@ -37,21 +37,21 @@ const HYUNG_LOAN = {
 // 투자자별 카테고리 분리
 const CATEGORIES_BY_INVESTOR = {
   terry: [
-    { key: 'investment', label: '💰 투자금 회수' },
-    { key: 'loss',       label: '📉 운영 손해분 회수' },
-    { key: 'severance',  label: '📦 퇴직금 대납 회수' },
+    { key: 'investment', label: '투자금 회수' },
+    { key: 'loss',       label: '운영 손해분 회수' },
+    { key: 'severance',  label: '퇴직금 대납 회수' },
   ],
   hyung: [
-    { key: 'investment', label: '💰 투자금 회수' },
-    { key: 'loan',       label: '🏦 대출금 상환 회수' },
+    { key: 'investment', label: '투자금 회수' },
+    { key: 'loan',       label: '대출금 상환 회수' },
   ],
 }
 // 전체 카테고리 (집계/테이블용)
 const ALL_CATEGORIES = [
-  { key: 'investment', label: '💰 투자금 회수' },
-  { key: 'loss',       label: '📉 운영 손해분 회수' },
-  { key: 'severance',  label: '📦 퇴직금 대납 회수' },
-  { key: 'loan',       label: '🏦 대출금 상환 회수' },
+  { key: 'investment', label: '투자금 회수' },
+  { key: 'loss',       label: '운영 손해분 회수' },
+  { key: 'severance',  label: '퇴직금 대납 회수' },
+  { key: 'loan',       label: '대출금 상환 회수' },
 ]
 
 // 단리 이자 계산 (연 5%, 일 단위)
@@ -67,7 +67,7 @@ function calcInterest(principal, fromDate, toDate, rate = 0.05) {
 // 투자금 회수(category 'investment')는 추가 투입분부터 먼저 채우고(먼저 들어간 것부터), 다 채우면 최초 투자금으로
 const additionStart = a => a.date || (a.month ? `${a.month}-01` : '')
 const sortedAdditions = cfg => [...(cfg.additions || [])].filter(a=>a.amount).sort((a,b)=>additionStart(a).localeCompare(additionStart(b)))
-const additionLabel = a => `${a.kind==='operating' ? '🏪 추가 운영자금' : '➕ 추가 투자금'} 회수 (${(a.date||a.month||'').replace(/-/g,'.')}${a.memo ? ` · ${a.memo}` : ''})`
+const additionLabel = a => `${a.kind==='operating' ? '추가 운영자금' : '추가 투자금'} 회수 (${(a.date||a.month||'').replace(/-/g,'.')}${a.memo ? ` · ${a.memo}` : ''})`
 // 투자자별 회수 항목: 추가 투입분(회수 순서대로) → 기본 항목
 const categoriesFor = (uid, cfg) => [
   ...sortedAdditions(cfg || {}).map(a => ({ key:`add:${a.id}`, label: additionLabel(a), addition:a })),
@@ -144,16 +144,16 @@ function ProgressBar({ value, max, color }) {
   const pct = max > 0 ? Math.min(100, Math.round((value / max) * 100)) : 0
   return (
     <div style={{width:'100%'}}>
-      <div style={{display:'flex',justifyContent:'space-between',fontSize:10,color:'#5e6585',marginBottom:4}}>
+      <div style={{display:'flex',justifyContent:'space-between',fontSize:10,color:'#6E6A63',marginBottom:4}}>
         <span>{wonFmt(value)} 회수</span>
-        <span style={{color: pct>=100 ? '#34d399' : color, fontWeight:700}}>{pct}%</span>
+        <span style={{color: pct>=100 ? '#2E7D45' : color, fontWeight:700}}>{pct}%</span>
       </div>
-      <div style={{background:'#272a3d',borderRadius:99,height:7,overflow:'hidden'}}>
+      <div style={{background:'#DCD7CE',borderRadius:99,height:7,overflow:'hidden'}}>
         <div style={{width:`${pct}%`,height:'100%',borderRadius:99,
-          background: pct>=100 ? '#34d399' : color,
+          background: pct>=100 ? '#2E7D45' : color,
           transition:'width .6s cubic-bezier(.4,0,.2,1)'}}/>
       </div>
-      <div style={{fontSize:10,color:'#5e6585',marginTop:3}}>
+      <div style={{fontSize:10,color:'#6E6A63',marginTop:3}}>
         목표 {wonFmt(max)}
       </div>
     </div>
@@ -270,7 +270,7 @@ export default function Investment() {
   const today = todayStr()
   const transfers = config.transfers || []
   const catLabel = (uid, key) => categoriesFor(uid, config[uid]).find(c=>c.key===key)?.label
-    || ALL_CATEGORIES.find(c=>c.key===key)?.label || (String(key).startsWith('add:') ? '➕ 추가 투입 회수 (삭제된 항목)' : key)
+    || ALL_CATEGORIES.find(c=>c.key===key)?.label || (String(key).startsWith('add:') ? '추가 투입 회수 (삭제된 항목)' : key)
   // 항목별 회수 흐름: 회수 기록(+) · 넘긴 금액(−) · 넘겨받은 금액(+)
   const flows = (uid, cat) => [
     ...records.filter(r => r.investor===uid && r.category===cat).map(r => ({ date:r.date, amount:r.amount||0 })),
@@ -324,8 +324,8 @@ export default function Investment() {
   const totalRemaining  = Object.values(summary).reduce((a,s)=>a+s.remaining,0)
   const overallPct      = totalTarget > 0 ? Math.min(100, Math.round(totalRecovered/totalTarget*100)) : 0
 
-  const cell  = {fontFamily:'DM Mono,monospace', textAlign:'right'}
-  const bdBot = {borderBottom:'1px solid #272a3d'}
+  const cell  = {fontFamily:'inherit',fontVariantNumeric:'tabular-nums', textAlign:'right'}
+  const bdBot = {borderBottom:'1px solid #DCD7CE'}
 
   // 회수 내역 타임라인 렌더링
   const filtered = filterInv === 'all' ? records : records.filter(r=>r.investor===filterInv)
@@ -336,7 +336,7 @@ export default function Investment() {
     grouped[ym].push(r)
   })
   const timelineContent = filtered.length === 0 ? (
-    <div style={{textAlign:'center',color:'#5e6585',padding:30,fontSize:12}}>해당 내역이 없습니다</div>
+    <div style={{textAlign:'center',color:'#6E6A63',padding:30,fontSize:12}}>해당 내역이 없습니다</div>
   ) : (
     <div style={{padding:'8px 0 4px'}}>
       {Object.entries(grouped).map(([ym, rows])=>{
@@ -345,13 +345,13 @@ export default function Investment() {
         return (
           <div key={ym} style={{marginBottom:4}}>
             <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',
-              padding:'8px 18px',background:'rgba(255,255,255,0.02)'}}>
+              padding:'8px 18px',background:'rgba(0,0,0,0.02)'}}>
               <div style={{display:'flex',alignItems:'center',gap:8}}>
-                <div style={{width:6,height:6,borderRadius:'50%',background:'#f9b934'}}/>
-                <span style={{fontSize:12,fontWeight:700,color:'#dde1f2'}}>{y}년 {+m}월</span>
-                <span style={{fontSize:10,color:'#5e6585'}}>{rows.length}건</span>
+                <div style={{width:6,height:6,borderRadius:'50%',background:'#C3261C'}}/>
+                <span style={{fontSize:12,fontWeight:700,color:'#1D1B18'}}>{y}년 {+m}월</span>
+                <span style={{fontSize:10,color:'#6E6A63'}}>{rows.length}건</span>
               </div>
-              <span style={{fontSize:12,fontWeight:700,color:'#f9b934',fontFamily:'DM Mono,monospace'}}>
+              <span style={{fontSize:12,fontWeight:700,color:'#C3261C',fontFamily:'inherit',fontVariantNumeric:'tabular-nums'}}>
                 {wonFmt(monthTotal)}
               </span>
             </div>
@@ -361,30 +361,30 @@ export default function Investment() {
               return (
                 <div key={r.id} style={{display:'flex',alignItems:'center',gap:12,
                   padding:'10px 18px 10px 30px',position:'relative',
-                  borderBottom: i<rows.length-1 ? '1px solid #191c2b' : '1px solid #1a1d2e'}}>
+                  borderBottom: i<rows.length-1 ? '1px solid #F3F1EC' : '1px solid #ECE8E1'}}>
                   <div style={{position:'absolute',left:18,top:'50%',transform:'translateY(-50%)',
-                    width:3,height:28,borderRadius:99,background:inv?.color||'#5e6585',opacity:.7}}/>
-                  <div style={{fontSize:11,color:'#5e6585',fontFamily:'DM Mono,monospace',minWidth:42,flexShrink:0}}>
+                    width:3,height:28,borderRadius:99,background:inv?.color||'#6E6A63',opacity:.7}}/>
+                  <div style={{fontSize:11,color:'#6E6A63',fontFamily:'inherit',fontVariantNumeric:'tabular-nums',minWidth:42,flexShrink:0}}>
                     {r.date.slice(5)}
                   </div>
                   <span style={{fontSize:11,fontWeight:700,padding:'2px 8px',borderRadius:4,
                     background:`${inv?.color}18`,color:inv?.color,whiteSpace:'nowrap',flexShrink:0}}>
                     {inv?.emoji} {inv?.name}
                   </span>
-                  <span style={{fontSize:11,color:'#5e6585',flex:1,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>
+                  <span style={{fontSize:11,color:'#6E6A63',flex:1,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>
                     {cat?.label||r.category}
                   </span>
                   {r.memo && (
-                    <span style={{fontSize:10,color:'#3d4060',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',maxWidth:120}}>
+                    <span style={{fontSize:10,color:'#A8A39A',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',maxWidth:120}}>
                       {r.memo}
                     </span>
                   )}
-                  <span style={{fontSize:13,fontWeight:700,color:'#f9b934',fontFamily:'DM Mono,monospace',flexShrink:0}}>
+                  <span style={{fontSize:13,fontWeight:700,color:'#C3261C',fontFamily:'inherit',fontVariantNumeric:'tabular-nums',flexShrink:0}}>
                     {wonFmt(r.amount)}
                   </span>
                   {!isInvestor && (
                     <button onClick={()=>deleteRecord(r.id)}
-                      style={{background:'transparent',border:'1px solid #3d1f1f',color:'#f87171',
+                      style={{background:'transparent',border:'1px solid #E8C4BF',color:'#B42318',
                         padding:'3px 8px',fontSize:10,borderRadius:4,cursor:'pointer',
                         fontFamily:'inherit',flexShrink:0}}>
                       삭제
@@ -404,18 +404,18 @@ export default function Investment() {
       {/* 헤더 */}
       <div style={{display:'flex',alignItems:'flex-end',justifyContent:'space-between',marginBottom:22}}>
         <div>
-          <div style={{fontSize:20,fontWeight:700}}>📈 투자관리</div>
-          <div style={{fontSize:12,color:'#5e6585',marginTop:2}}>사장 전용 — 투자금 회수 현황</div>
+          <div style={{fontSize:20,fontWeight:700}}>투자관리</div>
+          <div style={{fontSize:12,color:'#6E6A63',marginTop:2}}>사장 전용 — 투자금 회수 현황</div>
         </div>
         {!isInvestor && (
           <div style={{display:'flex',gap:8}}>
             <button onClick={()=>{ setEditConfig(JSON.parse(JSON.stringify(config))); setShowConfig(v=>!v) }}
-              style={{background:'#191c2b',border:'1px solid #272a3d',color:'#dde1f2',borderRadius:8,
+              style={{background:'#F3F1EC',border:'1px solid #DCD7CE',color:'#1D1B18',borderRadius:4,
                 padding:'8px 14px',fontSize:11,cursor:'pointer',fontFamily:'inherit'}}>
-              ⚙️ 투자금 설정
+              투자금 설정
             </button>
             <button onClick={()=>{setShowForm(v=>!v); setForm(f=>({...f, date:todayStr()}))}}
-              style={{background:'#f9b934',color:'#000',border:'none',borderRadius:8,
+              style={{background:'#C3261C',color:'#FFFFFF',border:'none',borderRadius:4,
                 padding:'8px 16px',fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
               + 회수 입력
             </button>
@@ -425,11 +425,11 @@ export default function Investment() {
 
       {/* 투자금 설정 패널 */}
       {showConfig && (
-        <div style={{background:'#12141f',border:'1px solid #f9b934',borderRadius:12,marginBottom:18,padding:18}}>
-          <div style={{fontSize:13,fontWeight:600,color:'#f9b934',marginBottom:16}}>⚙️ 투자금 설정</div>
+        <div style={{background:'#FFFFFF',border:'1px solid #C3261C',borderRadius:6,marginBottom:18,padding:18}}>
+          <div style={{fontSize:13,fontWeight:600,color:'#C3261C',marginBottom:16}}>투자금 설정</div>
           <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:16}}>
             {Object.entries(INVESTORS).map(([uid,inv])=>(
-              <div key={uid} style={{background:'#191c2b',borderRadius:10,padding:14,
+              <div key={uid} style={{background:'#F3F1EC',borderRadius:6,padding:14,
                 border:`1px solid ${inv.color}33`}}>
                 <div style={{fontSize:12,fontWeight:700,color:inv.color,marginBottom:10}}>
                   {inv.emoji} {inv.name} ({(inv.ratio*100).toFixed(0)}%)
@@ -438,8 +438,8 @@ export default function Investment() {
                   ['투자 원금 (원)','amount','amount'],
                   ['투자 시작일','date','startDate'],
                   ...(uid==='terry' ? [
-                    ['📉 운영 손해분 목표 (원)','amount','lossAmount'],
-                    ['📦 퇴직금 대납 목표 (원)','amount','severanceAmount'],
+                    ['운영 손해분 목표 (원)','amount','lossAmount'],
+                    ['퇴직금 대납 목표 (원)','amount','severanceAmount'],
                   ] : []),
                   ...(uid==='hyung' ? [['대출 시작일 (연10%)','date','loanStartDate']] : []),
                 ].map(([label,type,key])=>{
@@ -449,7 +449,7 @@ export default function Investment() {
                     ? Number(rawVal).toLocaleString('ko-KR') : rawVal
                   return (
                   <div key={key} style={{marginBottom:10}}>
-                    <label style={{fontSize:10,color:'#5e6585',display:'block',marginBottom:4}}>{label}</label>
+                    <label style={{fontSize:10,color:'#6E6A63',display:'block',marginBottom:4}}>{label}</label>
                     <input
                       type={isAmount ? 'text' : 'date'}
                       inputMode={isAmount ? 'numeric' : undefined}
@@ -463,20 +463,20 @@ export default function Investment() {
                           [uid]: {...(prev[uid]||{}), [key]: val}
                         }))
                       }}
-                      style={{background:'#12141f',
+                      style={{background:'#FFFFFF',
                         border:`1px solid ${
-                          key==='loanStartDate'   ? 'rgba(147,197,253,0.3)' :
-                          key==='lossAmount'      ? 'rgba(248,113,113,0.3)' :
-                          key==='severanceAmount' ? 'rgba(249,185,52,0.3)'  : '#272a3d'}`,
-                        borderRadius:7,color:'#dde1f2',padding:'8px 10px',fontSize:12,outline:'none',
-                        width:'100%',fontFamily:'DM Mono,monospace',
+                          key==='loanStartDate'   ? 'rgba(43,92,158,0.3)' :
+                          key==='lossAmount'      ? 'rgba(180,35,24,0.3)' :
+                          key==='severanceAmount' ? 'rgba(195,38,28,0.3)'  : '#DCD7CE'}`,
+                        borderRadius:4,color:'#1D1B18',padding:'8px 10px',fontSize:12,outline:'none',
+                        width:'100%',fontFamily:'inherit',fontVariantNumeric:'tabular-nums',
                         textAlign: isAmount ? 'right' : 'left'}}/>
                   </div>
                 )})}
                 {/* 추가 투입 (투자금·운영자금) */}
-                <div style={{borderTop:'1px solid #272a3d',marginTop:6,paddingTop:10,marginBottom:8}}>
+                <div style={{borderTop:'1px solid #DCD7CE',marginTop:6,paddingTop:10,marginBottom:8}}>
                   <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:8}}>
-                    <span style={{fontSize:11,fontWeight:600,color:'#dde1f2'}}>➕ 추가 투입</span>
+                    <span style={{fontSize:11,fontWeight:600,color:'#1D1B18'}}>추가 투입</span>
                     <button type="button" onClick={()=>setEditConfig(prev=>({ ...prev, [uid]: { ...(prev[uid]||{}),
                         additions: [...(prev[uid]?.additions||[]), { id: newId(), month: todayStr().slice(0,7), date:'', amount:0, kind:'investment', noInterest:false, memo:'' }] } }))}
                       style={{background:'transparent',border:`1px solid ${inv.color}66`,color:inv.color,borderRadius:6,
@@ -485,50 +485,50 @@ export default function Investment() {
                     </button>
                   </div>
                   {!(editConfig[uid]?.additions||[]).length && (
-                    <div style={{fontSize:10,color:'#5e6585'}}>최초 투자 뒤에 더 넣은 투자금·운영자금을 기록해요. 항목마다 따로 회수 현황이 생기고, 투자금 회수는 추가 투입분(먼저 넣은 것부터)을 먼저 채워요</div>
+                    <div style={{fontSize:10,color:'#6E6A63'}}>최초 투자 뒤에 더 넣은 투자금·운영자금을 기록해요. 항목마다 따로 회수 현황이 생기고, 투자금 회수는 추가 투입분(먼저 넣은 것부터)을 먼저 채워요</div>
                   )}
                   {(editConfig[uid]?.additions||[]).map(a=>{
                     const setA = patch => setEditConfig(prev=>({ ...prev, [uid]: { ...(prev[uid]||{}),
                       additions: (prev[uid]?.additions||[]).map(x => x.id===a.id ? { ...x, ...patch } : x) } }))
-                    const inp = {background:'#12141f',border:'1px solid #272a3d',borderRadius:7,color:'#dde1f2',
+                    const inp = {background:'#FFFFFF',border:'1px solid #DCD7CE',borderRadius:4,color:'#1D1B18',
                       padding:'7px 8px',fontSize:12,outline:'none',fontFamily:'inherit',minWidth:0}
                     return (
-                      <div key={a.id} style={{background:'#12141f',border:'1px solid #272a3d',borderRadius:8,padding:8,marginBottom:6,
+                      <div key={a.id} style={{background:'#FFFFFF',border:'1px solid #DCD7CE',borderRadius:4,padding:8,marginBottom:6,
                         display:'grid',gridTemplateColumns:'1fr 1fr',gap:6}}>
                         <div>
-                          <label style={{fontSize:9,color:'#5e6585',display:'block',marginBottom:3}}>투입 연월 *</label>
+                          <label style={{fontSize:9,color:'#6E6A63',display:'block',marginBottom:3}}>투입 연월 *</label>
                           <input type="month" value={a.month||''} onChange={e=>setA({ month:e.target.value, date: a.date && !a.date.startsWith(e.target.value) ? '' : a.date })}
-                            style={{...inp,width:'100%',borderColor: a.month ? '#272a3d' : '#f87171'}}/>
+                            style={{...inp,width:'100%',borderColor: a.month ? '#DCD7CE' : '#B42318'}}/>
                         </div>
                         <div>
-                          <label style={{fontSize:9,color:'#5e6585',display:'block',marginBottom:3}}>정확한 날짜 (선택)</label>
+                          <label style={{fontSize:9,color:'#6E6A63',display:'block',marginBottom:3}}>정확한 날짜 (선택)</label>
                           <input type="date" value={a.date||''} min={a.month ? `${a.month}-01` : undefined} max={a.month ? `${a.month}-31` : undefined}
                             onChange={e=>setA({ date:e.target.value, month: e.target.value ? e.target.value.slice(0,7) : a.month })}
                             style={{...inp,width:'100%'}}/>
                         </div>
                         <div>
-                          <label style={{fontSize:9,color:'#5e6585',display:'block',marginBottom:3}}>금액 (원) *</label>
+                          <label style={{fontSize:9,color:'#6E6A63',display:'block',marginBottom:3}}>금액 (원) *</label>
                           <input type="text" inputMode="numeric" value={a.amount ? Number(a.amount).toLocaleString('ko-KR') : ''}
                             onChange={e=>setA({ amount: +e.target.value.replace(/[^0-9]/g,'') || 0 })} placeholder="0"
-                            style={{...inp,width:'100%',fontFamily:'DM Mono,monospace',textAlign:'right'}}/>
+                            style={{...inp,width:'100%',fontFamily:'inherit',fontVariantNumeric:'tabular-nums',textAlign:'right'}}/>
                         </div>
                         <div>
-                          <label style={{fontSize:9,color:'#5e6585',display:'block',marginBottom:3}}>종류</label>
+                          <label style={{fontSize:9,color:'#6E6A63',display:'block',marginBottom:3}}>종류</label>
                           <select value={a.kind||'investment'} onChange={e=>setA({ kind:e.target.value })} style={{...inp,width:'100%'}}>
-                            <option value="investment">💰 투자금</option>
-                            <option value="operating">🏪 운영자금</option>
+                            <option value="investment">투자금</option>
+                            <option value="operating">운영자금</option>
                           </select>
                         </div>
                         <input type="text" value={a.memo||''} onChange={e=>setA({ memo:e.target.value })} placeholder="메모 (예: 냉장고 교체)"
                           style={{...inp,gridColumn:'1/-1'}}/>
                         <div style={{gridColumn:'1/-1',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
-                          <label style={{fontSize:10,color:'#5e6585',display:'flex',alignItems:'center',gap:4,cursor:'pointer'}}>
+                          <label style={{fontSize:10,color:'#6E6A63',display:'flex',alignItems:'center',gap:4,cursor:'pointer'}}>
                             <input type="checkbox" checked={!a.noInterest} onChange={e=>setA({ noInterest: !e.target.checked })}/>
                             연 5% 이자 붙이기
                           </label>
                           <button type="button" onClick={()=>setEditConfig(prev=>({ ...prev, [uid]: { ...(prev[uid]||{}),
                               additions: (prev[uid]?.additions||[]).filter(x=>x.id!==a.id) } }))}
-                            style={{background:'transparent',border:'1px solid #3d1f1f',color:'#f87171',borderRadius:5,
+                            style={{background:'transparent',border:'1px solid #E8C4BF',color:'#B42318',borderRadius:5,
                               padding:'3px 8px',fontSize:10,cursor:'pointer',fontFamily:'inherit'}}>
                             삭제
                           </button>
@@ -537,22 +537,22 @@ export default function Investment() {
                     )
                   })}
                 </div>
-                <div style={{fontSize:10,color:'#5e6585',marginTop:4}}>
+                <div style={{fontSize:10,color:'#6E6A63',marginTop:4}}>
                   투자 이자: 연 5% 단리
-                  {uid==='hyung' && <span style={{color:'#93c5fd'}}> / 대출금 1,200만원 연 10% 단리</span>}
+                  {uid==='hyung' && <span style={{color:'#2B5C9E'}}> / 대출금 1,200만원 연 10% 단리</span>}
                 </div>
               </div>
             ))}
           </div>
           <div style={{display:'flex',gap:8,marginTop:14}}>
             <button onClick={saveConfig} disabled={saving}
-              style={{background:'#f9b934',color:'#000',border:'none',borderRadius:8,
+              style={{background:'#C3261C',color:'#FFFFFF',border:'none',borderRadius:4,
                 padding:'9px 20px',fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
               {saving?'저장 중...':'저 장'}
             </button>
             <button onClick={()=>setShowConfig(false)}
-              style={{background:'transparent',border:'1px solid #272a3d',color:'#5e6585',
-                borderRadius:8,padding:'9px 16px',fontSize:12,cursor:'pointer',fontFamily:'inherit'}}>
+              style={{background:'transparent',border:'1px solid #DCD7CE',color:'#6E6A63',
+                borderRadius:4,padding:'9px 16px',fontSize:12,cursor:'pointer',fontFamily:'inherit'}}>
               취소
             </button>
           </div>
@@ -561,33 +561,33 @@ export default function Investment() {
 
       {/* 회수 입력 폼 */}
       {showForm && (
-        <div style={{background:'#12141f',border:'1px solid #34d399',borderRadius:12,marginBottom:18,padding:18}}>
-          <div style={{fontSize:13,fontWeight:600,color:'#34d399',marginBottom:16}}>+ 회수 입력</div>
+        <div style={{background:'#FFFFFF',border:'1px solid #2E7D45',borderRadius:6,marginBottom:18,padding:18}}>
+          <div style={{fontSize:13,fontWeight:600,color:'#2E7D45',marginBottom:16}}>+ 회수 입력</div>
           <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(160px,1fr))',gap:12}}>
             <div>
-              <label style={{fontSize:10,color:'#5e6585',display:'block',marginBottom:4}}>날짜</label>
+              <label style={{fontSize:10,color:'#6E6A63',display:'block',marginBottom:4}}>날짜</label>
               <input type="date" value={form.date} onChange={e=>setForm(f=>({...f,date:e.target.value}))}
-                style={{background:'#191c2b',border:'1px solid #272a3d',borderRadius:7,color:'#dde1f2',
+                style={{background:'#F3F1EC',border:'1px solid #DCD7CE',borderRadius:4,color:'#1D1B18',
                   padding:'8px 10px',fontSize:12,outline:'none',width:'100%',fontFamily:'inherit'}}/>
             </div>
             <div>
-              <label style={{fontSize:10,color:'#5e6585',display:'block',marginBottom:4}}>회수 금액 (원)</label>
+              <label style={{fontSize:10,color:'#6E6A63',display:'block',marginBottom:4}}>회수 금액 (원)</label>
               <input type="text" inputMode="numeric" value={form.amount}
                 onChange={e=>setForm(f=>({...f, amount:fmtAmount(e.target.value)}))}
                 placeholder="0"
-                style={{background:'#191c2b',border:'1px solid #272a3d',borderRadius:7,color:'#dde1f2',
+                style={{background:'#F3F1EC',border:'1px solid #DCD7CE',borderRadius:4,color:'#1D1B18',
                   padding:'8px 10px',fontSize:12,outline:'none',width:'100%',
-                  fontFamily:'DM Mono,monospace',textAlign:'right'}}/>
+                  fontFamily:'inherit',fontVariantNumeric:'tabular-nums',textAlign:'right'}}/>
             </div>
             {/* 투자자 선택 - 변경 시 카테고리 자동 초기화 */}
             <div>
-              <label style={{fontSize:10,color:'#5e6585',display:'block',marginBottom:4}}>대상 투자자</label>
+              <label style={{fontSize:10,color:'#6E6A63',display:'block',marginBottom:4}}>대상 투자자</label>
               <select value={form.investor}
                 onChange={e=>{
                   const newInvestor = e.target.value
                   setForm(f=>({...f, investor:newInvestor, category:'investment'}))
                 }}
-                style={{background:'#191c2b',border:'1px solid #272a3d',borderRadius:7,color:'#dde1f2',
+                style={{background:'#F3F1EC',border:'1px solid #DCD7CE',borderRadius:4,color:'#1D1B18',
                   padding:'8px 10px',fontSize:12,outline:'none',width:'100%',fontFamily:'inherit'}}>
                 {Object.entries(INVESTORS).map(([uid,inv])=>(
                   <option key={uid} value={uid}>{inv.emoji} {inv.name}</option>
@@ -596,10 +596,10 @@ export default function Investment() {
             </div>
             {/* 카테고리 - 선택된 투자자 기준으로만 표시 */}
             <div>
-              <label style={{fontSize:10,color:'#5e6585',display:'block',marginBottom:4}}>카테고리</label>
+              <label style={{fontSize:10,color:'#6E6A63',display:'block',marginBottom:4}}>카테고리</label>
               <select value={form.category}
                 onChange={e=>setForm(f=>({...f,category:e.target.value}))}
-                style={{background:'#191c2b',border:'1px solid #272a3d',borderRadius:7,color:'#dde1f2',
+                style={{background:'#F3F1EC',border:'1px solid #DCD7CE',borderRadius:4,color:'#1D1B18',
                   padding:'8px 10px',fontSize:12,outline:'none',width:'100%',fontFamily:'inherit'}}>
                 {categoriesFor(form.investor, config[form.investor]).map(c=>(
                   <option key={c.key} value={c.key}>{c.label}</option>
@@ -607,22 +607,22 @@ export default function Investment() {
               </select>
             </div>
             <div style={{gridColumn:'1/-1'}}>
-              <label style={{fontSize:10,color:'#5e6585',display:'block',marginBottom:4}}>메모 (선택)</label>
+              <label style={{fontSize:10,color:'#6E6A63',display:'block',marginBottom:4}}>메모 (선택)</label>
               <input type="text" value={form.memo} onChange={e=>setForm(f=>({...f,memo:e.target.value}))}
                 placeholder="비고 사항"
-                style={{background:'#191c2b',border:'1px solid #272a3d',borderRadius:7,color:'#dde1f2',
+                style={{background:'#F3F1EC',border:'1px solid #DCD7CE',borderRadius:4,color:'#1D1B18',
                   padding:'8px 10px',fontSize:12,outline:'none',width:'100%',fontFamily:'inherit'}}/>
             </div>
           </div>
           <div style={{display:'flex',gap:8,marginTop:14}}>
             <button onClick={saveRecord} disabled={saving}
-              style={{background:'#34d399',color:'#000',border:'none',borderRadius:8,
+              style={{background:'#2E7D45',color:'#FFFFFF',border:'none',borderRadius:4,
                 padding:'9px 20px',fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
               {saving?'저장 중...':'저 장'}
             </button>
             <button onClick={()=>setShowForm(false)}
-              style={{background:'transparent',border:'1px solid #272a3d',color:'#5e6585',
-                borderRadius:8,padding:'9px 16px',fontSize:12,cursor:'pointer',fontFamily:'inherit'}}>
+              style={{background:'transparent',border:'1px solid #DCD7CE',color:'#6E6A63',
+                borderRadius:4,padding:'9px 16px',fontSize:12,cursor:'pointer',fontFamily:'inherit'}}>
               취소
             </button>
           </div>
@@ -630,38 +630,38 @@ export default function Investment() {
       )}
 
       {loading ? (
-        <div style={{textAlign:'center',color:'#5e6585',padding:60}}>로딩 중...</div>
+        <div style={{textAlign:'center',color:'#6E6A63',padding:60}}>로딩 중...</div>
       ) : (
         <>
           {/* 전체 요약 */}
-          <div style={{background:'#12141f',border:'1px solid #272a3d',borderRadius:12,
+          <div style={{background:'#FFFFFF',border:'1px solid #DCD7CE',borderRadius:6,
             padding:'18px 20px',marginBottom:18,position:'relative',overflow:'hidden'}}>
             <div style={{position:'absolute',top:0,left:0,right:0,height:3,
-              background:`linear-gradient(90deg,#f9b934 ${overallPct*0.7}%,#93c5fd ${overallPct}%)`,opacity:.8}}/>
+              background:`linear-gradient(90deg,#C3261C ${overallPct*0.7}%,#93c5fd ${overallPct}%)`,opacity:.8}}/>
             <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',flexWrap:'wrap',gap:12,marginBottom:16}}>
               <div>
-                <div style={{fontSize:11,color:'#5e6585',marginBottom:4}}>📊 전체 회수 현황</div>
-                <div style={{fontSize:22,fontWeight:700,color:'#f9b934',fontFamily:'DM Mono,monospace'}}>
+                <div style={{fontSize:11,color:'#6E6A63',marginBottom:4}}>전체 회수 현황</div>
+                <div style={{fontSize:22,fontWeight:700,color:'#C3261C',fontFamily:'inherit',fontVariantNumeric:'tabular-nums'}}>
                   {wonFmt(totalRecovered)}
-                  <span style={{fontSize:13,color:'#5e6585',fontWeight:400,marginLeft:8}}>/ {wonFmt(totalTarget)}</span>
+                  <span style={{fontSize:13,color:'#6E6A63',fontWeight:400,marginLeft:8}}>/ {wonFmt(totalTarget)}</span>
                 </div>
               </div>
               <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:10,minWidth:300}}>
                 {[
-                  {label:'총 원금',   val:totalPrincipal, color:'#dde1f2'},
-                  {label:'누적 이자', val:totalInterest,  color:'#f87171'},
-                  {label:'잔여 회수', val:totalRemaining,  color:'#93c5fd'},
+                  {label:'총 원금',   val:totalPrincipal, color:'#1D1B18'},
+                  {label:'누적 이자', val:totalInterest,  color:'#B42318'},
+                  {label:'잔여 회수', val:totalRemaining,  color:'#2B5C9E'},
                 ].map(k=>(
-                  <div key={k.label} style={{background:'#191c2b',borderRadius:8,padding:'10px 12px'}}>
-                    <div style={{fontSize:10,color:'#5e6585',marginBottom:3}}>{k.label}</div>
-                    <div style={{fontSize:13,fontWeight:700,color:k.color,fontFamily:'DM Mono,monospace'}}>
+                  <div key={k.label} style={{background:'#F3F1EC',borderRadius:4,padding:'10px 12px'}}>
+                    <div style={{fontSize:10,color:'#6E6A63',marginBottom:3}}>{k.label}</div>
+                    <div style={{fontSize:13,fontWeight:700,color:k.color,fontFamily:'inherit',fontVariantNumeric:'tabular-nums'}}>
                       {wonFmt(k.val)}
                     </div>
                   </div>
                 ))}
               </div>
             </div>
-            <ProgressBar value={totalRecovered} max={totalTarget} color="#f9b934"/>
+            <ProgressBar value={totalRecovered} max={totalTarget} color="#C3261C"/>
           </div>
 
           {/* 투자자별 카드 */}
@@ -674,35 +674,35 @@ export default function Investment() {
               const isDone = pct >= 100
 
               return (
-                <div key={uid} style={{background:'#12141f',
-                  border:`1px solid ${isDone?'rgba(52,211,153,0.4)':inv.color+'44'}`,
-                  borderRadius:12,overflow:'hidden'}}>
-                  <div style={{padding:'14px 16px',borderBottom:'1px solid #272a3d',
+                <div key={uid} style={{background:'#FFFFFF',
+                  border:`1px solid ${isDone?'rgba(46,125,69,0.4)':inv.color+'44'}`,
+                  borderRadius:6,overflow:'hidden'}}>
+                  <div style={{padding:'14px 16px',borderBottom:'1px solid #DCD7CE',
                     display:'flex',justifyContent:'space-between',alignItems:'center'}}>
                     <div style={{display:'flex',alignItems:'center',gap:8}}>
                       <div style={{fontSize:20}}>{inv.emoji}</div>
                       <div>
                         <div style={{fontSize:14,fontWeight:700,color:inv.color}}>{inv.name}</div>
-                        <div style={{fontSize:10,color:'#5e6585'}}>투자 비율 {(inv.ratio*100).toFixed(0)}%</div>
+                        <div style={{fontSize:10,color:'#6E6A63'}}>투자 비율 {(inv.ratio*100).toFixed(0)}%</div>
                       </div>
                     </div>
                     {isDone && (
                       <span style={{fontSize:11,fontWeight:700,padding:'4px 10px',borderRadius:5,
-                        background:'rgba(52,211,153,0.15)',color:'#34d399'}}>✅ 완료</span>
+                        background:'rgba(46,125,69,0.15)',color:'#2E7D45'}}>완료</span>
                     )}
                   </div>
 
                   <div style={{padding:'14px 16px'}}>
                     <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:14}}>
                       {[
-                        {label:'투자 원금',    val:s.principal,   color:'#dde1f2'},
-                        {label:'누적 이자(5%)', val:s.interest, color:'#f87171'},
+                        {label:'투자 원금',    val:s.principal,   color:'#1D1B18'},
+                        {label:'누적 이자(5%)', val:s.interest, color:'#B42318'},
                         {label:'총 회수 목표',  val:s.totalTarget, color:inv.color},
-                        {label:'회수 완료',     val:s.recovered,   color:'#34d399'},
+                        {label:'회수 완료',     val:s.recovered,   color:'#2E7D45'},
                       ].map(k=>(
-                        <div key={k.label} style={{background:'#191c2b',borderRadius:7,padding:'8px 10px'}}>
-                          <div style={{fontSize:9,color:'#5e6585',marginBottom:2}}>{k.label}</div>
-                          <div style={{fontSize:12,fontWeight:700,color:k.color,fontFamily:'DM Mono,monospace'}}>
+                        <div key={k.label} style={{background:'#F3F1EC',borderRadius:4,padding:'8px 10px'}}>
+                          <div style={{fontSize:9,color:'#6E6A63',marginBottom:2}}>{k.label}</div>
+                          <div style={{fontSize:12,fontWeight:700,color:k.color,fontFamily:'inherit',fontVariantNumeric:'tabular-nums'}}>
                             {wonFmt(k.val)}
                           </div>
                         </div>
@@ -713,7 +713,7 @@ export default function Investment() {
 
                     {/* 카테고리별 회수 — 투자자별로 해당 카테고리만 표시 */}
                     <div style={{marginTop:14,display:'flex',flexDirection:'column',gap:8}}>
-                      <div style={{fontSize:10,color:'#5e6585',fontWeight:600,marginBottom:2}}>카테고리별 회수 현황</div>
+                      <div style={{fontSize:10,color:'#6E6A63',fontWeight:600,marginBottom:2}}>카테고리별 회수 현황</div>
                       {categoriesFor(uid, inv_cfg).map(cat=>{
                         const val = s.byCategory[cat.key] || 0
                         const target = s.targetOf[cat.key] !== undefined ? s.targetOf[cat.key]
@@ -727,42 +727,42 @@ export default function Investment() {
                         const tKey = `${uid}:${cat.key}`
                         const others = categoriesFor(uid, inv_cfg).filter(c=>c.key!==cat.key)
                         return (
-                          <div key={cat.key} style={{background:'#191c2b',borderRadius:7,padding:'8px 10px'}}>
+                          <div key={cat.key} style={{background:'#F3F1EC',borderRadius:4,padding:'8px 10px'}}>
                             <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:target>0?6:0}}>
-                              <span style={{fontSize:11,color:'#5e6585'}}>{cat.key==='investment' && (inv_cfg.additions||[]).length ? '💰 최초 투자금 회수' : cat.label}</span>
-                              <span style={{fontSize:11,color:val>0?inv.color:'#3d4060',
-                                fontFamily:'DM Mono,monospace',fontWeight:val>0?700:400}}>
+                              <span style={{fontSize:11,color:'#6E6A63'}}>{cat.key==='investment' && (inv_cfg.additions||[]).length ? '최초 투자금 회수' : cat.label}</span>
+                              <span style={{fontSize:11,color:val>0?inv.color:'#A8A39A',
+                                fontFamily:'inherit',fontVariantNumeric:'tabular-nums',fontWeight:val>0?700:400}}>
                                 {val>0 ? wonFmt(val) : '—'}
-                                {target>0 && <span style={{color:'#3d4060',fontWeight:400}}> / {wonFmt(target)}</span>}
+                                {target>0 && <span style={{color:'#A8A39A',fontWeight:400}}> / {wonFmt(target)}</span>}
                               </span>
                             </div>
                             {target > 0 && (
-                              <div style={{background:'#272a3d',borderRadius:99,height:4,overflow:'hidden'}}>
+                              <div style={{background:'#DCD7CE',borderRadius:99,height:4,overflow:'hidden'}}>
                                 <div style={{width:`${pct}%`,height:'100%',borderRadius:99,
-                                  background:pct>=100?'#34d399':inv.color,transition:'width .5s'}}/>
+                                  background:pct>=100?'#2E7D45':inv.color,transition:'width .5s'}}/>
                               </div>
                             )}
                             {notSet && (
-                              <div style={{fontSize:9,color:'#f87171',marginTop:2}}>
-                                ⚠ 목표 금액 미설정 (⚙️ 투자금 설정에서 입력)
+                              <div style={{fontSize:9,color:'#B42318',marginTop:2}}>
+                                목표 금액 미설정 (투자금 설정에서 입력)
                               </div>
                             )}
                             {s.doneAt[cat.key] && (
-                              <div style={{fontSize:9,color:'#34d399',marginTop:4}}>
-                                ✓ {s.doneAt[cat.key]}에 다 회수{cat.addition?.noInterest ? '됐어요' : '돼서 이자 계산을 멈췄어요'}
+                              <div style={{fontSize:9,color:'#2E7D45',marginTop:4}}>
+                                {s.doneAt[cat.key]}에 다 회수{cat.addition?.noInterest ? '됐어요' : '돼서 이자 계산을 멈췄어요'}
                               </div>
                             )}
                             {cat.addition && !s.doneAt[cat.key] && (
-                              <div style={{fontSize:9,color:'#5e6585',marginTop:4}}>
+                              <div style={{fontSize:9,color:'#6E6A63',marginTop:4}}>
                                 {cat.addition.noInterest ? '이자 없음' : `${additionStart(cat.addition)}부터 연 5% 단리`} · 투자금 회수는 이 항목부터 먼저 채워져요
                               </div>
                             )}
                             {excess > 0 && (
-                              <div style={{marginTop:6,fontSize:10,color:'#f9b934'}}>
+                              <div style={{marginTop:6,fontSize:10,color:'#C3261C'}}>
                                 초과 회수 {wonFmt(excess)}
                                 {!isInvestor && others.length > 0 && transferForm.key !== tKey && (
                                   <button type="button" onClick={()=>setTransferForm({ key:tKey, to: others[0].key, amount: excess.toLocaleString('ko-KR') })}
-                                    style={{marginLeft:8,background:'transparent',border:'1px solid rgba(249,185,52,0.5)',color:'#f9b934',
+                                    style={{marginLeft:8,background:'transparent',border:'1px solid rgba(195,38,28,0.5)',color:'#C3261C',
                                       borderRadius:5,padding:'2px 8px',fontSize:10,cursor:'pointer',fontFamily:'inherit'}}>
                                     ↪ 다른 항목으로 넘기기
                                   </button>
@@ -773,21 +773,21 @@ export default function Investment() {
                               <div style={{display:'flex',gap:6,alignItems:'center',flexWrap:'wrap',marginTop:6}}>
                                 <input type="text" inputMode="numeric" value={transferForm.amount||''}
                                   onChange={e=>setTransferForm(f=>({ ...f, amount: fmtAmount(e.target.value) }))}
-                                  style={{background:'#12141f',border:'1px solid #272a3d',borderRadius:6,color:'#dde1f2',padding:'5px 8px',
-                                    fontSize:11,outline:'none',width:110,fontFamily:'DM Mono,monospace',textAlign:'right'}}/>
-                                <span style={{fontSize:10,color:'#5e6585'}}>원 →</span>
+                                  style={{background:'#FFFFFF',border:'1px solid #DCD7CE',borderRadius:6,color:'#1D1B18',padding:'5px 8px',
+                                    fontSize:11,outline:'none',width:110,fontFamily:'inherit',fontVariantNumeric:'tabular-nums',textAlign:'right'}}/>
+                                <span style={{fontSize:10,color:'#6E6A63'}}>원 →</span>
                                 <select value={transferForm.to} onChange={e=>setTransferForm(f=>({ ...f, to:e.target.value }))}
-                                  style={{background:'#12141f',border:'1px solid #272a3d',borderRadius:6,color:'#dde1f2',padding:'5px 8px',
+                                  style={{background:'#FFFFFF',border:'1px solid #DCD7CE',borderRadius:6,color:'#1D1B18',padding:'5px 8px',
                                     fontSize:11,outline:'none',fontFamily:'inherit'}}>
                                   {others.map(c=><option key={c.key} value={c.key}>{c.label}</option>)}
                                 </select>
                                 <button type="button" disabled={saving} onClick={()=>saveTransfer(uid, cat.key)}
-                                  style={{background:'#f9b934',color:'#000',border:'none',borderRadius:6,padding:'5px 10px',
+                                  style={{background:'#C3261C',color:'#FFFFFF',border:'none',borderRadius:6,padding:'5px 10px',
                                     fontSize:11,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
                                   넘기기
                                 </button>
                                 <button type="button" onClick={()=>setTransferForm({})}
-                                  style={{background:'transparent',border:'1px solid #272a3d',color:'#5e6585',borderRadius:6,padding:'5px 8px',
+                                  style={{background:'transparent',border:'1px solid #DCD7CE',color:'#6E6A63',borderRadius:6,padding:'5px 8px',
                                     fontSize:11,cursor:'pointer',fontFamily:'inherit'}}>
                                   취소
                                 </button>
@@ -800,16 +800,16 @@ export default function Investment() {
 
                     {/* 추가 투입 · 넘기기 기록 */}
                     {transfers.some(t=>t.investor===uid) && (
-                      <div style={{marginTop:12,background:'#191c2b',borderRadius:8,padding:'8px 10px'}}>
-                        <div style={{fontSize:10,color:'#5e6585',fontWeight:600,marginBottom:6}}>↪ 넘기기 기록</div>
+                      <div style={{marginTop:12,background:'#F3F1EC',borderRadius:4,padding:'8px 10px'}}>
+                        <div style={{fontSize:10,color:'#6E6A63',fontWeight:600,marginBottom:6}}>↪ 넘기기 기록</div>
                         {transfers.filter(t=>t.investor===uid).map(t=>(
-                          <div key={t.id} style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:8,fontSize:10,color:'#5e6585',padding:'2px 0'}}>
+                          <div key={t.id} style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:8,fontSize:10,color:'#6E6A63',padding:'2px 0'}}>
                             <span>{t.date} {catLabel(uid, t.from)} → {catLabel(uid, t.to)}</span>
                             <span style={{display:'flex',alignItems:'center',gap:6}}>
-                              <span style={{fontFamily:'DM Mono,monospace',color:'#f9b934'}}>{wonFmt(t.amount)}</span>
+                              <span style={{fontFamily:'inherit',fontVariantNumeric:'tabular-nums',color:'#C3261C'}}>{wonFmt(t.amount)}</span>
                               {!isInvestor && (
                                 <button type="button" onClick={()=>deleteTransfer(t.id)}
-                                  style={{background:'transparent',border:'1px solid #3d1f1f',color:'#f87171',borderRadius:4,
+                                  style={{background:'transparent',border:'1px solid #E8C4BF',color:'#B42318',borderRadius:4,
                                     padding:'1px 6px',fontSize:9,cursor:'pointer',fontFamily:'inherit'}}>취소</button>
                               )}
                             </span>
@@ -820,21 +820,21 @@ export default function Investment() {
 
                     {/* 형 전용: 대출금 상환 정보 */}
                     {uid === 'hyung' && (
-                      <div style={{marginTop:12,background:'rgba(147,197,253,0.06)',
-                        border:'1px solid rgba(147,197,253,0.2)',borderRadius:8,padding:'10px 12px'}}>
-                        <div style={{fontSize:10,color:'#93c5fd',fontWeight:600,marginBottom:8}}>
-                          🏦 대출금 상환 현황
+                      <div style={{marginTop:12,background:'rgba(43,92,158,0.06)',
+                        border:'1px solid rgba(43,92,158,0.2)',borderRadius:4,padding:'10px 12px'}}>
+                        <div style={{fontSize:10,color:'#2B5C9E',fontWeight:600,marginBottom:8}}>
+                          대출금 상환 현황
                         </div>
                         <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:6,marginBottom:10}}>
                           {[
-                            {label:'대출 원금',        val:HYUNG_LOAN.amount,               color:'#dde1f2'},
-                            {label:'누적 이자(연10%)', val:s.loanInterest,                  color:'#f87171'},
-                            {label:'상환 목표',        val:HYUNG_LOAN.amount+s.loanInterest,color:'#93c5fd'},
-                            {label:'상환 완료',        val:s.byCategory['loan']||0,         color:'#34d399'},
+                            {label:'대출 원금',        val:HYUNG_LOAN.amount,               color:'#1D1B18'},
+                            {label:'누적 이자(연10%)', val:s.loanInterest,                  color:'#B42318'},
+                            {label:'상환 목표',        val:HYUNG_LOAN.amount+s.loanInterest,color:'#2B5C9E'},
+                            {label:'상환 완료',        val:s.byCategory['loan']||0,         color:'#2E7D45'},
                           ].map(k=>(
-                            <div key={k.label} style={{background:'#191c2b',borderRadius:6,padding:'6px 8px'}}>
-                              <div style={{fontSize:9,color:'#5e6585',marginBottom:2}}>{k.label}</div>
-                              <div style={{fontSize:11,fontWeight:700,color:k.color,fontFamily:'DM Mono,monospace'}}>
+                            <div key={k.label} style={{background:'#F3F1EC',borderRadius:6,padding:'6px 8px'}}>
+                              <div style={{fontSize:9,color:'#6E6A63',marginBottom:2}}>{k.label}</div>
+                              <div style={{fontSize:11,fontWeight:700,color:k.color,fontFamily:'inherit',fontVariantNumeric:'tabular-nums'}}>
                                 {wonFmt(k.val)}
                               </div>
                             </div>
@@ -843,20 +843,20 @@ export default function Investment() {
                         {/* 이자 부과 일정 */}
                         {s.loanSchedule.length > 0 && (
                           <div>
-                            <div style={{fontSize:9,color:'#5e6585',fontWeight:600,marginBottom:6}}>이자 부과 일정</div>
+                            <div style={{fontSize:9,color:'#6E6A63',fontWeight:600,marginBottom:6}}>이자 부과 일정</div>
                             <div style={{display:'flex',flexDirection:'column',gap:4}}>
                               {s.loanSchedule.map((item,i)=>(
                                 <div key={i} style={{display:'flex',justifyContent:'space-between',
                                   alignItems:'center',fontSize:10,padding:'5px 8px',borderRadius:5,
-                                  background: item.upcoming ? 'rgba(249,185,52,0.06)' : 'rgba(52,211,153,0.06)',
-                                  border: `1px solid ${item.upcoming?'rgba(249,185,52,0.2)':'rgba(52,211,153,0.15)'}`,
+                                  background: item.upcoming ? 'rgba(195,38,28,0.06)' : 'rgba(46,125,69,0.06)',
+                                  border: `1px solid ${item.upcoming?'rgba(195,38,28,0.2)':'rgba(46,125,69,0.15)'}`,
                                 }}>
-                                  <span style={{color: item.upcoming?'#f9b934':'#5e6585'}}>
-                                    {item.upcoming ? '⏳ 다음 이자일' : `✓ ${item.date}`}
-                                    {!item.upcoming && <span style={{marginLeft:4,color:'#3d4060'}}>잔액 {wonFmt(item.balance)}</span>}
+                                  <span style={{color: item.upcoming?'#C3261C':'#6E6A63'}}>
+                                    {item.upcoming ? '다음 이자일' : `${item.date}`}
+                                    {!item.upcoming && <span style={{marginLeft:4,color:'#A8A39A'}}>잔액 {wonFmt(item.balance)}</span>}
                                   </span>
-                                  <span style={{fontFamily:'DM Mono,monospace',fontWeight:700,
-                                    color: item.upcoming?'#f9b934':'#f87171'}}>
+                                  <span style={{fontFamily:'inherit',fontVariantNumeric:'tabular-nums',fontWeight:700,
+                                    color: item.upcoming?'#C3261C':'#B42318'}}>
                                     {item.upcoming ? item.date : `+${wonFmt(item.interest)}`}
                                   </span>
                                 </div>
@@ -867,13 +867,13 @@ export default function Investment() {
                       </div>
                     )}
                     {inv_cfg.startDate && (
-                      <div style={{marginTop:10,fontSize:10,color:'#5e6585',textAlign:'right',lineHeight:1.8}}>
+                      <div style={{marginTop:10,fontSize:10,color:'#6E6A63',textAlign:'right',lineHeight:1.8}}>
                         투자 이자: {inv_cfg.startDate}부터 연 5% 단리
                         {uid==='hyung' && inv_cfg.loanStartDate && (
-                          <><br/><span style={{color:'#93c5fd'}}>대출금 이자: {inv_cfg.loanStartDate}부터 연 10% 단리</span></>
+                          <><br/><span style={{color:'#2B5C9E'}}>대출금 이자: {inv_cfg.loanStartDate}부터 연 10% 단리</span></>
                         )}
                         {uid==='hyung' && !inv_cfg.loanStartDate && (
-                          <><br/><span style={{color:'#f87171'}}>⚠ 대출 시작일 미입력 (설정 필요)</span></>
+                          <><br/><span style={{color:'#B42318'}}>대출 시작일 미입력 (설정 필요)</span></>
                         )}
                       </div>
                     )}
@@ -884,24 +884,24 @@ export default function Investment() {
           </div>
 
           {/* 회수 내역 — 타임라인 */}
-          <div style={{background:'#12141f',border:'1px solid #272a3d',borderRadius:12,overflow:'hidden'}}>
+          <div style={{background:'#FFFFFF',border:'1px solid #DCD7CE',borderRadius:6,overflow:'hidden'}}>
             {/* 헤더 + 필터 */}
-            <div style={{padding:'14px 18px',borderBottom:'1px solid #272a3d',
+            <div style={{padding:'14px 18px',borderBottom:'1px solid #DCD7CE',
               display:'flex',justifyContent:'space-between',alignItems:'center',flexWrap:'wrap',gap:10}}>
               <div>
-                <span style={{fontSize:13,fontWeight:600}}>📋 회수 내역</span>
-                <span style={{fontSize:11,color:'#5e6585',marginLeft:10}}>
+                <span style={{fontSize:13,fontWeight:600}}>회수 내역</span>
+                <span style={{fontSize:11,color:'#6E6A63',marginLeft:10}}>
                   총 {records.length}건 · {wonFmt(totalRecovered)}
                 </span>
               </div>
               <div style={{display:'flex',gap:4}}>
-                {[['all','전체'],['terry','👑 테리'],['hyung','🤝 형']].map(([key,label])=>(
+                {[['all','전체'],['terry','테리'],['hyung','형']].map(([key,label])=>(
                   <button key={key} onClick={()=>setFilterInv(key)}
                     style={{padding:'5px 12px',borderRadius:6,border:'none',fontSize:11,fontWeight:600,
                       cursor:'pointer',fontFamily:'inherit',
-                      background: filterInv===key ? '#f9b934' : '#191c2b',
-                      color:       filterInv===key ? '#000'     : '#5e6585',
-                      outline:     filterInv===key ? 'none'     : '1px solid #272a3d'}}>
+                      background: filterInv===key ? '#C3261C' : '#F3F1EC',
+                      color:       filterInv===key ? '#FFFFFF'     : '#6E6A63',
+                      outline:     filterInv===key ? 'none'     : '1px solid #DCD7CE'}}>
                     {label}
                   </button>
                 ))}
@@ -909,7 +909,7 @@ export default function Investment() {
             </div>
 
             {records.length === 0 ? (
-              <div style={{textAlign:'center',color:'#5e6585',padding:40}}>회수 내역이 없습니다</div>
+              <div style={{textAlign:'center',color:'#6E6A63',padding:40}}>회수 내역이 없습니다</div>
             ) : timelineContent}
           </div>
         </>

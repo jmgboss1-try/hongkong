@@ -4,14 +4,14 @@ import { collection, addDoc, getDocs, doc, updateDoc, deleteDoc, orderBy, query 
 import { useAuth } from '../AuthContext'
 
 const URGENCY = {
-  normal: { label:'일반', color:'#5e6585', bg:'rgba(94,101,133,0.15)' },
-  urgent: { label:'긴급', color:'#f87171', bg:'rgba(248,113,113,0.15)' },
+  normal: { label:'일반', color:'#6E6A63', bg:'rgba(94,101,133,0.15)' },
+  urgent: { label:'긴급', color:'#B42318', bg:'rgba(180,35,24,0.15)' },
 }
 
 const STATUS = {
-  pending:  { label:'대기중',   color:'#f9b934', bg:'rgba(249,185,52,0.15)'  },
-  checked:  { label:'확인완료', color:'#93c5fd', bg:'rgba(147,197,253,0.15)' },
-  done:     { label:'완료',     color:'#34d399', bg:'rgba(52,211,153,0.15)'  },
+  pending:  { label:'대기중',   color:'#C3261C', bg:'rgba(195,38,28,0.15)'  },
+  checked:  { label:'확인완료', color:'#2B5C9E', bg:'rgba(43,92,158,0.15)' },
+  done:     { label:'완료',     color:'#2E7D45', bg:'rgba(46,125,69,0.15)'  },
 }
 
 export default function Order() {
@@ -116,22 +116,22 @@ export default function Order() {
     <div>
       <div style={{display:'flex',alignItems:'flex-end',justifyContent:'space-between',marginBottom:22}}>
         <div>
-          <div style={{fontSize:20,fontWeight:700}}>📦 발주 요청</div>
-          <div style={{fontSize:12,color:'#5e6585',marginTop:2}}>재고 부족 및 주문 요청 관리</div>
+          <div style={{fontSize:20,fontWeight:700}}>발주 요청</div>
+          <div style={{fontSize:12,color:'#6E6A63',marginTop:2}}>재고 부족 및 주문 요청 관리</div>
         </div>
       </div>
 
       {/* 요약 카드 */}
       <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:14,marginBottom:20}}>
         {[
-          {label:'대기중 요청', val:pendingCount, color:'#f9b934'},
-          {label:'긴급 요청', val:urgentCount, color:'#f87171'},
-          {label:'전체 요청', val:orders.length, color:'#93c5fd'},
+          {label:'대기중 요청', val:pendingCount, color:'#C3261C'},
+          {label:'긴급 요청', val:urgentCount, color:'#B42318'},
+          {label:'전체 요청', val:orders.length, color:'#2B5C9E'},
         ].map(k=>(
-          <div key={k.label} style={{background:'#12141f',border:'1px solid #272a3d',borderRadius:12,padding:'16px 20px',position:'relative',overflow:'hidden'}}>
+          <div key={k.label} style={{background:'#FFFFFF',border:'1px solid #DCD7CE',borderRadius:6,padding:'16px 20px',position:'relative',overflow:'hidden'}}>
             <div style={{position:'absolute',top:0,left:0,right:0,height:3,background:k.color}}></div>
-            <div style={{fontSize:10,fontWeight:600,color:'#5e6585',textTransform:'uppercase',letterSpacing:.8,marginBottom:6}}>{k.label}</div>
-            <div style={{fontSize:22,fontWeight:700,color:k.color,fontFamily:'DM Mono,monospace'}}>{k.val}건</div>
+            <div style={{fontSize:10,fontWeight:600,color:'#6E6A63',textTransform:'uppercase',letterSpacing:.8,marginBottom:6}}>{k.label}</div>
+            <div style={{fontSize:22,fontWeight:700,color:k.color,fontFamily:'inherit',fontVariantNumeric:'tabular-nums'}}>{k.val}건</div>
           </div>
         ))}
       </div>
@@ -139,14 +139,14 @@ export default function Order() {
       {/* 탭 */}
       <div style={{display:'flex',gap:8,marginBottom:18,flexWrap:'wrap'}}>
         {[
-          {key:'list', label:'📋 요청 목록'},
-          {key:'add', label:'➕ 요청 등록'},
-          ...(isOwner ? [{key:'preset', label:'⚙️ 품목 관리'}] : []),
+          {key:'list', label:'요청 목록'},
+          {key:'add', label:'요청 등록'},
+          ...(isOwner ? [{key:'preset', label:'품목 관리'}] : []),
         ].map(t=>(
           <button key={t.key} onClick={()=>setActiveTab(t.key)}
-            style={{padding:'9px 18px',borderRadius:8,border:'none',fontSize:13,fontWeight:600,cursor:'pointer',fontFamily:'inherit',
-              background:activeTab===t.key?'#f9b934':'#191c2b',
-              color:activeTab===t.key?'#000':'#5e6585'}}>
+            style={{padding:'9px 18px',borderRadius:4,border:'none',fontSize:13,fontWeight:600,cursor:'pointer',fontFamily:'inherit',
+              background:activeTab===t.key?'#C3261C':'#F3F1EC',
+              color:activeTab===t.key?'#FFFFFF':'#6E6A63'}}>
             {t.label}
           </button>
         ))}
@@ -160,20 +160,20 @@ export default function Order() {
             {[['all','전체'],['pending','대기중'],['checked','확인완료'],['done','완료']].map(([key,label])=>(
               <button key={key} onClick={()=>setFilterStatus(key)}
                 style={{padding:'5px 12px',borderRadius:6,border:'none',fontSize:11,fontWeight:600,cursor:'pointer',fontFamily:'inherit',
-                  background:filterStatus===key?'#f9b934':'#191c2b',color:filterStatus===key?'#000':'#5e6585'}}>
+                  background:filterStatus===key?'#C3261C':'#F3F1EC',color:filterStatus===key?'#FFFFFF':'#6E6A63'}}>
                 {label}
               </button>
             ))}
           </div>
 
-          {loading ? <div style={{textAlign:'center',color:'#5e6585',padding:40}}>로딩 중...</div> : (
+          {loading ? <div style={{textAlign:'center',color:'#6E6A63',padding:40}}>로딩 중...</div> : (
             <div style={{display:'flex',flexDirection:'column',gap:10}}>
               {filtered.length===0 && (
-                <div style={{textAlign:'center',color:'#5e6585',padding:40}}>요청이 없습니다</div>
+                <div style={{textAlign:'center',color:'#6E6A63',padding:40}}>요청이 없습니다</div>
               )}
               {filtered.map(o=>(
-                <div key={o.id} style={{background:'#12141f',border:'1px solid #272a3d',borderRadius:12,padding:'16px 18px',
-                  borderLeft:`4px solid ${o.urgency==='urgent'?'#f87171':'#272a3d'}`}}>
+                <div key={o.id} style={{background:'#FFFFFF',border:'1px solid #DCD7CE',borderRadius:6,padding:'16px 18px',
+                  borderLeft:`4px solid ${o.urgency==='urgent'?'#B42318':'#DCD7CE'}`}}>
                   <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',flexWrap:'wrap',gap:8}}>
                     <div style={{flex:1}}>
                       <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:6,flexWrap:'wrap'}}>
@@ -187,13 +187,13 @@ export default function Order() {
                           background:STATUS[o.status]?.bg,color:STATUS[o.status]?.color}}>
                           {STATUS[o.status]?.label}
                         </span>
-                        <span style={{fontSize:10,color:'#5e6585'}}>{timeAgo(o.createdAt)}</span>
+                        <span style={{fontSize:10,color:'#6E6A63'}}>{timeAgo(o.createdAt)}</span>
                       </div>
-                      <div style={{fontSize:15,fontWeight:700,color:'#dde1f2',marginBottom:4}}>
-                        {o.itemName} <span style={{fontSize:13,color:'#f9b934',fontFamily:'DM Mono,monospace'}}>{o.qty}{o.unit}</span>
+                      <div style={{fontSize:15,fontWeight:700,color:'#1D1B18',marginBottom:4}}>
+                        {o.itemName} <span style={{fontSize:13,color:'#C3261C',fontFamily:'inherit',fontVariantNumeric:'tabular-nums'}}>{o.qty}{o.unit}</span>
                       </div>
-                      {o.memo && <div style={{fontSize:12,color:'#5e6585',marginBottom:4}}>💬 {o.memo}</div>}
-                      <div style={{fontSize:11,color:'#5e6585'}}>요청자: {o.authorName}</div>
+                      {o.memo && <div style={{fontSize:12,color:'#6E6A63',marginBottom:4}}>{o.memo}</div>}
+                      <div style={{fontSize:11,color:'#6E6A63'}}>요청자: {o.authorName}</div>
                     </div>
 
                     {/* 사장 액션 버튼 */}
@@ -202,28 +202,28 @@ export default function Order() {
                         <>
                           {o.status==='pending' && (
                             <button onClick={()=>updateStatus(o.id,'checked')}
-                              style={{background:'rgba(147,197,253,0.15)',border:'1px solid #93c5fd',color:'#93c5fd',
+                              style={{background:'rgba(43,92,158,0.15)',border:'1px solid #2B5C9E',color:'#2B5C9E',
                                 borderRadius:6,padding:'5px 12px',fontSize:11,cursor:'pointer',fontFamily:'inherit',fontWeight:600}}>
-                              ✅ 확인
+                              확인
                             </button>
                           )}
                           {o.status==='checked' && (
                             <button onClick={()=>updateStatus(o.id,'done')}
-                              style={{background:'rgba(52,211,153,0.15)',border:'1px solid #34d399',color:'#34d399',
+                              style={{background:'rgba(46,125,69,0.15)',border:'1px solid #2E7D45',color:'#2E7D45',
                                 borderRadius:6,padding:'5px 12px',fontSize:11,cursor:'pointer',fontFamily:'inherit',fontWeight:600}}>
-                              📦 완료
+                              완료
                             </button>
                           )}
                           <button onClick={()=>deleteOrder(o.id)}
-                            style={{background:'transparent',border:'1px solid #3d1f1f',color:'#f87171',
+                            style={{background:'transparent',border:'1px solid #E8C4BF',color:'#B42318',
                               borderRadius:6,padding:'5px 12px',fontSize:11,cursor:'pointer',fontFamily:'inherit'}}>
-                            🗑 삭제
+                            삭제
                           </button>
                         </>
                       )}
                       {!isOwner && o.authorUid===user.uid && o.status==='pending' && (
                         <button onClick={()=>deleteOrder(o.id)}
-                          style={{background:'transparent',border:'1px solid #3d1f1f',color:'#f87171',
+                          style={{background:'transparent',border:'1px solid #E8C4BF',color:'#B42318',
                             borderRadius:6,padding:'5px 12px',fontSize:11,cursor:'pointer',fontFamily:'inherit'}}>
                           취소
                         </button>
@@ -239,47 +239,47 @@ export default function Order() {
 
       {/* 요청 등록 */}
       {activeTab==='add' && (
-        <div style={{background:'#12141f',border:'1px solid #272a3d',borderRadius:12,padding:'20px'}}>
-          <div style={{fontSize:13,fontWeight:600,marginBottom:16}}>➕ 발주 요청 등록</div>
+        <div style={{background:'#FFFFFF',border:'1px solid #DCD7CE',borderRadius:6,padding:'20px'}}>
+          <div style={{fontSize:13,fontWeight:600,marginBottom:16}}>발주 요청 등록</div>
           <div style={{display:'flex',flexDirection:'column',gap:14}}>
 
             {/* 품목 선택 */}
             <div>
-              <label style={{fontSize:10,color:'#5e6585',fontWeight:600,display:'block',marginBottom:6}}>품목 선택</label>
+              <label style={{fontSize:10,color:'#6E6A63',fontWeight:600,display:'block',marginBottom:6}}>품목 선택</label>
               <div style={{display:'flex',gap:8,flexWrap:'wrap',marginBottom:8}}>
                 {presets.map(p=>(
                   <button key={p.id} onClick={()=>{setSelPreset(p.name);setCustomItem('')}}
                     style={{padding:'6px 12px',borderRadius:6,border:'none',fontSize:11,fontWeight:600,cursor:'pointer',fontFamily:'inherit',
-                      background:selPreset===p.name?'#f9b934':'#191c2b',color:selPreset===p.name?'#000':'#5e6585'}}>
+                      background:selPreset===p.name?'#C3261C':'#F3F1EC',color:selPreset===p.name?'#FFFFFF':'#6E6A63'}}>
                     {p.name}
                   </button>
                 ))}
               </div>
               <input type="text" value={customItem} onChange={e=>{setCustomItem(e.target.value);setSelPreset('')}}
                 placeholder="목록에 없으면 직접 입력..."
-                style={{background:'#191c2b',border:'1px solid #272a3d',borderRadius:7,color:'#dde1f2',
+                style={{background:'#F3F1EC',border:'1px solid #DCD7CE',borderRadius:4,color:'#1D1B18',
                   padding:'8px 10px',fontSize:12,outline:'none',width:'100%',fontFamily:'inherit'}}/>
             </div>
 
             {/* 수량 */}
             <div>
-              <label style={{fontSize:10,color:'#5e6585',fontWeight:600,display:'block',marginBottom:6}}>수량</label>
+              <label style={{fontSize:10,color:'#6E6A63',fontWeight:600,display:'block',marginBottom:6}}>수량</label>
               <input type="number" value={qty} onChange={e=>setQty(e.target.value)} placeholder="0" min="1"
-                style={{background:'#191c2b',border:'1px solid #272a3d',borderRadius:7,color:'#dde1f2',
+                style={{background:'#F3F1EC',border:'1px solid #DCD7CE',borderRadius:4,color:'#1D1B18',
                   padding:'8px 10px',fontSize:12,outline:'none',width:'100%',fontFamily:'inherit'}}/>
             </div>
 
             {/* 긴급도 */}
             <div>
-              <label style={{fontSize:10,color:'#5e6585',fontWeight:600,display:'block',marginBottom:6}}>긴급도</label>
+              <label style={{fontSize:10,color:'#6E6A63',fontWeight:600,display:'block',marginBottom:6}}>긴급도</label>
               <div style={{display:'flex',gap:8}}>
                 {Object.entries(URGENCY).map(([key,v])=>(
                   <button key={key} onClick={()=>setUrgency(key)}
-                    style={{flex:1,padding:'8px',borderRadius:7,border:'none',fontSize:12,fontWeight:600,cursor:'pointer',fontFamily:'inherit',
-                      background:urgency===key?v.bg:'#191c2b',
-                      color:urgency===key?v.color:'#5e6585',
+                    style={{flex:1,padding:'8px',borderRadius:4,border:'none',fontSize:12,fontWeight:600,cursor:'pointer',fontFamily:'inherit',
+                      background:urgency===key?v.bg:'#F3F1EC',
+                      color:urgency===key?v.color:'#6E6A63',
                       outline:urgency===key?`1px solid ${v.color}`:'none'}}>
-                    {key==='urgent'?'🚨':''} {v.label}
+                    {v.label}
                   </button>
                 ))}
               </div>
@@ -287,15 +287,15 @@ export default function Order() {
 
             {/* 메모 */}
             <div>
-              <label style={{fontSize:10,color:'#5e6585',fontWeight:600,display:'block',marginBottom:6}}>메모 (선택)</label>
+              <label style={{fontSize:10,color:'#6E6A63',fontWeight:600,display:'block',marginBottom:6}}>메모 (선택)</label>
               <input type="text" value={memo} onChange={e=>setMemo(e.target.value)}
                 placeholder="추가 설명..."
-                style={{background:'#191c2b',border:'1px solid #272a3d',borderRadius:7,color:'#dde1f2',
+                style={{background:'#F3F1EC',border:'1px solid #DCD7CE',borderRadius:4,color:'#1D1B18',
                   padding:'8px 10px',fontSize:12,outline:'none',width:'100%',fontFamily:'inherit'}}/>
             </div>
 
             <button onClick={addOrder}
-              style={{background:'#f9b934',color:'#000',border:'none',borderRadius:8,
+              style={{background:'#C3261C',color:'#FFFFFF',border:'none',borderRadius:4,
                 padding:'12px',fontSize:13,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
               요청 등록
             </button>
@@ -306,50 +306,50 @@ export default function Order() {
       {/* 품목 관리 (사장만) */}
       {activeTab==='preset' && isOwner && (
         <div>
-          <div style={{background:'#12141f',border:'1px solid #272a3d',borderRadius:12,padding:'20px',marginBottom:16}}>
-            <div style={{fontSize:13,fontWeight:600,marginBottom:14}}>⚙️ 품목 추가</div>
+          <div style={{background:'#FFFFFF',border:'1px solid #DCD7CE',borderRadius:6,padding:'20px',marginBottom:16}}>
+            <div style={{fontSize:13,fontWeight:600,marginBottom:14}}>품목 추가</div>
             <div style={{display:'grid',gridTemplateColumns:'1fr 1fr auto',gap:10,alignItems:'flex-end'}}>
               <div>
-                <label style={{fontSize:10,color:'#5e6585',fontWeight:600,display:'block',marginBottom:6}}>품목명</label>
+                <label style={{fontSize:10,color:'#6E6A63',fontWeight:600,display:'block',marginBottom:6}}>품목명</label>
                 <input type="text" value={newPreset} onChange={e=>setNewPreset(e.target.value)}
                   placeholder="예: 춘장, 양파, 식용유"
-                  style={{background:'#191c2b',border:'1px solid #272a3d',borderRadius:7,color:'#dde1f2',
+                  style={{background:'#F3F1EC',border:'1px solid #DCD7CE',borderRadius:4,color:'#1D1B18',
                     padding:'8px 10px',fontSize:12,outline:'none',width:'100%',fontFamily:'inherit'}}/>
               </div>
               <div>
-                <label style={{fontSize:10,color:'#5e6585',fontWeight:600,display:'block',marginBottom:6}}>단위</label>
+                <label style={{fontSize:10,color:'#6E6A63',fontWeight:600,display:'block',marginBottom:6}}>단위</label>
                 <input type="text" value={newPresetUnit} onChange={e=>setNewPresetUnit(e.target.value)}
                   placeholder="예: 개, kg, 박스"
-                  style={{background:'#191c2b',border:'1px solid #272a3d',borderRadius:7,color:'#dde1f2',
+                  style={{background:'#F3F1EC',border:'1px solid #DCD7CE',borderRadius:4,color:'#1D1B18',
                     padding:'8px 10px',fontSize:12,outline:'none',width:'100%',fontFamily:'inherit'}}/>
               </div>
               <button onClick={addPreset}
-                style={{background:'#f9b934',color:'#000',border:'none',borderRadius:7,
+                style={{background:'#C3261C',color:'#FFFFFF',border:'none',borderRadius:4,
                   padding:'9px 16px',fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'inherit',whiteSpace:'nowrap'}}>
                 추가
               </button>
             </div>
           </div>
 
-          <div style={{background:'#12141f',border:'1px solid #272a3d',borderRadius:12,overflow:'hidden'}}>
-            <div style={{padding:'14px 18px',borderBottom:'1px solid #272a3d',fontSize:13,fontWeight:600}}>
+          <div style={{background:'#FFFFFF',border:'1px solid #DCD7CE',borderRadius:6,overflow:'hidden'}}>
+            <div style={{padding:'14px 18px',borderBottom:'1px solid #DCD7CE',fontSize:13,fontWeight:600}}>
               등록된 품목 ({presets.length}개)
             </div>
             {presets.length===0 ? (
-              <div style={{textAlign:'center',color:'#5e6585',padding:30}}>등록된 품목이 없습니다</div>
+              <div style={{textAlign:'center',color:'#6E6A63',padding:30}}>등록된 품목이 없습니다</div>
             ) : (
               <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(160px,1fr))',gap:10,padding:16}}>
                 {presets.map(p=>(
-                  <div key={p.id} style={{background:'#191c2b',borderRadius:8,padding:'10px 12px',
+                  <div key={p.id} style={{background:'#F3F1EC',borderRadius:4,padding:'10px 12px',
                     display:'flex',justifyContent:'space-between',alignItems:'center'}}>
                     <div>
-                      <div style={{fontSize:12,fontWeight:600,color:'#dde1f2'}}>{p.name}</div>
-                      <div style={{fontSize:10,color:'#5e6585'}}>{p.unit}</div>
+                      <div style={{fontSize:12,fontWeight:600,color:'#1D1B18'}}>{p.name}</div>
+                      <div style={{fontSize:10,color:'#6E6A63'}}>{p.unit}</div>
                     </div>
                     <button onClick={()=>deletePreset(p.id)}
-                      style={{background:'transparent',border:'none',color:'#f87171',cursor:'pointer',fontSize:14}}>
-                      ✕
-                    </button>
+                      style={{background:'transparent',border:'none',color:'#B42318',cursor:'pointer',fontSize:14}}>
+                        ✕
+                      </button>
                   </div>
                 ))}
               </div>

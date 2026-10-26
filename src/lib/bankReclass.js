@@ -84,8 +84,8 @@ export function inferLegacyCls(data, categories, rules = []) {
 
 export function classLabel(value, categories) {
   if (!value) return '미분류'
-  if (value === 'deposit') return '💰 실입금'
-  if (value === 'ack') return '✓ 다른 곳에 적은 지출과 연결'
+  if (value === 'deposit') return '실입금'
+  if (value === 'ack') return '다른 곳에 적은 지출과 연결'
   if (value === '?expense') return '지출 (어느 칸인지 확인 필요)'
   if (value.startsWith('nonop:')) return NONOP_LABELS[value.slice(6)] || '영업 외'
   const inv = investOption(value)
@@ -96,12 +96,12 @@ export function classLabel(value, categories) {
 export function classOptions(tx, categories) {
   const secs = ['재료비','관리비','인건비']
   const nonop = Object.entries(NONOP_LABELS).map(([k,l])=>({ value:`nonop:${k}`, label:l, group:'영업 외 (지출 아님)' }))
-  if (tx.in) return [{ value:'deposit', label:'💰 실입금 (매출 입금)' }, ...nonop]
+  if (tx.in) return [{ value:'deposit', label:'실입금 (매출 입금)' }, ...nonop]
   return [
     ...secs.flatMap(sec=>categories.filter(c=>c.sec===sec).map(c=>({ value:c.id, label:c.label, group:sec }))),
     ...nonop,
     ...INVEST_OPTIONS.map(o=>({ value:o.value, label:o.label, group:'투자관리 회수로 기록 (영업 외)' })),
-    { value:'ack', label:'✓ 이미 지출에 있음 (금액 안 더함)' },
+    { value:'ack', label:'이미 지출에 있음 (금액 안 더함)' },
   ]
 }
 

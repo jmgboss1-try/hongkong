@@ -106,11 +106,11 @@ function computeSalary(emp, wh, ex, empMemos, prevWh, prevEx, prevEmpMemos, curM
 }
 
 const STATUS = {
-  unconfirmed: { label:'미확정',   color:'#5e6585', bg:'rgba(94,101,133,0.15)' },
-  confirmed:   { label:'확인대기', color:'#f9b934', bg:'rgba(249,185,52,0.15)' },
-  checked:     { label:'직원확인', color:'#34d399', bg:'rgba(52,211,153,0.15)' },
-  inquiry:     { label:'문의중',   color:'#f87171', bg:'rgba(248,113,113,0.15)' },
-  paid:        { label:'지급완료', color:'#93c5fd', bg:'rgba(147,197,253,0.15)' },
+  unconfirmed: { label:'미확정',   color:'#6E6A63', bg:'rgba(94,101,133,0.15)' },
+  confirmed:   { label:'확인대기', color:'#C3261C', bg:'rgba(195,38,28,0.15)' },
+  checked:     { label:'직원확인', color:'#2E7D45', bg:'rgba(46,125,69,0.15)' },
+  inquiry:     { label:'문의중',   color:'#B42318', bg:'rgba(180,35,24,0.15)' },
+  paid:        { label:'지급완료', color:'#2B5C9E', bg:'rgba(43,92,158,0.15)' },
 }
 
 // 세무 보고서 모달
@@ -162,7 +162,7 @@ useEffect(() => {
     padding:'7px 10px',
     fontSize:13,
     background:'#fff',
-    color:'#000',
+    color:'#FFFFFF',
     whiteSpace:'nowrap',
   }
 
@@ -170,7 +170,7 @@ useEffect(() => {
     <div style={{position:'fixed',inset:0,zIndex:1000,background:'rgba(0,0,0,0.7)',
       display:'flex',alignItems:'flex-start',justifyContent:'center',
       overflowY:'auto',padding:'30px 16px'}}>
-      <div style={{background:'#fff',borderRadius:12,width:'100%',maxWidth:800,
+      <div style={{background:'#fff',borderRadius:6,width:'100%',maxWidth:800,
         boxShadow:'0 20px 60px rgba(0,0,0,0.4)'}}>
 
         {/* 모달 헤더 — 인쇄 시 숨김 */}
@@ -178,8 +178,8 @@ useEffect(() => {
           display:'flex',justifyContent:'space-between',alignItems:'center',
           background:'#f8f9fa',borderRadius:'12px 12px 0 0'}}>
           <div>
-            <div style={{fontSize:15,fontWeight:700,color:'#000'}}>
-              📄 {mLabel(month)} 임금내역 보고서
+            <div style={{fontSize:15,fontWeight:700,color:'#FFFFFF'}}>
+              {mLabel(month)} 임금내역 보고서
             </div>
             <div style={{fontSize:11,color:'#666',marginTop:2}}>세무사 제출용</div>
           </div>
@@ -187,17 +187,17 @@ useEffect(() => {
             <button onClick={()=>setShowOwnerConfig(v=>!v)}
               style={{background:'#e8f4fd',border:'1px solid #aac',color:'#336',
                 borderRadius:6,padding:'6px 12px',fontSize:11,cursor:'pointer',fontFamily:'inherit'}}>
-              ⚙️ 내 급여 설정
+              내 급여 설정
             </button>
             <button onClick={handlePrint}
               style={{background:'#1a56db',color:'#fff',border:'none',
                 borderRadius:6,padding:'6px 14px',fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
-              🖨️ 인쇄 / 저장
+              인쇄 / 저장
             </button>
             <button onClick={onClose}
               style={{background:'transparent',border:'1px solid #ccc',color:'#666',
                 borderRadius:6,padding:'6px 12px',fontSize:12,cursor:'pointer',fontFamily:'inherit'}}>
-              ✕ 닫기
+              닫기
             </button>
           </div>
         </div>
@@ -206,7 +206,7 @@ useEffect(() => {
         {showOwnerConfig && (
           <div className="no-print" style={{padding:'14px 20px',background:'#f0f7ff',borderBottom:'1px solid #cce0f5'}}>
             <div style={{fontSize:12,fontWeight:700,color:'#336',marginBottom:10}}>
-              ⚙️ 정민규 급여 설정 (한 번 적용하면 다음 달부터 자동 적용)
+              정민규 급여 설정 (한 번 적용하면 다음 달부터 자동 적용)
             </div>
             {ownerConfigFrom && ownerConfigFrom !== curMonth && (
               <div style={{fontSize:11,color:'#b45309',marginBottom:10}}>
@@ -249,7 +249,7 @@ useEffect(() => {
         {/* 보고서 본문 — 인쇄 시 이것만 출력 */}
         <div id="tax-report-print" style={{padding:'28px 32px'}}>
           <div style={{textAlign:'center',marginBottom:22}}>
-            <div style={{fontSize:17,fontWeight:700,color:'#000',marginBottom:4}}>
+            <div style={{fontSize:17,fontWeight:700,color:'#FFFFFF',marginBottom:4}}>
               홍콩반점 중앙대점 — {mLabel(month)} 임금내역
             </div>
             <div style={{fontSize:12,color:'#555'}}>근로소득 원천징수 내역서</div>
@@ -681,30 +681,30 @@ if(!isActive && !isRetired) return
       {/* 헤더 */}
       <div style={{display:'flex',alignItems:'flex-end',justifyContent:'space-between',marginBottom:22}}>
         <div>
-          <div style={{fontSize:20,fontWeight:700}}>💸 급여관리</div>
-          <div style={{fontSize:12,color:'#5e6585',marginTop:2}}>
+          <div style={{fontSize:20,fontWeight:700}}>급여관리</div>
+          <div style={{fontSize:12,color:'#6E6A63',marginTop:2}}>
             {mLabel(curMonth)} — 사장 전용
             {inquiryCount>0 && (
-              <span style={{marginLeft:8,background:'rgba(248,113,113,0.2)',color:'#f87171',
+              <span style={{marginLeft:8,background:'rgba(180,35,24,0.2)',color:'#B42318',
                 fontSize:11,padding:'2px 8px',borderRadius:4,fontWeight:600}}>
-                📨 문의 {inquiryCount}건
+                문의 {inquiryCount}건
               </span>
             )}
           </div>
         </div>
         <div style={{display:'flex',gap:8,alignItems:'center'}}>
           <button onClick={()=>setShowTaxReport(true)}
-            style={{background:'#191c2b',border:'1px solid #272a3d',color:'#dde1f2',borderRadius:8,
+            style={{background:'#F3F1EC',border:'1px solid #DCD7CE',color:'#1D1B18',borderRadius:4,
               padding:'8px 14px',fontSize:12,cursor:'pointer',fontFamily:'inherit'}}>
-            📄 세무 보고서
+            세무 보고서
           </button>
           <button onClick={confirmAll} disabled={saving}
-            style={{background:'#f9b934',color:'#000',border:'none',borderRadius:8,
+            style={{background:'#C3261C',color:'#FFFFFF',border:'none',borderRadius:4,
               padding:'8px 16px',fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
             전체 급여 확정
           </button>
           <select value={curMonth} onChange={e=>setCurMonth(e.target.value)}
-            style={{background:'#191c2b',border:'1px solid #272a3d',borderRadius:8,color:'#dde1f2',
+            style={{background:'#F3F1EC',border:'1px solid #DCD7CE',borderRadius:4,color:'#1D1B18',
               padding:'8px 12px',fontSize:12,fontFamily:'inherit',outline:'none'}}>
             {monthOpts.map(m=><option key={m} value={m}>{mLabel(m)}</option>)}
           </select>
@@ -714,24 +714,24 @@ if(!isActive && !isRetired) return
       {/* 요약 카드 */}
       <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(160px,1fr))',gap:12,marginBottom:20}}>
         {[
-          {label:'이달 인건비 합계', val:`${grandTotal.toLocaleString()}원`,       color:'#f9b934'},
-          {label:'직원 확인 완료',   val:`${checkedCount} / ${employees.length}명`, color:'#34d399'},
-          {label:'문의 건수',        val:`${inquiryCount}건`,                       color:'#f87171'},
-          {label:'지급 완료',        val:`${paidCount}명`,                          color:'#93c5fd'},
-          ...(severanceTotal>0 ? [{label:'이달 퇴직금 지급액', val:`${severanceTotal.toLocaleString()}원`, color:'#fb923c'}] : []),
-          ...(advanceGrandTotal>0 ? [{label:'이달 가불 총액', val:`${advanceGrandTotal.toLocaleString()}원`, color:'#f87171'}] : []),
-          ...(bonusGrandTotal>0 ? [{label:'이달 상여 총액', val:`${bonusGrandTotal.toLocaleString()}원`, color:'#a78bfa'}] : []),
+          {label:'이달 인건비 합계', val:`${grandTotal.toLocaleString()}원`,       color:'#C3261C'},
+          {label:'직원 확인 완료',   val:`${checkedCount} / ${employees.length}명`, color:'#2E7D45'},
+          {label:'문의 건수',        val:`${inquiryCount}건`,                       color:'#B42318'},
+          {label:'지급 완료',        val:`${paidCount}명`,                          color:'#2B5C9E'},
+          ...(severanceTotal>0 ? [{label:'이달 퇴직금 지급액', val:`${severanceTotal.toLocaleString()}원`, color:'#B45309'}] : []),
+          ...(advanceGrandTotal>0 ? [{label:'이달 가불 총액', val:`${advanceGrandTotal.toLocaleString()}원`, color:'#B42318'}] : []),
+          ...(bonusGrandTotal>0 ? [{label:'이달 상여 총액', val:`${bonusGrandTotal.toLocaleString()}원`, color:'#6B4FA0'}] : []),
         ].map(k=>(
-          <div key={k.label} style={{background:'#12141f',border:'1px solid #272a3d',borderRadius:12,padding:'14px 16px',position:'relative',overflow:'hidden'}}>
+          <div key={k.label} style={{background:'#FFFFFF',border:'1px solid #DCD7CE',borderRadius:6,padding:'14px 16px',position:'relative',overflow:'hidden'}}>
             <div style={{position:'absolute',top:0,left:0,right:0,height:2,background:k.color,opacity:.5}}/>
-            <div style={{fontSize:10,color:'#5e6585',marginBottom:5}}>{k.label}</div>
-            <div style={{fontSize:16,fontWeight:700,color:k.color,fontFamily:'DM Mono,monospace'}}>{k.val}</div>
+            <div style={{fontSize:10,color:'#6E6A63',marginBottom:5}}>{k.label}</div>
+            <div style={{fontSize:16,fontWeight:700,color:k.color,fontFamily:'inherit',fontVariantNumeric:'tabular-nums'}}>{k.val}</div>
           </div>
         ))}
       </div>
 
       {loading ? (
-        <div style={{textAlign:'center',color:'#5e6585',padding:60}}>로딩 중...</div>
+        <div style={{textAlign:'center',color:'#6E6A63',padding:60}}>로딩 중...</div>
       ) : (
         <div style={{display:'flex',flexDirection:'column',gap:10}}>
           {employees.map(emp=>{
@@ -753,9 +753,9 @@ if(!isActive && !isRetired) return
             const isBonusOpen = bonusUid === emp.uid
 
             return (
-              <div key={emp.uid} style={{background:'#12141f',
-                border:`1px solid ${hasInquiry?'rgba(248,113,113,0.4)':'#272a3d'}`,
-                borderRadius:12,overflow:'hidden'}}>
+              <div key={emp.uid} style={{background:'#FFFFFF',
+                border:`1px solid ${hasInquiry?'rgba(180,35,24,0.4)':'#DCD7CE'}`,
+                borderRadius:6,overflow:'hidden'}}>
 
                 <div style={{padding:'14px 18px',display:'flex',alignItems:'center',
                   justifyContent:'space-between',flexWrap:'wrap',gap:10}}>
@@ -763,79 +763,79 @@ if(!isActive && !isRetired) return
                     <div style={{fontSize:14,fontWeight:700}}>{emp.name}</div>
                     {emp.isRetired && (
                       <span style={{fontSize:10,fontWeight:700,padding:'2px 8px',borderRadius:4,
-                        background:'rgba(94,101,133,0.2)',color:'#5e6585'}}>
-                        📤 퇴직 {emp.leaveDate?.slice(0,10)}
+                        background:'rgba(94,101,133,0.2)',color:'#6E6A63'}}>
+                        퇴직 {emp.leaveDate?.slice(0,10)}
                       </span>
                     )}
                     <span style={{fontSize:11,fontWeight:700,padding:'3px 9px',borderRadius:5,
                       background:st.bg,color:st.color}}>{st.label}</span>
                     {hasInquiry && (
                       <button onClick={()=>{ setActiveUid(isOpen?null:emp.uid); setReplyText('') }}
-                        style={{background:'rgba(248,113,113,0.12)',border:'1px solid rgba(248,113,113,0.3)',
-                          color:'#f87171',borderRadius:6,padding:'4px 10px',fontSize:11,
+                        style={{background:'rgba(180,35,24,0.12)',border:'1px solid rgba(180,35,24,0.3)',
+                          color:'#B42318',borderRadius:6,padding:'4px 10px',fontSize:11,
                           cursor:'pointer',fontFamily:'inherit',fontWeight:600}}>
-                        📨 문의 {isOpen?'닫기':'확인'}
+                        문의 {isOpen?'닫기':'확인'}
                       </button>
                     )}
                     <button onClick={()=>{ setAdvanceUid(isAdvanceOpen?null:emp.uid); setAdvanceForm({date:todayStr(),amount:'',memo:''}) }}
-                      style={{background: advTotal>0 ? 'rgba(248,113,113,0.12)' : 'rgba(147,197,253,0.1)',
-                        border: advTotal>0 ? '1px solid rgba(248,113,113,0.3)' : '1px solid rgba(147,197,253,0.25)',
-                        color: advTotal>0 ? '#f87171' : '#93c5fd',borderRadius:6,padding:'4px 10px',fontSize:11,
+                      style={{background: advTotal>0 ? 'rgba(180,35,24,0.12)' : 'rgba(43,92,158,0.1)',
+                        border: advTotal>0 ? '1px solid rgba(180,35,24,0.3)' : '1px solid rgba(43,92,158,0.25)',
+                        color: advTotal>0 ? '#B42318' : '#2B5C9E',borderRadius:6,padding:'4px 10px',fontSize:11,
                         cursor:'pointer',fontFamily:'inherit',fontWeight:600}}>
-                      💸 가불{advTotal>0?` ${advTotal.toLocaleString()}원`:''} {isAdvanceOpen?'닫기':''}
+                      가불{advTotal>0?` ${advTotal.toLocaleString()}원`:''} {isAdvanceOpen?'닫기':''}
                     </button>
                     <button onClick={()=>{ setBonusUid(isBonusOpen?null:emp.uid); setBonusForm({date:todayStr(),amount:'',memo:''}) }}
-                      style={{background: bonusTotal>0 ? 'rgba(167,139,250,0.12)' : 'rgba(94,101,133,0.1)',
-                        border: bonusTotal>0 ? '1px solid rgba(167,139,250,0.3)' : '1px solid #272a3d',
-                        color: bonusTotal>0 ? '#a78bfa' : '#5e6585',borderRadius:6,padding:'4px 10px',fontSize:11,
+                      style={{background: bonusTotal>0 ? 'rgba(107,79,160,0.12)' : 'rgba(94,101,133,0.1)',
+                        border: bonusTotal>0 ? '1px solid rgba(107,79,160,0.3)' : '1px solid #DCD7CE',
+                        color: bonusTotal>0 ? '#6B4FA0' : '#6E6A63',borderRadius:6,padding:'4px 10px',fontSize:11,
                         cursor:'pointer',fontFamily:'inherit',fontWeight:600}}>
-                      🎁 상여{bonusTotal>0?` ${bonusTotal.toLocaleString()}원`:''} {isBonusOpen?'닫기':''}
+                      상여{bonusTotal>0?` ${bonusTotal.toLocaleString()}원`:''} {isBonusOpen?'닫기':''}
                     </button>
                   </div>
                   <div style={{display:'flex',alignItems:'center',gap:14,flexWrap:'wrap'}}>
                     <div style={{textAlign:'right'}}>
                       {display.isFixed ? (
-                        <div style={{fontSize:10,color:'#93c5fd',marginBottom:2,fontWeight:600}}>
-                          📅 고정급 직원
+                        <div style={{fontSize:10,color:'#2B5C9E',marginBottom:2,fontWeight:600}}>
+                          고정급 직원
                         </div>
                       ) : (
                         <>
-                          <div style={{fontSize:10,color:'#5e6585',marginBottom:2}}>
+                          <div style={{fontSize:10,color:'#6E6A63',marginBottom:2}}>
                             {display.totalHours}h {display.totalMins>0?display.totalMins+'m':''} · 시급 {(display.wage||10030).toLocaleString()}원
                           </div>
-                          <div style={{fontSize:10,color:'#5e6585',marginBottom:2}}>
+                          <div style={{fontSize:10,color:'#6E6A63',marginBottom:2}}>
                             기본 {(display.basePay||0).toLocaleString()} + 주휴 {(display.weeklyHoliday||0).toLocaleString()}
                           </div>
                         </>
                       )}
-                      <div style={{fontSize:11,color:'#5e6585',marginBottom:2}}>
+                      <div style={{fontSize:11,color:'#6E6A63',marginBottom:2}}>
                         세전 {(display.totalPay||0).toLocaleString()}원
                         {(display.deduction?.total||0)>0 && (
-                          <span style={{color:'#f87171',marginLeft:6}}>
+                          <span style={{color:'#B42318',marginLeft:6}}>
                             -{(display.deduction?.total||0).toLocaleString()}원
                           </span>
                         )}
                       </div>
                       {bonusTotal>0 && (
-                        <div style={{fontSize:11,color:'#a78bfa',marginBottom:2}}>
+                        <div style={{fontSize:11,color:'#6B4FA0',marginBottom:2}}>
                           상여 +{bonusTotal.toLocaleString()}원
-                          <span style={{color:'#f87171',marginLeft:6}}>
+                          <span style={{color:'#B42318',marginLeft:6}}>
                             (세금 -{(deductionWithBonus?.total||0).toLocaleString()}원)
                           </span>
                         </div>
                       )}
                       {advTotal>0 && (
-                        <div style={{fontSize:11,color:'#f87171',marginBottom:2}}>
+                        <div style={{fontSize:11,color:'#B42318',marginBottom:2}}>
                           가불 차감 -{advTotal.toLocaleString()}원
                         </div>
                       )}
-                      <div style={{fontSize:16,fontWeight:700,color:'#34d399',fontFamily:'DM Mono,monospace'}}>
+                      <div style={{fontSize:16,fontWeight:700,color:'#2E7D45',fontFamily:'inherit',fontVariantNumeric:'tabular-nums'}}>
                         {advTotal>0 || bonusTotal>0 ? '최종 지급' : '실수령'} {finalPay.toLocaleString()}원
                       </div>
                     </div>
                     {status==='unconfirmed' && (
                       <button onClick={()=>confirmOne(emp.uid)} disabled={saving}
-                        style={{background:'#f9b934',color:'#000',border:'none',borderRadius:7,
+                        style={{background:'#C3261C',color:'#FFFFFF',border:'none',borderRadius:4,
                           padding:'8px 14px',fontSize:11,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
                         급여 확정
                       </button>
@@ -843,34 +843,34 @@ if(!isActive && !isRetired) return
                                         {(status==='confirmed' || status==='inquiry') && (
                       <>
                         <button onClick={()=>confirmOne(emp.uid)} disabled={saving}
-                          style={{background:'transparent',border:'1px solid #3d4060',color:'#5e6585',
-                            borderRadius:7,padding:'8px 12px',fontSize:11,cursor:'pointer',fontFamily:'inherit',marginRight:6}}>
+                          style={{background:'transparent',border:'1px solid #A8A39A',color:'#6E6A63',
+                            borderRadius:4,padding:'8px 12px',fontSize:11,cursor:'pointer',fontFamily:'inherit',marginRight:6}}>
                           재확정
                         </button>
                         <button onClick={()=>markPaid(emp.uid)} disabled={saving}
-                          style={{background:'transparent',border:'1px solid rgba(147,197,253,0.4)',color:'#93c5fd',
-                            borderRadius:7,padding:'8px 12px',fontSize:11,cursor:'pointer',fontFamily:'inherit'}}>
+                          style={{background:'transparent',border:'1px solid rgba(43,92,158,0.4)',color:'#2B5C9E',
+                            borderRadius:4,padding:'8px 12px',fontSize:11,cursor:'pointer',fontFamily:'inherit'}}>
                           강제 지급
                         </button>
                       </>
                     )}
                     {status==='checked' && (
                       <button onClick={()=>markPaid(emp.uid)} disabled={saving}
-                        style={{background:'#93c5fd',color:'#000',border:'none',borderRadius:7,
+                        style={{background:'#2B5C9E',color:'#FFFFFF',border:'none',borderRadius:4,
                           padding:'8px 14px',fontSize:11,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
                         지급 완료
                       </button>
                     )}
                     {status==='inquiry' && (
                       <button onClick={()=>markPaid(emp.uid)} disabled={saving}
-                        style={{background:'transparent',border:'1px solid rgba(147,197,253,0.4)',color:'#93c5fd',
-                          borderRadius:7,padding:'8px 12px',fontSize:11,cursor:'pointer',fontFamily:'inherit'}}>
+                        style={{background:'transparent',border:'1px solid rgba(43,92,158,0.4)',color:'#2B5C9E',
+                          borderRadius:4,padding:'8px 12px',fontSize:11,cursor:'pointer',fontFamily:'inherit'}}>
                         강제 지급
                       </button>
                     )}
                     {status==='paid' && (
-                      <div style={{fontSize:11,color:'#93c5fd',fontWeight:600}}>
-                        ✅ {p.paidAt?.slice(0,10)}
+                      <div style={{fontSize:11,color:'#2B5C9E',fontWeight:600}}>
+                        {p.paidAt?.slice(0,10)}
                       </div>
                     )}
                   </div>
@@ -878,31 +878,31 @@ if(!isActive && !isRetired) return
 
                 {/* 가불 관리 패널 */}
                 {isAdvanceOpen && (
-                  <div style={{padding:'14px 18px',borderTop:'1px solid rgba(147,197,253,0.2)',
-                    background:'rgba(147,197,253,0.03)'}}>
-                    <div style={{fontSize:11,fontWeight:600,color:'#93c5fd',marginBottom:10}}>
-                      💸 {emp.name} 가불 내역
+                  <div style={{padding:'14px 18px',borderTop:'1px solid rgba(43,92,158,0.2)',
+                    background:'rgba(43,92,158,0.03)'}}>
+                    <div style={{fontSize:11,fontWeight:600,color:'#2B5C9E',marginBottom:10}}>
+                      {emp.name} 가불 내역
                     </div>
 
                     {advanceListOf(emp.uid).length > 0 && (
                       <div style={{display:'flex',flexDirection:'column',gap:6,marginBottom:12}}>
                         {advanceListOf(emp.uid).map(r=>(
                           <div key={r.id} style={{display:'flex',alignItems:'center',gap:10,
-                            background:'#191c2b',borderRadius:7,padding:'7px 12px',flexWrap:'wrap'}}>
-                            <span style={{fontSize:11,color:'#5e6585',fontFamily:'DM Mono,monospace',minWidth:80}}>{r.date}</span>
-                            <span style={{fontSize:13,fontWeight:700,color:'#f87171',fontFamily:'DM Mono,monospace'}}>
+                            background:'#F3F1EC',borderRadius:4,padding:'7px 12px',flexWrap:'wrap'}}>
+                            <span style={{fontSize:11,color:'#6E6A63',fontFamily:'inherit',fontVariantNumeric:'tabular-nums',minWidth:80}}>{r.date}</span>
+                            <span style={{fontSize:13,fontWeight:700,color:'#B42318',fontFamily:'inherit',fontVariantNumeric:'tabular-nums'}}>
                               {r.amount.toLocaleString()}원
                             </span>
-                            <span style={{flex:1,fontSize:11,color:'#5e6585'}}>{r.memo||'—'}</span>
+                            <span style={{flex:1,fontSize:11,color:'#6E6A63'}}>{r.memo||'—'}</span>
                             <button onClick={()=>deleteAdvance(emp.uid, r.id)}
-                              style={{background:'transparent',border:'1px solid #3d1f1f',color:'#f87171',
+                              style={{background:'transparent',border:'1px solid #E8C4BF',color:'#B42318',
                                 padding:'3px 8px',fontSize:10,borderRadius:4,cursor:'pointer',fontFamily:'inherit'}}>
                               삭제
                             </button>
                           </div>
                         ))}
-                        <div style={{display:'flex',justifyContent:'flex-end',fontSize:11,color:'#5e6585',paddingTop:2}}>
-                          이번달 가불 합계 <span style={{color:'#f87171',fontWeight:700,marginLeft:6}}>{advTotal.toLocaleString()}원</span>
+                        <div style={{display:'flex',justifyContent:'flex-end',fontSize:11,color:'#6E6A63',paddingTop:2}}>
+                          이번달 가불 합계 <span style={{color:'#B42318',fontWeight:700,marginLeft:6}}>{advTotal.toLocaleString()}원</span>
                         </div>
                       </div>
                     )}
@@ -910,18 +910,18 @@ if(!isActive && !isRetired) return
                     <div style={{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap'}}>
                       <input type="date" value={advanceForm.date}
                         onChange={e=>setAdvanceForm(f=>({...f,date:e.target.value}))}
-                        style={{background:'#191c2b',border:'1px solid #272a3d',borderRadius:7,color:'#dde1f2',
+                        style={{background:'#F3F1EC',border:'1px solid #DCD7CE',borderRadius:4,color:'#1D1B18',
                           padding:'7px 10px',fontSize:12,outline:'none',fontFamily:'inherit'}}/>
                       <input type="number" placeholder="가불 금액" value={advanceForm.amount}
                         onChange={e=>setAdvanceForm(f=>({...f,amount:e.target.value}))}
-                        style={{width:140,background:'#191c2b',border:'1px solid #272a3d',borderRadius:7,color:'#dde1f2',
-                          padding:'7px 10px',fontSize:12,outline:'none',fontFamily:'DM Mono,monospace'}}/>
+                        style={{width:140,background:'#F3F1EC',border:'1px solid #DCD7CE',borderRadius:4,color:'#1D1B18',
+                          padding:'7px 10px',fontSize:12,outline:'none',fontFamily:'inherit',fontVariantNumeric:'tabular-nums'}}/>
                       <input placeholder="메모 (선택)" value={advanceForm.memo}
                         onChange={e=>setAdvanceForm(f=>({...f,memo:e.target.value}))}
-                        style={{flex:1,minWidth:120,background:'#191c2b',border:'1px solid #272a3d',borderRadius:7,color:'#dde1f2',
+                        style={{flex:1,minWidth:120,background:'#F3F1EC',border:'1px solid #DCD7CE',borderRadius:4,color:'#1D1B18',
                           padding:'7px 10px',fontSize:12,outline:'none',fontFamily:'inherit'}}/>
                       <button onClick={()=>addAdvance(emp.uid)} disabled={saving}
-                        style={{background:'#93c5fd',color:'#000',border:'none',borderRadius:7,padding:'7px 16px',
+                        style={{background:'#2B5C9E',color:'#FFFFFF',border:'none',borderRadius:4,padding:'7px 16px',
                           fontSize:11,fontWeight:700,cursor:'pointer',fontFamily:'inherit',whiteSpace:'nowrap'}}>
                         + 가불 추가
                       </button>
@@ -931,31 +931,31 @@ if(!isActive && !isRetired) return
 
                 {/* 상여/보너스 관리 패널 */}
                 {isBonusOpen && (
-                  <div style={{padding:'14px 18px',borderTop:'1px solid rgba(167,139,250,0.2)',
-                    background:'rgba(167,139,250,0.03)'}}>
-                    <div style={{fontSize:11,fontWeight:600,color:'#a78bfa',marginBottom:10}}>
-                      🎁 {emp.name} 상여·보너스 내역
+                  <div style={{padding:'14px 18px',borderTop:'1px solid rgba(107,79,160,0.2)',
+                    background:'rgba(107,79,160,0.03)'}}>
+                    <div style={{fontSize:11,fontWeight:600,color:'#6B4FA0',marginBottom:10}}>
+                      {emp.name} 상여·보너스 내역
                     </div>
 
                     {bonusListOf(emp.uid).length > 0 && (
                       <div style={{display:'flex',flexDirection:'column',gap:6,marginBottom:12}}>
                         {bonusListOf(emp.uid).map(r=>(
                           <div key={r.id} style={{display:'flex',alignItems:'center',gap:10,
-                            background:'#191c2b',borderRadius:7,padding:'7px 12px',flexWrap:'wrap'}}>
-                            <span style={{fontSize:11,color:'#5e6585',fontFamily:'DM Mono,monospace',minWidth:80}}>{r.date}</span>
-                            <span style={{fontSize:13,fontWeight:700,color:'#a78bfa',fontFamily:'DM Mono,monospace'}}>
+                            background:'#F3F1EC',borderRadius:4,padding:'7px 12px',flexWrap:'wrap'}}>
+                            <span style={{fontSize:11,color:'#6E6A63',fontFamily:'inherit',fontVariantNumeric:'tabular-nums',minWidth:80}}>{r.date}</span>
+                            <span style={{fontSize:13,fontWeight:700,color:'#6B4FA0',fontFamily:'inherit',fontVariantNumeric:'tabular-nums'}}>
                               {r.amount.toLocaleString()}원
                             </span>
-                            <span style={{flex:1,fontSize:11,color:'#5e6585'}}>{r.memo||'—'}</span>
+                            <span style={{flex:1,fontSize:11,color:'#6E6A63'}}>{r.memo||'—'}</span>
                             <button onClick={()=>deleteBonus(emp.uid, r.id)}
-                              style={{background:'transparent',border:'1px solid #3d1f1f',color:'#f87171',
+                              style={{background:'transparent',border:'1px solid #E8C4BF',color:'#B42318',
                                 padding:'3px 8px',fontSize:10,borderRadius:4,cursor:'pointer',fontFamily:'inherit'}}>
                               삭제
                             </button>
                           </div>
                         ))}
-                        <div style={{display:'flex',justifyContent:'flex-end',fontSize:11,color:'#5e6585',paddingTop:2}}>
-                          이번달 상여 합계 <span style={{color:'#a78bfa',fontWeight:700,marginLeft:6}}>{bonusTotal.toLocaleString()}원</span>
+                        <div style={{display:'flex',justifyContent:'flex-end',fontSize:11,color:'#6E6A63',paddingTop:2}}>
+                          이번달 상여 합계 <span style={{color:'#6B4FA0',fontWeight:700,marginLeft:6}}>{bonusTotal.toLocaleString()}원</span>
                         </div>
                       </div>
                     )}
@@ -963,48 +963,48 @@ if(!isActive && !isRetired) return
                     <div style={{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap'}}>
                       <input type="date" value={bonusForm.date}
                         onChange={e=>setBonusForm(f=>({...f,date:e.target.value}))}
-                        style={{background:'#191c2b',border:'1px solid #272a3d',borderRadius:7,color:'#dde1f2',
+                        style={{background:'#F3F1EC',border:'1px solid #DCD7CE',borderRadius:4,color:'#1D1B18',
                           padding:'7px 10px',fontSize:12,outline:'none',fontFamily:'inherit'}}/>
                       <input type="number" placeholder="상여 금액" value={bonusForm.amount}
                         onChange={e=>setBonusForm(f=>({...f,amount:e.target.value}))}
-                        style={{width:140,background:'#191c2b',border:'1px solid #272a3d',borderRadius:7,color:'#dde1f2',
-                          padding:'7px 10px',fontSize:12,outline:'none',fontFamily:'DM Mono,monospace'}}/>
+                        style={{width:140,background:'#F3F1EC',border:'1px solid #DCD7CE',borderRadius:4,color:'#1D1B18',
+                          padding:'7px 10px',fontSize:12,outline:'none',fontFamily:'inherit',fontVariantNumeric:'tabular-nums'}}/>
                       <input placeholder="사유 (예: 추석 보너스)" value={bonusForm.memo}
                         onChange={e=>setBonusForm(f=>({...f,memo:e.target.value}))}
-                        style={{flex:1,minWidth:120,background:'#191c2b',border:'1px solid #272a3d',borderRadius:7,color:'#dde1f2',
+                        style={{flex:1,minWidth:120,background:'#F3F1EC',border:'1px solid #DCD7CE',borderRadius:4,color:'#1D1B18',
                           padding:'7px 10px',fontSize:12,outline:'none',fontFamily:'inherit'}}/>
                       <button onClick={()=>addBonus(emp.uid)} disabled={saving}
-                        style={{background:'#a78bfa',color:'#000',border:'none',borderRadius:7,padding:'7px 16px',
+                        style={{background:'#6B4FA0',color:'#FFFFFF',border:'none',borderRadius:4,padding:'7px 16px',
                           fontSize:11,fontWeight:700,cursor:'pointer',fontFamily:'inherit',whiteSpace:'nowrap'}}>
                         + 상여 추가
                       </button>
                     </div>
-                    <div style={{fontSize:9,color:'#5e6585',marginTop:8}}>
-                      💡 상여는 세전 급여에 합산되어 원천징수(3.3% 또는 4대보험)가 다시 계산돼요.
+                    <div style={{fontSize:9,color:'#6E6A63',marginTop:8}}>
+                      상여는 세전 급여에 합산되어 원천징수(3.3% 또는 4대보험)가 다시 계산돼요.
                     </div>
                   </div>
                 )}
 
                 {/* 퇴직금 처리 (퇴직자 전용) */}
                 {emp.isRetired && (
-                  <div style={{padding:'12px 18px',borderTop:'1px solid #272a3d',background:'rgba(251,146,60,0.04)'}}>
+                  <div style={{padding:'12px 18px',borderTop:'1px solid #DCD7CE',background:'rgba(180,83,9,0.04)'}}>
                     {severance[emp.uid] ? (
                       <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',flexWrap:'wrap',gap:10}}>
-                        <div style={{fontSize:11,color:'#fb923c',fontWeight:600}}>
-                          📤 퇴직금 지급완료 · {severance[emp.uid].paidDate?.slice(0,10)}
+                        <div style={{fontSize:11,color:'#B45309',fontWeight:600}}>
+                          퇴직금 지급완료 · {severance[emp.uid].paidDate?.slice(0,10)}
                         </div>
                         <div style={{display:'flex',alignItems:'center',gap:14,fontSize:11}}>
-                          <span style={{color:'#5e6585'}}>
+                          <span style={{color:'#6E6A63'}}>
                             지급액 {severance[emp.uid].amount.toLocaleString()}원
                           </span>
-                          <span style={{color:'#f87171'}}>
+                          <span style={{color:'#B42318'}}>
                             원천징수(3.3%) -{severance[emp.uid].tax.toLocaleString()}원
                           </span>
-                          <span style={{color:'#34d399',fontWeight:700,fontFamily:'DM Mono,monospace'}}>
+                          <span style={{color:'#2E7D45',fontWeight:700,fontFamily:'inherit',fontVariantNumeric:'tabular-nums'}}>
                             최종 {severance[emp.uid].net.toLocaleString()}원
                           </span>
                           <button onClick={()=>deleteSeverance(emp.uid)}
-                            style={{background:'transparent',border:'1px solid #3d1f1f',color:'#f87171',
+                            style={{background:'transparent',border:'1px solid #E8C4BF',color:'#B42318',
                               padding:'3px 8px',fontSize:10,borderRadius:4,cursor:'pointer',fontFamily:'inherit'}}>
                             취소
                           </button>
@@ -1012,19 +1012,19 @@ if(!isActive && !isRetired) return
                       </div>
                     ) : (
                       <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}>
-                        <span style={{fontSize:11,color:'#fb923c',fontWeight:600,whiteSpace:'nowrap'}}>📤 퇴직금 지급 처리</span>
+                        <span style={{fontSize:11,color:'#B45309',fontWeight:600,whiteSpace:'nowrap'}}>퇴직금 지급 처리</span>
                         <input type="number" placeholder="퇴직금 총액 입력"
                           value={severanceInput[emp.uid]||''}
                           onChange={e=>setSeveranceInput(prev=>({...prev,[emp.uid]:e.target.value}))}
-                          style={{width:160,background:'#191c2b',border:'1px solid #272a3d',borderRadius:7,
-                            color:'#dde1f2',padding:'6px 10px',fontSize:12,outline:'none',fontFamily:'DM Mono,monospace'}}/>
+                          style={{width:160,background:'#F3F1EC',border:'1px solid #DCD7CE',borderRadius:4,
+                            color:'#1D1B18',padding:'6px 10px',fontSize:12,outline:'none',fontFamily:'inherit',fontVariantNumeric:'tabular-nums'}}/>
                         {(+severanceInput[emp.uid]||0) > 0 && (
-                          <span style={{fontSize:10,color:'#5e6585'}}>
+                          <span style={{fontSize:10,color:'#6E6A63'}}>
                             3.3% 제외 → 최종 {Math.round((+severanceInput[emp.uid])*(1-0.033)).toLocaleString()}원
                           </span>
                         )}
                         <button onClick={()=>saveSeverance(emp.uid)} disabled={saving}
-                          style={{background:'#fb923c',color:'#000',border:'none',borderRadius:7,
+                          style={{background:'#B45309',color:'#FFFFFF',border:'none',borderRadius:4,
                             padding:'6px 14px',fontSize:11,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
                           지급 기록
                         </button>
@@ -1034,19 +1034,19 @@ if(!isActive && !isRetired) return
                 )}
 
                 {isOpen && p?.inquiry && (
-                  <div style={{borderTop:'1px solid rgba(248,113,113,0.2)',
-                    background:'rgba(248,113,113,0.03)',padding:'16px 18px',
+                  <div style={{borderTop:'1px solid rgba(180,35,24,0.2)',
+                    background:'rgba(180,35,24,0.03)',padding:'16px 18px',
                     display:'flex',flexDirection:'column',gap:12}}>
-                    <div style={{fontSize:11,fontWeight:600,color:'#f87171'}}>📨 직원 문의 내용</div>
+                    <div style={{fontSize:11,fontWeight:600,color:'#B42318'}}>직원 문의 내용</div>
                     <div style={{display:'flex',gap:10,alignItems:'flex-start'}}>
                       <div style={{width:30,height:30,borderRadius:'50%',background:'rgba(94,101,133,0.25)',
-                        display:'flex',alignItems:'center',justifyContent:'center',fontSize:13,flexShrink:0}}>👤</div>
+                        display:'flex',alignItems:'center',justifyContent:'center',fontSize:13,flexShrink:0}}></div>
                       <div style={{flex:1}}>
-                        <div style={{fontSize:10,color:'#5e6585',marginBottom:5}}>
+                        <div style={{fontSize:10,color:'#6E6A63',marginBottom:5}}>
                           {emp.name} · {p.inquiry.createdAt?.slice(0,10)}
                         </div>
-                        <div style={{background:'#191c2b',border:'1px solid #272a3d',borderRadius:8,
-                          padding:'10px 14px',fontSize:12,color:'#dde1f2',lineHeight:1.7}}>
+                        <div style={{background:'#F3F1EC',border:'1px solid #DCD7CE',borderRadius:4,
+                          padding:'10px 14px',fontSize:12,color:'#1D1B18',lineHeight:1.7}}>
                           {p.inquiry.message}
                         </div>
                       </div>
@@ -1054,16 +1054,16 @@ if(!isActive && !isRetired) return
                     {p.inquiry.ownerReply && (
                       <div style={{display:'flex',gap:10,alignItems:'flex-start',justifyContent:'flex-end'}}>
                         <div style={{flex:1,maxWidth:'82%'}}>
-                          <div style={{fontSize:10,color:'#5e6585',marginBottom:5,textAlign:'right'}}>
+                          <div style={{fontSize:10,color:'#6E6A63',marginBottom:5,textAlign:'right'}}>
                             사장님 답변 · {p.inquiry.repliedAt?.slice(0,10)}
                           </div>
-                          <div style={{background:'rgba(249,185,52,0.08)',border:'1px solid rgba(249,185,52,0.2)',
-                            borderRadius:8,padding:'10px 14px',fontSize:12,color:'#dde1f2',lineHeight:1.7}}>
+                          <div style={{background:'rgba(195,38,28,0.08)',border:'1px solid rgba(195,38,28,0.2)',
+                            borderRadius:4,padding:'10px 14px',fontSize:12,color:'#1D1B18',lineHeight:1.7}}>
                             {p.inquiry.ownerReply}
                           </div>
                         </div>
-                        <div style={{width:30,height:30,borderRadius:'50%',background:'rgba(249,185,52,0.2)',
-                          display:'flex',alignItems:'center',justifyContent:'center',fontSize:13,flexShrink:0}}>👑</div>
+                        <div style={{width:30,height:30,borderRadius:'50%',background:'rgba(195,38,28,0.2)',
+                          display:'flex',alignItems:'center',justifyContent:'center',fontSize:13,flexShrink:0}}></div>
                       </div>
                     )}
                     {!p.inquiry.ownerReply && (
@@ -1071,10 +1071,10 @@ if(!isActive && !isRetired) return
                         <input value={replyText} onChange={e=>setReplyText(e.target.value)}
                           placeholder="답변을 입력하고 Enter..."
                           onKeyDown={e=>e.key==='Enter'&&sendReply(emp.uid)}
-                          style={{flex:1,background:'#191c2b',border:'1px solid #272a3d',borderRadius:7,
-                            color:'#dde1f2',padding:'8px 12px',fontSize:12,outline:'none',fontFamily:'inherit'}}/>
+                          style={{flex:1,background:'#F3F1EC',border:'1px solid #DCD7CE',borderRadius:4,
+                            color:'#1D1B18',padding:'8px 12px',fontSize:12,outline:'none',fontFamily:'inherit'}}/>
                         <button onClick={()=>sendReply(emp.uid)} disabled={saving}
-                          style={{background:'#f9b934',color:'#000',border:'none',borderRadius:7,
+                          style={{background:'#C3261C',color:'#FFFFFF',border:'none',borderRadius:4,
                             padding:'8px 16px',fontSize:11,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
                           전송
                         </button>
@@ -1083,14 +1083,14 @@ if(!isActive && !isRetired) return
                     {p.inquiry.ownerReply && (
                       <div style={{display:'flex',gap:8,justifyContent:'flex-end',flexWrap:'wrap'}}>
                         <button onClick={()=>resolveInquiry(emp.uid)} disabled={saving}
-                          style={{background:'rgba(52,211,153,0.12)',border:'1px solid rgba(52,211,153,0.3)',
-                            color:'#34d399',borderRadius:7,padding:'7px 14px',fontSize:11,
+                          style={{background:'rgba(46,125,69,0.12)',border:'1px solid rgba(46,125,69,0.3)',
+                            color:'#2E7D45',borderRadius:4,padding:'7px 14px',fontSize:11,
                             fontWeight:600,cursor:'pointer',fontFamily:'inherit'}}>
-                          ✓ 문의 해결 완료
+                          문의 해결 완료
                         </button>
                         <button onClick={()=>markPaid(emp.uid)} disabled={saving}
-                          style={{background:'rgba(147,197,253,0.12)',border:'1px solid rgba(147,197,253,0.3)',
-                            color:'#93c5fd',borderRadius:7,padding:'7px 14px',fontSize:11,
+                          style={{background:'rgba(43,92,158,0.12)',border:'1px solid rgba(43,92,158,0.3)',
+                            color:'#2B5C9E',borderRadius:4,padding:'7px 14px',fontSize:11,
                             fontWeight:600,cursor:'pointer',fontFamily:'inherit'}}>
                           지급 완료 처리
                         </button>
@@ -1102,7 +1102,7 @@ if(!isActive && !isRetired) return
             )
           })}
           {employees.length===0 && (
-            <div style={{textAlign:'center',color:'#5e6585',padding:40}}>승인된 직원이 없습니다</div>
+            <div style={{textAlign:'center',color:'#6E6A63',padding:40}}>승인된 직원이 없습니다</div>
           )}
         </div>
       )}

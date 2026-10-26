@@ -14,7 +14,7 @@ import { doc, getDoc, setDoc } from 'firebase/firestore'
 
 // 예전 'loan_sangam'(상암점 계좌) 기록은 형 대여금과 같은 것으로 합쳐서 봄
 const normKind = k => k === 'loan_sangam' ? 'loan' : (k || 'other')
-export const NONOP_LABELS = { loan:'🤝 대여금(형)', invest:'💼 투자·정산', personal:'👤 개인 이체', other:'📎 기타 영업외' }
+export const NONOP_LABELS = { loan:'대여금(형)', invest:'투자·정산', personal:'개인 이체', other:'기타 영업외' }
 
 const parseKey = k => {
   const [date, time, out, inn, balance] = String(k).split('|')
@@ -73,11 +73,11 @@ export function bankSummary(data, categories) {
 // 투자관리(investment/records) 회수로 연결되는 영업 외 출금 — 선택값 '__inv:<투자자>:<종류>'
 // 투자자·종류는 Investment.jsx의 INVESTORS / CATEGORIES_BY_INVESTOR와 같음
 export const INVEST_OPTIONS = [
-  { value:'__inv:terry:investment', investor:'terry', category:'investment', label:'💰 테리 투자금 회수' },
-  { value:'__inv:terry:loss',       investor:'terry', category:'loss',       label:'📉 테리 운영 손해분 회수' },
-  { value:'__inv:terry:severance',  investor:'terry', category:'severance',  label:'📦 테리 퇴직금 대납 회수' },
-  { value:'__inv:hyung:investment', investor:'hyung', category:'investment', label:'💰 형 투자금 회수' },
-  { value:'__inv:hyung:loan',       investor:'hyung', category:'loan',       label:'🏦 형 대출금 상환 회수' },
+  { value:'__inv:terry:investment', investor:'terry', category:'investment', label:'테리 투자금 회수' },
+  { value:'__inv:terry:loss',       investor:'terry', category:'loss',       label:'테리 운영 손해분 회수' },
+  { value:'__inv:terry:severance',  investor:'terry', category:'severance',  label:'테리 퇴직금 대납 회수' },
+  { value:'__inv:hyung:investment', investor:'hyung', category:'investment', label:'형 투자금 회수' },
+  { value:'__inv:hyung:loan',       investor:'hyung', category:'loan',       label:'형 대출금 상환 회수' },
 ]
 export const investOption = v => INVEST_OPTIONS.find(o=>o.value===v)
 

@@ -200,10 +200,10 @@ function matchFixed(txs, fixedItems, paysByMonth) {
 }
 
 const NONOP_KINDS = [
-  { value:'__loan',           kind:'loan',     label:'🤝 대여금(형)' },
-  { value:'__nonop_invest',   kind:'invest',   label:'💼 투자·정산' },
-  { value:'__nonop_personal', kind:'personal', label:'👤 개인 이체' },
-  { value:'__nonop_other',    kind:'other',    label:'📎 기타 영업외' },
+  { value:'__loan',           kind:'loan',     label:'대여금(형)' },
+  { value:'__nonop_invest',   kind:'invest',   label:'투자·정산' },
+  { value:'__nonop_personal', kind:'personal', label:'개인 이체' },
+  { value:'__nonop_other',    kind:'other',    label:'기타 영업외' },
 ]
 // '__inv:<투자자>:<종류>' = 투자·정산 중 투자관리 회수로도 기록되는 출금
 const kindOf = v => investOption(v) ? 'invest' : NONOP_KINDS.find(k=>k.value===v)?.kind
@@ -215,7 +215,7 @@ const isSangam = t => norm(t.matchText).startsWith('홍콩반점0410상')
 const builtinCat = (t, categories) => norm(t.matchText).startsWith('홍콩반점0410중') && categories.some(c=>c.id==='hq') ? 'hq' : ''
 const isNonOp = v => !!kindOf(v)
 
-const selStyle = {background:'#12141f',border:'1px solid #272a3d',borderRadius:6,color:'#dde1f2',
+const selStyle = {background:'#FFFFFF',border:'1px solid #DCD7CE',borderRadius:6,color:'#1D1B18',
   padding:'5px 8px',fontSize:11,outline:'none',fontFamily:'inherit'}
 
 export default function BankImport({ categories, onSaved }) {
@@ -504,37 +504,37 @@ export default function BankImport({ categories, onSaved }) {
   const renderRow = (r, amount, color, showCat) => {
     const dim = r.imported || r.recorded || (!r.out && !r.include) || r.cat==='skip'
     return (
-      <div key={r.key} style={{background:'#191c2b',borderRadius:8,padding:'8px 12px',display:'flex',alignItems:'center',gap:10,
+      <div key={r.key} style={{background:'#F3F1EC',borderRadius:4,padding:'8px 12px',display:'flex',alignItems:'center',gap:10,
         flexWrap:'wrap',opacity: dim ? (r.fixed?.paid || (!r.out && !r.recorded) ? 0.8 : 0.45) : 1}}>
         <input type="checkbox" checked={r.out ? (!r.imported && r.include && r.cat!=='skip') : r.include}
           disabled={r.imported || r.recorded}
           onChange={()=> !r.out ? updateDeposit(r.i, { include: !r.include })
             : r.cat==='skip' ? setCat(r.i, r.fixed?.categoryId || '') : toggle(r.i)}
           style={{width:16,height:16,cursor:r.imported||r.recorded?'default':'pointer',flexShrink:0}}/>
-        <span style={{fontSize:11,color:'#5e6585',fontFamily:'DM Mono,monospace',minWidth:80}}>{r.date.slice(5)} {r.time.slice(0,5)}</span>
-        <span style={{flex:1,fontSize:12,color:'#dde1f2',minWidth:120}}>
+        <span style={{fontSize:11,color:'#6E6A63',fontFamily:'inherit',fontVariantNumeric:'tabular-nums',minWidth:80}}>{r.date.slice(5)} {r.time.slice(0,5)}</span>
+        <span style={{flex:1,fontSize:12,color:'#1D1B18',minWidth:120}}>
           {r.desc || '—'}
           {r.fixed && (
-            <span style={{display:'block',fontSize:10,marginTop:2,color: r.fixed.paid ? '#5e6585' : '#93c5fd'}}>
-              📌 고정지출 '{r.fixed.label}' {r.fixed.paid
+            <span style={{display:'block',fontSize:10,marginTop:2,color: r.fixed.paid ? '#6E6A63' : '#2B5C9E'}}>
+              고정지출 '{r.fixed.label}' {r.fixed.paid
                 ? `— ${+r.fixed.paidDate || ''}일 납부 처리돼 있어서 중복이라 제외했어요`
                 : '— 반영하면 고정지출도 이 날짜로 납부 처리돼요'}
             </span>
           )}
           {r.loanDup && !r.imported && !r.recorded && (
-            <span style={{display:'block',fontSize:10,marginTop:2,color:'#5e6585'}}>대여금 장부에 이미 같은 기록이 있어서 장부에는 다시 쓰지 않아요</span>
+            <span style={{display:'block',fontSize:10,marginTop:2,color:'#6E6A63'}}>대여금 장부에 이미 같은 기록이 있어서 장부에는 다시 쓰지 않아요</span>
           )}
-          {r.selfTransfer && <span style={{display:'block',fontSize:10,marginTop:2,color:'#5e6585'}}>예금주(형) 본인 이체라 실입금에서 뺐어요</span>}
-          {r.sangam && !r.imported && !r.recorded && <span style={{display:'block',fontSize:10,marginTop:2,color:'#93c5fd'}}>상암점 계좌로 형과 주고받은 돈이라 형과의 대여금으로 보내요</span>}
+          {r.selfTransfer && <span style={{display:'block',fontSize:10,marginTop:2,color:'#6E6A63'}}>예금주(형) 본인 이체라 실입금에서 뺐어요</span>}
+          {r.sangam && !r.imported && !r.recorded && <span style={{display:'block',fontSize:10,marginTop:2,color:'#2B5C9E'}}>상암점 계좌로 형과 주고받은 돈이라 형과의 대여금으로 보내요</span>}
         </span>
-        <span style={{fontSize:13,fontWeight:700,color,fontFamily:'DM Mono,monospace',minWidth:90,textAlign:'right'}}>{wonFmt(amount)}원</span>
+        <span style={{fontSize:13,fontWeight:700,color,fontFamily:'inherit',fontVariantNumeric:'tabular-nums',minWidth:90,textAlign:'right'}}>{wonFmt(amount)}원</span>
         {(r.imported || r.recorded) ? (
-          <span style={{fontSize:10,color:'#5e6585',minWidth:110,textAlign:'center'}}>
-            ✓ 이미 반영됨{(r.recorded || isNonOp(r.cat)) ? ` (${investOption(r.cat)?.label || NONOP_KINDS.find(k=>k.value===(r.out?r.cat:r.kind))?.label||'영업외'})` : ''}
+          <span style={{fontSize:10,color:'#6E6A63',minWidth:110,textAlign:'center'}}>
+            이미 반영됨{(r.recorded || isNonOp(r.cat)) ? ` (${investOption(r.cat)?.label || NONOP_KINDS.find(k=>k.value===(r.out?r.cat:r.kind))?.label||'영업외'})` : ''}
           </span>
         ) : showCat ? (
           <select value={r.cat} onChange={e=>setCat(r.i, e.target.value)}
-            style={{...selStyle, minWidth:110, borderColor: r.include && !r.cat ? '#f87171' : '#272a3d'}}>
+            style={{...selStyle, minWidth:110, borderColor: r.include && !r.cat ? '#B42318' : '#DCD7CE'}}>
             <option value="">— 카테고리 —</option>
             {secs.map(sec=>(
               <optgroup key={sec} label={sec}>
@@ -560,19 +560,19 @@ export default function BankImport({ categories, onSaved }) {
 
   return (
     <div style={{padding:18}}>
-      <div style={{fontSize:12,color:'#5e6585',marginBottom:14,lineHeight:1.7}}>
-        인터넷뱅킹에서 받은 <b style={{color:'#dde1f2'}}>거래내역 엑셀(.xls / .xlsx / .csv) 또는 PDF</b>를 올리면 출금을 지출 카테고리별로 정리해요.<br/>
+      <div style={{fontSize:12,color:'#6E6A63',marginBottom:14,lineHeight:1.7}}>
+        인터넷뱅킹에서 받은 <b style={{color:'#1D1B18'}}>거래내역 엑셀(.xls / .xlsx / .csv) 또는 PDF</b>를 올리면 출금을 지출 카테고리별로 정리해요.<br/>
         한 번 고른 카테고리는 기억해서 다음부터 자동으로 골라줘요. 같은 파일을 다시 올려도 중복 반영되지 않아요.
       </div>
 
       <div onClick={()=>!busy && fileRef.current?.click()}
-        style={{border:'2px dashed #272a3d',borderRadius:10,padding:'24px',textAlign:'center',cursor:busy?'default':'pointer',marginBottom:14}}>
-        <div style={{fontSize:28,marginBottom:6}}>📑</div>
-        <div style={{fontSize:13,color:'#dde1f2'}}>{busy ? '읽는 중...' : fileName || '클릭해서 거래내역 파일 선택 (엑셀·PDF)'}</div>
+        style={{border:'2px dashed #DCD7CE',borderRadius:6,padding:'24px',textAlign:'center',cursor:busy?'default':'pointer',marginBottom:14}}>
+        <div style={{fontSize:28,marginBottom:6}}></div>
+        <div style={{fontSize:13,color:'#1D1B18'}}>{busy ? '읽는 중...' : fileName || '클릭해서 거래내역 파일 선택 (엑셀·PDF)'}</div>
       </div>
       <input ref={fileRef} type="file" accept=".xls,.xlsx,.csv,.pdf" style={{display:'none'}}
         onChange={e=>handleFile(e.target.files?.[0])}/>
-      {err && <div style={{fontSize:12,color:'#f87171',marginBottom:12}}>{err}</div>}
+      {err && <div style={{fontSize:12,color:'#B42318',marginBottom:12}}>{err}</div>}
       {pwFile && (
         <div style={{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap',marginBottom:14}}>
           <input type="password" autoFocus value={password} onChange={e=>setPassword(e.target.value)}
@@ -580,12 +580,12 @@ export default function BankImport({ categories, onSaved }) {
             placeholder="PDF 비밀번호" autoComplete="off"
             style={{...selStyle,padding:'8px 10px',fontSize:12,width:180}}/>
           <button onClick={()=>handleFile(pwFile, password)} disabled={busy||!password}
-            style={{background:'#f9b934',color:'#000',border:'none',borderRadius:7,padding:'8px 16px',
+            style={{background:'#C3261C',color:'#FFFFFF',border:'none',borderRadius:4,padding:'8px 16px',
               fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>열기</button>
-          <span style={{fontSize:10,color:'#5e6585'}}>비밀번호는 이 화면에서 파일을 여는 데만 쓰고 저장하지 않아요</span>
+          <span style={{fontSize:10,color:'#6E6A63'}}>비밀번호는 이 화면에서 파일을 여는 데만 쓰고 저장하지 않아요</span>
         </div>
       )}
-      {done && <div style={{fontSize:12,color:'#34d399',marginBottom:12}}>✅ {done}</div>}
+      {done && <div style={{fontSize:12,color:'#2E7D45',marginBottom:12}}>{done}</div>}
 
       {rows && (
         <>
@@ -593,20 +593,20 @@ export default function BankImport({ categories, onSaved }) {
             const outSum = outs.reduce((a,r)=>a+r.out,0), inSum = ins.reduce((a,r)=>a+r.in,0)
             const ok = (check.out===null || check.out===outSum) && (check.in===null || check.in===inSum)
             return (
-              <div style={{fontSize:11,marginBottom:12,padding:'8px 12px',borderRadius:8,
-                background: ok ? 'rgba(52,211,153,0.08)' : 'rgba(248,113,113,0.1)', color: ok ? '#34d399' : '#f87171'}}>
-                {ok ? '✅ PDF의 총 출금·입금 금액과 읽은 합계가 일치해요'
-                    : `⚠️ PDF 총액과 다르게 읽혔어요 (총 출금 ${wonFmt(check.out)}원 / 읽은 출금 ${wonFmt(outSum)}원, 총 입금 ${wonFmt(check.in)}원 / 읽은 입금 ${wonFmt(inSum)}원). 빠진 거래가 있을 수 있으니 알려주세요.`}
+              <div style={{fontSize:11,marginBottom:12,padding:'8px 12px',borderRadius:4,
+                background: ok ? 'rgba(46,125,69,0.08)' : 'rgba(180,35,24,0.1)', color: ok ? '#2E7D45' : '#B42318'}}>
+                {ok ? 'PDF의 총 출금·입금 금액과 읽은 합계가 일치해요'
+                    : `PDF 총액과 다르게 읽혔어요 (총 출금 ${wonFmt(check.out)}원 / 읽은 출금 ${wonFmt(outSum)}원, 총 입금 ${wonFmt(check.in)}원 / 읽은 입금 ${wonFmt(inSum)}원). 빠진 거래가 있을 수 있으니 알려주세요.`}
               </div>
             )
           })()}
           {pickedOut.length + depChanged.length + nonOpIn.length > 0 && (
-            <div style={{fontSize:11,marginBottom:12,padding:'8px 12px',borderRadius:8,background:'rgba(249,185,52,0.08)',color:'#f9b934'}}>
-              ⚠️ 아직 저장 전이에요. 카테고리를 고른 뒤 맨 아래 <b>"지출관리에 반영"</b>을 눌러야 지출관리에 들어가요. 다 못 골라도 고른 것만 먼저 반영할 수 있어요.
+            <div style={{fontSize:11,marginBottom:12,padding:'8px 12px',borderRadius:4,background:'rgba(195,38,28,0.08)',color:'#C3261C'}}>
+              아직 저장 전이에요. 카테고리를 고른 뒤 맨 아래 <b>"지출관리에 반영"</b>을 눌러야 지출관리에 들어가요. 다 못 골라도 고른 것만 먼저 반영할 수 있어요.
             </div>
           )}
           {!rulesOk && (
-            <div style={{fontSize:11,marginBottom:12,color:'#5e6585'}}>
+            <div style={{fontSize:11,marginBottom:12,color:'#6E6A63'}}>
               ℹ️ 카테고리 기억 기능을 쓸 수 없어요(Firebase 보안 규칙에 expenseImportRules 허용 필요). 지출 반영은 정상적으로 돼요.
             </div>
           )}
@@ -615,37 +615,37 @@ export default function BankImport({ categories, onSaved }) {
             const excluded = ins.filter(r=>!r.include)
             const shownDays = depDays.filter(d=>d.cur || d.pdf)
             return (
-              <div style={{marginBottom:16,background:'rgba(52,211,153,0.04)',border:'1px solid rgba(52,211,153,0.2)',borderRadius:10,padding:12}}>
-                <label style={{display:'flex',alignItems:'center',gap:8,fontSize:12,fontWeight:600,color:'#34d399',cursor:'pointer'}}>
+              <div style={{marginBottom:16,background:'rgba(46,125,69,0.04)',border:'1px solid rgba(46,125,69,0.2)',borderRadius:6,padding:12}}>
+                <label style={{display:'flex',alignItems:'center',gap:8,fontSize:12,fontWeight:600,color:'#2E7D45',cursor:'pointer'}}>
                   <input type="checkbox" checked={withDeposits} onChange={e=>setWithDeposits(e.target.checked)} style={{width:16,height:16}}/>
-                  💰 실입금액을 PDF 입금으로 맞추기 ({+period[0].slice(5,7)}/{+period[0].slice(8)} ~ {+period[1].slice(5,7)}/{+period[1].slice(8)})
+                  실입금액을 PDF 입금으로 맞추기 ({+period[0].slice(5,7)}/{+period[0].slice(8)} ~ {+period[1].slice(5,7)}/{+period[1].slice(8)})
                 </label>
-                <div style={{fontSize:10,color:'#5e6585',margin:'6px 0 10px 24px',lineHeight:1.6}}>
+                <div style={{fontSize:10,color:'#6E6A63',margin:'6px 0 10px 24px',lineHeight:1.6}}>
                   이 기간 날짜별 실입금액을 아래 'PDF' 금액으로 <b>바꿔요</b>(더하지 않아요). 직접 적어둔 금액은 PDF 금액으로 대체돼요.<br/>
                   매출이 아닌 입금(형 대여금·투자금·개인 이체 등)은 아래 입금 내역에서 체크를 빼고 종류를 고르면 '영업 외 거래'로 기록돼요. 다음부터 자동으로 빠져요.
                 </div>
                 {withDeposits && (
                   <>
                     <div style={{display:'flex',gap:16,flexWrap:'wrap',fontSize:12,marginBottom:8}}>
-                      <span style={{color:'#5e6585'}}>지금 적힌 합계 <b style={{color:'#dde1f2',fontFamily:'DM Mono,monospace'}}>{wonFmt(curSum)}원</b></span>
-                      <span style={{color:'#5e6585'}}>PDF 기준 합계 <b style={{color:'#34d399',fontFamily:'DM Mono,monospace'}}>{wonFmt(pdfSum)}원</b></span>
-                      <span style={{color: depChanged.length ? '#f9b934' : '#34d399'}}>{depChanged.length ? `${depChanged.length}일 금액이 달라요` : '✅ 모든 날짜가 일치해요'}</span>
+                      <span style={{color:'#6E6A63'}}>지금 적힌 합계 <b style={{color:'#1D1B18',fontFamily:'inherit',fontVariantNumeric:'tabular-nums'}}>{wonFmt(curSum)}원</b></span>
+                      <span style={{color:'#6E6A63'}}>PDF 기준 합계 <b style={{color:'#2E7D45',fontFamily:'inherit',fontVariantNumeric:'tabular-nums'}}>{wonFmt(pdfSum)}원</b></span>
+                      <span style={{color: depChanged.length ? '#C3261C' : '#2E7D45'}}>{depChanged.length ? `${depChanged.length}일 금액이 달라요` : '모든 날짜가 일치해요'}</span>
                     </div>
-                    <div style={{maxHeight:240,overflowY:'auto',border:'1px solid #272a3d',borderRadius:8,marginBottom:8}}>
+                    <div style={{maxHeight:240,overflowY:'auto',border:'1px solid #DCD7CE',borderRadius:4,marginBottom:8}}>
                       <table style={{width:'100%',borderCollapse:'collapse',fontSize:11}}>
-                        <thead><tr style={{background:'#191c2b',color:'#5e6585'}}>
+                        <thead><tr style={{background:'#F3F1EC',color:'#6E6A63'}}>
                           {['날짜','지금 적힌 금액','PDF 금액','차이'].map((h,i)=><th key={h} style={{padding:'6px 10px',textAlign:i?'right':'left',fontWeight:600}}>{h}</th>)}
                         </tr></thead>
                         <tbody>
                           {shownDays.map(d=>{
                             const diff = d.pdf - d.cur
                             return (
-                              <tr key={d.date} style={{background: diff ? 'rgba(249,185,52,0.06)' : 'transparent'}}>
-                                <td style={{padding:'5px 10px',borderTop:'1px solid #272a3d',color:'#dde1f2'}}>{+d.date.slice(5,7)}/{+d.date.slice(8)}</td>
-                                <td style={{padding:'5px 10px',borderTop:'1px solid #272a3d',textAlign:'right',fontFamily:'DM Mono,monospace',color:'#5e6585'}}>{d.cur?wonFmt(d.cur):'—'}</td>
-                                <td style={{padding:'5px 10px',borderTop:'1px solid #272a3d',textAlign:'right',fontFamily:'DM Mono,monospace',color:'#34d399'}}>{wonFmt(d.pdf)}</td>
-                                <td style={{padding:'5px 10px',borderTop:'1px solid #272a3d',textAlign:'right',fontFamily:'DM Mono,monospace',
-                                  color: diff>0 ? '#f9b934' : diff<0 ? '#f87171' : '#5e6585'}}>{diff ? `${diff>0?'+':''}${wonFmt(diff)}` : '일치'}</td>
+                              <tr key={d.date} style={{background: diff ? 'rgba(195,38,28,0.06)' : 'transparent'}}>
+                                <td style={{padding:'5px 10px',borderTop:'1px solid #DCD7CE',color:'#1D1B18'}}>{+d.date.slice(5,7)}/{+d.date.slice(8)}</td>
+                                <td style={{padding:'5px 10px',borderTop:'1px solid #DCD7CE',textAlign:'right',fontFamily:'inherit',fontVariantNumeric:'tabular-nums',color:'#6E6A63'}}>{d.cur?wonFmt(d.cur):'—'}</td>
+                                <td style={{padding:'5px 10px',borderTop:'1px solid #DCD7CE',textAlign:'right',fontFamily:'inherit',fontVariantNumeric:'tabular-nums',color:'#2E7D45'}}>{wonFmt(d.pdf)}</td>
+                                <td style={{padding:'5px 10px',borderTop:'1px solid #DCD7CE',textAlign:'right',fontFamily:'inherit',fontVariantNumeric:'tabular-nums',
+                                  color: diff>0 ? '#C3261C' : diff<0 ? '#B42318' : '#6E6A63'}}>{diff ? `${diff>0?'+':''}${wonFmt(diff)}` : '일치'}</td>
                               </tr>
                             )
                           })}
@@ -653,12 +653,12 @@ export default function BankImport({ categories, onSaved }) {
                       </table>
                     </div>
                     <button type="button" onClick={()=>setShowDepRows(v=>!v)}
-                      style={{background:'transparent',border:'none',color:'#93c5fd',fontSize:11,cursor:'pointer',fontFamily:'inherit',padding:0}}>
+                      style={{background:'transparent',border:'none',color:'#2B5C9E',fontSize:11,cursor:'pointer',fontFamily:'inherit',padding:0}}>
                       {showDepRows ? '▾ 입금 내역 접기' : `▸ 입금 내역 ${ins.length}건 보기`}{excluded.length ? ` (제외 ${excluded.length}건 · ${wonFmt(excluded.reduce((a,r)=>a+r.in,0))}원)` : ''}{nonOpIn.length ? ` · 영업 외 입금 ${nonOpIn.length}건 기록 예정` : ''}
                     </button>
                     {showDepRows && (
                       <div style={{display:'flex',flexDirection:'column',gap:6,marginTop:8}}>
-                        {ins.map(r=>renderRow(r, r.in, '#34d399', false))}
+                        {ins.map(r=>renderRow(r, r.in, '#2E7D45', false))}
                       </div>
                     )}
                   </>
@@ -668,24 +668,24 @@ export default function BankImport({ categories, onSaved }) {
           })()}
 
           <div style={{fontSize:12,fontWeight:600,marginBottom:8,display:'flex',justifyContent:'space-between',flexWrap:'wrap',gap:6}}>
-            <span style={{color:'#f87171'}}>💸 출금 {outs.length}건</span>
-            <span style={{color:'#5e6585',fontWeight:400}}>
+            <span style={{color:'#B42318'}}>출금 {outs.length}건</span>
+            <span style={{color:'#6E6A63',fontWeight:400}}>
               지출 {expOut.length}건 · {wonFmt(expOut.reduce((a,r)=>a+r.out,0))}원{nonOpOut.length ? ` / 영업 외 ${nonOpOut.length}건 · ${wonFmt(nonOpOut.reduce((a,r)=>a+r.out,0))}원` : ''}
-              {unassigned>0 && <b style={{color:'#f87171',marginLeft:6}}>미분류 {unassigned}건</b>}
+              {unassigned>0 && <b style={{color:'#B42318',marginLeft:6}}>미분류 {unassigned}건</b>}
             </span>
           </div>
           <div style={{display:'flex',flexDirection:'column',gap:6,marginBottom:16}}>
-            {outs.map(r=>renderRow(r, r.out, '#f87171', true))}
+            {outs.map(r=>renderRow(r, r.out, '#B42318', true))}
           </div>
 
           <div style={{display:'flex',gap:8}}>
             <button onClick={save} disabled={busy}
-              style={{flex:1,background:'#34d399',color:'#000',border:'none',borderRadius:8,padding:'11px',
+              style={{flex:1,background:'#2E7D45',color:'#FFFFFF',border:'none',borderRadius:4,padding:'11px',
                 fontSize:13,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
-              {busy ? '저장 중...' : `💾 지출관리에 반영 (지출 ${expOut.length}건${depChanged.length?` · 실입금 ${depChanged.length}일`:''}${nonOpOut.length+nonOpIn.length?` · 영업외 ${nonOpOut.length+nonOpIn.length}건`:''})`}
+              {busy ? '저장 중...' : `지출관리에 반영 (지출 ${expOut.length}건${depChanged.length?` · 실입금 ${depChanged.length}일`:''}${nonOpOut.length+nonOpIn.length?` · 영업외 ${nonOpOut.length+nonOpIn.length}건`:''})`}
             </button>
             <button onClick={()=>{ setRows(null); setFileName(''); if(fileRef.current) fileRef.current.value='' }}
-              style={{background:'#191c2b',color:'#5e6585',border:'1px solid #272a3d',borderRadius:8,
+              style={{background:'#F3F1EC',color:'#6E6A63',border:'1px solid #DCD7CE',borderRadius:4,
                 padding:'11px 16px',fontSize:12,cursor:'pointer',fontFamily:'inherit'}}>
               취소
             </button>

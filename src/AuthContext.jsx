@@ -31,27 +31,27 @@ export function GradeBadge({ joinDate, size = 12 }) {
   if (grade === 'chick') {
     return (
       <span style={{display:'inline-flex',alignItems:'center',gap:4,
-        background:'rgba(251,191,36,0.15)',color:'#fbbf24',
+        background:'rgba(180,83,9,0.15)',color:'#B45309',
         fontSize:size,fontWeight:600,padding:'2px 8px',borderRadius:999,whiteSpace:'nowrap'}}>
-        🐣 병아리
+        병아리
       </span>
     )
   }
   if (grade === 'senior') {
     return (
       <span style={{display:'inline-flex',alignItems:'center',gap:4,
-        background:'rgba(248,113,113,0.15)',color:'#f87171',
+        background:'rgba(180,35,24,0.15)',color:'#B42318',
         fontSize:size,fontWeight:600,padding:'2px 8px',borderRadius:999,whiteSpace:'nowrap'}}>
-        ⭐ 고오급인력
+        고오급인력
       </span>
     )
   }
   const stars = Math.max(1, years)
   return (
     <span style={{display:'inline-flex',alignItems:'center',gap:4,
-      background:'rgba(234,179,8,0.15)',color:'#eab308',
+      background:'rgba(180,83,9,0.15)',color:'#B45309',
       fontSize:size,fontWeight:600,padding:'2px 8px',borderRadius:999,whiteSpace:'nowrap'}}>
-      {'🌟'.repeat(Math.min(stars,5))} 대선배
+      {'★'.repeat(Math.min(stars,5))} 대선배
     </span>
   )
 }
@@ -79,7 +79,7 @@ export function AuthProvider({ children }) {
 
   const isOwner    = userData?.role === 'owner'
   const isStore    = userData?.role === 'store'
-  const isInvestor = userData?.role === 'investor'  // 👈 추가
+  const isInvestor = userData?.role === 'investor'  // 추가
   const isPending  = userData?.status === 'pending'
   const isLegend   = calcGrade(userData?.joinDate) === 'legend'
 

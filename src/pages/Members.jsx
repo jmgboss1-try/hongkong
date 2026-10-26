@@ -33,9 +33,9 @@ function maskSSN(ssn) {
 
 // 계정 역할 표시 — 매장/투자자 계정은 일반 직원과 권한이 다름 (매출입력 등)
 function RoleBadge({ role }) {
-  const r = role==='store'    ? { label:'🏪 매장계정', color:'#93c5fd' }
-          : role==='investor' ? { label:'🤝 투자자',   color:'#34d399' }
-          : { label:'👤 직원', color:'#5e6585' }
+  const r = role==='store'    ? { label:'매장계정', color:'#2B5C9E' }
+          : role==='investor' ? { label:'투자자',   color:'#2E7D45' }
+          : { label:'직원', color:'#6E6A63' }
   return (
     <span style={{fontSize:10,fontWeight:700,padding:'2px 8px',borderRadius:999,whiteSpace:'nowrap',
       color:r.color,border:`1px solid ${r.color}55`,background:`${r.color}1a`}}>
@@ -50,7 +50,7 @@ function MemberCard({ m, onEdit, onRetire }) {
   const severance = calcSeverance(m.joinDate, null, m.wage||10030, m.avgHours||8)
 
   return (
-    <div style={{background:'#191c2b',border:'1px solid #272a3d',borderRadius:12,overflow:'hidden'}}>
+    <div style={{background:'#F3F1EC',border:'1px solid #DCD7CE',borderRadius:6,overflow:'hidden'}}>
       <div style={{padding:'16px',display:'flex',alignItems:'center',justifyContent:'space-between',cursor:'pointer'}}
         onClick={()=>setShowDetail(v=>!v)}>
         <div style={{display:'flex',flexDirection:'column',gap:6}}>
@@ -59,53 +59,53 @@ function MemberCard({ m, onEdit, onRetire }) {
             <GradeBadge joinDate={m.joinDate} size={11}/>
             <RoleBadge role={m.role}/>
           </div>
-          <div style={{fontSize:11,color:'#5e6585'}}>
-            📅 입사일: {m.joinDate||'미입력'} · 근속 {tenure}
+          <div style={{fontSize:11,color:'#6E6A63'}}>
+            입사일: {m.joinDate||'미입력'} · 근속 {tenure}
           </div>
         </div>
-        <div style={{fontSize:12,color:'#5e6585'}}>{showDetail?'▲':'▼'}</div>
+        <div style={{fontSize:12,color:'#6E6A63'}}>{showDetail?'▲':'▼'}</div>
       </div>
       {showDetail && (
-        <div style={{borderTop:'1px solid #272a3d',padding:'16px',display:'flex',flexDirection:'column',gap:10}}>
+        <div style={{borderTop:'1px solid #DCD7CE',padding:'16px',display:'flex',flexDirection:'column',gap:10}}>
           <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
             {[
-              ['📱 연락처', m.phone||'—'],
-              ['✉️ 이메일', m.email||'—'],
-              ['🏦 계좌번호', m.account||'—'],
-              ['🔐 주민번호', maskSSN(m.ssn)],
+              ['연락처', m.phone||'—'],
+              ['이메일', m.email||'—'],
+              ['계좌번호', m.account||'—'],
+              ['주민번호', maskSSN(m.ssn)],
               ...(m.payType==='fixed'
-                ? [['💰 월 고정급', `${(m.fixedSalary||0).toLocaleString()}원`]]
+                ? [['월 고정급', `${(m.fixedSalary||0).toLocaleString()}원`]]
                 : [
-                    ['💰 시급', `${(m.wage||10030).toLocaleString()}원`],
-                    ['⏱ 평균 근무시간', `${m.avgHours||8}h/일`],
+                    ['시급', `${(m.wage||10030).toLocaleString()}원`],
+                    ['평균 근무시간', `${m.avgHours||8}h/일`],
                   ]
               ),
             ].map(([label,val])=>(
-              <div key={label} style={{background:'#12141f',borderRadius:8,padding:'10px 12px'}}>
-                <div style={{fontSize:10,color:'#5e6585',marginBottom:3}}>{label}</div>
-                <div style={{fontSize:12,color:'#dde1f2',fontFamily:'DM Mono,monospace'}}>{val}</div>
+              <div key={label} style={{background:'#FFFFFF',borderRadius:4,padding:'10px 12px'}}>
+                <div style={{fontSize:10,color:'#6E6A63',marginBottom:3}}>{label}</div>
+                <div style={{fontSize:12,color:'#1D1B18',fontFamily:'inherit',fontVariantNumeric:'tabular-nums'}}>{val}</div>
               </div>
             ))}
           </div>
-          <div style={{background:'rgba(249,185,52,0.08)',border:'1px solid rgba(249,185,52,0.2)',borderRadius:8,padding:'12px 14px',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+          <div style={{background:'rgba(195,38,28,0.08)',border:'1px solid rgba(195,38,28,0.2)',borderRadius:4,padding:'12px 14px',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
             <div>
-              <div style={{fontSize:10,color:'#5e6585',marginBottom:3}}>📦 예상 퇴직금 (현재 기준)</div>
-              <div style={{fontSize:16,fontWeight:700,color:'#f9b934',fontFamily:'DM Mono,monospace'}}>
+              <div style={{fontSize:10,color:'#6E6A63',marginBottom:3}}>예상 퇴직금 (현재 기준)</div>
+              <div style={{fontSize:16,fontWeight:700,color:'#C3261C',fontFamily:'inherit',fontVariantNumeric:'tabular-nums'}}>
                 {severance > 0 ? severance.toLocaleString()+'원' : '1년 미만 (해당없음)'}
               </div>
             </div>
-            <div style={{fontSize:10,color:'#5e6585',textAlign:'right',lineHeight:1.8}}>
+            <div style={{fontSize:10,color:'#6E6A63',textAlign:'right',lineHeight:1.8}}>
               근속 {tenure}<br/>시급 {(m.wage||10030).toLocaleString()}원
             </div>
           </div>
           <div style={{display:'flex',gap:8}}>
             <button onClick={()=>onEdit(m)}
-              style={{background:'#f9b934',color:'#000',border:'none',borderRadius:7,padding:'8px 16px',fontSize:11,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
-              ✏️ 정보 수정
+              style={{background:'#C3261C',color:'#FFFFFF',border:'none',borderRadius:4,padding:'8px 16px',fontSize:11,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
+              정보 수정
             </button>
             <button onClick={()=>onRetire(m)}
-              style={{background:'transparent',border:'1px solid #f87171',color:'#f87171',borderRadius:7,padding:'8px 16px',fontSize:11,cursor:'pointer',fontFamily:'inherit'}}>
-              📤 퇴직 처리
+              style={{background:'transparent',border:'1px solid #B42318',color:'#B42318',borderRadius:4,padding:'8px 16px',fontSize:11,cursor:'pointer',fontFamily:'inherit'}}>
+              퇴직 처리
             </button>
           </div>
         </div>
@@ -120,52 +120,52 @@ function RetiredCard({ m, onRestore }) {
   const severance = calcSeverance(m.joinDate, m.leaveDate, m.wage||10030, m.avgHours||8)
 
   return (
-    <div style={{background:'#191c2b',border:'1px solid #272a3d',borderRadius:12,overflow:'hidden',opacity:0.8}}>
+    <div style={{background:'#F3F1EC',border:'1px solid #DCD7CE',borderRadius:6,overflow:'hidden',opacity:0.8}}>
       <div style={{padding:'16px',display:'flex',alignItems:'center',justifyContent:'space-between',cursor:'pointer'}}
         onClick={()=>setShowDetail(v=>!v)}>
         <div style={{display:'flex',flexDirection:'column',gap:6}}>
           <div style={{display:'flex',alignItems:'center',gap:10}}>
-            <div style={{fontSize:16,fontWeight:700,color:'#5e6585'}}>{m.name}</div>
-            <span style={{fontSize:10,background:'rgba(94,101,133,0.2)',color:'#5e6585',padding:'2px 8px',borderRadius:4,fontWeight:600}}>퇴직</span>
+            <div style={{fontSize:16,fontWeight:700,color:'#6E6A63'}}>{m.name}</div>
+            <span style={{fontSize:10,background:'rgba(94,101,133,0.2)',color:'#6E6A63',padding:'2px 8px',borderRadius:4,fontWeight:600}}>퇴직</span>
           </div>
-          <div style={{fontSize:11,color:'#5e6585'}}>
-            📅 {m.joinDate||'?'} ~ {m.leaveDate||'?'} · 근속 {tenure}
+          <div style={{fontSize:11,color:'#6E6A63'}}>
+            {m.joinDate||'?'} ~ {m.leaveDate||'?'} · 근속 {tenure}
           </div>
         </div>
-        <div style={{fontSize:12,color:'#5e6585'}}>{showDetail?'▲':'▼'}</div>
+        <div style={{fontSize:12,color:'#6E6A63'}}>{showDetail?'▲':'▼'}</div>
       </div>
       {showDetail && (
-        <div style={{borderTop:'1px solid #272a3d',padding:'16px',display:'flex',flexDirection:'column',gap:10}}>
+        <div style={{borderTop:'1px solid #DCD7CE',padding:'16px',display:'flex',flexDirection:'column',gap:10}}>
           <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
             {[
-              ['📅 입사일', m.joinDate||'—'],
-              ['📤 퇴사일', m.leaveDate||'—'],
-              ['📱 연락처', m.phone||'—'],
-              ['🏦 계좌번호', m.account||'—'],
-              ['💰 마지막 시급', `${(m.wage||10030).toLocaleString()}원`],
-              ['⏱ 평균 근무시간', `${m.avgHours||8}h/일`],
+              ['입사일', m.joinDate||'—'],
+              ['퇴사일', m.leaveDate||'—'],
+              ['연락처', m.phone||'—'],
+              ['계좌번호', m.account||'—'],
+              ['마지막 시급', `${(m.wage||10030).toLocaleString()}원`],
+              ['평균 근무시간', `${m.avgHours||8}h/일`],
             ].map(([label,val])=>(
-              <div key={label} style={{background:'#12141f',borderRadius:8,padding:'10px 12px'}}>
-                <div style={{fontSize:10,color:'#5e6585',marginBottom:3}}>{label}</div>
-                <div style={{fontSize:12,color:'#dde1f2',fontFamily:'DM Mono,monospace'}}>{val}</div>
+              <div key={label} style={{background:'#FFFFFF',borderRadius:4,padding:'10px 12px'}}>
+                <div style={{fontSize:10,color:'#6E6A63',marginBottom:3}}>{label}</div>
+                <div style={{fontSize:12,color:'#1D1B18',fontFamily:'inherit',fontVariantNumeric:'tabular-nums'}}>{val}</div>
               </div>
             ))}
           </div>
-          <div style={{background:'rgba(94,101,133,0.08)',border:'1px solid rgba(94,101,133,0.2)',borderRadius:8,padding:'12px 14px',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+          <div style={{background:'rgba(94,101,133,0.08)',border:'1px solid rgba(94,101,133,0.2)',borderRadius:4,padding:'12px 14px',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
             <div>
-              <div style={{fontSize:10,color:'#5e6585',marginBottom:3}}>📦 퇴직금 (퇴사일 기준)</div>
-              <div style={{fontSize:16,fontWeight:700,color:'#f9b934',fontFamily:'DM Mono,monospace'}}>
+              <div style={{fontSize:10,color:'#6E6A63',marginBottom:3}}>퇴직금 (퇴사일 기준)</div>
+              <div style={{fontSize:16,fontWeight:700,color:'#C3261C',fontFamily:'inherit',fontVariantNumeric:'tabular-nums'}}>
                 {severance > 0 ? severance.toLocaleString()+'원' : '1년 미만 (해당없음)'}
               </div>
             </div>
-            <div style={{fontSize:10,color:'#5e6585',textAlign:'right',lineHeight:1.8}}>
+            <div style={{fontSize:10,color:'#6E6A63',textAlign:'right',lineHeight:1.8}}>
               근속 {tenure}<br/>시급 {(m.wage||10030).toLocaleString()}원
             </div>
           </div>
           <button onClick={()=>onRestore(m)}
-            style={{background:'transparent',border:'1px solid #34d399',color:'#34d399',borderRadius:7,
+            style={{background:'transparent',border:'1px solid #2E7D45',color:'#2E7D45',borderRadius:4,
               padding:'8px 16px',fontSize:11,cursor:'pointer',fontFamily:'inherit'}}>
-            🔄 복직 처리
+            복직 처리
           </button>
         </div>
       )}
@@ -343,51 +343,51 @@ export default function Members() {
     <div>
       <div style={{display:'flex',alignItems:'flex-end',justifyContent:'space-between',marginBottom:22}}>
         <div>
-          <div style={{fontSize:20,fontWeight:700}}>📁 인원관리</div>
-          <div style={{fontSize:12,color:'#5e6585',marginTop:2}}>사장 전용 — 승인된 직원 정보</div>
+          <div style={{fontSize:20,fontWeight:700}}>인원관리</div>
+          <div style={{fontSize:12,color:'#6E6A63',marginTop:2}}>사장 전용 — 승인된 직원 정보</div>
         </div>
         <button onClick={()=>{ setShowAddForm(v=>!v); setAddForm({payType:'hourly',employType:'part',workDays:[1,2,3,4,5]}) }}
-          style={{background:'#f9b934',color:'#000',border:'none',borderRadius:8,
+          style={{background:'#C3261C',color:'#FFFFFF',border:'none',borderRadius:4,
             padding:'8px 16px',fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
           + 직원 추가
         </button>
       </div>
 
       {/* 총 퇴직금 */}
-      <div style={{background:'#12141f',border:'1px solid #272a3d',borderRadius:12,padding:'18px 20px',marginBottom:18,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+      <div style={{background:'#FFFFFF',border:'1px solid #DCD7CE',borderRadius:6,padding:'18px 20px',marginBottom:18,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
         <div>
-          <div style={{fontSize:11,color:'#5e6585',marginBottom:4}}>📦 전체 예상 퇴직금 합계</div>
-          <div style={{fontSize:22,fontWeight:700,color:'#f9b934',fontFamily:'DM Mono,monospace'}}>{totalSeverance.toLocaleString()}원</div>
+          <div style={{fontSize:11,color:'#6E6A63',marginBottom:4}}>전체 예상 퇴직금 합계</div>
+          <div style={{fontSize:22,fontWeight:700,color:'#C3261C',fontFamily:'inherit',fontVariantNumeric:'tabular-nums'}}>{totalSeverance.toLocaleString()}원</div>
         </div>
-        <div style={{fontSize:11,color:'#5e6585'}}>재직 {members.length}명 · 퇴직 {retired.length}명</div>
+        <div style={{fontSize:11,color:'#6E6A63'}}>재직 {members.length}명 · 퇴직 {retired.length}명</div>
       </div>
 
       {/* 직원 추가 폼 */}
       {showAddForm && (
-        <div style={{background:'#12141f',border:'1px solid #34d399',borderRadius:12,marginBottom:18}}>
-          <div style={{padding:'14px 18px',borderBottom:'1px solid #272a3d',fontSize:13,fontWeight:600,
-            color:'#34d399',display:'flex',justifyContent:'space-between'}}>
-            <span>➕ 새 직원 추가</span>
+        <div style={{background:'#FFFFFF',border:'1px solid #2E7D45',borderRadius:6,marginBottom:18}}>
+          <div style={{padding:'14px 18px',borderBottom:'1px solid #DCD7CE',fontSize:13,fontWeight:600,
+            color:'#2E7D45',display:'flex',justifyContent:'space-between'}}>
+            <span>새 직원 추가</span>
             <button onClick={()=>setShowAddForm(false)}
-              style={{background:'transparent',border:'none',color:'#5e6585',fontSize:18,cursor:'pointer'}}>✕</button>
+              style={{background:'transparent',border:'none',color:'#6E6A63',fontSize:18,cursor:'pointer'}}>✕</button>
           </div>
 
           {/* 급여 방식 */}
           <div style={{padding:'14px 18px 0'}}>
-            <label style={{fontSize:10,color:'#5e6585',fontWeight:600,display:'block',marginBottom:8}}>급여 방식</label>
+            <label style={{fontSize:10,color:'#6E6A63',fontWeight:600,display:'block',marginBottom:8}}>급여 방식</label>
             <div style={{display:'flex',gap:8,marginBottom:14}}>
               {[
-                {key:'hourly', label:'⏱ 시급제',   desc:'근무시간 기반 계산'},
-                {key:'fixed',  label:'📅 고정급제', desc:'매달 고정 금액 지급'},
+                {key:'hourly', label:'시급제',   desc:'근무시간 기반 계산'},
+                {key:'fixed',  label:'고정급제', desc:'매달 고정 금액 지급'},
               ].map(opt=>{
                 const selected = (addForm.payType||'hourly') === opt.key
                 return (
                   <div key={opt.key} onClick={()=>setAddForm(f=>({...f,payType:opt.key}))}
-                    style={{flex:1,padding:'10px 14px',borderRadius:8,cursor:'pointer',
-                      background:selected?'rgba(52,211,153,0.12)':'#191c2b',
-                      border:selected?'1px solid #34d399':'1px solid #272a3d'}}>
-                    <div style={{fontSize:12,fontWeight:600,color:selected?'#34d399':'#5e6585',marginBottom:3}}>{opt.label}</div>
-                    <div style={{fontSize:10,color:'#5e6585'}}>{opt.desc}</div>
+                    style={{flex:1,padding:'10px 14px',borderRadius:4,cursor:'pointer',
+                      background:selected?'rgba(46,125,69,0.12)':'#F3F1EC',
+                      border:selected?'1px solid #2E7D45':'1px solid #DCD7CE'}}>
+                    <div style={{fontSize:12,fontWeight:600,color:selected?'#2E7D45':'#6E6A63',marginBottom:3}}>{opt.label}</div>
+                    <div style={{fontSize:10,color:'#6E6A63'}}>{opt.desc}</div>
                   </div>
                 )
               })}
@@ -411,10 +411,10 @@ export default function Members() {
               ),
             ].map(([label,type,key])=>(
               <div key={key} style={{display:'flex',flexDirection:'column',gap:4}}>
-                <label style={{fontSize:10,color:'#5e6585',fontWeight:600}}>{label}</label>
+                <label style={{fontSize:10,color:'#6E6A63',fontWeight:600}}>{label}</label>
                 <input type={type} value={addForm[key]||''}
                   onChange={e=>setAddForm(f=>({...f,[key]:e.target.value}))}
-                  style={{background:'#191c2b',border:'1px solid #272a3d',borderRadius:7,color:'#dde1f2',
+                  style={{background:'#F3F1EC',border:'1px solid #DCD7CE',borderRadius:4,color:'#1D1B18',
                     padding:'8px 10px',fontSize:12,outline:'none',width:'100%',fontFamily:'inherit'}}/>
               </div>
             ))}
@@ -422,21 +422,21 @@ export default function Members() {
 
           {/* 고용 유형 */}
           <div style={{padding:'0 18px 14px'}}>
-            <label style={{fontSize:10,color:'#5e6585',fontWeight:600,display:'block',marginBottom:8}}>고용 유형 (공제 기준)</label>
+            <label style={{fontSize:10,color:'#6E6A63',fontWeight:600,display:'block',marginBottom:8}}>고용 유형 (공제 기준)</label>
             <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
               {[
-                {key:'part', label:'🕐 아르바이트', desc:'3.3% 원천징수'},
-                {key:'full', label:'💼 정직원',     desc:'4대보험 적용'},
-                {key:'none', label:'✕ 공제없음',   desc:'세전 지급'},
+                {key:'part', label:'아르바이트', desc:'3.3% 원천징수'},
+                {key:'full', label:'정직원',     desc:'4대보험 적용'},
+                {key:'none', label:'공제없음',   desc:'세전 지급'},
               ].map(opt=>{
                 const selected = (addForm.employType||'part') === opt.key
                 return (
                   <div key={opt.key} onClick={()=>setAddForm(f=>({...f,employType:opt.key}))}
-                    style={{flex:1,padding:'10px 14px',borderRadius:8,cursor:'pointer',
-                      background:selected?'rgba(52,211,153,0.12)':'#191c2b',
-                      border:selected?'1px solid #34d399':'1px solid #272a3d',minWidth:100}}>
-                    <div style={{fontSize:12,fontWeight:600,color:selected?'#34d399':'#5e6585',marginBottom:3}}>{opt.label}</div>
-                    <div style={{fontSize:10,color:'#5e6585'}}>{opt.desc}</div>
+                    style={{flex:1,padding:'10px 14px',borderRadius:4,cursor:'pointer',
+                      background:selected?'rgba(46,125,69,0.12)':'#F3F1EC',
+                      border:selected?'1px solid #2E7D45':'1px solid #DCD7CE',minWidth:100}}>
+                    <div style={{fontSize:12,fontWeight:600,color:selected?'#2E7D45':'#6E6A63',marginBottom:3}}>{opt.label}</div>
+                    <div style={{fontSize:10,color:'#6E6A63'}}>{opt.desc}</div>
                   </div>
                 )
               })}
@@ -445,53 +445,53 @@ export default function Members() {
 
           <div style={{padding:'0 18px 18px',display:'flex',gap:8,alignItems:'center'}}>
             <button onClick={addMember} disabled={addSaving}
-              style={{background:'#34d399',color:'#000',border:'none',borderRadius:8,
+              style={{background:'#2E7D45',color:'#FFFFFF',border:'none',borderRadius:4,
                 padding:'9px 20px',fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
               {addSaving?'추가 중...':'직원 추가'}
             </button>
             <button onClick={()=>setShowAddForm(false)}
-              style={{background:'#191c2b',color:'#5e6585',border:'1px solid #272a3d',borderRadius:8,
+              style={{background:'#F3F1EC',color:'#6E6A63',border:'1px solid #DCD7CE',borderRadius:4,
                 padding:'9px 20px',fontSize:12,cursor:'pointer',fontFamily:'inherit'}}>
               취소
             </button>
-            <span style={{fontSize:10,color:'#5e6585'}}>* 이 직원은 앱 로그인 없이 급여관리에만 반영돼요</span>
+            <span style={{fontSize:10,color:'#6E6A63'}}>* 이 직원은 앱 로그인 없이 급여관리에만 반영돼요</span>
           </div>
         </div>
       )}
 
       {/* 퇴직 처리 모달 */}
       {retireForm && (
-        <div style={{background:'#12141f',border:'1px solid #f87171',borderRadius:12,marginBottom:18,padding:'18px'}}>
-          <div style={{fontSize:13,fontWeight:600,color:'#f87171',marginBottom:14}}>
-            📤 {retireForm.name} 퇴직 처리
+        <div style={{background:'#FFFFFF',border:'1px solid #B42318',borderRadius:6,marginBottom:18,padding:'18px'}}>
+          <div style={{fontSize:13,fontWeight:600,color:'#B42318',marginBottom:14}}>
+            {retireForm.name} 퇴직 처리
           </div>
           <div style={{display:'flex',flexDirection:'column',gap:12}}>
             <div>
-              <label style={{fontSize:10,color:'#5e6585',fontWeight:600,display:'block',marginBottom:6}}>퇴사일</label>
+              <label style={{fontSize:10,color:'#6E6A63',fontWeight:600,display:'block',marginBottom:6}}>퇴사일</label>
               <input type="date" value={retireForm.leaveDate||''}
                 onChange={e=>setRetireForm(f=>({...f,leaveDate:e.target.value}))}
-                style={{background:'#191c2b',border:'1px solid #272a3d',borderRadius:7,color:'#dde1f2',
+                style={{background:'#F3F1EC',border:'1px solid #DCD7CE',borderRadius:4,color:'#1D1B18',
                   padding:'8px 10px',fontSize:12,outline:'none',width:'100%',fontFamily:'inherit'}}/>
             </div>
             {retireForm.leaveDate && (
-              <div style={{background:'rgba(249,185,52,0.08)',border:'1px solid rgba(249,185,52,0.2)',borderRadius:8,padding:'12px 14px'}}>
-                <div style={{fontSize:11,color:'#5e6585',marginBottom:4}}>퇴직금 (퇴사일 기준)</div>
-                <div style={{fontSize:16,fontWeight:700,color:'#f9b934',fontFamily:'DM Mono,monospace'}}>
+              <div style={{background:'rgba(195,38,28,0.08)',border:'1px solid rgba(195,38,28,0.2)',borderRadius:4,padding:'12px 14px'}}>
+                <div style={{fontSize:11,color:'#6E6A63',marginBottom:4}}>퇴직금 (퇴사일 기준)</div>
+                <div style={{fontSize:16,fontWeight:700,color:'#C3261C',fontFamily:'inherit',fontVariantNumeric:'tabular-nums'}}>
                   {calcSeverance(retireForm.joinDate, retireForm.leaveDate, retireForm.wage||10030, retireForm.avgHours||8).toLocaleString()}원
                 </div>
-                <div style={{fontSize:10,color:'#5e6585',marginTop:4}}>
+                <div style={{fontSize:10,color:'#6E6A63',marginTop:4}}>
                   근속 {calcTenure(retireForm.joinDate, retireForm.leaveDate)}
                 </div>
               </div>
             )}
             <div style={{display:'flex',gap:8}}>
               <button onClick={retireMember} disabled={saving}
-                style={{background:'#f87171',color:'#fff',border:'none',borderRadius:8,
+                style={{background:'#B42318',color:'#fff',border:'none',borderRadius:4,
                   padding:'9px 20px',fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
                 {saving?'처리 중...':'퇴직 확정'}
               </button>
               <button onClick={()=>setRetireForm(null)}
-                style={{background:'#191c2b',color:'#5e6585',border:'1px solid #272a3d',borderRadius:8,
+                style={{background:'#F3F1EC',color:'#6E6A63',border:'1px solid #DCD7CE',borderRadius:4,
                   padding:'9px 20px',fontSize:12,cursor:'pointer',fontFamily:'inherit'}}>
                 취소
               </button>
@@ -502,11 +502,11 @@ export default function Members() {
 
       {/* 수정 폼 */}
       {showForm && (
-        <div style={{background:'#12141f',border:'1px solid #f9b934',borderRadius:12,marginBottom:18}}>
-          <div style={{padding:'14px 18px',borderBottom:'1px solid #272a3d',fontSize:13,fontWeight:600,color:'#f9b934',display:'flex',justifyContent:'space-between'}}>
-            <span>✏️ {form.name} 정보 수정</span>
+        <div style={{background:'#FFFFFF',border:'1px solid #C3261C',borderRadius:6,marginBottom:18}}>
+          <div style={{padding:'14px 18px',borderBottom:'1px solid #DCD7CE',fontSize:13,fontWeight:600,color:'#C3261C',display:'flex',justifyContent:'space-between'}}>
+            <span>{form.name} 정보 수정</span>
             <button onClick={()=>setShowForm(false)}
-              style={{background:'transparent',border:'none',color:'#5e6585',fontSize:18,cursor:'pointer'}}>✕</button>
+              style={{background:'transparent',border:'none',color:'#6E6A63',fontSize:18,cursor:'pointer'}}>✕</button>
           </div>
           <div style={{padding:18,display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(180px,1fr))',gap:12}}>
             {[
@@ -524,53 +524,53 @@ export default function Members() {
               ),
             ].map(([label,type,key,val])=>(
               <div key={key} style={{display:'flex',flexDirection:'column',gap:4}}>
-                <label style={{fontSize:10,color:'#5e6585',fontWeight:600}}>{label}</label>
+                <label style={{fontSize:10,color:'#6E6A63',fontWeight:600}}>{label}</label>
                 <input type={type} value={val} onChange={e=>setF(key,e.target.value)}
-                  style={{background:'#191c2b',border:'1px solid #272a3d',borderRadius:7,color:'#dde1f2',padding:'8px 10px',fontSize:12,outline:'none',width:'100%',fontFamily:'inherit'}}/>
+                  style={{background:'#F3F1EC',border:'1px solid #DCD7CE',borderRadius:4,color:'#1D1B18',padding:'8px 10px',fontSize:12,outline:'none',width:'100%',fontFamily:'inherit'}}/>
               </div>
             ))}
           </div>
 
           {/* 계정 역할 */}
           <div style={{padding:'0 18px 14px'}}>
-            <label style={{fontSize:10,color:'#5e6585',fontWeight:600,display:'block',marginBottom:8}}>계정 역할 (볼 수 있는 메뉴가 바뀜)</label>
+            <label style={{fontSize:10,color:'#6E6A63',fontWeight:600,display:'block',marginBottom:8}}>계정 역할 (볼 수 있는 메뉴가 바뀜)</label>
             <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
               {[
-                {key:'staff',    label:'👤 직원',     desc:'스케쥴·내 급여 등 직원 메뉴'},
-                {key:'store',    label:'🏪 매장계정', desc:'매출입력·체크리스트 등 매장 메뉴'},
-                {key:'investor', label:'🤝 투자자',   desc:'매출·투자관리 조회만'},
+                {key:'staff',    label:'직원',     desc:'스케쥴·내 급여 등 직원 메뉴'},
+                {key:'store',    label:'매장계정', desc:'매출입력·체크리스트 등 매장 메뉴'},
+                {key:'investor', label:'투자자',   desc:'매출·투자관리 조회만'},
               ].map(opt=>{
                 const selected = (form.role||'staff') === opt.key
                 return (
                   <div key={opt.key} onClick={()=>setF('role', opt.key)}
-                    style={{flex:1,minWidth:140,padding:'10px 14px',borderRadius:8,cursor:'pointer',
-                      background:selected?'rgba(249,185,52,0.12)':'#191c2b',
-                      border:selected?'1px solid #f9b934':'1px solid #272a3d'}}>
-                    <div style={{fontSize:12,fontWeight:600,color:selected?'#f9b934':'#5e6585',marginBottom:3}}>{opt.label}</div>
-                    <div style={{fontSize:10,color:'#5e6585'}}>{opt.desc}</div>
+                    style={{flex:1,minWidth:140,padding:'10px 14px',borderRadius:4,cursor:'pointer',
+                      background:selected?'rgba(195,38,28,0.12)':'#F3F1EC',
+                      border:selected?'1px solid #C3261C':'1px solid #DCD7CE'}}>
+                    <div style={{fontSize:12,fontWeight:600,color:selected?'#C3261C':'#6E6A63',marginBottom:3}}>{opt.label}</div>
+                    <div style={{fontSize:10,color:'#6E6A63'}}>{opt.desc}</div>
                   </div>
                 )
               })}
             </div>
-            <div style={{fontSize:10,color:'#5e6585',marginTop:6}}>💡 매장계정·투자자로 바꾸면 급여 목록에서 빠져요. 바뀐 역할은 그 사람이 앱을 새로 열면 적용돼요.</div>
+            <div style={{fontSize:10,color:'#6E6A63',marginTop:6}}>매장계정·투자자로 바꾸면 급여 목록에서 빠져요. 바뀐 역할은 그 사람이 앱을 새로 열면 적용돼요.</div>
           </div>
 
           {/* 급여 방식 */}
           <div style={{padding:'0 18px 14px'}}>
-            <label style={{fontSize:10,color:'#5e6585',fontWeight:600,display:'block',marginBottom:8}}>급여 방식</label>
+            <label style={{fontSize:10,color:'#6E6A63',fontWeight:600,display:'block',marginBottom:8}}>급여 방식</label>
             <div style={{display:'flex',gap:8}}>
               {[
-                {key:'hourly', label:'⏱ 시급제',   desc:'근무시간 기반 계산'},
-                {key:'fixed',  label:'📅 고정급제', desc:'매달 고정 금액 지급'},
+                {key:'hourly', label:'시급제',   desc:'근무시간 기반 계산'},
+                {key:'fixed',  label:'고정급제', desc:'매달 고정 금액 지급'},
               ].map(opt=>{
                 const selected = (form.payType||'hourly') === opt.key
                 return (
                   <div key={opt.key} onClick={()=>setF('payType', opt.key)}
-                    style={{flex:1,padding:'10px 14px',borderRadius:8,cursor:'pointer',
-                      background:selected?'rgba(249,185,52,0.12)':'#191c2b',
-                      border:selected?'1px solid #f9b934':'1px solid #272a3d'}}>
-                    <div style={{fontSize:12,fontWeight:600,color:selected?'#f9b934':'#5e6585',marginBottom:3}}>{opt.label}</div>
-                    <div style={{fontSize:10,color:'#5e6585'}}>{opt.desc}</div>
+                    style={{flex:1,padding:'10px 14px',borderRadius:4,cursor:'pointer',
+                      background:selected?'rgba(195,38,28,0.12)':'#F3F1EC',
+                      border:selected?'1px solid #C3261C':'1px solid #DCD7CE'}}>
+                    <div style={{fontSize:12,fontWeight:600,color:selected?'#C3261C':'#6E6A63',marginBottom:3}}>{opt.label}</div>
+                    <div style={{fontSize:10,color:'#6E6A63'}}>{opt.desc}</div>
                   </div>
                 )
               })}
@@ -579,7 +579,7 @@ export default function Members() {
 
           {/* 소정근로일 */}
           <div style={{padding:'0 18px 14px'}}>
-            <label style={{fontSize:10,color:'#5e6585',fontWeight:600,display:'block',marginBottom:8}}>소정근로일 (주휴수당 기준)</label>
+            <label style={{fontSize:10,color:'#6E6A63',fontWeight:600,display:'block',marginBottom:8}}>소정근로일 (주휴수당 기준)</label>
             <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
               {['월','화','수','목','금','토','일'].map((day,i)=>{
                 const idx = i+1===7 ? 0 : i+1
@@ -587,10 +587,10 @@ export default function Members() {
                 const checked = workDays.includes(idx)
                 return (
                   <label key={day} style={{display:'flex',alignItems:'center',gap:4,cursor:'pointer',
-                    background:checked?'rgba(249,185,52,0.15)':'#191c2b',
-                    border:checked?'1px solid #f9b934':'1px solid #272a3d',
+                    background:checked?'rgba(195,38,28,0.15)':'#F3F1EC',
+                    border:checked?'1px solid #C3261C':'1px solid #DCD7CE',
                     borderRadius:6,padding:'6px 10px',fontSize:12,fontWeight:600,
-                    color:checked?'#f9b934':'#5e6585',transition:'.15s'}}>
+                    color:checked?'#C3261C':'#6E6A63',transition:'.15s'}}>
                     <input type="checkbox" checked={checked} style={{display:'none'}}
                       onChange={()=>{
                         const current = form.workDays || [1,2,3,4,5]
@@ -604,27 +604,27 @@ export default function Members() {
                 )
               })}
             </div>
-            <div style={{fontSize:10,color:'#5e6585',marginTop:6}}>
+            <div style={{fontSize:10,color:'#6E6A63',marginTop:6}}>
               주 {Array.isArray(form.workDays)?form.workDays.length:5}일 소정근로
             </div>
           </div>
 
           {/* 주휴 계산 기준 */}
           <div style={{padding:'0 18px 14px'}}>
-            <label style={{fontSize:10,color:'#5e6585',fontWeight:600,display:'block',marginBottom:8}}>주휴수당 계산 기준</label>
+            <label style={{fontSize:10,color:'#6E6A63',fontWeight:600,display:'block',marginBottom:8}}>주휴수당 계산 기준</label>
             <div style={{display:'flex',gap:8}}>
               {[
-                {key:'contract', label:'📋 소정근로 기준', desc:'법적 기준'},
-                {key:'actual',   label:'⭐ 실제근무 기준', desc:'복지 적용'},
+                {key:'contract', label:'소정근로 기준', desc:'법적 기준'},
+                {key:'actual',   label:'실제근무 기준', desc:'복지 적용'},
               ].map(opt=>{
                 const selected = (form.holidayBase||'contract') === opt.key
                 return (
                   <div key={opt.key} onClick={()=>setF('holidayBase', opt.key)}
-                    style={{flex:1,padding:'10px 14px',borderRadius:8,cursor:'pointer',
-                      background:selected?'rgba(249,185,52,0.12)':'#191c2b',
-                      border:selected?'1px solid #f9b934':'1px solid #272a3d'}}>
-                    <div style={{fontSize:12,fontWeight:600,color:selected?'#f9b934':'#5e6585',marginBottom:3}}>{opt.label}</div>
-                    <div style={{fontSize:10,color:'#5e6585'}}>{opt.desc}</div>
+                    style={{flex:1,padding:'10px 14px',borderRadius:4,cursor:'pointer',
+                      background:selected?'rgba(195,38,28,0.12)':'#F3F1EC',
+                      border:selected?'1px solid #C3261C':'1px solid #DCD7CE'}}>
+                    <div style={{fontSize:12,fontWeight:600,color:selected?'#C3261C':'#6E6A63',marginBottom:3}}>{opt.label}</div>
+                    <div style={{fontSize:10,color:'#6E6A63'}}>{opt.desc}</div>
                   </div>
                 )
               })}
@@ -633,21 +633,21 @@ export default function Members() {
 
           {/* 고용 유형 */}
           <div style={{padding:'0 18px 14px'}}>
-            <label style={{fontSize:10,color:'#5e6585',fontWeight:600,display:'block',marginBottom:8}}>고용 유형 (공제 기준)</label>
+            <label style={{fontSize:10,color:'#6E6A63',fontWeight:600,display:'block',marginBottom:8}}>고용 유형 (공제 기준)</label>
             <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
               {[
-                {key:'part', label:'🕐 아르바이트', desc:'3.3% 원천징수'},
-                {key:'full', label:'💼 정직원',     desc:'4대보험 적용'},
-                {key:'none', label:'✕ 공제없음',   desc:'세전 지급'},
+                {key:'part', label:'아르바이트', desc:'3.3% 원천징수'},
+                {key:'full', label:'정직원',     desc:'4대보험 적용'},
+                {key:'none', label:'공제없음',   desc:'세전 지급'},
               ].map(opt=>{
                 const selected = (form.employType||'part') === opt.key
                 return (
                   <div key={opt.key} onClick={()=>setF('employType', opt.key)}
-                    style={{flex:1,padding:'10px 14px',borderRadius:8,cursor:'pointer',
-                      background:selected?'rgba(249,185,52,0.12)':'#191c2b',
-                      border:selected?'1px solid #f9b934':'1px solid #272a3d',minWidth:100}}>
-                    <div style={{fontSize:12,fontWeight:600,color:selected?'#f9b934':'#5e6585',marginBottom:3}}>{opt.label}</div>
-                    <div style={{fontSize:10,color:'#5e6585'}}>{opt.desc}</div>
+                    style={{flex:1,padding:'10px 14px',borderRadius:4,cursor:'pointer',
+                      background:selected?'rgba(195,38,28,0.12)':'#F3F1EC',
+                      border:selected?'1px solid #C3261C':'1px solid #DCD7CE',minWidth:100}}>
+                    <div style={{fontSize:12,fontWeight:600,color:selected?'#C3261C':'#6E6A63',marginBottom:3}}>{opt.label}</div>
+                    <div style={{fontSize:10,color:'#6E6A63'}}>{opt.desc}</div>
                   </div>
                 )
               })}
@@ -656,11 +656,11 @@ export default function Members() {
 
           <div style={{padding:'0 18px 18px',display:'flex',gap:8}}>
             <button onClick={save} disabled={saving}
-              style={{background:'#f9b934',color:'#000',border:'none',borderRadius:8,padding:'9px 20px',fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
+              style={{background:'#C3261C',color:'#FFFFFF',border:'none',borderRadius:4,padding:'9px 20px',fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
               {saving?'저장 중...':'저 장'}
             </button>
             <button onClick={()=>setShowForm(false)}
-              style={{background:'#191c2b',color:'#5e6585',border:'1px solid #272a3d',borderRadius:8,padding:'9px 20px',fontSize:12,cursor:'pointer',fontFamily:'inherit'}}>
+              style={{background:'#F3F1EC',color:'#6E6A63',border:'1px solid #DCD7CE',borderRadius:4,padding:'9px 20px',fontSize:12,cursor:'pointer',fontFamily:'inherit'}}>
               취 소
             </button>
           </div>
@@ -668,10 +668,10 @@ export default function Members() {
       )}
 
       {/* 재직 직원 목록 */}
-      {loading ? <div style={{textAlign:'center',color:'#5e6585',padding:60}}>로딩 중...</div> : (
+      {loading ? <div style={{textAlign:'center',color:'#6E6A63',padding:60}}>로딩 중...</div> : (
         <div style={{display:'flex',flexDirection:'column',gap:12}}>
           {members.length===0 && (
-            <div style={{textAlign:'center',color:'#5e6585',padding:40}}>
+            <div style={{textAlign:'center',color:'#6E6A63',padding:40}}>
               승인된 직원이 없습니다.
             </div>
           )}
@@ -684,14 +684,14 @@ export default function Members() {
       {/* 퇴직자 목록 */}
       <div style={{marginTop:24}}>
         <button onClick={()=>setShowRetired(v=>!v)}
-          style={{background:'#191c2b',border:'1px solid #272a3d',borderRadius:8,color:'#5e6585',
+          style={{background:'#F3F1EC',border:'1px solid #DCD7CE',borderRadius:4,color:'#6E6A63',
             padding:'8px 16px',fontSize:12,cursor:'pointer',fontFamily:'inherit',width:'100%',marginBottom:10}}>
           {showRetired?'▲':'▼'} 퇴직자 기록 ({retired.length}명)
         </button>
         {showRetired && (
           <div style={{display:'flex',flexDirection:'column',gap:12}}>
             {retired.length===0 ? (
-              <div style={{textAlign:'center',color:'#5e6585',padding:20}}>퇴직자 기록이 없습니다</div>
+              <div style={{textAlign:'center',color:'#6E6A63',padding:20}}>퇴직자 기록이 없습니다</div>
             ) : (
               retired.map(m=><RetiredCard key={m.uid} m={m} onRestore={restoreMember}/>)
             )}

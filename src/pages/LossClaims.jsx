@@ -8,16 +8,16 @@ const todayStr = () => { const n=new Date(); return `${n.getFullYear()}-${pad(n.
 const wonFmt = n => (n||0).toLocaleString('ko-KR')
 
 const PLATFORMS = [
-  { key:'baemin',   label:'배달의민족', color:'#34d399' },
-  { key:'coupang',  label:'쿠팡이츠',   color:'#f87171' },
-  { key:'yogiyo',   label:'요기요',     color:'#f9b934' },
-  { key:'ddangyeo', label:'땡겨요',     color:'#93c5fd' },
+  { key:'baemin',   label:'배달의민족', color:'#2E7D45' },
+  { key:'coupang',  label:'쿠팡이츠',   color:'#B42318' },
+  { key:'yogiyo',   label:'요기요',     color:'#C3261C' },
+  { key:'ddangyeo', label:'땡겨요',     color:'#2B5C9E' },
 ]
 const TYPES  = ['오배송','메뉴누락','파손','기타']
 const CAUSES = [
-  { key:'store',    label:'매장',   color:'#f87171' },
-  { key:'rider',    label:'라이더', color:'#f9b934' },
-  { key:'customer', label:'고객',   color:'#93c5fd' },
+  { key:'store',    label:'매장',   color:'#B42318' },
+  { key:'rider',    label:'라이더', color:'#C3261C' },
+  { key:'customer', label:'고객',   color:'#2B5C9E' },
 ]
 
 // 기록 하나의 단계 — 예전 기록(승인/최종확인/처리완료 따로 관리)도 그대로 읽을 수 있게 변환
@@ -29,10 +29,10 @@ function stageOf(r) {
   return 'open'
 }
 const STAGE_BADGE = {
-  open:     { label:'⏳ 진행중',   color:'#f9b934' },
-  paid:     { label:'🟢 보상완료', color:'#34d399' },
-  rejected: { label:'🔴 거절',     color:'#f87171' },
-  closed:   { label:'완료',        color:'#5e6585' },
+  open:     { label:'진행중',   color:'#C3261C' },
+  paid:     { label:'보상완료', color:'#2E7D45' },
+  rejected: { label:'거절',     color:'#B42318' },
+  closed:   { label:'완료',        color:'#6E6A63' },
 }
 
 function emptyForm() {
@@ -41,10 +41,10 @@ function emptyForm() {
 }
 
 const inputStyle = {
-  background:'#191c2b',border:'1px solid #272a3d',borderRadius:7,color:'#dde1f2',
+  background:'#F3F1EC',border:'1px solid #DCD7CE',borderRadius:4,color:'#1D1B18',
   padding:'8px 10px',fontSize:12,outline:'none',fontFamily:'inherit',width:'100%'
 }
-const labelStyle = { fontSize:10,color:'#5e6585',fontWeight:600,display:'block',marginBottom:6 }
+const labelStyle = { fontSize:10,color:'#6E6A63',fontWeight:600,display:'block',marginBottom:6 }
 const smallBtn = (bg, color, border='none') => ({
   background:bg,color,border,padding:'6px 12px',fontSize:11,fontWeight:700,
   borderRadius:6,cursor:'pointer',fontFamily:'inherit',whiteSpace:'nowrap'
@@ -56,14 +56,14 @@ function ToggleGroup({ options, value, onChange, allowEmpty }) {
       {options.map(opt=>{
         const key = opt.key ?? opt
         const label = opt.label ?? opt
-        const color = opt.color || '#f9b934'
+        const color = opt.color || '#C3261C'
         const selected = value === key
         return (
           <button key={key} type="button" onClick={()=>onChange(selected && allowEmpty ? '' : key)}
-            style={{padding:'6px 12px',borderRadius:7,border:'none',fontSize:11,fontWeight:600,
+            style={{padding:'6px 12px',borderRadius:4,border:'none',fontSize:11,fontWeight:600,
               cursor:'pointer',fontFamily:'inherit',
-              background:selected?`${color}22`:'#191c2b',
-              color:selected?color:'#5e6585',
+              background:selected?`${color}22`:'#F3F1EC',
+              color:selected?color:'#6E6A63',
               outline:selected?`1.5px solid ${color}55`:'1.5px solid transparent'}}>
             {label}
           </button>
@@ -101,12 +101,12 @@ function ClaimForm({ value, onChange }) {
       </div>
 
       <button type="button" onClick={()=>setShowDetail(v=>!v)}
-        style={{alignSelf:'flex-start',background:'transparent',border:'none',color:'#5e6585',
+        style={{alignSelf:'flex-start',background:'transparent',border:'none',color:'#6E6A63',
           fontSize:11,cursor:'pointer',fontFamily:'inherit',padding:0}}>
         {showDetail ? '▾ 상세 접기' : '▸ 상세 (주문번호·주문금액·유형·원인) — 선택'}
       </button>
       {showDetail && (
-        <div style={{display:'flex',flexDirection:'column',gap:12,paddingLeft:10,borderLeft:'2px solid #272a3d'}}>
+        <div style={{display:'flex',flexDirection:'column',gap:12,paddingLeft:10,borderLeft:'2px solid #DCD7CE'}}>
           <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(150px,1fr))',gap:10}}>
             <div>
               <label style={labelStyle}>주문번호</label>
@@ -134,11 +134,11 @@ function ClaimForm({ value, onChange }) {
 
 // 타임라인 기록 종류 — 플랫폼과 주고받은 과정을 날짜별로 남김
 const EVENT_KINDS = [
-  { key:'contact',  label:'📞 연락·문의', color:'#93c5fd' },
-  { key:'approved', label:'✅ 승인',      color:'#34d399' },
-  { key:'rejected', label:'❌ 반려',      color:'#f87171' },
-  { key:'paid',     label:'💰 입금확인',  color:'#34d399' },
-  { key:'memo',     label:'📝 메모',      color:'#5e6585' },
+  { key:'contact',  label:'연락·문의', color:'#2B5C9E' },
+  { key:'approved', label:'승인',      color:'#2E7D45' },
+  { key:'rejected', label:'반려',      color:'#B42318' },
+  { key:'paid',     label:'입금확인',  color:'#2E7D45' },
+  { key:'memo',     label:'메모',      color:'#6E6A63' },
 ]
 const eventKindOf = k => EVENT_KINDS.find(e=>e.key===k) || EVENT_KINDS[4]
 const receivedOf = r => (r.timeline||[]).filter(e=>e.kind==='paid').reduce((a,e)=>a+(e.amount||0),0)
@@ -157,9 +157,9 @@ function EventPhotos({ eventId, count }) {
   return (
     <>
       <button onClick={open}
-        style={{background:'#191c2b',border:'1px solid #272a3d',color:'#dde1f2',borderRadius:5,
+        style={{background:'#F3F1EC',border:'1px solid #DCD7CE',color:'#1D1B18',borderRadius:5,
           padding:'1px 7px',fontSize:10,cursor:'pointer',fontFamily:'inherit',marginLeft:6}}>
-        📷 {count}
+        {count}
       </button>
       {images && <Lightbox images={images} label="손실보상 첨부 사진" onClose={()=>setImages(null)}/>}
     </>
@@ -183,24 +183,24 @@ function Timeline({ r, editable, saving, onAdd, onDelete, onNextCheck }) {
     if(ok) { setEv(v=>({ ...v, amount:'', note:'' })); setImages([]); setShowPhotos(false) }
   }
   return (
-    <div style={{marginTop:12,borderTop:'1px solid #272a3d',paddingTop:12}}>
-      {events.length===0 && <div style={{fontSize:11,color:'#5e6585',marginBottom:10}}>아직 기록이 없어요</div>}
+    <div style={{marginTop:12,borderTop:'1px solid #DCD7CE',paddingTop:12}}>
+      {events.length===0 && <div style={{fontSize:11,color:'#6E6A63',marginBottom:10}}>아직 기록이 없어요</div>}
       <div style={{display:'flex',flexDirection:'column',gap:0,marginBottom:editable?12:0}}>
         {events.map(e=>{
           const k = eventKindOf(e.kind)
           return (
             <div key={e.id} style={{display:'flex',gap:10,alignItems:'flex-start',padding:'6px 0',
               borderLeft:`2px solid ${k.color}55`,paddingLeft:10,marginLeft:4}}>
-              <span style={{fontSize:11,color:'#5e6585',fontFamily:'DM Mono,monospace',minWidth:74}}>{e.date}</span>
+              <span style={{fontSize:11,color:'#6E6A63',fontFamily:'inherit',fontVariantNumeric:'tabular-nums',minWidth:74}}>{e.date}</span>
               <span style={{fontSize:11,fontWeight:700,color:k.color,whiteSpace:'nowrap'}}>{k.label}</span>
-              <span style={{flex:1,fontSize:12,color:'#dde1f2',lineHeight:1.5}}>
+              <span style={{flex:1,fontSize:12,color:'#1D1B18',lineHeight:1.5}}>
                 {e.note}
-                {e.amount>0 && <b style={{color:k.color,marginLeft:6,fontFamily:'DM Mono,monospace'}}>{wonFmt(e.amount)}원</b>}
+                {e.amount>0 && <b style={{color:k.color,marginLeft:6,fontFamily:'inherit',fontVariantNumeric:'tabular-nums'}}>{wonFmt(e.amount)}원</b>}
                 {e.photoCount>0 && <EventPhotos eventId={e.id} count={e.photoCount}/>}
               </span>
               {editable && (
                 <button onClick={()=>onDelete(e.id)} disabled={saving}
-                  style={{background:'transparent',border:'none',color:'#5e6585',fontSize:11,cursor:'pointer',padding:0}}>✕</button>
+                  style={{background:'transparent',border:'none',color:'#6E6A63',fontSize:11,cursor:'pointer',padding:0}}>✕</button>
               )}
             </div>
           )
@@ -212,7 +212,7 @@ function Timeline({ r, editable, saving, onAdd, onDelete, onNextCheck }) {
             {EVENT_KINDS.map(k=>(
               <button key={k.key} type="button" onClick={()=>setEv(v=>({...v,kind:k.key}))}
                 style={{padding:'4px 10px',borderRadius:6,border:'none',fontSize:11,fontWeight:600,cursor:'pointer',fontFamily:'inherit',
-                  background:ev.kind===k.key?`${k.color}22`:'#191c2b',color:ev.kind===k.key?k.color:'#5e6585',
+                  background:ev.kind===k.key?`${k.color}22`:'#F3F1EC',color:ev.kind===k.key?k.color:'#6E6A63',
                   outline:ev.kind===k.key?`1.5px solid ${k.color}55`:'1.5px solid transparent'}}>
                 {k.label}
               </button>
@@ -227,10 +227,10 @@ function Timeline({ r, editable, saving, onAdd, onDelete, onNextCheck }) {
             <input type="number" value={ev.amount} onChange={e=>setEv(v=>({...v,amount:e.target.value}))}
               placeholder="금액(선택)" style={{...inputStyle,width:110}}/>
             <button type="button" onClick={()=>setShowPhotos(v=>!v)}
-              style={smallBtn(showPhotos||images.length?'rgba(249,185,52,0.12)':'transparent','#f9b934','1px solid rgba(249,185,52,0.4)')}>
-              📷{images.length?` ${images.length}`:''}
+              style={smallBtn(showPhotos||images.length?'rgba(195,38,28,0.12)':'transparent','#C3261C','1px solid rgba(195,38,28,0.4)')}>
+              사진{images.length?` ${images.length}`:''}
             </button>
-            <button onClick={add} disabled={saving} style={smallBtn('#f9b934','#000')}>+ 기록</button>
+            <button onClick={add} disabled={saving} style={smallBtn('#C3261C','#FFFFFF')}>+ 기록</button>
           </div>
           {showPhotos && (
             <div style={{marginTop:8}}>
@@ -238,13 +238,13 @@ function Timeline({ r, editable, saving, onAdd, onDelete, onNextCheck }) {
             </div>
           )}
           <div style={{display:'flex',gap:8,alignItems:'center',marginTop:10,flexWrap:'wrap'}}>
-            <span style={{fontSize:11,color:'#5e6585'}}>📅 다음 확인일</span>
+            <span style={{fontSize:11,color:'#6E6A63'}}>다음 확인일</span>
             <input type="date" value={r.nextCheck||''} onChange={e=>onNextCheck(e.target.value)}
               style={{...inputStyle,width:140}}/>
             {r.nextCheck && (
-              <button onClick={()=>onNextCheck('')} style={smallBtn('transparent','#5e6585','1px solid #272a3d')}>지우기</button>
+              <button onClick={()=>onNextCheck('')} style={smallBtn('transparent','#6E6A63','1px solid #DCD7CE')}>지우기</button>
             )}
-            <span style={{fontSize:10,color:'#5e6585'}}>그날이 되면 카드가 빨갛게 표시되고 맨 위로 올라와요</span>
+            <span style={{fontSize:10,color:'#6E6A63'}}>그날이 되면 카드가 빨갛게 표시되고 맨 위로 올라와요</span>
           </div>
         </>
       )}
@@ -364,11 +364,11 @@ export default function LossClaims() {
     <div>
       <div style={{display:'flex',alignItems:'flex-end',justifyContent:'space-between',marginBottom:18,flexWrap:'wrap',gap:10}}>
         <div>
-          <div style={{fontSize:20,fontWeight:700}}>📋 손실보상</div>
-          <div style={{fontSize:12,color:'#5e6585',marginTop:2}}>배달 사고 등록 → 보상 받으면 금액만 입력</div>
+          <div style={{fontSize:20,fontWeight:700}}>손실보상</div>
+          <div style={{fontSize:12,color:'#6E6A63',marginTop:2}}>배달 사고 등록 → 보상 받으면 금액만 입력</div>
         </div>
         <button onClick={()=>{ setShowForm(v=>!v); setForm(emptyForm()) }}
-          style={{background:'#f9b934',color:'#000',border:'none',borderRadius:8,
+          style={{background:'#C3261C',color:'#FFFFFF',border:'none',borderRadius:4,
             padding:'8px 16px',fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
           {showForm ? '닫기' : '+ 사고 등록'}
         </button>
@@ -377,25 +377,25 @@ export default function LossClaims() {
       {/* 요약 */}
       <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(150px,1fr))',gap:12,marginBottom:18}}>
         {[
-          { label:'진행중', val:`${openList.length}건`, color:'#f9b934' },
-          { label:'진행중 손실 금액', val:`${wonFmt(openLoss)}원`, color:'#f87171' },
-          { label:'지금까지 받은 보상', val:`${wonFmt(paidTotal)}원`, color:'#34d399' },
-          ...(dueCount>0 ? [{ label:'📅 오늘 다시 확인할 건', val:`${dueCount}건`, color:'#f87171' }] : []),
+          { label:'진행중', val:`${openList.length}건`, color:'#C3261C' },
+          { label:'진행중 손실 금액', val:`${wonFmt(openLoss)}원`, color:'#B42318' },
+          { label:'지금까지 받은 보상', val:`${wonFmt(paidTotal)}원`, color:'#2E7D45' },
+          ...(dueCount>0 ? [{ label:'오늘 다시 확인할 건', val:`${dueCount}건`, color:'#B42318' }] : []),
         ].map(k=>(
-          <div key={k.label} style={{background:'#12141f',border:'1px solid #272a3d',borderRadius:12,padding:'14px 16px',position:'relative',overflow:'hidden'}}>
+          <div key={k.label} style={{background:'#FFFFFF',border:'1px solid #DCD7CE',borderRadius:6,padding:'14px 16px',position:'relative',overflow:'hidden'}}>
             <div style={{position:'absolute',top:0,left:0,right:0,height:3,background:k.color}}/>
-            <div style={{fontSize:10,fontWeight:600,color:'#5e6585',marginBottom:6}}>{k.label}</div>
-            <div style={{fontSize:16,fontWeight:700,color:k.color,fontFamily:'DM Mono,monospace'}}>{k.val}</div>
+            <div style={{fontSize:10,fontWeight:600,color:'#6E6A63',marginBottom:6}}>{k.label}</div>
+            <div style={{fontSize:16,fontWeight:700,color:k.color,fontFamily:'inherit',fontVariantNumeric:'tabular-nums'}}>{k.val}</div>
           </div>
         ))}
       </div>
 
       {/* 등록 폼 */}
       {showForm && (
-        <div style={{background:'#12141f',border:'1px solid #f9b934',borderRadius:12,marginBottom:18,padding:18}}>
+        <div style={{background:'#FFFFFF',border:'1px solid #C3261C',borderRadius:6,marginBottom:18,padding:18}}>
           <ClaimForm value={form} onChange={setForm}/>
           <button onClick={addRecord} disabled={saving}
-            style={{marginTop:16,background:'#f9b934',color:'#000',border:'none',borderRadius:8,padding:'9px 22px',
+            style={{marginTop:16,background:'#C3261C',color:'#FFFFFF',border:'none',borderRadius:4,padding:'9px 22px',
               fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
             {saving?'등록 중...':'등록'}
           </button>
@@ -406,17 +406,17 @@ export default function LossClaims() {
       <div style={{display:'flex',gap:8,marginBottom:14}}>
         {[['open',`진행중 (${openList.length})`],['done',`완료 (${doneList.length})`]].map(([key,label])=>(
           <button key={key} onClick={()=>setTab(key)}
-            style={{padding:'7px 14px',borderRadius:7,border:'none',fontSize:12,fontWeight:600,cursor:'pointer',fontFamily:'inherit',
-              background:tab===key?'#f9b934':'#191c2b',color:tab===key?'#000':'#5e6585'}}>
+            style={{padding:'7px 14px',borderRadius:4,border:'none',fontSize:12,fontWeight:600,cursor:'pointer',fontFamily:'inherit',
+              background:tab===key?'#C3261C':'#F3F1EC',color:tab===key?'#FFFFFF':'#6E6A63'}}>
             {label}
           </button>
         ))}
       </div>
 
       {loading ? (
-        <div style={{textAlign:'center',color:'#5e6585',padding:60}}>로딩 중...</div>
+        <div style={{textAlign:'center',color:'#6E6A63',padding:60}}>로딩 중...</div>
       ) : shown.length === 0 ? (
-        <div style={{background:'#12141f',border:'1px solid #272a3d',borderRadius:12,padding:40,textAlign:'center',color:'#5e6585'}}>
+        <div style={{background:'#FFFFFF',border:'1px solid #DCD7CE',borderRadius:6,padding:40,textAlign:'center',color:'#6E6A63'}}>
           {tab==='open' ? '진행중인 사고가 없습니다' : '완료된 사고가 없습니다'}
         </div>
       ) : (
@@ -434,17 +434,17 @@ export default function LossClaims() {
             const tlOpen = !!openTimeline[r.id]
 
             if(editId === r.id) return (
-              <div key={r.id} style={{background:'#12141f',border:'1px solid #f9b934',borderRadius:12,padding:18}}>
+              <div key={r.id} style={{background:'#FFFFFF',border:'1px solid #C3261C',borderRadius:6,padding:18}}>
                 <ClaimForm value={editForm} onChange={setEditForm}/>
                 <div style={{display:'flex',gap:8,marginTop:16}}>
-                  <button onClick={saveEdit} disabled={saving} style={smallBtn('#f9b934','#000')}>{saving?'저장 중...':'저장'}</button>
-                  <button onClick={()=>{setEditId(null);setEditForm(null)}} style={smallBtn('#191c2b','#5e6585','1px solid #272a3d')}>취소</button>
+                  <button onClick={saveEdit} disabled={saving} style={smallBtn('#C3261C','#FFFFFF')}>{saving?'저장 중...':'저장'}</button>
+                  <button onClick={()=>{setEditId(null);setEditForm(null)}} style={smallBtn('#F3F1EC','#6E6A63','1px solid #DCD7CE')}>취소</button>
                 </div>
               </div>
             )
 
             return (
-              <div key={r.id} style={{background:'#12141f',border:`1px solid ${due?'rgba(248,113,113,0.6)':'#272a3d'}`,borderRadius:12,padding:'14px 18px'}}>
+              <div key={r.id} style={{background:'#FFFFFF',border:`1px solid ${due?'rgba(180,35,24,0.6)':'#DCD7CE'}`,borderRadius:6,padding:'14px 18px'}}>
                 <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',gap:10,flexWrap:'wrap'}}>
                   <div style={{flex:1,minWidth:200}}>
                     <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap',marginBottom:6}}>
@@ -454,19 +454,19 @@ export default function LossClaims() {
                       <span style={{fontSize:11,fontWeight:700,color:badge.color}}>{badge.label}</span>
                       {stage==='open' && r.nextCheck && (
                         <span style={{fontSize:11,fontWeight:700,padding:'2px 8px',borderRadius:4,
-                          background:due?'rgba(248,113,113,0.15)':'#191c2b',color:due?'#f87171':'#5e6585'}}>
-                          📅 {due ? '오늘 확인!' : `${mdLabel(r.nextCheck)} 재확인`}
+                          background:due?'rgba(180,35,24,0.15)':'#F3F1EC',color:due?'#B42318':'#6E6A63'}}>
+                          {due ? '오늘 확인!' : `${mdLabel(r.nextCheck)} 재확인`}
                         </span>
                       )}
                     </div>
-                    {r.memo && <div style={{fontSize:12,color:'#dde1f2',marginBottom:6}}>{r.memo}</div>}
-                    <div style={{display:'flex',gap:12,flexWrap:'wrap',fontSize:11,color:'#5e6585'}}>
-                      <span>손실 <b style={{color:'#f87171'}}>{wonFmt(r.lossAmount)}원</b></span>
-                      {stage==='open' && received>0 && <span>지금까지 입금 <b style={{color:'#34d399'}}>{wonFmt(received)}원</b></span>}
-                      {stage==='paid' && <span>보상 <b style={{color:'#34d399'}}>{wonFmt(r.finalAmount)}원</b> ({r.finalConfirmedDate})</span>}
-                      {fee!==null && <span>수수료 <b style={{color:'#f87171'}}>-{wonFmt(fee)}원</b></span>}
-                      {stage==='rejected' && r.rejectReason && <span>사유 <b style={{color:'#f87171'}}>{r.rejectReason}</b></span>}
-                      {r.orderNo && <span style={{fontFamily:'DM Mono,monospace'}}>#{r.orderNo}</span>}
+                    {r.memo && <div style={{fontSize:12,color:'#1D1B18',marginBottom:6}}>{r.memo}</div>}
+                    <div style={{display:'flex',gap:12,flexWrap:'wrap',fontSize:11,color:'#6E6A63'}}>
+                      <span>손실 <b style={{color:'#B42318'}}>{wonFmt(r.lossAmount)}원</b></span>
+                      {stage==='open' && received>0 && <span>지금까지 입금 <b style={{color:'#2E7D45'}}>{wonFmt(received)}원</b></span>}
+                      {stage==='paid' && <span>보상 <b style={{color:'#2E7D45'}}>{wonFmt(r.finalAmount)}원</b> ({r.finalConfirmedDate})</span>}
+                      {fee!==null && <span>수수료 <b style={{color:'#B42318'}}>-{wonFmt(fee)}원</b></span>}
+                      {stage==='rejected' && r.rejectReason && <span>사유 <b style={{color:'#B42318'}}>{r.rejectReason}</b></span>}
+                      {r.orderNo && <span style={{fontFamily:'inherit',fontVariantNumeric:'tabular-nums'}}>#{r.orderNo}</span>}
                       {r.type && <span>{r.type}</span>}
                       {cause && <span>원인: {cause.label}</span>}
                     </div>
@@ -474,31 +474,31 @@ export default function LossClaims() {
 
                   <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>
                     <button onClick={()=>setOpenTimeline(o=>({...o,[r.id]:!o[r.id]}))}
-                      style={smallBtn(tlOpen?'rgba(147,197,253,0.15)':'transparent','#93c5fd','1px solid rgba(147,197,253,0.3)')}>
-                      🕓 타임라인{tlCount>0?` ${tlCount}`:''}
+                      style={smallBtn(tlOpen?'rgba(43,92,158,0.15)':'transparent','#2B5C9E','1px solid rgba(43,92,158,0.3)')}>
+                      타임라인{tlCount>0?` ${tlCount}`:''}
                     </button>
                     {stage==='open' && !act && (
                       <>
                         <button onClick={()=>setAction({ id:r.id, kind:'paid', date:todayStr(), amount: received ? String(received) : '' })}
-                          style={smallBtn('#34d399','#000')}>💰 보상 받음</button>
+                          style={smallBtn('#2E7D45','#FFFFFF')}>보상 받음</button>
                         <button onClick={()=>setAction({ id:r.id, kind:'rejected', reason:'' })}
-                          style={smallBtn('transparent','#f87171','1px solid #3d1f1f')}>거절됨</button>
+                          style={smallBtn('transparent','#B42318','1px solid #E8C4BF')}>거절됨</button>
                       </>
                     )}
                     {stage!=='open' && (
-                      <button onClick={()=>reopen(r.id)} style={smallBtn('transparent','#5e6585','1px solid #272a3d')}>되돌리기</button>
+                      <button onClick={()=>reopen(r.id)} style={smallBtn('transparent','#6E6A63','1px solid #DCD7CE')}>되돌리기</button>
                     )}
                     {stage==='open' && (
                       <button onClick={()=>{ setEditId(r.id); setEditForm({ ...emptyForm(), ...r }) }}
-                        style={smallBtn('transparent','#dde1f2','1px solid #272a3d')}>수정</button>
+                        style={smallBtn('transparent','#1D1B18','1px solid #DCD7CE')}>수정</button>
                     )}
                     <button onClick={()=>deleteRecord(r.id)}
-                      style={smallBtn('transparent','#f87171','1px solid #3d1f1f')}>삭제</button>
+                      style={smallBtn('transparent','#B42318','1px solid #E8C4BF')}>삭제</button>
                   </div>
                 </div>
 
                 {act && (
-                  <div style={{marginTop:12,background:'#191c2b',borderRadius:8,padding:12,
+                  <div style={{marginTop:12,background:'#F3F1EC',borderRadius:4,padding:12,
                     display:'flex',gap:8,alignItems:'flex-end',flexWrap:'wrap'}}>
                     {act.kind==='paid' ? (
                       <>
@@ -519,8 +519,8 @@ export default function LossClaims() {
                           onKeyDown={e=>e.key==='Enter' && saveAction()} style={inputStyle}/>
                       </div>
                     )}
-                    <button onClick={saveAction} disabled={saving} style={smallBtn('#f9b934','#000')}>{saving?'저장 중...':'완료'}</button>
-                    <button onClick={()=>setAction(null)} style={smallBtn('transparent','#5e6585','1px solid #272a3d')}>취소</button>
+                    <button onClick={saveAction} disabled={saving} style={smallBtn('#C3261C','#FFFFFF')}>{saving?'저장 중...':'완료'}</button>
+                    <button onClick={()=>setAction(null)} style={smallBtn('transparent','#6E6A63','1px solid #DCD7CE')}>취소</button>
                   </div>
                 )}
 

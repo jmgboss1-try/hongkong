@@ -147,7 +147,7 @@ export default function SubstituteBoard() {
   const timeLabel = r => `${r.startH}:${r.startM}~${r.endH}:${r.endM}`
 
   const selectStyle = {
-    background:'#191c2b',border:'1px solid #272a3d',borderRadius:7,color:'#dde1f2',
+    background:'#F3F1EC',border:'1px solid #DCD7CE',borderRadius:4,color:'#1D1B18',
     padding:'8px 10px',fontSize:12,outline:'none',fontFamily:'inherit'
   }
 
@@ -155,11 +155,11 @@ export default function SubstituteBoard() {
     <div>
       <div style={{display:'flex',alignItems:'flex-end',justifyContent:'space-between',marginBottom:22}}>
         <div>
-          <div style={{fontSize:20,fontWeight:700}}>🔄 대타 구함</div>
-          <div style={{fontSize:12,color:'#5e6585',marginTop:2}}>대타 요청 및 지원 현황</div>
+          <div style={{fontSize:20,fontWeight:700}}>대타 구함</div>
+          <div style={{fontSize:12,color:'#6E6A63',marginTop:2}}>대타 요청 및 지원 현황</div>
         </div>
         <button onClick={()=>setShowForm(v=>!v)}
-          style={{background:'#f9b934',color:'#000',border:'none',borderRadius:8,
+          style={{background:'#C3261C',color:'#FFFFFF',border:'none',borderRadius:4,
             padding:'8px 16px',fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
           + 대타 요청
         </button>
@@ -167,19 +167,19 @@ export default function SubstituteBoard() {
 
       {/* 요청 등록 폼 */}
       {showForm && (
-        <div style={{background:'#12141f',border:'1px solid #f9b934',borderRadius:12,marginBottom:18,padding:18}}>
-          <div style={{fontSize:13,fontWeight:600,color:'#f9b934',marginBottom:14}}>+ 대타 요청 등록</div>
+        <div style={{background:'#FFFFFF',border:'1px solid #C3261C',borderRadius:6,marginBottom:18,padding:18}}>
+          <div style={{fontSize:13,fontWeight:600,color:'#C3261C',marginBottom:14}}>+ 대타 요청 등록</div>
           <div style={{display:'flex',flexDirection:'column',gap:12}}>
             {/* 요청자 토글 */}
             <div>
-              <label style={{fontSize:10,color:'#5e6585',fontWeight:600,display:'block',marginBottom:6}}>대타가 필요한 직원</label>
+              <label style={{fontSize:10,color:'#6E6A63',fontWeight:600,display:'block',marginBottom:6}}>대타가 필요한 직원</label>
               <div style={{display:'flex',flexWrap:'wrap',gap:6}}>
                 {employees.map(e=>(
                   <button key={e.uid} onClick={()=>setForm(f=>({...f,requesterUid:e.uid}))}
-                    style={{padding:'7px 14px',borderRadius:7,border:'none',fontSize:12,fontWeight:600,
+                    style={{padding:'7px 14px',borderRadius:4,border:'none',fontSize:12,fontWeight:600,
                       cursor:'pointer',fontFamily:'inherit',
-                      background:form.requesterUid===e.uid?'#f9b934':'#191c2b',
-                      color:form.requesterUid===e.uid?'#000':'#5e6585'}}>
+                      background:form.requesterUid===e.uid?'#C3261C':'#F3F1EC',
+                      color:form.requesterUid===e.uid?'#FFFFFF':'#6E6A63'}}>
                     {e.name}
                   </button>
                 ))}
@@ -188,14 +188,14 @@ export default function SubstituteBoard() {
 
             {/* 날짜 */}
             <div>
-              <label style={{fontSize:10,color:'#5e6585',fontWeight:600,display:'block',marginBottom:6}}>날짜</label>
+              <label style={{fontSize:10,color:'#6E6A63',fontWeight:600,display:'block',marginBottom:6}}>날짜</label>
               <input type="date" value={form.date} onChange={e=>setForm(f=>({...f,date:e.target.value}))}
                 style={{...selectStyle,width:180}}/>
             </div>
 
             {/* 시간 드롭다운 */}
             <div>
-              <label style={{fontSize:10,color:'#5e6585',fontWeight:600,display:'block',marginBottom:6}}>시간대</label>
+              <label style={{fontSize:10,color:'#6E6A63',fontWeight:600,display:'block',marginBottom:6}}>시간대</label>
               <div style={{display:'flex',alignItems:'center',gap:6,flexWrap:'wrap'}}>
                 <select value={form.startH} onChange={e=>setForm(f=>({...f,startH:e.target.value}))} style={selectStyle}>
                   {HOURS.map(h=><option key={h} value={h}>{h}시</option>)}
@@ -203,7 +203,7 @@ export default function SubstituteBoard() {
                 <select value={form.startM} onChange={e=>setForm(f=>({...f,startM:e.target.value}))} style={selectStyle}>
                   {MINUTES.map(m=><option key={m} value={m}>{m}분</option>)}
                 </select>
-                <span style={{color:'#5e6585',fontSize:12}}>~</span>
+                <span style={{color:'#6E6A63',fontSize:12}}>~</span>
                 <select value={form.endH} onChange={e=>setForm(f=>({...f,endH:e.target.value}))} style={selectStyle}>
                   {HOURS.map(h=><option key={h} value={h}>{h}시</option>)}
                 </select>
@@ -215,7 +215,7 @@ export default function SubstituteBoard() {
 
             {/* 사유 */}
             <div>
-              <label style={{fontSize:10,color:'#5e6585',fontWeight:600,display:'block',marginBottom:6}}>사유 (선택)</label>
+              <label style={{fontSize:10,color:'#6E6A63',fontWeight:600,display:'block',marginBottom:6}}>사유 (선택)</label>
               <input value={form.reason} onChange={e=>setForm(f=>({...f,reason:e.target.value}))}
                 placeholder="개인사정 등"
                 style={{...selectStyle,width:'100%'}}/>
@@ -223,12 +223,12 @@ export default function SubstituteBoard() {
           </div>
           <div style={{display:'flex',gap:8,marginTop:16}}>
             <button onClick={addRequest} disabled={saving}
-              style={{background:'#f9b934',color:'#000',border:'none',borderRadius:8,padding:'9px 20px',
+              style={{background:'#C3261C',color:'#FFFFFF',border:'none',borderRadius:4,padding:'9px 20px',
                 fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
               {saving?'등록 중...':'등록'}
             </button>
             <button onClick={()=>setShowForm(false)}
-              style={{background:'#191c2b',color:'#5e6585',border:'1px solid #272a3d',borderRadius:8,
+              style={{background:'#F3F1EC',color:'#6E6A63',border:'1px solid #DCD7CE',borderRadius:4,
                 padding:'9px 20px',fontSize:12,cursor:'pointer',fontFamily:'inherit'}}>
               취소
             </button>
@@ -238,12 +238,12 @@ export default function SubstituteBoard() {
 
       {/* 2주간 스케쥴표 */}
       {!loading && (
-        <div style={{background:'#12141f',border:'1px solid #272a3d',borderRadius:12,
+        <div style={{background:'#FFFFFF',border:'1px solid #DCD7CE',borderRadius:6,
           padding:18,marginBottom:18}}>
-          <div style={{fontSize:13,fontWeight:600,marginBottom:14}}>📅 2주간 대타 현황</div>
+          <div style={{fontSize:13,fontWeight:600,marginBottom:14}}>2주간 대타 현황</div>
           {get2WeeksDates().map((week, wi) => (
             <div key={wi} style={{marginBottom: wi===0 ? 14 : 0}}>
-              <div style={{fontSize:10,color:'#5e6585',fontWeight:600,marginBottom:6}}>
+              <div style={{fontSize:10,color:'#6E6A63',fontWeight:600,marginBottom:6}}>
                 {wi===0 ? '이번주' : '다음주'}
               </div>
               <div style={{display:'grid',gridTemplateColumns:'repeat(7,1fr)',gap:6}}>
@@ -254,25 +254,25 @@ export default function SubstituteBoard() {
                   const isToday = ds === today
                   return (
                     <div key={di} style={{
-                      background: isToday ? 'rgba(249,185,52,0.08)' : '#191c2b',
-                      border: isToday ? '1px solid rgba(249,185,52,0.4)' : '1px solid #272a3d',
-                      borderRadius:8,padding:'8px 6px',minHeight:70,
+                      background: isToday ? 'rgba(195,38,28,0.08)' : '#F3F1EC',
+                      border: isToday ? '1px solid rgba(195,38,28,0.4)' : '1px solid #DCD7CE',
+                      borderRadius:4,padding:'8px 6px',minHeight:70,
                     }}>
                       <div style={{fontSize:10,fontWeight:700,marginBottom:5,textAlign:'center',
-                        color: di===0?'#f87171':di===6?'#93c5fd':isToday?'#f9b934':'#5e6585'}}>
+                        color: di===0?'#B42318':di===6?'#2B5C9E':isToday?'#C3261C':'#6E6A63'}}>
                         {d.getMonth()+1}/{d.getDate()}<span style={{fontWeight:400}}> ({DAYS_KR[di]})</span>
                       </div>
                       <div style={{display:'flex',flexDirection:'column',gap:3}}>
                         {dayReqs.map(r=>(
                           <div key={r.id} style={{
                             fontSize:9,padding:'3px 4px',borderRadius:4,textAlign:'center',fontWeight:600,
-                            background: r.confirmedUid ? 'rgba(52,211,153,0.15)' : 'rgba(248,113,113,0.15)',
-                            color: r.confirmedUid ? '#34d399' : '#f87171',
+                            background: r.confirmedUid ? 'rgba(46,125,69,0.15)' : 'rgba(180,35,24,0.15)',
+                            color: r.confirmedUid ? '#2E7D45' : '#B42318',
                             lineHeight:1.4,
                           }}>
                             {r.confirmedUid
-                              ? `✓ ${nameOf(r.confirmedUid)}`
-                              : `🔴 ${nameOf(r.requesterUid)}`}
+                              ? `${nameOf(r.confirmedUid)}`
+                              : `${nameOf(r.requesterUid)}`}
                           </div>
                         ))}
                       </div>
@@ -286,34 +286,34 @@ export default function SubstituteBoard() {
       )}
 
       {loading ? (
-        <div style={{textAlign:'center',color:'#5e6585',padding:60}}>로딩 중...</div>
+        <div style={{textAlign:'center',color:'#6E6A63',padding:60}}>로딩 중...</div>
       ) : (
         <>
           {/* 미확정 목록 */}
-          <div style={{background:'#12141f',border:'1px solid rgba(248,113,113,0.3)',borderRadius:12,
+          <div style={{background:'#FFFFFF',border:'1px solid rgba(180,35,24,0.3)',borderRadius:6,
             overflow:'hidden',marginBottom:18}}>
-            <div style={{padding:'14px 18px',borderBottom:'1px solid #272a3d',fontSize:13,fontWeight:600,
-              color:'#f87171',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
-              <span>🔴 미확정 ({unconfirmed.length}건)</span>
+            <div style={{padding:'14px 18px',borderBottom:'1px solid #DCD7CE',fontSize:13,fontWeight:600,
+              color:'#B42318',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+              <span>미확정 ({unconfirmed.length}건)</span>
             </div>
             {unconfirmed.length === 0 ? (
-              <div style={{padding:24,textAlign:'center',color:'#5e6585',fontSize:12}}>미확정 대타 요청이 없습니다</div>
+              <div style={{padding:24,textAlign:'center',color:'#6E6A63',fontSize:12}}>미확정 대타 요청이 없습니다</div>
             ) : (
               <div style={{padding:'8px 0'}}>
                 {unconfirmed.map(r=>(
-                  <div key={r.id} style={{padding:'14px 18px',borderBottom:'1px solid #1a1d2e'}}>
+                  <div key={r.id} style={{padding:'14px 18px',borderBottom:'1px solid #ECE8E1'}}>
                     <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',flexWrap:'wrap',gap:8}}>
                       <div>
-                        <div style={{fontSize:14,fontWeight:700,color:'#dde1f2'}}>
-                          {nameOf(r.requesterUid)} <span style={{color:'#5e6585',fontWeight:400}}>대타 구함</span>
+                        <div style={{fontSize:14,fontWeight:700,color:'#1D1B18'}}>
+                          {nameOf(r.requesterUid)} <span style={{color:'#6E6A63',fontWeight:400}}>대타 구함</span>
                         </div>
-                        <div style={{fontSize:11,color:'#f9b934',marginTop:3,fontWeight:600}}>
-                          📅 {dateLabel(r.date)} · ⏰ {timeLabel(r)}
+                        <div style={{fontSize:11,color:'#C3261C',marginTop:3,fontWeight:600}}>
+                          {dateLabel(r.date)} · {timeLabel(r)}
                         </div>
-                        {r.reason && <div style={{fontSize:10,color:'#5e6585',marginTop:3}}>사유: {r.reason}</div>}
+                        {r.reason && <div style={{fontSize:10,color:'#6E6A63',marginTop:3}}>사유: {r.reason}</div>}
                       </div>
                       <button onClick={()=>deleteRequest(r.id)}
-                        style={{background:'transparent',border:'1px solid #3d1f1f',color:'#f87171',
+                        style={{background:'transparent',border:'1px solid #E8C4BF',color:'#B42318',
                           padding:'4px 10px',fontSize:10,borderRadius:4,cursor:'pointer',fontFamily:'inherit'}}>
                         삭제
                       </button>
@@ -321,7 +321,7 @@ export default function SubstituteBoard() {
 
                     {/* 지원자 토글 */}
                     <div style={{marginTop:12}}>
-                      <div style={{fontSize:10,color:'#5e6585',fontWeight:600,marginBottom:6}}>
+                      <div style={{fontSize:10,color:'#6E6A63',fontWeight:600,marginBottom:6}}>
                         지원자 선택 (여러 명 지원 가능)
                       </div>
                       <div style={{display:'flex',flexWrap:'wrap',gap:6}}>
@@ -329,12 +329,12 @@ export default function SubstituteBoard() {
                           const applied = r.applicants.includes(e.uid)
                           return (
                             <button key={e.uid} onClick={()=>toggleApplicant(r.id, e.uid)}
-                              style={{padding:'6px 12px',borderRadius:7,border:'none',fontSize:11,fontWeight:600,
+                              style={{padding:'6px 12px',borderRadius:4,border:'none',fontSize:11,fontWeight:600,
                                 cursor:'pointer',fontFamily:'inherit',
-                                background:applied?'rgba(52,211,153,0.15)':'#191c2b',
-                                color:applied?'#34d399':'#5e6585',
-                                outline:applied?'1px solid rgba(52,211,153,0.4)':'1px solid #272a3d'}}>
-                              {applied && '✓ '}{e.name}
+                                background:applied?'rgba(46,125,69,0.15)':'#F3F1EC',
+                                color:applied?'#2E7D45':'#6E6A63',
+                                outline:applied?'1px solid rgba(46,125,69,0.4)':'1px solid #DCD7CE'}}>
+                              {applied && ''}{e.name}
                             </button>
                           )
                         })}
@@ -344,13 +344,12 @@ export default function SubstituteBoard() {
                     {/* 확정 버튼들 */}
                     {r.applicants.length > 0 && (
                       <div style={{marginTop:10,display:'flex',flexWrap:'wrap',gap:6,alignItems:'center'}}>
-                        <span style={{fontSize:10,color:'#5e6585'}}>확정:</span>
+                        <span style={{fontSize:10,color:'#6E6A63'}}>확정:</span>
                         {r.applicants.map(uid=>(
                           <button key={uid} onClick={()=>confirmApplicant(r.id, uid)}
-                            style={{background:'#34d399',color:'#000',border:'none',borderRadius:6,
+                            style={{background:'#2E7D45',color:'#FFFFFF',border:'none',borderRadius:6,
                               padding:'5px 12px',fontSize:11,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
-                            {nameOf(uid)} 확정 ✓
-                          </button>
+                            {nameOf(uid)} 확정 </button>
                         ))}
                       </div>
                     )}
@@ -361,37 +360,37 @@ export default function SubstituteBoard() {
           </div>
 
           {/* 확정 목록 */}
-          <div style={{background:'#12141f',border:'1px solid rgba(52,211,153,0.3)',borderRadius:12,overflow:'hidden'}}>
-            <div style={{padding:'14px 18px',borderBottom:'1px solid #272a3d',fontSize:13,fontWeight:600,
-              color:'#34d399'}}>
-              🟢 확정됨 ({confirmed.length}건)
+          <div style={{background:'#FFFFFF',border:'1px solid rgba(46,125,69,0.3)',borderRadius:6,overflow:'hidden'}}>
+            <div style={{padding:'14px 18px',borderBottom:'1px solid #DCD7CE',fontSize:13,fontWeight:600,
+              color:'#2E7D45'}}>
+              확정됨 ({confirmed.length}건)
             </div>
             {confirmed.length === 0 ? (
-              <div style={{padding:24,textAlign:'center',color:'#5e6585',fontSize:12}}>확정된 대타가 없습니다</div>
+              <div style={{padding:24,textAlign:'center',color:'#6E6A63',fontSize:12}}>확정된 대타가 없습니다</div>
             ) : (
               <div style={{padding:'8px 0'}}>
                 {confirmed.map(r=>(
                   <div key={r.id} style={{display:'flex',justifyContent:'space-between',alignItems:'center',
-                    padding:'12px 18px',borderBottom:'1px solid #1a1d2e',flexWrap:'wrap',gap:8}}>
+                    padding:'12px 18px',borderBottom:'1px solid #ECE8E1',flexWrap:'wrap',gap:8}}>
                     <div>
                       <div style={{fontSize:13,fontWeight:700}}>
-                        <span style={{color:'#5e6585'}}>{nameOf(r.requesterUid)}</span>
-                        <span style={{color:'#5e6585',fontWeight:400}}> → </span>
-                        <span style={{color:'#34d399'}}>{nameOf(r.confirmedUid)}</span>
-                        <span style={{color:'#5e6585',fontWeight:400}}> 대타 확정</span>
+                        <span style={{color:'#6E6A63'}}>{nameOf(r.requesterUid)}</span>
+                        <span style={{color:'#6E6A63',fontWeight:400}}> → </span>
+                        <span style={{color:'#2E7D45'}}>{nameOf(r.confirmedUid)}</span>
+                        <span style={{color:'#6E6A63',fontWeight:400}}> 대타 확정</span>
                       </div>
-                      <div style={{fontSize:11,color:'#f9b934',marginTop:3,fontWeight:600}}>
-                        📅 {dateLabel(r.date)} · ⏰ {timeLabel(r)}
+                      <div style={{fontSize:11,color:'#C3261C',marginTop:3,fontWeight:600}}>
+                        {dateLabel(r.date)} · {timeLabel(r)}
                       </div>
                     </div>
                     <div style={{display:'flex',gap:6}}>
                       <button onClick={()=>cancelConfirm(r.id)}
-                        style={{background:'transparent',border:'1px solid #272a3d',color:'#5e6585',
+                        style={{background:'transparent',border:'1px solid #DCD7CE',color:'#6E6A63',
                           padding:'5px 12px',fontSize:10,borderRadius:5,cursor:'pointer',fontFamily:'inherit'}}>
                         확정 취소
                       </button>
                       <button onClick={()=>deleteRequest(r.id)}
-                        style={{background:'transparent',border:'1px solid #3d1f1f',color:'#f87171',
+                        style={{background:'transparent',border:'1px solid #E8C4BF',color:'#B42318',
                           padding:'5px 12px',fontSize:10,borderRadius:5,cursor:'pointer',fontFamily:'inherit'}}>
                         삭제
                       </button>

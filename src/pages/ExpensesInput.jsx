@@ -43,16 +43,16 @@ export default function ExpensesInput() {
   }
 
   const secs = ['재료비','관리비','인건비']
-  const secIcons = {'재료비':'📦','관리비':'🏢','인건비':'💼'}
+  const secIcons = {'재료비':'','관리비':'','인건비':''}
 
   if(done) return (
     <div style={{display:'flex',alignItems:'center',justifyContent:'center',minHeight:'60vh'}}>
       <div style={{textAlign:'center'}}>
-        <div style={{fontSize:48,marginBottom:16}}>✅</div>
-        <div style={{fontSize:16,fontWeight:700,color:'#34d399',marginBottom:8}}>오늘 지출 입력 완료!</div>
-        <div style={{fontSize:12,color:'#5e6585',marginBottom:24}}>{now.getMonth()+1}월 {now.getDate()}일 지출이 저장됐어요.</div>
+        <div style={{fontSize:48,marginBottom:16}}></div>
+        <div style={{fontSize:16,fontWeight:700,color:'#2E7D45',marginBottom:8}}>오늘 지출 입력 완료!</div>
+        <div style={{fontSize:12,color:'#6E6A63',marginBottom:24}}>{now.getMonth()+1}월 {now.getDate()}일 지출이 저장됐어요.</div>
         <button onClick={()=>setDone(false)}
-          style={{background:'#f9b934',color:'#000',border:'none',borderRadius:8,padding:'10px 24px',fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
+          style={{background:'#C3261C',color:'#FFFFFF',border:'none',borderRadius:4,padding:'10px 24px',fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
           다시 입력
         </button>
       </div>
@@ -62,31 +62,31 @@ export default function ExpensesInput() {
   return (
     <div>
       <div style={{marginBottom:22}}>
-        <div style={{fontSize:20,fontWeight:700}}>📋 오늘 지출 입력</div>
-        <div style={{fontSize:12,color:'#5e6585',marginTop:2}}>
+        <div style={{fontSize:20,fontWeight:700}}>오늘 지출 입력</div>
+        <div style={{fontSize:12,color:'#6E6A63',marginTop:2}}>
           {now.getFullYear()}년 {now.getMonth()+1}월 {now.getDate()}일 — 당일만 입력 가능
         </div>
       </div>
 
-      <div style={{background:'rgba(249,185,52,0.08)',border:'1px solid rgba(249,185,52,0.2)',borderRadius:10,padding:'12px 16px',marginBottom:20,fontSize:12,color:'#f9b934'}}>
-        ⚠️ 당일 지출만 입력 가능합니다. 입력한 내역은 사장님만 조회할 수 있어요.
+      <div style={{background:'rgba(195,38,28,0.08)',border:'1px solid rgba(195,38,28,0.2)',borderRadius:6,padding:'12px 16px',marginBottom:20,fontSize:12,color:'#C3261C'}}>
+        당일 지출만 입력 가능합니다. 입력한 내역은 사장님만 조회할 수 있어요.
       </div>
 
-      <div style={{background:'#12141f',border:'1px solid #272a3d',borderRadius:12}}>
-        <div style={{padding:'14px 18px',borderBottom:'1px solid #272a3d',fontSize:13,fontWeight:600}}>지출 입력</div>
+      <div style={{background:'#FFFFFF',border:'1px solid #DCD7CE',borderRadius:6}}>
+        <div style={{padding:'14px 18px',borderBottom:'1px solid #DCD7CE',fontSize:13,fontWeight:600}}>지출 입력</div>
         <div style={{padding:18}}>
           {secs.map(sec=>(
             <div key={sec}>
-              <div style={{fontSize:10,fontWeight:600,color:'#5e6585',textTransform:'uppercase',letterSpacing:.8,margin:'14px 0 8px',paddingBottom:6,borderBottom:'1px solid #272a3d'}}>
+              <div style={{fontSize:10,fontWeight:600,color:'#6E6A63',textTransform:'uppercase',letterSpacing:.8,margin:'14px 0 8px',paddingBottom:6,borderBottom:'1px solid #DCD7CE'}}>
                 {secIcons[sec]} {sec}
               </div>
               <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(140px,1fr))',gap:10}}>
                 {FIELDS.filter(f=>f.sec===sec).map(f=>(
                   <div key={f.id} style={{display:'flex',flexDirection:'column',gap:4}}>
-                    <label style={{fontSize:10,color:'#5e6585',fontWeight:600}}>{f.label}</label>
+                    <label style={{fontSize:10,color:'#6E6A63',fontWeight:600}}>{f.label}</label>
                     <input type="number" value={form[f.id]||''} onChange={e=>setF(f.id,e.target.value)}
                       placeholder="0" min="0"
-                      style={{background:'#191c2b',border:'1px solid #272a3d',borderRadius:7,color:'#dde1f2',padding:'8px 10px',fontSize:12,outline:'none',width:'100%'}}/>
+                      style={{background:'#F3F1EC',border:'1px solid #DCD7CE',borderRadius:4,color:'#1D1B18',padding:'8px 10px',fontSize:12,outline:'none',width:'100%'}}/>
                   </div>
                 ))}
               </div>
@@ -95,7 +95,7 @@ export default function ExpensesInput() {
         </div>
         <div style={{padding:'0 18px 18px'}}>
           <button onClick={save} disabled={saving}
-            style={{background:'#f9b934',color:'#000',border:'none',borderRadius:8,padding:'10px 24px',fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
+            style={{background:'#C3261C',color:'#FFFFFF',border:'none',borderRadius:4,padding:'10px 24px',fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
             {saving?'저장 중...':'오늘 지출 저장'}
           </button>
         </div>
