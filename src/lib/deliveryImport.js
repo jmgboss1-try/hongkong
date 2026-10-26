@@ -6,6 +6,8 @@
 //     배민 배달(알뜰·한집)은 건당 배달비(3,400원)로 건수를 셈 — 출력물의 '배달 N건'과 맞음
 //     포장·가게배달은 배달비가 없어 그날 배달 1건 평균 금액으로 추정 (ordersEstimated)
 //   땡겨요 부가세신고내역: 주문 1건이 한 줄 (주문번호·주문일시·주문결제·매출할인), 맨 아래 '합 계' 줄
+//   요기요 정산내역 '상세 거래내역' 시트: 주문 1건이 한 줄, 가게(배달·포장)마다 머리글이 다시 나오고 맨 아래 합계 표가 따로 있음.
+//     환불일시가 있는 주문은 뺌. payout = 주문금액 + 컵보증금 − 가게부담 할인 − 이용료 (요약 시트의 '정산금액'과 맞음)
 // 결과는 revenue/_apps-{YYYY-MM} 문서에 { [앱]: { [dd]: { orders, orderAmount, payAmount, totalAmount, discount, payout, ads } } } 로 저장
 //   (없는 값은 null — 배민 orders, 아직 입금 전인 날의 payout 등)
 //   (매장 계정도 revenue 문서는 쓸 수 있어서 같은 컬렉션에 둠)
@@ -143,10 +145,42 @@ function parseDdangyeo(rows, XLSX) {
   return days
 }
 
+const YOGIYO_STORE_DISCOUNTS = ['사장님자체할인(타임할인)', '사장님포인트 사용금액', '사장님배달료할인', '요타임딜할인(가게부담)',
+  '쿠폰(가게부담)', '프로모션(가게부담)', '할인랭킹(가게부담)', '고객포인트 적립(가게부담)']
+const YOGIYO_FEES = ['주문중개이용료(VAT포함)', '외부결제이용료(VAT포함)', '배달대행이용료(VAT포함)', '요타임딜이용료(VAT포함)', '추천광고이용료(VAT포함)']
+
+function parseYogiyo(rows, XLSX) {
+  const days = {}
+  let col = null
+  for (const r of rows) {
+    if (r.some(c => norm(c) === '주문일시') && r.some(c => norm(c) === '주문번호')) {   // 가게마다 머리글이 다시 나옴
+      const at = name => r.findIndex(c => norm(c) === norm(name))
+      col = { no: at('주문번호'), date: at('주문일시'), refund: at('환불일시'), order: at('주문금액'), cup: at('일회용컵보증금'),
+        disc: YOGIYO_STORE_DISCOUNTS.map(at).filter(i => i >= 0), fees: YOGIYO_FEES.map(at).filter(i => i >= 0), ad: at('추천광고이용료(VAT포함)') }
+      continue
+    }
+    if (!col || !norm(r[col.no])) continue                         // 합계 줄·합계 표는 주문번호가 없음
+    if (col.refund >= 0 && norm(r[col.refund])) continue           // 환불된 주문
+    const date = toDate(r[col.date], XLSX)
+    if (!date) continue
+    const order = num(r[col.order]), cup = col.cup >= 0 ? num(r[col.cup]) : 0
+    const disc = col.disc.reduce((a, i) => a + num(r[i]), 0), fees = col.fees.reduce((a, i) => a + num(r[i]), 0)
+    const d = days[date] ||= { orders:0, orderAmount:0, payAmount:0, totalAmount:null, discount:0, payout:0, ads:0 }
+    d.orders++
+    d.orderAmount += order
+    d.payAmount += order - disc
+    d.discount += disc
+    d.ads += col.ad >= 0 ? num(r[col.ad]) : 0
+    d.payout += order + cup - disc - fees
+  }
+  return days
+}
+
 // 형식 알아보기: 머리글에 있는 이름으로 (rows, h = 머리글 첫 줄 번호)
 const FORMATS = [
   { platform:'coupang', label:'쿠팡이츠', test: (rows, h) => (rows[h+1] || []).some(c => norm(c) === '쿠팡부담') && rows[h].some(c => norm(c) === '매출액'), parse: parseCoupang },
   { platform:'ddangyeo', label:'땡겨요', test: (rows, h) => ['주문번호','주문일','주문결제'].every(n => rows[h].some(c => norm(c) === n)) && rows.slice(0, h).some(r => r.some(c => norm(c).includes('땡겨요'))), parse: parseDdangyeo },
+  { platform:'yogiyo', label:'요기요', test: (rows, h) => rows[h].some(c => norm(c) === '주문일시') && rows[h].some(c => norm(c) === norm('요타임딜할인(가게부담)')), parse: parseYogiyo },
   { platform:'baemin',  label:'배달의민족', test: (rows, h) => rows[h].some(c => norm(c) === '정산대상기간') && (rows[h+2] || []).some(c => norm(c) === '바로결제주문금액'), parse: parseBaemin },
 ]
 
@@ -167,7 +201,7 @@ export async function readDeliveryExcel(file, password) {
       if (f) return { platform: f.platform, label: f.label, days: f.parse(rows.slice(h), XLSX) }
     }
   }
-  throw new Error('아직 읽을 수 없는 엑셀 형식이에요. 지금은 쿠팡이츠 매출내역, 배민 정산명세서, 땡겨요 부가세신고내역이 돼요 (다른 앱은 샘플을 보내주시면 추가할게요)')
+  throw new Error('아직 읽을 수 없는 엑셀 형식이에요. 지금은 쿠팡이츠 매출내역, 배민 정산명세서, 요기요 정산내역, 땡겨요 부가세신고내역이 돼요 (다른 앱은 샘플을 보내주시면 추가할게요)')
 }
 
 // 앱에 적힌 하루 매출과 가장 가까운 엑셀 금액 칸 (없으면 결제금액 — 배민 출력물의 '총 결제금액'과 같은 기준)
