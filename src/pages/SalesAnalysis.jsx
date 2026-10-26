@@ -2,11 +2,13 @@ import { useEffect, useMemo, useState } from 'react'
 import { db } from '../firebase'
 import { doc, getDoc, setDoc } from 'firebase/firestore'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, ReferenceArea, CartesianGrid } from 'recharts'
+import { readDeliveryExcel, pickSalesField, SALES_FIELDS } from '../lib/deliveryImport'
 
 // 매출분석 — 배달앱별 하루 주문수·매출·객단가, 할인·이벤트 기간과 그 전 기간 비교
 //
 // 데이터: revenue/{YYYY-MM}[dd] 의 마감 값 (baemin·coupang·yogiyo·ddangyeo = 하루 매출,
 //         baeminOrders… = 마감 때 적은 주문 건수)
+// 배달앱 엑셀: revenue/_apps-{YYYY-MM} → { [앱]: { [dd]: { orders, sales, discount, payout, … } } } — 있으면 그날 그 앱은 이 값을 우선
 // 이벤트: revenue/_salesEvents → { list: [{ id, title, kind, platforms:[], from, to, memo }] }
 //         (매장 계정도 revenue 문서는 쓸 수 있어서 같은 컬렉션에 둠. revenue를 통째로 읽는 코드는 '_'로 시작하는 문서를 건너뛸 것)
 
@@ -43,25 +45,31 @@ const todayStr = () => { const n = new Date(); return `${n.getFullYear()}-${pad(
 const monthsOf = (from, to) => { const out = new Set(); for (let d = from; d <= to; d = addDays(d, 1)) out.add(d.slice(0,7)); return [...out] }
 const newId = () => `${Date.now()}`
 
-// 하루·앱 하나의 값: sales는 마감 매출이 있으면, orders는 주문 건수를 적었을 때만
+// 하루·앱 하나의 값. 배달앱 엑셀로 넣은 날은 그 값(가게 부담 할인·정산금액 포함),
+// 아니면 마감 매출과 마감 때 적은 주문 건수
 function dayValue(months, date, p) {
-  const rec = months[date.slice(0,7)]?.[date.slice(8,10)]
-  if (!rec) return { sales:null, orders:null }
+  const m = months[date.slice(0,7)], dd = date.slice(8,10)
+  const x = m?.apps?.[p]?.[dd]
+  if (x) return { sales:x.sales, orders:x.orders, discount:x.discount ?? null, payout:x.payout ?? null, excel:true }
+  const rec = m?.rev?.[dd]
+  if (!rec) return { sales:null, orders:null, discount:null, payout:null }
   const sales = typeof rec[p] === 'number' ? rec[p] : null
   const orders = typeof rec[`${p}Orders`] === 'number' ? rec[`${p}Orders`] : null
-  return { sales, orders }
+  return { sales, orders, discount:null, payout:null }
 }
 
 // 여러 날의 평균. 주문수·객단가는 주문 건수를 적은 날만, 매출은 매출이 있는 날만 셈
 function stats(months, dates, p) {
-  let salesN = 0, salesSum = 0, ordN = 0, ordSum = 0, ordSales = 0
+  let salesN = 0, salesSum = 0, ordN = 0, ordSum = 0, ordSales = 0, discN = 0, discSum = 0
   for (const d of dates) {
     const v = dayValue(months, d, p)
     if (v.sales != null) { salesN++; salesSum += v.sales }
     if (v.orders != null) { ordN++; ordSum += v.orders; ordSales += v.sales || 0 }
+    if (v.discount != null) { discN++; discSum += v.discount }
   }
   return {
-    salesN, ordN, ordSum, salesSum,
+    salesN, ordN, ordSum, salesSum, discN, discSum,
+    discountPerDay: discN ? discSum / discN : null,
     salesPerDay: salesN ? salesSum / salesN : null,
     ordersPerDay: ordN ? ordSum / ordN : null,
     aov: ordSum ? ordSales / ordSum : null,
@@ -108,6 +116,8 @@ function ChartTooltip({ active, payload, metric }) {
       <div style={{color: metric==='orders' ? '#dde1f2' : '#8b92b0'}}>주문 {r.orders == null ? '기록 없음' : `${r.orders}건`}</div>
       <div style={{color: metric==='sales' ? '#dde1f2' : '#8b92b0'}}>매출 {r.sales == null ? '—' : `${won(r.sales)}원`}</div>
       <div style={{color: metric==='aov' ? '#dde1f2' : '#8b92b0'}}>객단가 {r.aov == null ? '—' : `${won(r.aov)}원`}</div>
+      {r.discount != null && <div style={{color:'#8b92b0'}}>가게 부담 할인 {won(r.discount)}원</div>}
+      {r.excel && <div style={{color:'#5e6585',fontSize:10}}>배달앱 엑셀 기준</div>}
       {r.events.length > 0 && <div style={{color:'#f9b934',marginTop:2}}>{r.events.join(', ')}</div>}
     </div>
   )
@@ -121,7 +131,8 @@ function emptyForm() {
 export default function SalesAnalysis() {
   const [range, setRange]   = useState(()=>({ from: addDays(todayStr(), -29), to: todayStr(), preset:'30' }))
   const [metric, setMetric] = useState('orders')
-  const [months, setMonths] = useState({})       // { 'YYYY-MM': revenue 문서 }
+  const [months, setMonths] = useState({})       // { 'YYYY-MM': { rev: revenue 문서, apps: 배달앱 엑셀 문서 } }
+  const [imp, setImp]       = useState(null)     // 엑셀 불러오기: { busy } | { error } | { result, field, match, entered } | { done }
   const [loading, setLoading] = useState(true)
   const [events, setEvents] = useState([])
   const [eventsErr, setEventsErr] = useState('')
@@ -145,7 +156,8 @@ export default function SalesAnalysis() {
     if (!missing.length) { setLoading(false); return }
     let cancelled = false
     setLoading(true)
-    Promise.all(missing.map(m => getDoc(doc(db,'revenue',m)).then(s => [m, s.exists() ? s.data() : {}])))
+    const read = id => getDoc(doc(db,'revenue',id)).then(s => s.exists() ? s.data() : {})
+    Promise.all(missing.map(m => Promise.all([read(m), read(`_apps-${m}`).catch(() => ({}))]).then(([rev, apps]) => [m, { rev, apps }])))
       .then(list => { if (!cancelled) setMonths(prev => ({ ...prev, ...Object.fromEntries(list) })) })
       .catch(e => console.error(e))
       .finally(() => { if (!cancelled) setLoading(false) })
@@ -189,6 +201,48 @@ export default function SalesAnalysis() {
   async function removeEvent(ev) {
     if (!window.confirm(`'${ev.title}' 일정을 삭제할까요?`)) return
     if (await writeEvents(list => list.filter(e => e.id !== ev.id)) && selId === ev.id) setSelId(null)
+  }
+
+  async function onExcel(file) {
+    if (!file) return
+    setImp({ busy:true })
+    try {
+      const result = await readDeliveryExcel(file)
+      const dates = Object.keys(result.days).sort()
+      if (!dates.length) throw new Error('엑셀에 주문이 없어요')
+      // 그 기간에 매출입력에서 적은 같은 앱 매출 (어느 금액 칸이 같은 기준인지 맞춰보려고)
+      const entered = {}
+      for (const ym of monthsOf(dates[0], dates[dates.length-1])) {
+        const s = await getDoc(doc(db,'revenue',ym))
+        const rev = s.exists() ? s.data() : {}
+        for (const d of dates) if (d.startsWith(ym) && typeof rev[d.slice(8,10)]?.[result.platform] === 'number') entered[d] = rev[d.slice(8,10)][result.platform]
+      }
+      const match = pickSalesField(result.days, entered)
+      setImp({ result, dates, entered, match, field: match.key })
+    } catch (e) {
+      console.error(e)
+      setImp({ error: e.message || '엑셀을 읽지 못했어요' })
+    }
+  }
+
+  async function saveExcel() {
+    const { result, dates, field } = imp
+    setImp(v => ({ ...v, saving:true }))
+    try {
+      for (const ym of monthsOf(dates[0], dates[dates.length-1])) {
+        const ref = doc(db,'revenue',`_apps-${ym}`)
+        const s = await getDoc(ref)                       // 저장 직전에 다시 읽고 이 앱의 해당 날짜만 바꿈
+        const cur = s.exists() ? s.data() : {}
+        const days = { ...(cur[result.platform] || {}) }
+        for (const d of dates) if (d.startsWith(ym)) days[d.slice(8,10)] = { ...result.days[d], sales: result.days[d][field] }
+        await setDoc(ref, { ...cur, [result.platform]: days, [`${result.platform}SalesField`]: field })
+      }
+      setMonths(prev => { const n = { ...prev }; monthsOf(dates[0], dates[dates.length-1]).forEach(m => delete n[m]); return n })
+      setImp({ done: `${result.label} ${shortDate(dates[0])}~${shortDate(dates[dates.length-1])} ${dates.length}일치를 넣었어요` })
+    } catch (e) {
+      console.error(e)
+      setImp(v => ({ ...v, saving:false, saveError: e?.code === 'permission-denied' ? '저장 권한이 없어요 (Firebase 보안 규칙 확인 필요)' : '저장하지 못했어요. 다시 시도해 주세요' }))
+    }
   }
 
   function setPreset(p) {
@@ -271,6 +325,12 @@ export default function SalesAnalysis() {
                   <div style={{fontSize:13,fontWeight:600,fontFamily:'DM Mono,monospace'}}>{s.ordN ? `${s.ordSum}건` : '—'}</div>
                 </div>
               </div>
+              {s.discN > 0 && (
+                <div style={{fontSize:11,color:'#8b92b0',marginTop:8}}>
+                  가게 부담 할인 하루 평균 <b style={{color:'#dde1f2',fontFamily:'DM Mono,monospace'}}>{won(s.discountPerDay)}원</b>
+                  <span style={{color:'#5e6585'}}> (엑셀 {s.discN}일)</span>
+                </div>
+              )}
               <div style={{fontSize:10,color:'#5e6585',marginTop:8}}>
                 매출 {s.salesN}일 · 주문수 {s.ordN}일 기록
               </div>
@@ -340,6 +400,60 @@ export default function SalesAnalysis() {
           </table>
         </div>
       )}
+
+      {/* 배달앱 엑셀로 예전 자료 넣기 */}
+      <div style={{...card,marginBottom:14}}>
+        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',gap:8,flexWrap:'wrap'}}>
+          <div>
+            <div style={{fontSize:14,fontWeight:700}}>📥 배달앱 엑셀로 예전 자료 넣기</div>
+            <div style={{fontSize:11,color:'#5e6585',marginTop:2}}>사장님 사이트에서 받은 주문·매출내역 엑셀 (지금은 쿠팡이츠). 같은 날짜는 엑셀 값으로 덮어써요</div>
+          </div>
+          <label style={{background:'#191c2b',border:'1px solid #272a3d',color:'#dde1f2',borderRadius:8,padding:'8px 14px',fontSize:12,fontWeight:600,
+            cursor: imp?.busy ? 'default' : 'pointer'}}>
+            {imp?.busy ? '읽는 중...' : '엑셀 파일 고르기'}
+            <input type="file" accept=".xlsx,.xls,.csv" disabled={!!imp?.busy} style={{display:'none'}}
+              onChange={e=>{ onExcel(e.target.files?.[0]); e.target.value='' }}/>
+          </label>
+        </div>
+        {imp?.error && <div style={{fontSize:12,color:'#f87171',marginTop:10}}>⚠️ {imp.error}</div>}
+        {imp?.done && <div style={{fontSize:12,color:'#34d399',marginTop:10}}>✅ {imp.done}</div>}
+        {imp?.result && (()=>{
+          const { result, dates, entered, match, field } = imp
+          const tot = dates.reduce((a,d)=>{ const v = result.days[d]; return { o:a.o+v.orders, s:a.s+v[field], disc:a.disc+v.discount, out:a.out+v.payout } }, { o:0, s:0, disc:0, out:0 })
+          const nEntered = Object.keys(entered).length
+          const diff = nEntered ? dates.filter(d => entered[d] != null).reduce((a,d) => a + Math.abs(result.days[d][field] - entered[d]), 0) : null
+          return (
+            <div style={{background:'#191c2b',borderRadius:10,padding:14,marginTop:12,fontSize:12,lineHeight:1.8}}>
+              <div style={{fontWeight:700}}>{result.label} · {dates[0]} ~ {dates[dates.length-1]} ({dates.length}일)</div>
+              <div style={{color:'#8b92b0'}}>
+                주문 <b style={{color:'#dde1f2'}}>{tot.o}건</b> · 매출 <b style={{color:'#dde1f2'}}>{won(tot.s)}원</b>
+                {' · '}가게 부담 할인 <b style={{color:'#dde1f2'}}>{won(tot.disc)}원</b> · 정산금액 <b style={{color:'#dde1f2'}}>{won(tot.out)}원</b>
+              </div>
+              <div style={{display:'flex',alignItems:'center',gap:6,flexWrap:'wrap',marginTop:6}}>
+                <span style={{color:'#8b92b0'}}>매출로 쓸 금액</span>
+                {SALES_FIELDS.map(f => <button key={f.key} type="button" onClick={()=>setImp(v=>({ ...v, field:f.key }))} style={chip(field===f.key)}>{f.label}</button>)}
+              </div>
+              <div style={{fontSize:11,color:'#5e6585',marginTop:4}}>
+                {nEntered
+                  ? <>매출입력에 적힌 {nEntered}일치와 비교하면 <b style={{color:'#dde1f2'}}>{SALES_FIELDS.find(f=>f.key===match.key).label}</b>이 가장 가까워요
+                      {field === match.key ? '' : ' (다른 금액을 골랐어요)'} · 지금 고른 금액과 하루 평균 차이 {won(diff / nEntered)}원</>
+                  : '이 기간엔 매출입력 기록이 없어서 결제금액(배민 출력물의 총 결제금액과 같은 기준)으로 넣어요'}
+              </div>
+              {imp.saveError && <div style={{color:'#f87171',marginTop:6}}>⚠️ {imp.saveError}</div>}
+              <div style={{display:'flex',gap:8,marginTop:10}}>
+                <button type="button" onClick={saveExcel} disabled={imp.saving}
+                  style={{background:'#f9b934',color:'#000',border:'none',borderRadius:8,padding:'8px 18px',fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
+                  {imp.saving ? '저장 중...' : '매출분석에 넣기'}
+                </button>
+                <button type="button" onClick={()=>setImp(null)}
+                  style={{background:'transparent',border:'1px solid #272a3d',color:'#8b92b0',borderRadius:8,padding:'8px 14px',fontSize:12,cursor:'pointer',fontFamily:'inherit'}}>
+                  취소
+                </button>
+              </div>
+            </div>
+          )
+        })()}
+      </div>
 
       {/* 할인·이벤트 일정 */}
       <div style={{...card,marginBottom:14}}>
@@ -447,19 +561,24 @@ export default function SalesAnalysis() {
                 ① 바로 전 {periods.before.length}일 ({shortDate(periods.before[0])}~{shortDate(periods.before[periods.before.length-1])}),
                 ② 그 전 4주의 같은 요일 평균과 비교해요. 하루 평균이라 기간 길이가 달라도 비교할 수 있어요.
               </div>
-              {loading ? <div style={{color:'#5e6585',fontSize:12}}>불러오는 중...</div> : (
+              {loading ? <div style={{color:'#5e6585',fontSize:12}}>불러오는 중...</div> : (()=>{
+                // 배달앱 엑셀로 넣은 날이 있으면 가게 부담 할인도 비교
+                const allDays = [...periods.during, ...periods.before, ...periods.sameWeekday]
+                const hasDisc = PLATFORMS.some(p => stats(months, allDays, p.key).discN > 0)
+                const groups = ['하루 주문','하루 매출','객단가', ...(hasDisc ? ['가게 부담 할인(하루)'] : [])]
+                return (
                 <div style={{overflowX:'auto'}}>
-                  <table style={{width:'100%',borderCollapse:'collapse',fontSize:12,minWidth:720}}>
+                  <table style={{width:'100%',borderCollapse:'collapse',fontSize:12,minWidth: hasDisc ? 940 : 720}}>
                     <thead>
                       <tr style={{color:'#5e6585',fontSize:10}}>
                         <th style={{textAlign:'left',padding:'6px 8px',fontWeight:600}}>앱</th>
-                        {['하루 주문','하루 매출','객단가'].map(h => (
+                        {groups.map(h => (
                           <th key={h} colSpan={3} style={{padding:'6px 8px',fontWeight:600,textAlign:'center',borderLeft:'1px solid #272a3d'}}>{h}</th>
                         ))}
                       </tr>
                       <tr style={{color:'#5e6585',fontSize:10,textAlign:'right'}}>
                         <th/>
-                        {[0,1,2].map(i => [
+                        {groups.map((g,i) => [
                           <th key={`a${i}`} style={{padding:'4px 8px',fontWeight:500,borderLeft:'1px solid #272a3d'}}>이벤트</th>,
                           <th key={`b${i}`} style={{padding:'4px 8px',fontWeight:500}}>① 직전</th>,
                           <th key={`c${i}`} style={{padding:'4px 8px',fontWeight:500}}>② 같은 요일</th>,
@@ -497,13 +616,19 @@ export default function SalesAnalysis() {
                             <td style={{padding:'8px',borderLeft:'1px solid #272a3d',fontWeight:700,fontFamily:'DM Mono,monospace'}}>{won(E.aov)}</td>
                             <td style={{padding:'8px'}}>{cell(E.aov, B.aov, won)}</td>
                             <td style={{padding:'8px'}}>{cell(E.aov, W.aov, won)}</td>
+                            {hasDisc && <>
+                              <td style={{padding:'8px',borderLeft:'1px solid #272a3d',fontWeight:700,fontFamily:'DM Mono,monospace'}}>{won(E.discountPerDay)}</td>
+                              <td style={{padding:'8px'}}>{cell(E.discountPerDay, B.discountPerDay, won)}</td>
+                              <td style={{padding:'8px'}}>{cell(E.discountPerDay, W.discountPerDay, won)}</td>
+                            </>}
                           </tr>
                         )
                       })}
                     </tbody>
                   </table>
                 </div>
-              )}
+                )
+              })()}
               <div style={{fontSize:10,color:'#5e6585',marginTop:10,lineHeight:1.7}}>
                 ▲▼는 이벤트 기간이 비교 기간보다 몇 % 높거나 낮은지예요. 주문수·객단가는 주문 건수를 적은 날만 계산해요.
                 할인 대상이 아닌 앱도 같이 올랐다면 할인보다는 날씨·시기 영향일 수 있어요.
