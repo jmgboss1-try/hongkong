@@ -50,26 +50,30 @@ const newId = () => `${Date.now()}`
 function dayValue(months, date, p) {
   const m = months[date.slice(0,7)], dd = date.slice(8,10)
   const x = m?.apps?.[p]?.[dd]
-  if (x) return { sales:x.sales, orders:x.orders, discount:x.discount ?? null, payout:x.payout ?? null, excel:true }
   const rec = m?.rev?.[dd]
-  if (!rec) return { sales:null, orders:null, discount:null, payout:null }
+  const entered = rec && typeof rec[`${p}Orders`] === 'number' ? rec[`${p}Orders`] : null
+  // 배민 정산명세서처럼 엑셀에 주문 건수가 없으면 마감 때 적은 건수를 씀
+  if (x) return { sales:x.sales, orders: x.orders ?? entered, discount:x.discount ?? null, payout:x.payout ?? null, ads:x.ads ?? null, excel:true }
+  if (!rec) return { sales:null, orders:null, discount:null, payout:null, ads:null }
   const sales = typeof rec[p] === 'number' ? rec[p] : null
   const orders = typeof rec[`${p}Orders`] === 'number' ? rec[`${p}Orders`] : null
-  return { sales, orders, discount:null, payout:null }
+  return { sales, orders, discount:null, payout:null, ads:null }
 }
 
 // 여러 날의 평균. 주문수·객단가는 주문 건수를 적은 날만, 매출은 매출이 있는 날만 셈
 function stats(months, dates, p) {
-  let salesN = 0, salesSum = 0, ordN = 0, ordSum = 0, ordSales = 0, discN = 0, discSum = 0
+  let salesN = 0, salesSum = 0, ordN = 0, ordSum = 0, ordSales = 0, discN = 0, discSum = 0, adsN = 0, adsSum = 0
   for (const d of dates) {
     const v = dayValue(months, d, p)
     if (v.sales != null) { salesN++; salesSum += v.sales }
     if (v.orders != null) { ordN++; ordSum += v.orders; ordSales += v.sales || 0 }
     if (v.discount != null) { discN++; discSum += v.discount }
+    if (v.ads != null) { adsN++; adsSum += v.ads }
   }
   return {
     salesN, ordN, ordSum, salesSum, discN, discSum,
     discountPerDay: discN ? discSum / discN : null,
+    adsN, adsPerDay: adsN ? adsSum / adsN : null,
     salesPerDay: salesN ? salesSum / salesN : null,
     ordersPerDay: ordN ? ordSum / ordN : null,
     aov: ordSum ? ordSales / ordSum : null,
@@ -117,6 +121,7 @@ function ChartTooltip({ active, payload, metric }) {
       <div style={{color: metric==='sales' ? '#dde1f2' : '#8b92b0'}}>매출 {r.sales == null ? '—' : `${won(r.sales)}원`}</div>
       <div style={{color: metric==='aov' ? '#dde1f2' : '#8b92b0'}}>객단가 {r.aov == null ? '—' : `${won(r.aov)}원`}</div>
       {r.discount != null && <div style={{color:'#8b92b0'}}>가게 부담 할인 {won(r.discount)}원</div>}
+      {r.ads != null && r.ads > 0 && <div style={{color:'#8b92b0'}}>광고비 {won(r.ads)}원</div>}
       {r.excel && <div style={{color:'#5e6585',fontSize:10}}>배달앱 엑셀 기준</div>}
       {r.events.length > 0 && <div style={{color:'#f9b934',marginTop:2}}>{r.events.join(', ')}</div>}
     </div>
@@ -203,11 +208,11 @@ export default function SalesAnalysis() {
     if (await writeEvents(list => list.filter(e => e.id !== ev.id)) && selId === ev.id) setSelId(null)
   }
 
-  async function onExcel(file) {
+  async function onExcel(file, password) {
     if (!file) return
-    setImp({ busy:true })
+    setImp({ busy:true, decrypting: !!password })
     try {
-      const result = await readDeliveryExcel(file)
+      const result = await readDeliveryExcel(file, password)
       const dates = Object.keys(result.days).sort()
       if (!dates.length) throw new Error('엑셀에 주문이 없어요')
       // 그 기간에 매출입력에서 적은 같은 앱 매출 (어느 금액 칸이 같은 기준인지 맞춰보려고)
@@ -221,7 +226,9 @@ export default function SalesAnalysis() {
       setImp({ result, dates, entered, match, field: match.key })
     } catch (e) {
       console.error(e)
-      setImp({ error: e.message || '엑셀을 읽지 못했어요' })
+      // 비밀번호가 걸린 파일(배민 정산명세서 등): 비밀번호를 받아 다시 읽음. 비밀번호는 저장하지 않음
+      if (e.code === 'NEED_PASSWORD' || /비밀번호가 맞지/.test(e.message)) setImp({ needPw:true, file, pw:'', error: e.code === 'NEED_PASSWORD' ? '' : e.message })
+      else setImp({ error: e.message || '엑셀을 읽지 못했어요' })
     }
   }
 
@@ -331,6 +338,11 @@ export default function SalesAnalysis() {
                   <span style={{color:'#5e6585'}}> (엑셀 {s.discN}일)</span>
                 </div>
               )}
+              {s.adsN > 0 && (
+                <div style={{fontSize:11,color:'#8b92b0',marginTop:2}}>
+                  광고비 하루 평균 <b style={{color:'#dde1f2',fontFamily:'DM Mono,monospace'}}>{won(s.adsPerDay)}원</b>
+                </div>
+              )}
               <div style={{fontSize:10,color:'#5e6585',marginTop:8}}>
                 매출 {s.salesN}일 · 주문수 {s.ordN}일 기록
               </div>
@@ -406,32 +418,51 @@ export default function SalesAnalysis() {
         <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',gap:8,flexWrap:'wrap'}}>
           <div>
             <div style={{fontSize:14,fontWeight:700}}>📥 배달앱 엑셀로 예전 자료 넣기</div>
-            <div style={{fontSize:11,color:'#5e6585',marginTop:2}}>사장님 사이트에서 받은 주문·매출내역 엑셀 (지금은 쿠팡이츠). 같은 날짜는 엑셀 값으로 덮어써요</div>
+            <div style={{fontSize:11,color:'#5e6585',marginTop:2}}>사장님 사이트에서 받은 주문·매출내역 엑셀 (쿠팡이츠 매출내역, 배민 정산명세서). 같은 날짜는 엑셀 값으로 덮어써요</div>
           </div>
           <label style={{background:'#191c2b',border:'1px solid #272a3d',color:'#dde1f2',borderRadius:8,padding:'8px 14px',fontSize:12,fontWeight:600,
             cursor: imp?.busy ? 'default' : 'pointer'}}>
-            {imp?.busy ? '읽는 중...' : '엑셀 파일 고르기'}
+            {imp?.busy ? (imp.decrypting ? '비밀번호 푸는 중... (10초쯤)' : '읽는 중...') : '엑셀 파일 고르기'}
             <input type="file" accept=".xlsx,.xls,.csv" disabled={!!imp?.busy} style={{display:'none'}}
               onChange={e=>{ onExcel(e.target.files?.[0]); e.target.value='' }}/>
           </label>
         </div>
+        {imp?.needPw && (
+          <form onSubmit={e=>{ e.preventDefault(); if (imp.pw) onExcel(imp.file, imp.pw) }}
+            style={{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap',marginTop:12,background:'#191c2b',borderRadius:10,padding:12}}>
+            <span style={{fontSize:12}}>🔒 비밀번호가 걸린 파일이에요</span>
+            <input type="password" value={imp.pw} autoFocus onChange={e=>{ const pw = e.target.value; setImp(v=>({ ...v, pw })) }}
+              placeholder="파일 비밀번호" aria-label="파일 비밀번호" style={{...input,width:150,background:'#12141f'}}/>
+            <button type="submit" disabled={!imp.pw}
+              style={{background:'#f9b934',color:'#000',border:'none',borderRadius:8,padding:'7px 14px',fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>열기</button>
+            <button type="button" onClick={()=>setImp(null)}
+              style={{background:'transparent',border:'1px solid #272a3d',color:'#8b92b0',borderRadius:8,padding:'7px 12px',fontSize:12,cursor:'pointer',fontFamily:'inherit'}}>취소</button>
+            <span style={{width:'100%',fontSize:10,color:'#5e6585'}}>비밀번호는 이 화면에서 파일을 여는 데만 쓰고 어디에도 저장하지 않아요</span>
+          </form>
+        )}
         {imp?.error && <div style={{fontSize:12,color:'#f87171',marginTop:10}}>⚠️ {imp.error}</div>}
         {imp?.done && <div style={{fontSize:12,color:'#34d399',marginTop:10}}>✅ {imp.done}</div>}
         {imp?.result && (()=>{
           const { result, dates, entered, match, field } = imp
-          const tot = dates.reduce((a,d)=>{ const v = result.days[d]; return { o:a.o+v.orders, s:a.s+v[field], disc:a.disc+v.discount, out:a.out+v.payout } }, { o:0, s:0, disc:0, out:0 })
+          const tot = dates.reduce((a,d)=>{ const v = result.days[d]; return { o:a.o+(v.orders||0), s:a.s+(v[field]||0), disc:a.disc+(v.discount||0), out:a.out+(v.payout||0), ads:a.ads+(v.ads||0) } }, { o:0, s:0, disc:0, out:0, ads:0 })
+          const hasOrders = dates.some(d => result.days[d].orders != null)
+          const unpaid = dates.filter(d => result.days[d].payout == null).length
+          const fields = SALES_FIELDS.filter(f => dates.some(d => result.days[d][f.key] != null))
           const nEntered = Object.keys(entered).length
           const diff = nEntered ? dates.filter(d => entered[d] != null).reduce((a,d) => a + Math.abs(result.days[d][field] - entered[d]), 0) : null
           return (
             <div style={{background:'#191c2b',borderRadius:10,padding:14,marginTop:12,fontSize:12,lineHeight:1.8}}>
               <div style={{fontWeight:700}}>{result.label} · {dates[0]} ~ {dates[dates.length-1]} ({dates.length}일)</div>
               <div style={{color:'#8b92b0'}}>
-                주문 <b style={{color:'#dde1f2'}}>{tot.o}건</b> · 매출 <b style={{color:'#dde1f2'}}>{won(tot.s)}원</b>
-                {' · '}가게 부담 할인 <b style={{color:'#dde1f2'}}>{won(tot.disc)}원</b> · 정산금액 <b style={{color:'#dde1f2'}}>{won(tot.out)}원</b>
+                {hasOrders ? <>주문 <b style={{color:'#dde1f2'}}>{tot.o}건</b> · </> : null}매출 <b style={{color:'#dde1f2'}}>{won(tot.s)}원</b>
+                {' · '}가게 부담 할인 <b style={{color:'#dde1f2'}}>{won(tot.disc)}원</b>
+                {tot.ads > 0 && <> · 광고비 <b style={{color:'#dde1f2'}}>{won(tot.ads)}원</b></>}
+                {' · '}정산(입금)금액 <b style={{color:'#dde1f2'}}>{won(tot.out)}원</b>{unpaid > 0 && <span style={{color:'#5e6585'}}> (아직 입금 전 {unpaid}일 제외)</span>}
               </div>
+              {!hasOrders && <div style={{fontSize:11,color:'#f9b934'}}>이 엑셀엔 주문 건수가 없어요. 주문수·객단가는 마감 때 적은 건수로 계산해요</div>}
               <div style={{display:'flex',alignItems:'center',gap:6,flexWrap:'wrap',marginTop:6}}>
                 <span style={{color:'#8b92b0'}}>매출로 쓸 금액</span>
-                {SALES_FIELDS.map(f => <button key={f.key} type="button" onClick={()=>setImp(v=>({ ...v, field:f.key }))} style={chip(field===f.key)}>{f.label}</button>)}
+                {fields.map(f => <button key={f.key} type="button" onClick={()=>setImp(v=>({ ...v, field:f.key }))} style={chip(field===f.key)}>{f.label}</button>)}
               </div>
               <div style={{fontSize:11,color:'#5e6585',marginTop:4}}>
                 {nEntered
