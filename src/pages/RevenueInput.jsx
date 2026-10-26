@@ -14,7 +14,23 @@ const DELIVERY_PLATFORMS = [
   { key:'ddangyeo',label:'땡겨요',     color:'#93c5fd', emoji:'🔵' },
 ]
 
-// 세션별 필드 접두어 매핑
+// 디자인 시안 (미리보기에서 비교 중): ?theme=paper | dusk
+//   paper — 주문전표·장부: 종이 흰색 바탕, 먹색 글씨, 강조는 짬뽕 빨강 하나, 영수증 같은 점선 줄
+//   dusk  — 어두운 화면 다듬기: 숯색 바탕, 차분한 호박색 강조, 카드 대신 여백과 선
+const THEMES = {
+  paper: { name:'주문전표·장부', bg:'#FAF9F6', ink:'#1D1B18', sub:'#6E6A63', faint:'#A8A39A', rule:'#DCD7CE', strong:'#1D1B18',
+    accent:'#C3261C', onAccent:'#FFFFFF', accentSoft:'#F7E6E3', warn:'#8A5300', ok:'#2E6A3A', field:'#FFFFFF', fieldLine:'#CBC5BA', leader:true },
+  dusk:  { name:'어두운 화면', bg:'#17191E', ink:'#ECEDEF', sub:'#9BA1AB', faint:'#5F6570', rule:'#2C3038', strong:'#3A3F48',
+    accent:'#E3A84E', onAccent:'#17191E', accentSoft:'rgba(227,168,78,0.12)', warn:'#E3A84E', ok:'#86C796', field:'#22252B', fieldLine:'#363B44', leader:false },
+}
+const pickTheme = () => {
+  try { const t = new URLSearchParams(window.location.search).get('theme'); if (THEMES[t]) { localStorage.setItem('revTheme', t); return t } } catch { /* 무시 */ }
+  try { const t = localStorage.getItem('revTheme'); if (THEMES[t]) return t } catch { /* 무시 */ }
+  return 'paper'
+}
+const won = n => (n || 0).toLocaleString('ko-KR')
+
+
 const PREFIX = { morning:'morning', middle:'middle', close:'' }
 const fieldKey = (session, base) => {
   const p = PREFIX[session]
@@ -49,6 +65,7 @@ export default function RevenueInput() {
   const [, setTick] = useState(0)
   const [scan, setScan] = useState(null) // 사진 인식: { busy } | { result, photo } | { error }
   const [phoneOpen, setPhoneOpen] = useState(false) // 폰에서 출력물 사진 받기 (QR)
+  const [theme, setTheme] = useState(pickTheme)
   useEffect(()=>{
     const id = setInterval(()=>setTick(t=>t+1), 60000)
     return ()=>clearInterval(id)
@@ -162,8 +179,8 @@ export default function RevenueInput() {
       // 오늘 날짜 칸만 저장 (다른 날짜는 건드리지 않음)
       await setDoc(doc(db,'revenue',today), { [todayDD]: newRow }, { merge:true })
       setData({ ...latest, [todayDD]: newRow })
-      const label = activeSession==='morning'?'🌅 오전':activeSession==='middle'?'☕ 미들타임':'🌙 마감'
-      alert(`${label} 매출이 저장됐습니다!`)
+      const label = activeSession==='morning'?'오전':activeSession==='middle'?'미들타임':'마감'
+      alert(`${label} 매출을 저장했어요`)
     } catch(e) { console.error(e) }
     setSaving(false)
   }
@@ -189,315 +206,278 @@ export default function RevenueInput() {
   const isNegative     = afternoonKiosk < 0 || afternoonDel < 0 || afternoonPos < 0
 
   const sessionInfo = {
-    morning: { label:'🌅 오전 매출',     color:'#f9b934', hint:'오전 영업 종료 후 입력' },
-    middle:  { label:'☕ 미들타임 매출', color:'#a78bfa', hint:'14:30~16:30 매출 별도 입력' },
-    close:   { label:'🌙 마감 매출',     color:'#93c5fd', hint:'하루 전체 합계를 입력 (오후 자동계산)' },
+    morning: { label:'오전',     hint:'오전 영업이 끝나면 입력' },
+    middle:  { label:'미들타임', hint:'14:30~16:30, 포스에 찍힌 누적 금액 그대로 입력' },
+    close:   { label:'마감',     hint:'하루 전체 합계를 입력해요. 오후 매출은 자동으로 계산돼요' },
   }
   const si = sessionInfo[activeSession]
+  const T = THEMES[theme]
+  const num = { fontVariantNumeric:'tabular-nums', fontFeatureSettings:'"tnum"' }
+  const subtotal = (+kiosk||0) + delTotal + (+pos||0)
+  const morningTotal = (rec.morningKiosk||0)+(rec.morningDel||0)+(rec.morningPos||0)
+
+  const field = (extra) => ({ background:T.field, border:`1px solid ${T.fieldLine}`, borderRadius:4, color:T.ink,
+    padding:'9px 10px', fontSize:16, outline:'none', fontFamily:'inherit', textAlign:'right', boxSizing:'border-box', ...num, ...extra })
+  // 금액 칸: 쉼표 찍어 보여주고 숫자만 받음 (값은 숫자 문자열 그대로)
+  const money = (val, set, label, extra) => (
+    <input type="text" inputMode="numeric" value={val === '' || val == null ? '' : won(+val)} placeholder="0" aria-label={label}
+      onChange={e=>set(e.target.value.replace(/[^0-9]/g,''))} style={field(extra)}/>
+  )
+  const leader = () => T.leader
+    ? <span aria-hidden="true" style={{flex:1, borderBottom:`1px dotted ${T.faint}`, margin:'0 6px', alignSelf:'flex-end', marginBottom:12, minWidth:4}}/>
+    : <span style={{flex:1, minWidth:4}}/>
+  // 컴포넌트가 아니라 함수로 그림 (렌더마다 새 컴포넌트가 되면 입력칸이 다시 만들어져 포커스가 빠짐)
+  const row = (label, control) => (
+    <div style={{display:'flex', alignItems:'center', padding:'6px 0', minHeight:46}}>
+      <span style={{fontSize:14, color:T.ink, whiteSpace:'nowrap'}}>{label}</span>
+      {leader()}
+      {control}
+    </div>
+  )
 
   function DeliveryDetail({ session }) {
-    const hasDetail = DELIVERY_PLATFORMS.some(p=>(rec[fieldKey(session,p.key)]||0)>0)
-    if(!hasDetail) return null
+    const parts = DELIVERY_PLATFORMS.filter(p => (rec[fieldKey(session,p.key)]||0) > 0)
+    if (!parts.length) return null
     return (
-      <div style={{marginTop:4,display:'flex',flexDirection:'column',gap:2}}>
-        {DELIVERY_PLATFORMS.map(p=>{
-          const val = rec[fieldKey(session,p.key)]||0
-          if(!val) return null
-          return (
-            <div key={p.key} style={{display:'flex',justifyContent:'space-between',fontSize:9,color:'#5e6585'}}>
-              <span>{p.emoji} {p.label}</span>
-              <span style={{fontFamily:'DM Mono,monospace'}}>{val.toLocaleString()}</span>
-            </div>
-          )
-        })}
+      <div style={{marginTop:2, display:'flex', flexDirection:'column', gap:1}}>
+        {parts.map(p => (
+          <div key={p.key} style={{display:'flex', justifyContent:'space-between', gap:8, fontSize:11, color:T.sub}}>
+            <span>{p.label}</span><span style={num}>{won(rec[fieldKey(session,p.key)])}</span>
+          </div>
+        ))}
       </div>
     )
   }
 
+  const summary = [
+    { key:'morning', label:'오전',  val:morningSum, filled:hasMorning, by:rec.morningBy },
+    { key:'middle',  label:'미들',  val:middleSum,  filled:hasMiddle,  by:rec.middleBy },
+    { key:'close',   label:'마감 (하루 합계)', val:closeSum, filled:hasClose, by:rec.closeBy },
+  ]
+  const cell = { padding:'10px 12px', borderBottom:`1px solid ${T.rule}`, textAlign:'right', ...num }
+
   return (
-    <div>
-      <div style={{display:'flex',alignItems:'flex-end',justifyContent:'space-between',marginBottom:22}}>
-        <div>
-          <div style={{fontSize:20,fontWeight:700}}>💰 매출 입력</div>
-          <div style={{fontSize:12,color:'#5e6585',marginTop:2}}>{todayLabel} 당일 매출</div>
+    <div className="page-surface" style={{background:T.bg, color:T.ink}}>
+      <div style={{maxWidth:640}}>
+        {/* 시안 바꾸기 — 디자인을 고르면 없앰 */}
+        <div style={{display:'flex', gap:6, alignItems:'center', marginBottom:18, fontSize:12, color:T.sub, flexWrap:'wrap'}}>
+          디자인 시안
+          {Object.entries(THEMES).map(([k,v]) => (
+            <button key={k} type="button" onClick={()=>{ setTheme(k); try { localStorage.setItem('revTheme', k) } catch { /* 무시 */ } }}
+              style={{padding:'5px 10px', borderRadius:4, fontSize:12, fontFamily:'inherit', cursor:'pointer',
+                border:`1px solid ${theme===k ? T.accent : T.rule}`, background: theme===k ? T.accentSoft : 'transparent',
+                color: theme===k ? T.accent : T.sub, fontWeight: theme===k ? 700 : 400}}>{v.name}</button>
+          ))}
         </div>
-      </div>
 
-      {/* 당일 현황 요약 */}
-      <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:12,marginBottom:18}}>
-        {[
-          { label:'오전 매출',  val:morningSum, color:'#f9b934', filled:hasMorning, by:rec.morningBy },
-          { label:'미들 매출',  val:middleSum,  color:'#a78bfa', filled:hasMiddle,  by:rec.middleBy },
-          { label:'마감 매출',  val:closeSum,   color:'#93c5fd', filled:hasClose,   by:rec.closeBy },
-          { label:'당일 합계',  val:closeSum,   color:'#34d399', filled:hasClose,   by:null },
-        ].map(k=>(
-          <div key={k.label} style={{background:'#12141f',
-            border:`1px solid ${k.filled?k.color:'#272a3d'}`,
-            borderRadius:12,padding:'14px 16px',position:'relative',overflow:'hidden'}}>
-            <div style={{position:'absolute',top:0,left:0,right:0,height:3,
-              background:k.color,opacity:k.filled?1:0.2}}/>
-            <div style={{fontSize:10,fontWeight:600,color:'#5e6585',marginBottom:6}}>{k.label}</div>
-            <div style={{fontSize:16,fontWeight:700,
-              color:k.filled?k.color:'#3d4060',fontFamily:'DM Mono,monospace'}}>
-              {k.filled ? k.val.toLocaleString()+'원' : '미입력'}
-            </div>
-            {k.by && <div style={{fontSize:9,color:'#5e6585',marginTop:3}}>{k.by} 입력</div>}
-          </div>
-        ))}
-      </div>
+        <header style={{display:'flex', justifyContent:'space-between', alignItems:'baseline', gap:12, paddingBottom:10,
+          borderBottom: T.leader ? `3px double ${T.strong}` : `1px solid ${T.rule}`}}>
+          <h1 style={{fontSize:22, fontWeight:800, margin:0, letterSpacing:'-0.01em'}}>매출 입력</h1>
+          <span style={{fontSize:14, color:T.sub}}>{todayLabel}</span>
+        </header>
 
-      {/* 세션 탭 */}
-      <div style={{display:'flex',border:'1px solid #272a3d',borderRadius:10,overflow:'hidden',marginBottom:16}}>
-        {Object.entries(sessionInfo).map(([key,s])=>(
-          <button key={key} onClick={()=>setActiveSession(key)}
-            style={{flex:1,padding:'10px',fontSize:12,fontWeight:600,border:'none',
-              cursor:'pointer',fontFamily:'inherit',
-              background:activeSession===key?s.color:'transparent',
-              color:activeSession===key?'#000':'#5e6585'}}>
-            {s.label}
-            {((key==='morning'&&hasMorning)||(key==='middle'&&hasMiddle)||(key==='close'&&hasClose)) && (
-              <span style={{marginLeft:6,fontSize:10}}>✅</span>
-            )}
-          </button>
-        ))}
-      </div>
-
-      {/* 입력 폼 */}
-      {loading ? (
-        <div style={{textAlign:'center',color:'#5e6585',padding:40}}>로딩 중...</div>
-      ) : (
-        <div style={{background:'#12141f',border:`1px solid ${si.color}`,borderRadius:12,padding:'18px'}}>
-          <div style={{marginBottom:16}}>
-            <div style={{fontSize:13,fontWeight:600,color:si.color}}>{si.label} 입력</div>
-            <div style={{fontSize:11,color:'#5e6585',marginTop:3}}>{si.hint}</div>
-            {activeSession==='middle' && (
-              <div style={{marginTop:8,background:'rgba(167,139,250,0.08)',border:'1px solid rgba(167,139,250,0.2)',
-                borderRadius:7,padding:'8px 10px',fontSize:10,color:'#a78bfa',lineHeight:1.6}}>
-                💡 지금 화면(POS/키오스크)에 찍힌 <b>누적 금액 그대로</b> 입력하세요.<br/>
-                오전 매출({(rec.morningKiosk||0)+(rec.morningDel||0)+(rec.morningPos||0)>0
-                  ? ((rec.morningKiosk||0)+(rec.morningDel||0)+(rec.morningPos||0)).toLocaleString()+'원'
-                  : '미입력'})을 자동으로 빼서 미들타임 순수 매출만 저장돼요.
+        {/* 오늘 현황 */}
+        <div style={{display:'grid', gridTemplateColumns:'1fr 1fr 1.3fr', borderBottom:`1px solid ${T.rule}`, marginBottom:22}}>
+          {summary.map((k,i) => (
+            <div key={k.key} style={{padding:'12px 0 12px', paddingLeft: i ? 14 : 0, borderLeft: i ? `1px solid ${T.rule}` : 'none'}}>
+              <div style={{fontSize:12, color:T.sub}}>{k.label}</div>
+              <div style={{fontSize: k.key==='close' ? 20 : 17, fontWeight:700, marginTop:3, color: k.filled ? T.ink : T.faint, ...num}}>
+                {k.filled ? won(k.val) : '미입력'}
               </div>
-            )}
-          </div>
-
-          {/* 마감 출력물 사진으로 채우기 (마감만) */}
-          {activeSession==='close' && <div style={{marginBottom:16}}>
-            <button type="button" disabled={!!scan?.busy} onClick={()=>setPhoneOpen(true)}
-              style={{width:'100%',background: scan?.busy ? '#191c2b' : `${si.color}18`, border:`1px dashed ${si.color}88`,borderRadius:8,
-                padding:'11px',fontSize:12,fontWeight:700,color:si.color,cursor: scan?.busy ? 'default' : 'pointer',fontFamily:'inherit'}}>
-              {scan?.busy ? '⏳ 사진 읽는 중... (10~30초)' : '📲 폰으로 마감 출력물 찍어서 채우기 (QR)'}
-            </button>
-            {!scan?.busy && (
-              <label style={{display:'block',textAlign:'center',fontSize:10,color:'#5e6585',marginTop:6,cursor:'pointer'}}>
-                또는 이 기기로 찍기·사진 고르기
-                <input type="file" accept="image/*" capture="environment" style={{display:'none'}}
-                  onChange={async e=>{ const f = e.target.files?.[0]; e.target.value=''; if (f) readPhoto(await compressImage(f, 1600, 450)) }}/>
-              </label>
-            )}
-            {phoneOpen && (
-              <PhoneReceiveModal hiRes title="📲 마감 출력물 사진 받기"
-                hint={<>폰 카메라로 QR을 찍고 마감 출력물을 찍어 보내세요.<br/>받으면 바로 숫자를 읽어 칸을 채워요.</>}
-                onAdd={fresh=>{ setPhoneOpen(false); readPhoto(fresh[fresh.length-1]); return '' }}
-                onClose={()=>setPhoneOpen(false)}/>
-            )}
-            {scan?.error && <div style={{fontSize:11,color:'#f87171',marginTop:6}}>⚠️ {scan.error}</div>}
-            {scan?.result && (()=>{
-              const r = scan.result
-              const sum = (+kiosk||0) + delTotal + (+pos||0)
-              const warns = []
-              if (r.total != null && r.total !== sum) warns.push(`적힌 합계 ${r.total.toLocaleString()}원과 칸 합계 ${sum.toLocaleString()}원이 달라요`)
-              if (r.delivery != null && r.delivery !== delTotal) warns.push(`적힌 배달 합계 ${r.delivery.toLocaleString()}원과 배달 칸 합계 ${delTotal.toLocaleString()}원이 달라요`)
-              if (r.date && r.date !== `${today}-${todayDD}`) warns.push(`출력물 날짜가 ${r.date}예요 (오늘이 아니에요)`)
-              if (r.notes) warns.push(r.notes)
-              return (
-                <div style={{display:'flex',gap:10,marginTop:8,background:'#191c2b',borderRadius:8,padding:10,alignItems:'flex-start'}}>
-                  <img src={scan.photo} alt="출력물" style={{width:56,height:72,objectFit:'cover',borderRadius:4,flexShrink:0}}/>
-                  <div style={{fontSize:11,lineHeight:1.6,color:'#dde1f2',minWidth:0}}>
-                    <div style={{color:'#34d399',fontWeight:700}}>✅ 사진에서 읽은 숫자로 아래 칸을 채웠어요. 확인하고 저장하세요.</div>
-                    {warns.map((w,i)=><div key={i} style={{color:'#f9b934'}}>⚠️ {w}</div>)}
-                  </div>
-                </div>
-              )
-            })()}
-          </div>}
-
-          <div style={{display:'flex',flexDirection:'column',gap:12}}>
-            {/* 키오스크 */}
-            <div>
-              <label style={{fontSize:10,color:'#5e6585',fontWeight:600,display:'block',marginBottom:6}}>
-                🖥️ 키오스크 (원)
-              </label>
-              <input type="number" value={kiosk} onChange={e=>setKiosk(e.target.value)}
-                placeholder="0" min="0"
-                style={{background:'#191c2b',border:`1px solid ${si.color}44`,borderRadius:7,
-                  color:'#dde1f2',padding:'10px 12px',fontSize:14,outline:'none',
-                  width:'100%',fontFamily:'DM Mono,monospace'}}/>
+              {k.by && <div style={{fontSize:11, color:T.sub, marginTop:2}}>{k.by}</div>}
             </div>
+          ))}
+        </div>
 
-            {/* 배달 - 4개 플랫폼 */}
-            <div>
-              <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:8}}>
-                <label style={{fontSize:10,color:'#5e6585',fontWeight:600}}>🛵 배달 (원)</label>
-                {delTotal > 0 && (
-                  <span style={{fontSize:11,color:si.color,fontFamily:'DM Mono,monospace',fontWeight:700}}>
-                    합계 {delTotal.toLocaleString()}원
-                  </span>
-                )}
-              </div>
-              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
-                {[
-                  [baemin,   setBaemin,   '배달의민족', '#34d399', 'baemin'],
-                  [coupang,  setCoupang,  '쿠팡이츠',   '#f87171', 'coupang'],
-                  [yogiyo,   setYogiyo,   '요기요',     '#f9b934', 'yogiyo'],
-                  [ddangyeo, setDdangyeo, '땡겨요',     '#93c5fd', 'ddangyeo'],
-                ].map(([val, set, label, color, key])=>(
-                  <div key={label}>
-                    <label style={{fontSize:9,color:color,fontWeight:600,display:'block',marginBottom:4}}>
-                      {label}
+        {/* 오전 · 미들 · 마감 */}
+        <div role="tablist" style={{display:'flex', gap:22, borderBottom:`1px solid ${T.rule}`, marginBottom:18}}>
+          {Object.entries(sessionInfo).map(([key,s]) => {
+            const on = activeSession===key
+            const done = (key==='morning'&&hasMorning)||(key==='middle'&&hasMiddle)||(key==='close'&&hasClose)
+            return (
+              <button key={key} role="tab" aria-selected={on} onClick={()=>setActiveSession(key)}
+                style={{background:'none', border:'none', padding:'10px 0', marginBottom:-1, cursor:'pointer', fontFamily:'inherit',
+                  fontSize:16, fontWeight: on ? 800 : 500, color: on ? T.ink : T.sub,
+                  borderBottom:`3px solid ${on ? T.accent : 'transparent'}`}}>
+                {s.label}
+                {done && <span style={{fontSize:11, fontWeight:600, color:T.ok, marginLeft:6}}>입력됨</span>}
+              </button>
+            )
+          })}
+        </div>
+
+        {loading ? (
+          <div style={{color:T.sub, padding:'40px 0'}}>불러오는 중...</div>
+        ) : (
+          <section>
+            <p style={{fontSize:13, color:T.sub, margin:'0 0 14px', lineHeight:1.6}}>
+              {si.hint}
+              {activeSession==='middle' && <> · 오전 매출({hasMorning ? `${won(morningTotal)}원` : '미입력'})을 빼서 미들타임 매출만 저장해요</>}
+            </p>
+
+            {activeSession==='close' && (
+              <div style={{marginBottom:16}}>
+                <div style={{display:'flex', gap:10, alignItems:'center', flexWrap:'wrap'}}>
+                  <button type="button" disabled={!!scan?.busy} onClick={()=>setPhoneOpen(true)}
+                    style={{background:'transparent', border:`1.5px solid ${T.accent}`, color:T.accent, borderRadius:4,
+                      padding:'10px 14px', fontSize:14, fontWeight:700, cursor: scan?.busy ? 'default' : 'pointer', fontFamily:'inherit'}}>
+                    {scan?.busy ? '사진 읽는 중... (10~30초)' : '폰으로 마감 출력물 찍어서 채우기'}
+                  </button>
+                  {!scan?.busy && (
+                    <label style={{fontSize:13, color:T.sub, cursor:'pointer', textDecoration:'underline', textUnderlineOffset:3}}>
+                      이 기기에서 사진 고르기
+                      <input type="file" accept="image/*" capture="environment" style={{display:'none'}}
+                        onChange={async e=>{ const f = e.target.files?.[0]; e.target.value=''; if (f) readPhoto(await compressImage(f, 1600, 450)) }}/>
                     </label>
-                    <input type="number" value={val} onChange={e=>set(e.target.value)}
-                      placeholder="0" min="0"
-                      style={{background:'#191c2b',border:`1px solid ${color}33`,borderRadius:7,
-                        color:'#dde1f2',padding:'8px 10px',fontSize:13,outline:'none',
-                        width:'100%',boxSizing:'border-box',fontFamily:'DM Mono,monospace'}}/>
-                    {activeSession==='close' && (
-                      <div style={{display:'flex',alignItems:'center',gap:6,marginTop:4}}>
-                        <input type="number" value={orders[key]} min="0" placeholder="0"
-                          onChange={e=>{ const v = e.target.value; setOrders(o=>({ ...o, [key]: v })) }}
-                          aria-label={`${label} 주문 건수`}
-                          style={{background:'#191c2b',border:'1px solid #272a3d',borderRadius:6,color:'#dde1f2',
-                            padding:'5px 8px',fontSize:12,outline:'none',width:64,boxSizing:'border-box',fontFamily:'DM Mono,monospace'}}/>
-                        <span style={{fontSize:10,color:'#5e6585'}}>건</span>
-                        {+orders[key] > 0 && +val > 0 && (
-                          <span style={{fontSize:10,color:'#5e6585',marginLeft:'auto',fontFamily:'DM Mono,monospace'}}>
-                            객단가 {Math.round(+val / +orders[key]).toLocaleString()}
-                          </span>
-                        )}
+                  )}
+                </div>
+                {phoneOpen && (
+                  <PhoneReceiveModal hiRes title="마감 출력물 사진 받기"
+                    hint={<>폰 카메라로 QR을 찍고 마감 출력물을 찍어 보내세요.<br/>받으면 바로 숫자를 읽어 칸을 채워요.</>}
+                    onAdd={fresh=>{ setPhoneOpen(false); readPhoto(fresh[fresh.length-1]); return '' }}
+                    onClose={()=>setPhoneOpen(false)}/>
+                )}
+                {scan?.error && <div style={{fontSize:13, color:T.accent, marginTop:8}}>{scan.error}</div>}
+                {scan?.result && (()=>{
+                  const r = scan.result
+                  const warns = []
+                  if (r.total != null && r.total !== subtotal) warns.push(`출력물 합계 ${won(r.total)}원과 아래 합계 ${won(subtotal)}원이 달라요`)
+                  if (r.delivery != null && r.delivery !== delTotal) warns.push(`출력물 배달 합계 ${won(r.delivery)}원과 배달 칸 합계 ${won(delTotal)}원이 달라요`)
+                  if (r.date && r.date !== `${today}-${todayDD}`) warns.push(`출력물 날짜가 ${r.date}예요. 오늘 출력물이 맞는지 확인하세요`)
+                  if (r.notes) warns.push(r.notes)
+                  return (
+                    <div style={{display:'flex', gap:12, marginTop:12, padding:'10px 0', borderTop:`1px solid ${T.rule}`, borderBottom:`1px solid ${T.rule}`}}>
+                      <img src={scan.photo} alt="받은 출력물" style={{width:52, height:68, objectFit:'cover', borderRadius:2, flexShrink:0}}/>
+                      <div style={{fontSize:13, lineHeight:1.6, minWidth:0}}>
+                        <div style={{fontWeight:700}}>출력물에서 읽은 숫자로 채웠어요. 확인하고 저장하세요</div>
+                        {warns.map((w,i) => <div key={i} style={{color:T.warn}}>{w}</div>)}
                       </div>
-                    )}
-                  </div>
-                ))}
+                    </div>
+                  )
+                })()}
               </div>
+            )}
+
+            {row('키오스크',
+              money(kiosk, setKiosk, '키오스크 매출', {width:'min(170px, 46vw)'}))}
+
+            <div style={{marginTop:6}}>
+              <div style={{display:'flex', alignItems:'baseline', justifyContent:'space-between', padding:'8px 0 2px'}}>
+                <span style={{fontSize:14}}>배달</span>
+                <span style={{fontSize:13, color:T.sub, ...num}}>{delTotal > 0 ? `${won(delTotal)}원` : ''}</span>
+              </div>
+              {[
+                [baemin,   setBaemin,   '배달의민족', 'baemin'],
+                [coupang,  setCoupang,  '쿠팡이츠',   'coupang'],
+                [yogiyo,   setYogiyo,   '요기요',     'yogiyo'],
+                [ddangyeo, setDdangyeo, '땡겨요',     'ddangyeo'],
+              ].map(([val, set, label, key]) => (
+                <div key={key} style={{display:'flex', alignItems:'center', gap:6, padding:'4px 0 4px 12px', minHeight:46, flexWrap:'wrap'}}>
+                  <span style={{fontSize:14, color:T.ink, whiteSpace:'nowrap'}}>{label}</span>
+                  {leader()}
+                  {activeSession==='close' && (
+                    <span style={{display:'flex', alignItems:'center', gap:4}}>
+                      <input type="text" inputMode="numeric" value={orders[key]} placeholder="0"
+                        onChange={e=>{ const v = e.target.value.replace(/[^0-9]/g,''); setOrders(o=>({ ...o, [key]: v })) }}
+                        aria-label={`${label} 주문 건수`} style={field({width:48, fontSize:15, padding:'8px 6px'})}/>
+                      <span style={{fontSize:13, color:T.sub}}>건</span>
+                    </span>
+                  )}
+                  {money(val, set, `${label} 매출`, {width:'min(150px, 34vw)'})}
+                  {activeSession==='close' && +orders[key] > 0 && +val > 0 && (
+                    <span style={{width:'100%', textAlign:'right', fontSize:12, color:T.sub, marginTop:-2, ...num}}>
+                      객단가 {won(Math.round(+val / +orders[key]))}원
+                    </span>
+                  )}
+                </div>
+              ))}
             </div>
 
-            {/* 포스 */}
-            <div>
-              <label style={{fontSize:10,color:'#5e6585',fontWeight:600,display:'block',marginBottom:6}}>
-                🧾 포스(현장) (원)
-              </label>
-              <input type="number" value={pos} onChange={e=>setPos(e.target.value)}
-                placeholder="0" min="0"
-                style={{background:'#191c2b',border:`1px solid ${si.color}44`,borderRadius:7,
-                  color:'#dde1f2',padding:'10px 12px',fontSize:14,outline:'none',
-                  width:'100%',fontFamily:'DM Mono,monospace'}}/>
-            </div>
+            {row('포스 (현장)',
+              money(pos, setPos, '포스 매출', {width:'min(170px, 46vw)'}))}
 
-            {/* 소계 */}
-            <div style={{background:'#191c2b',borderRadius:8,padding:'12px 14px',
-              display:'flex',flexDirection:'column',gap:6}}>
-              <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
-                <span style={{fontSize:12,color:'#5e6585'}}>{activeSession==='middle'?'입력한 누적 금액':'소계'}</span>
-                <span style={{fontSize:16,fontWeight:700,color:si.color,fontFamily:'DM Mono,monospace'}}>
-                  {((+kiosk||0)+delTotal+(+pos||0)).toLocaleString()}원
-                </span>
+            <div style={{marginTop:10, paddingTop:12, borderTop: T.leader ? `3px double ${T.strong}` : `1px solid ${T.strong}`}}>
+              <div style={{display:'flex', justifyContent:'space-between', alignItems:'baseline'}}>
+                <span style={{fontSize:15, fontWeight:700}}>{activeSession==='middle' ? '입력한 누적 금액' : '합계'}</span>
+                <span style={{fontSize:32, fontWeight:800, letterSpacing:'-0.02em', ...num}}>{won(subtotal)}<span style={{fontSize:16, fontWeight:600, marginLeft:2}}>원</span></span>
               </div>
               {activeSession==='middle' && (
-                <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',
-                  paddingTop:6,borderTop:'1px solid #272a3d'}}>
-                  <span style={{fontSize:11,color:'#a78bfa',fontWeight:600}}>→ 미들타임 순수 매출 (저장될 값)</span>
-                  <span style={{fontSize:15,fontWeight:700,color:'#a78bfa',fontFamily:'DM Mono,monospace'}}>
-                    {Math.max(0,((+kiosk||0)+delTotal+(+pos||0)) - ((rec.morningKiosk||0)+(rec.morningDel||0)+(rec.morningPos||0))).toLocaleString()}원
-                  </span>
+                <div style={{display:'flex', justifyContent:'space-between', alignItems:'baseline', marginTop:4, color:T.sub}}>
+                  <span style={{fontSize:13}}>저장될 미들타임 매출 (오전 제외)</span>
+                  <span style={{fontSize:18, fontWeight:700, color:T.ink, ...num}}>{won(Math.max(0, subtotal - morningTotal))}원</span>
                 </div>
               )}
             </div>
 
             <button onClick={save} disabled={saving}
-              style={{background:si.color,color:'#000',border:'none',borderRadius:8,
-                padding:'12px',fontSize:13,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
-              {saving ? '저장 중...' : `${si.label} 저장`}
+              style={{width:'100%', marginTop:16, background:T.accent, color:T.onAccent, border:'none', borderRadius:4,
+                padding:'14px', fontSize:16, fontWeight:800, cursor:'pointer', fontFamily:'inherit'}}>
+              {saving ? '저장 중...' : `${si.label} 매출 저장`}
             </button>
-          </div>
-        </div>
-      )}
+          </section>
+        )}
 
-      {/* 오늘 입력 내역 */}
-      {(hasMorning || hasMiddle || hasClose) && (
-        <div style={{background:'#12141f',border:'1px solid #272a3d',borderRadius:12,
-          overflow:'hidden',marginTop:16}}>
-          <div style={{padding:'14px 18px',borderBottom:'1px solid #272a3d',fontSize:13,fontWeight:600}}>
-            오늘 입력 내역
-          </div>
-          <table style={{width:'100%',borderCollapse:'collapse',fontSize:12}}>
-            <thead>
-              <tr style={{background:'#191c2b'}}>
-                {['구분','키오스크','배달','포스','합계','입력자'].map(h=>(
-                  <th key={h} style={{padding:'8px 14px',fontSize:10,fontWeight:600,color:'#5e6585',
-                    textAlign:['구분','입력자'].includes(h)?'left':'right'}}>{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {hasMorning && (
-                <tr style={{background:'rgba(249,185,52,0.03)'}}>
-                  <td style={{padding:'9px 14px',borderBottom:'1px solid #1a1d2e',color:'#f9b934',fontWeight:700,fontSize:11}}>오전</td>
-                  <td style={{padding:'9px 14px',borderBottom:'1px solid #1a1d2e',textAlign:'right',fontFamily:'DM Mono,monospace'}}>{(rec.morningKiosk||0).toLocaleString()}</td>
-                  <td style={{padding:'9px 14px',borderBottom:'1px solid #1a1d2e',textAlign:'right',fontFamily:'DM Mono,monospace'}}>
-                    {(rec.morningDel||0).toLocaleString()}
-                    <DeliveryDetail session="morning"/>
-                  </td>
-                  <td style={{padding:'9px 14px',borderBottom:'1px solid #1a1d2e',textAlign:'right',fontFamily:'DM Mono,monospace'}}>{(rec.morningPos||0).toLocaleString()}</td>
-                  <td style={{padding:'9px 14px',borderBottom:'1px solid #1a1d2e',textAlign:'right',color:'#f9b934',fontFamily:'DM Mono,monospace',fontWeight:700}}>{morningSum.toLocaleString()}</td>
-                  <td style={{padding:'9px 14px',borderBottom:'1px solid #1a1d2e',color:'#5e6585',fontSize:11}}>{rec.morningBy||'—'}</td>
-                </tr>
-              )}
-
-              {hasMiddle && (
-                <tr style={{background:'rgba(167,139,250,0.03)'}}>
-                  <td style={{padding:'9px 14px',borderBottom:'1px solid #1a1d2e',color:'#a78bfa',fontWeight:700,fontSize:11}}>미들</td>
-                  <td style={{padding:'9px 14px',borderBottom:'1px solid #1a1d2e',textAlign:'right',fontFamily:'DM Mono,monospace'}}>{(rec.middleKiosk||0).toLocaleString()}</td>
-                  <td style={{padding:'9px 14px',borderBottom:'1px solid #1a1d2e',textAlign:'right',fontFamily:'DM Mono,monospace'}}>
-                    {(rec.middleDel||0).toLocaleString()}
-                    <DeliveryDetail session="middle"/>
-                  </td>
-                  <td style={{padding:'9px 14px',borderBottom:'1px solid #1a1d2e',textAlign:'right',fontFamily:'DM Mono,monospace'}}>{(rec.middlePos||0).toLocaleString()}</td>
-                  <td style={{padding:'9px 14px',borderBottom:'1px solid #1a1d2e',textAlign:'right',color:'#a78bfa',fontFamily:'DM Mono,monospace',fontWeight:700}}>{middleSum.toLocaleString()}</td>
-                  <td style={{padding:'9px 14px',borderBottom:'1px solid #1a1d2e',color:'#5e6585',fontSize:11}}>{rec.middleBy||'—'}</td>
-                </tr>
-              )}
-
-              {hasAfternoon && (
-                <tr style={{background:'rgba(147,197,253,0.03)'}}>
-                  <td style={{padding:'9px 14px',borderBottom:'1px solid #1a1d2e',fontSize:11,fontWeight:700}}>
-                    <span style={{color:isNegative?'#f87171':'#93c5fd'}}>오후</span>
-                    <span style={{fontSize:9,color:'#3d4060',marginLeft:4}}>자동</span>
-                  </td>
-                  <td style={{padding:'9px 14px',borderBottom:'1px solid #1a1d2e',textAlign:'right',fontFamily:'DM Mono,monospace',color:isNegative?'#f87171':'#dde1f2'}}>{afternoonKiosk.toLocaleString()}</td>
-                  <td style={{padding:'9px 14px',borderBottom:'1px solid #1a1d2e',textAlign:'right',fontFamily:'DM Mono,monospace',color:isNegative?'#f87171':'#dde1f2'}}>{afternoonDel.toLocaleString()}</td>
-                  <td style={{padding:'9px 14px',borderBottom:'1px solid #1a1d2e',textAlign:'right',fontFamily:'DM Mono,monospace',color:isNegative?'#f87171':'#dde1f2'}}>{afternoonPos.toLocaleString()}</td>
-                  <td style={{padding:'9px 14px',borderBottom:'1px solid #1a1d2e',textAlign:'right',fontFamily:'DM Mono,monospace',fontWeight:700,color:isNegative?'#f87171':'#93c5fd'}}>{isNegative?'⚠ '+afternoonSum.toLocaleString():afternoonSum.toLocaleString()}</td>
-                  <td style={{padding:'9px 14px',borderBottom:'1px solid #1a1d2e',color:'#5e6585',fontSize:11}}>—</td>
-                </tr>
-              )}
-
-              {hasClose && (
-                <tr style={{background:'rgba(52,211,153,0.03)'}}>
-                  <td style={{padding:'9px 14px',borderBottom:'1px solid #272a3d',color:'#34d399',fontWeight:700,fontSize:11}}>합계</td>
-                  <td style={{padding:'9px 14px',borderBottom:'1px solid #272a3d',textAlign:'right',fontFamily:'DM Mono,monospace'}}>{(rec.kiosk||0).toLocaleString()}</td>
-                  <td style={{padding:'9px 14px',borderBottom:'1px solid #272a3d',textAlign:'right',fontFamily:'DM Mono,monospace'}}>
-                    {(rec.del||0).toLocaleString()}
-                    <DeliveryDetail session="close"/>
-                  </td>
-                  <td style={{padding:'9px 14px',borderBottom:'1px solid #272a3d',textAlign:'right',fontFamily:'DM Mono,monospace'}}>{(rec.pos||0).toLocaleString()}</td>
-                  <td style={{padding:'9px 14px',borderBottom:'1px solid #272a3d',textAlign:'right',color:'#34d399',fontFamily:'DM Mono,monospace',fontWeight:700}}>{closeSum.toLocaleString()}</td>
-                  <td style={{padding:'9px 14px',borderBottom:'1px solid #272a3d',color:'#5e6585',fontSize:11}}>{rec.closeBy||'—'}</td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      )}
+        {/* 오늘 입력 내역 */}
+        {(hasMorning || hasMiddle || hasClose) && (
+          <section style={{marginTop:34}}>
+            <h2 style={{fontSize:15, fontWeight:800, margin:'0 0 6px'}}>오늘 입력 내역</h2>
+            <div style={{overflowX:'auto'}}>
+              <table style={{width:'100%', borderCollapse:'collapse', fontSize:13, minWidth:480}}>
+                <thead>
+                  <tr style={{borderTop:`2px solid ${T.strong}`}}>
+                    {['구분','키오스크','배달','포스','합계','입력'].map(h => (
+                      <th key={h} style={{padding:'8px 12px', fontSize:12, fontWeight:600, color:T.sub, borderBottom:`1px solid ${T.rule}`,
+                        textAlign:['구분','입력'].includes(h) ? 'left' : 'right'}}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {hasMorning && (
+                    <tr>
+                      <td style={{...cell, textAlign:'left', fontWeight:600}}>오전</td>
+                      <td style={cell}>{won(rec.morningKiosk)}</td>
+                      <td style={cell}>{won(rec.morningDel)}<DeliveryDetail session="morning"/></td>
+                      <td style={cell}>{won(rec.morningPos)}</td>
+                      <td style={{...cell, fontWeight:700}}>{won(morningSum)}</td>
+                      <td style={{...cell, textAlign:'left', color:T.sub}}>{rec.morningBy||'–'}</td>
+                    </tr>
+                  )}
+                  {hasMiddle && (
+                    <tr>
+                      <td style={{...cell, textAlign:'left', fontWeight:600}}>미들</td>
+                      <td style={cell}>{won(rec.middleKiosk)}</td>
+                      <td style={cell}>{won(rec.middleDel)}<DeliveryDetail session="middle"/></td>
+                      <td style={cell}>{won(rec.middlePos)}</td>
+                      <td style={{...cell, fontWeight:700}}>{won(middleSum)}</td>
+                      <td style={{...cell, textAlign:'left', color:T.sub}}>{rec.middleBy||'–'}</td>
+                    </tr>
+                  )}
+                  {hasAfternoon && (
+                    <tr style={{color: isNegative ? T.accent : T.ink}}>
+                      <td style={{...cell, textAlign:'left', fontWeight:600}}>오후 <span style={{fontSize:11, color:T.sub, fontWeight:400}}>자동 계산</span></td>
+                      <td style={cell}>{won(afternoonKiosk)}</td>
+                      <td style={cell}>{won(afternoonDel)}</td>
+                      <td style={cell}>{won(afternoonPos)}</td>
+                      <td style={{...cell, fontWeight:700}}>{won(afternoonSum)}</td>
+                      <td style={{...cell, textAlign:'left', color:T.sub}}>{isNegative ? '마감이 오전보다 작아요' : '–'}</td>
+                    </tr>
+                  )}
+                  {hasClose && (
+                    <tr>
+                      <td style={{...cell, textAlign:'left', fontWeight:800, borderBottom:`2px solid ${T.strong}`}}>하루 합계</td>
+                      <td style={{...cell, borderBottom:`2px solid ${T.strong}`}}>{won(rec.kiosk)}</td>
+                      <td style={{...cell, borderBottom:`2px solid ${T.strong}`}}>{won(rec.del)}<DeliveryDetail session="close"/></td>
+                      <td style={{...cell, borderBottom:`2px solid ${T.strong}`}}>{won(rec.pos)}</td>
+                      <td style={{...cell, fontWeight:800, borderBottom:`2px solid ${T.strong}`}}>{won(closeSum)}</td>
+                      <td style={{...cell, textAlign:'left', color:T.sub, borderBottom:`2px solid ${T.strong}`}}>{rec.closeBy||'–'}</td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </section>
+        )}
+      </div>
     </div>
   )
 }

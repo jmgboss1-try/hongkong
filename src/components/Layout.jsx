@@ -251,6 +251,11 @@ export default function Layout({ children }) {
 
       {/* 반응형 CSS */}
       <style>{`
+        /* 페이지가 자기 바탕색을 쓸 때 (매출입력 디자인 시안) — main-content 여백까지 채움 */
+        .page-surface { margin: -28px -30px; padding: 28px 30px; min-height: 100vh; box-sizing: border-box; }
+        @media (max-width: 768px) {
+          .page-surface { margin: -70px -14px -80px; padding: 70px 14px 80px; }
+        }
         @media (max-width: 768px) {
           .pc-sidebar { display: none !important; }
           .mobile-header { display: flex !important; }
