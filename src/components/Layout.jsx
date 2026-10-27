@@ -4,6 +4,7 @@ import { signOut } from 'firebase/auth'
 import { doc, setDoc } from 'firebase/firestore'
 import { useAuth, GradeBadge } from '../AuthContext'
 import { useState } from 'react'
+import { PhoneFileReceiveModal } from './PhoneFileTransfer'
 
 // 저장된 순서대로 메뉴 정렬 — 저장 후 새로 생긴 메뉴는 기본 순서대로 뒤에 붙음
 function applyOrder(menus, order) {
@@ -17,6 +18,7 @@ export default function Layout({ children }) {
   const location = useLocation()
   const { user, isOwner, isStore, isInvestor, isLegend, userData } = useAuth()
   const [sideOpen, setSideOpen] = useState(false)
+  const [fileOpen, setFileOpen] = useState(false) // 폰 → 이 컴퓨터로 파일 옮기기
   // 탭 순서 (경로 배열) — 계정별로 users/{uid}.menuOrder 에 저장
   const [savedOrder, setSavedOrder] = useState(null)
   const [editOrder, setEditOrder]   = useState(null) // 편집 중이면 경로 배열, 아니면 null
@@ -178,6 +180,12 @@ export default function Layout({ children }) {
           {menuList(path=>navigate(path))}
         </nav>
         <div style={{padding:'14px 16px', borderTop:'1px solid #DCD7CE'}}>
+          {(isOwner || isStore) && (
+            <button onClick={()=>setFileOpen(true)}
+              style={{width:'100%', background:'#FFFFFF', border:'1px solid #1D1B18', borderRadius:6, color:'#1D1B18', padding:'8px', fontSize:12, fontWeight:700, cursor:'pointer', fontFamily:'inherit', marginBottom:8}}>
+              폰에서 파일 받기
+            </button>
+          )}
           {editButton}
           <button onClick={handleLogout} style={{width:'100%', background:'#F3F1EC', border:'1px solid #DCD7CE', borderRadius:6, color:'#6E6A63', padding:'7px', fontSize:11, cursor:'pointer', fontFamily:'inherit'}}>
             로그아웃
@@ -226,6 +234,8 @@ export default function Layout({ children }) {
           </div>
         </div>
       )}
+
+      {fileOpen && <PhoneFileReceiveModal onClose={()=>setFileOpen(false)}/>}
 
       {/* ── MAIN ── */}
       <div className="main-content" style={{marginLeft:214, flex:1, minWidth:0, padding:'28px 30px', minHeight:'100vh', textAlign:'left'}}>

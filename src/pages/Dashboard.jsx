@@ -384,8 +384,8 @@ export default function Dashboard() {
               {line('키오스크', rev.kiosk, { sub:true, note:`${pct(rev.kiosk,rev.total)}%` })}
               {line('배달', rev.del, { sub:true, note:`${pct(rev.del,rev.total)}%` })}
               {line('포스', rev.pos, { sub:true, note:`${pct(rev.pos,rev.total)}%` })}
-              {line('지출', exp.total, { minus:true })}
-              {SECS.filter(sec => (exp.bySec?.[sec]||0) > 0).map(sec => line(sec, exp.bySec[sec], { sub:true, minus:true }))}
+              {line('지출', exp.total, { minus:true, note: rev.total>0 ? `매출의 ${pct(exp.total,rev.total)}%` : undefined })}
+              {SECS.filter(sec => (exp.bySec?.[sec]||0) > 0).map(sec => line(sec, exp.bySec[sec], { sub:true, minus:true, note: rev.total>0 ? `${pct(exp.bySec[sec],rev.total)}%` : undefined }))}
               <div style={{borderTop:`3px double ${T.ink}`, marginTop:8, paddingTop:4}}>
                 <div style={{display:'flex', alignItems:'baseline', justifyContent:'space-between', gap:10, padding:'6px 0'}}>
                   <span style={{fontSize:16, fontWeight:800}}>{profit >= 0 ? '남은 돈' : '모자란 돈'} <span style={{fontSize:12, fontWeight:400, color:T.sub}}>매출 − 지출</span></span>

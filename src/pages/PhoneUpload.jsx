@@ -3,6 +3,7 @@ import { useParams, useSearchParams } from 'react-router-dom'
 import { db } from '../firebase'
 import { doc, updateDoc, arrayUnion } from 'firebase/firestore'
 import { compressImage } from '../components/PhotoAttach'
+import { PhoneFileSend } from '../components/PhoneFileTransfer'
 
 const MAX_PER_SESSION = 6
 
@@ -38,6 +39,9 @@ export default function PhoneUpload() {
     }
     setBusy(false)
   }
+
+  // 포스의 "폰에서 파일 받기" QR (?f=1) 이면 아무 파일이나 보내는 화면
+  if (params.get('f') === '1') return <PhoneFileSend sid={sid}/>
 
   const bigBtn = {
     width:'100%',border:'none',borderRadius:6,padding:'20px 0',fontSize:18,fontWeight:800,
