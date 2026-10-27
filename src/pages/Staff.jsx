@@ -69,7 +69,7 @@ export default function Staff() {
   const [activeDay, setActiveDay] = useState(null)
 
   const monthOpts = []
-  for(let y=2022;y<=2026;y++){const sm=y===2022?10:1;for(let m=sm;m<=12;m++){monthOpts.push(`${y}-${pad(m)}`)}}
+  for(let y=2022;y<=Math.max(2026,new Date().getFullYear());y++){const sm=y===2022?10:1;for(let m=sm;m<=12;m++){monthOpts.push(`${y}-${pad(m)}`)}}
 
   async function load() {
     setLoading(true)

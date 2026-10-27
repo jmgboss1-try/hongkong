@@ -31,6 +31,22 @@ const getNowDD  = () => pad(new Date().getDate())
 const getYestDD = () => { const d=new Date(); d.setDate(d.getDate()-1); return pad(d.getDate()) }
 const todayFullStr = () => { const n=new Date(); return `${n.getFullYear()}-${pad(n.getMonth()+1)}-${pad(n.getDate())}` }
 
+// 장부 화면의 작은 버튼 (primary: 빨강, ok: 초록, danger: 빨간 글씨)
+function Btn({ children, onClick, kind = 'plain', disabled, small }) {
+  const solid = kind==='primary' || kind==='ok'
+  return (
+    <button type="button" onClick={onClick} disabled={disabled}
+      style={{fontFamily:'inherit', cursor:'pointer', borderRadius:4, whiteSpace:'nowrap',
+        fontSize: small ? 11 : 12, padding: small ? '3px 8px' : '6px 12px', fontWeight: kind==='primary' ? 700 : 500,
+        background: kind==='primary' ? '#C3261C' : kind==='ok' ? '#2E7D45' : '#FFFFFF',
+        color: solid ? '#FFFFFF' : kind==='danger' ? '#B42318' : '#1D1B18',
+        border: solid ? 'none' : `1px solid ${kind==='danger' ? '#E8C4BF' : '#DCD7CE'}`,
+        opacity: disabled ? 0.6 : 1}}>
+      {children}
+    </button>
+  )
+}
+
 export default function Expenses() {
   const [curMonth, setCurMonth] = useState(() => {
     const now = new Date()
@@ -72,17 +88,17 @@ const [payingDate, setPayingDate]     = useState('')
 
   // 입력 모드
   const [inputMode, setInputMode] = useState('manual')
+  const [editCarry, setEditCarry] = useState(false) // 요약의 '이월 고치기'
   const [openDay, setOpenDay] = useState(null) // 지출 내역 표에서 통장 거래를 펼친 날짜
 
 
   const days = daysIn(curMonth)
   const monthOpts = []
-  for(let y=2022;y<=2026;y++){const sm=y===2022?10:1;for(let m=sm;m<=12;m++){monthOpts.push(`${y}-${pad(m)}`)}}
+  for(let y=2022;y<=Math.max(2026,new Date().getFullYear());y++){const sm=y===2022?10:1;for(let m=sm;m<=12;m++){monthOpts.push(`${y}-${pad(m)}`)}}
   const now = new Date()
   const curYM = `${now.getFullYear()}-${pad(now.getMonth()+1)}`
   const isThisMonth = curMonth === curYM
   const secs = ['재료비','관리비','인건비']
-  const secIcons = {'재료비':'','관리비':'','인건비':''}
 
   async function load() {
     setLoading(true)
@@ -382,65 +398,148 @@ const [payingDate, setPayingDate]     = useState('')
 
   const getDow      = dd => { const[y,m]=curMonth.split('-').map(Number); return DAYS_KR[new Date(y,m-1,+dd).getDay()] }
   const getDowColor = dd => { const[y,m]=curMonth.split('-').map(Number); const dow=new Date(y,m-1,+dd).getDay(); return dow===0?'#B42318':dow===6?'#2B5C9E':'#1D1B18' }
-  const inp = id => (
-    <input type="number" value={form[id]||''} onChange={e=>setForm(p=>({...p,[id]:e.target.value}))}
-      placeholder="0" min="0"
-      style={{background:'#F3F1EC',border:'1px solid #DCD7CE',borderRadius:4,color:'#1D1B18',
-        padding:'8px 10px',fontSize:12,outline:'none',width:'100%'}}/>
+
+  // ── 장부 화면 조각 (대시보드와 같은 모양). 컴포넌트가 아니라 함수로 그려야 입력칸 포커스가 안 빠짐 ──
+  const T = { ink:'#1D1B18', sub:'#6E6A63', faint:'#A8A39A', rule:'#DCD7CE', soft:'#ECE8E1', accent:'#C3261C',
+    red:'#B42318', green:'#2E7D45', blue:'#2B5C9E', chip:'#F3F1EC' }
+  const num = { fontVariantNumeric:'tabular-nums' }
+  const won = n => (n||0).toLocaleString('ko-KR')
+  const monthIdx = monthOpts.indexOf(curMonth)
+  const field = extra => ({ background:'#FFFFFF', border:'1px solid #CBC5BA', borderRadius:4, color:T.ink, padding:'8px 10px',
+    fontSize:14, outline:'none', fontFamily:'inherit', boxSizing:'border-box', ...extra })
+  // 금액 입력: 쉼표로 보여주고 숫자만 저장 (neg: 앞에 − 허용)
+  const money = (val, set, { label, width = 150, neg = false, extra } = {}) => (
+    <input type="text" inputMode="numeric" placeholder="0" aria-label={label}
+      value={val === '' || val == null ? '' : val === '-' ? '-' : (+val).toLocaleString('ko-KR')}
+      onChange={e=>{ const s = e.target.value.trim(); const d = s.replace(/[^0-9]/g,''); set((neg && s.startsWith('-') ? '-' : '') + d) }}
+      style={field({ width, textAlign:'right', ...num, ...extra })}/>
   )
+  const leader = () => <span aria-hidden="true" style={{flex:1, borderBottom:`1px dotted ${T.faint}`, margin:'0 8px', minWidth:12, transform:'translateY(-4px)'}}/>
+  const line = (label, value, { strong, sub, minus, plus, color, note, key } = {}) => (
+    <div key={key||label} style={{display:'flex', alignItems:'baseline', padding: sub ? '3px 0 3px 14px' : '7px 0',
+      fontSize: strong ? 17 : sub ? 13 : 15, fontWeight: strong ? 800 : sub ? 400 : 600, color: sub ? T.sub : T.ink}}>
+      <span style={{whiteSpace:'nowrap'}}>{label}</span>
+      {note && <span style={{fontSize:12, color:T.sub, marginLeft:6, whiteSpace:'nowrap', fontWeight:400}}>{note}</span>}
+      {leader()}
+      <span style={{...num, whiteSpace:'nowrap', color: color || 'inherit'}}>{minus && value ? '− ' : plus && value ? '+ ' : ''}{won(value)}</span>
+    </div>
+  )
+  const total = (label, value, opts) => (
+    <div style={{borderTop:`3px double ${T.ink}`, marginTop:6, paddingTop:2}}>{line(label, value, { strong:true, ...opts })}</div>
+  )
+  const sectionTitle = (text, right) => (
+    <div style={{display:'flex', justifyContent:'space-between', alignItems:'baseline', gap:10, flexWrap:'wrap',
+      borderBottom:`2px solid ${T.ink}`, paddingBottom:6, marginBottom:6}}>
+      <h2 style={{fontSize:16, fontWeight:800, margin:0, fontFamily:'inherit', color:T.ink}}>{text}</h2>
+      {right && <div style={{display:'flex', alignItems:'center', gap:8, flexWrap:'wrap', fontSize:12, color:T.sub}}>{right}</div>}
+    </div>
+  )
+  const textTab = (on, label, onClick) => (
+    <button key={label} type="button" onClick={onClick}
+      style={{background:'none', border:'none', padding:'4px 0', cursor:'pointer', fontFamily:'inherit', fontSize:13,
+        fontWeight: on ? 800 : 500, color: on ? T.ink : T.sub, borderBottom:`2px solid ${on ? T.accent : 'transparent'}`}}>
+      {label}
+    </button>
+  )
+  const empty = text => <div style={{padding:'14px 0', color:T.sub, fontSize:13}}>{text}</div>
+  const pctOf = (a,b) => b>0 ? Math.round(a/b*100) : 0
+  const secTotal = sec => categories.filter(c=>c.sec===sec).reduce((a,c)=>a+(tot[c.id]||0),0)
+  const carryNote = data.carryoverSource==='bank' ? '이 달 통장 시작 잔액'
+    : data.carryoverSource==='bank-prev' ? '지난달 통장 말일 잔액'
+    : data.carryoverSource==='manual' ? '직접 입력' : undefined
+  const dayRows = Object.keys(data).filter(dd=>/^\d{2}$/.test(dd)).sort()
+  const formExp = categories.reduce((a,f)=>a+(+form[f.id]||0),0)
 
   return (
-    <div>
-      {/* 헤더 */}
-      <div style={{display:'flex',alignItems:'flex-end',justifyContent:'space-between',marginBottom:22}}>
-        <div>
-          <div style={{fontSize:20,fontWeight:700}}>지출관리</div>
-          <div style={{fontSize:12,color:'#6E6A63',marginTop:2}}>{mLabel(curMonth)}</div>
-        </div>
-        <div style={{display:'flex',alignItems:'center',gap:8}}>
-          <button onClick={()=>setShowCatMgr(v=>!v)}
-            style={{background:'#F3F1EC',border:'1px solid #DCD7CE',color:'#1D1B18',borderRadius:4,
-              padding:'7px 12px',fontSize:11,cursor:'pointer',fontFamily:'inherit'}}>
-            카테고리
-          </button>
-          <div style={{fontSize:18,fontWeight:700,color:'#B42318',fontFamily:'inherit',fontVariantNumeric:'tabular-nums'}}>{grand.toLocaleString()}원</div>
-          <select value={curMonth} onChange={e=>setCurMonth(e.target.value)}
-            style={{background:'#F3F1EC',border:'1px solid #DCD7CE',borderRadius:4,color:'#1D1B18',
-              padding:'8px 12px',fontSize:12,fontFamily:'inherit',outline:'none'}}>
+    <div style={{maxWidth:1100}}>
+      {/* 머리 */}
+      <header style={{display:'flex', alignItems:'center', justifyContent:'space-between', gap:12, flexWrap:'wrap',
+        paddingBottom:10, borderBottom:`3px double ${T.ink}`, marginBottom:22}}>
+        <h1 style={{fontSize:24, fontWeight:800, margin:0, letterSpacing:'-0.01em', fontFamily:'inherit', color:T.ink}}>{mLabel(curMonth)} 지출</h1>
+        <div style={{display:'flex', alignItems:'center', gap:6}}>
+          <button type="button" aria-label="이전 달" disabled={monthIdx<=0} onClick={()=>setCurMonth(monthOpts[monthIdx-1])}
+            style={{background:'none', border:`1px solid ${T.rule}`, borderRadius:4, padding:'6px 10px', cursor:'pointer', fontFamily:'inherit', color:T.ink}}>이전</button>
+          <select value={curMonth} onChange={e=>setCurMonth(e.target.value)} aria-label="달 고르기"
+            style={{background:'#FFFFFF', border:`1px solid ${T.rule}`, borderRadius:4, color:T.ink, padding:'7px 10px', fontSize:13, fontFamily:'inherit', outline:'none'}}>
             {monthOpts.map(m=><option key={m} value={m}>{mLabel(m)}</option>)}
           </select>
+          <button type="button" aria-label="다음 달" disabled={monthIdx>=monthOpts.length-1} onClick={()=>setCurMonth(monthOpts[monthIdx+1])}
+            style={{background:'none', border:`1px solid ${T.rule}`, borderRadius:4, padding:'6px 10px', cursor:'pointer', fontFamily:'inherit', color:T.ink}}>다음</button>
         </div>
+      </header>
+
+      {/* 요약: 통장 흐름 · 지출 구분 */}
+      <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(min(100%, 380px), 1fr))', gap:'28px 40px', marginBottom:30}}>
+        <section>
+          {sectionTitle('이 달 돈의 흐름')}
+          {line('전월 이월', carryoverAmt, { note: carryNote })}
+          {line('실입금', totalDeposit, { plus:true, note:'수수료 빼고 들어온 돈' })}
+          {line('지출', grand, { minus:true })}
+          {total('영업 잔액', currentBalance, { color: currentBalance<0 ? T.red : undefined })}
+          <div style={{display:'flex', gap:8, alignItems:'center', flexWrap:'wrap', marginTop:8, fontSize:12, color:T.sub}}>
+            {editCarry ? (
+              <>
+                <span>전월 이월</span>
+                {money(carryover, setCarryover, { label:'전월 이월 잔액', neg:true })}
+                <Btn onClick={async()=>{ await saveCarryover(); setEditCarry(false) }} kind="primary">저장</Btn>
+                <Btn onClick={()=>{ setCarryover(data.carryover||''); setEditCarry(false) }}>취소</Btn>
+              </>
+            ) : (
+              <>
+                <Btn onClick={()=>setEditCarry(true)} small>이월 고치기</Btn>
+                {data.carryoverSource==='manual'
+                  ? <Btn onClick={resetCarryoverAuto} small>통장 잔액 기준으로 되돌리기</Btn>
+                  : !data.carryoverSource && <span>통장 PDF를 올리면 이월이 자동으로 채워져요</span>}
+              </>
+            )}
+          </div>
+        </section>
+
+        <section>
+          {sectionTitle('지출 구분', <Btn onClick={()=>setShowCatMgr(v=>!v)} small>{showCatMgr ? '카테고리 닫기' : '카테고리 관리'}</Btn>)}
+          {grand === 0 && empty('이 달 지출이 아직 없어요')}
+          {grand > 0 && secs.map(sec => {
+            const st = secTotal(sec)
+            if(!st) return null
+            return (
+              <Fragment key={sec}>
+                {line(sec, st, { note:`${pctOf(st,grand)}%` })}
+                {categories.filter(c=>c.sec===sec && tot[c.id]).map(c => line(c.label, tot[c.id], { sub:true, key:c.id }))}
+              </Fragment>
+            )
+          })}
+          {grand > 0 && total('지출 합계', grand)}
+        </section>
       </div>
 
       {/* 카테고리 관리 */}
       {showCatMgr && (
-        <div style={{background:'#FFFFFF',border:'1px solid #C3261C',borderRadius:6,marginBottom:18,padding:18}}>
-          <div style={{fontSize:13,fontWeight:600,color:'#C3261C',marginBottom:14}}>카테고리 관리</div>
-          <div style={{display:'flex',flexDirection:'column',gap:6,marginBottom:14}}>
+        <section style={{background:'#FFFFFF', border:`1px solid ${T.rule}`, borderRadius:6, marginBottom:30, padding:18}}>
+          <div style={{fontSize:14, fontWeight:800, marginBottom:12}}>카테고리 관리</div>
+          <div style={{display:'flex', flexDirection:'column', gap:12, marginBottom:14}}>
             {secs.map(sec=>(
               <div key={sec}>
-                <div style={{fontSize:10,color:'#6E6A63',fontWeight:600,marginBottom:6}}>{secIcons[sec]} {sec}</div>
-                <div style={{display:'flex',flexWrap:'wrap',gap:6}}>
+                <div style={{fontSize:12, color:T.sub, fontWeight:700, marginBottom:6}}>{sec}</div>
+                <div style={{display:'flex', flexWrap:'wrap', gap:6}}>
                   {categories.filter(c=>c.sec===sec).map(cat=>(
-                    <div key={cat.id} style={{background:'#F3F1EC',border:'1px solid #DCD7CE',borderRadius:4,
-                      padding:'6px 10px',display:'flex',alignItems:'center',gap:8}}>
+                    <div key={cat.id} style={{background:T.chip, border:`1px solid ${T.rule}`, borderRadius:4,
+                      padding:'6px 10px', display:'flex', alignItems:'center', gap:8}}>
                       {editCatId===cat.id ? (
                         <>
-                          <input value={editCatLabel} onChange={e=>setEditCatLabel(e.target.value)}
-                            style={{background:'#FFFFFF',border:'1px solid #C3261C',borderRadius:5,color:'#1D1B18',
-                              padding:'3px 7px',fontSize:11,outline:'none',width:80}}/>
-                          <select value={editCatSec} onChange={e=>setEditCatSec(e.target.value)}
-                            style={{background:'#FFFFFF',border:'1px solid #DCD7CE',borderRadius:5,color:'#1D1B18',padding:'3px',fontSize:10,outline:'none'}}>
+                          <input value={editCatLabel} onChange={e=>setEditCatLabel(e.target.value)} aria-label="카테고리 이름"
+                            style={field({ padding:'3px 7px', fontSize:12, width:90 })}/>
+                          <select value={editCatSec} onChange={e=>setEditCatSec(e.target.value)} aria-label="구분"
+                            style={field({ padding:'3px', fontSize:12 })}>
                             {secs.map(s=><option key={s} value={s}>{s}</option>)}
                           </select>
-                          <button onClick={saveEditCat} style={{background:'#C3261C',color:'#FFFFFF',border:'none',borderRadius:4,padding:'3px 8px',fontSize:10,cursor:'pointer',fontFamily:'inherit'}}>✓</button>
-                          <button onClick={()=>setEditCatId(null)} style={{background:'transparent',border:'none',color:'#6E6A63',fontSize:12,cursor:'pointer'}}>✕</button>
+                          <Btn onClick={saveEditCat} kind="primary" small>저장</Btn>
+                          <Btn onClick={()=>setEditCatId(null)} small>취소</Btn>
                         </>
                       ) : (
                         <>
-                          <span style={{fontSize:11,color:'#1D1B18'}}>{cat.label}</span>
-                          <button onClick={()=>{setEditCatId(cat.id);setEditCatLabel(cat.label);setEditCatSec(cat.sec)}} style={{background:'transparent',border:'none',color:'#6E6A63',fontSize:11,cursor:'pointer',padding:0}}>수정</button>
-                          <button onClick={()=>deleteCategory(cat.id)} style={{background:'transparent',border:'none',color:'#B42318',fontSize:11,cursor:'pointer',padding:0}}>삭제</button>
+                          <span style={{fontSize:13}}>{cat.label}</span>
+                          <button onClick={()=>{setEditCatId(cat.id);setEditCatLabel(cat.label);setEditCatSec(cat.sec)}} style={{background:'transparent',border:'none',color:T.sub,fontSize:11,cursor:'pointer',padding:0,fontFamily:'inherit'}}>수정</button>
+                          <button onClick={()=>deleteCategory(cat.id)} style={{background:'transparent',border:'none',color:T.red,fontSize:11,cursor:'pointer',padding:0,fontFamily:'inherit'}}>삭제</button>
                         </>
                       )}
                     </div>
@@ -449,382 +548,185 @@ const [payingDate, setPayingDate]     = useState('')
               </div>
             ))}
           </div>
-          <div style={{display:'flex',gap:8,alignItems:'center',paddingTop:12,borderTop:'1px solid #DCD7CE'}}>
-            <input value={newCatLabel} onChange={e=>setNewCatLabel(e.target.value)} placeholder="카테고리 이름"
-              style={{flex:1,background:'#F3F1EC',border:'1px solid #DCD7CE',borderRadius:4,color:'#1D1B18',padding:'7px 10px',fontSize:12,outline:'none',fontFamily:'inherit'}}/>
-            <select value={newCatSec} onChange={e=>setNewCatSec(e.target.value)}
-              style={{background:'#F3F1EC',border:'1px solid #DCD7CE',borderRadius:4,color:'#1D1B18',padding:'7px 10px',fontSize:12,outline:'none',fontFamily:'inherit'}}>
+          <div style={{display:'flex', gap:8, alignItems:'center', flexWrap:'wrap', paddingTop:12, borderTop:`1px solid ${T.rule}`}}>
+            <input value={newCatLabel} onChange={e=>setNewCatLabel(e.target.value)} placeholder="새 카테고리 이름"
+              style={field({ flex:1, minWidth:140, fontSize:13 })}/>
+            <select value={newCatSec} onChange={e=>setNewCatSec(e.target.value)} aria-label="구분" style={field({ fontSize:13 })}>
               {secs.map(s=><option key={s} value={s}>{s}</option>)}
             </select>
-            <button onClick={addCategory} style={{background:'#C3261C',color:'#FFFFFF',border:'none',borderRadius:4,padding:'7px 16px',fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>+ 추가</button>
+            <Btn onClick={addCategory} kind="primary">추가</Btn>
           </div>
-        </div>
+        </section>
       )}
 
-      {/* 월별 요약 */}
-      <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:12,marginBottom:18}}>
-        {[
-          {label:'전월 이월 잔액', val:carryoverAmt,    color:'#2B5C9E'},
-          {label:'총 실입금액',   val:totalDeposit,      color:'#2E7D45'},
-          {label:'총 지출',       val:grand,             color:'#B42318'},
-          {label:'영업 잔액 (이월+입금−지출)', val:currentBalance,    color:currentBalance>=0?'#C3261C':'#B42318'},
-        ].map(k=>(
-          <div key={k.label} style={{background:'#FFFFFF',border:'1px solid #DCD7CE',borderRadius:6,padding:'14px 16px',position:'relative',overflow:'hidden'}}>
-            <div style={{position:'absolute',top:0,left:0,right:0,height:3,background:k.color}}/>
-            <div style={{fontSize:10,fontWeight:600,color:'#6E6A63',marginBottom:6}}>{k.label}</div>
-            <div style={{fontSize:18,fontWeight:700,color:k.color,fontFamily:'inherit',fontVariantNumeric:'tabular-nums'}}>{k.val.toLocaleString()}원</div>
-          </div>
-        ))}
-      </div>
-
-      {/* ── 통장 잔액 맞추기 (영업 잔액 vs 실제 통장) ── */}
+      {/* 통장 잔액 맞추기 (영업 잔액 vs 실제 통장) */}
       <BankReconCard ym={curMonth} data={data} categories={categories} onChanged={refreshData}/>
 
-      {/* ── 고정지출 체크리스트 ── */}
-      <div style={{background:'#FFFFFF',border:`1px solid ${unpaidFixed.length>0?'rgba(180,35,24,0.4)':'rgba(46,125,69,0.3)'}`,borderRadius:6,marginBottom:18,overflow:'hidden'}}>
-        {/* 헤더 */}
-        <div style={{padding:'14px 18px',borderBottom:'1px solid #DCD7CE',
-          display:'flex',justifyContent:'space-between',alignItems:'center'}}>
-          <div style={{display:'flex',alignItems:'center',gap:10}}>
-            <span style={{fontSize:13,fontWeight:600}}>이번달 고정지출</span>
-            {unpaidFixed.length > 0
-              ? <span style={{fontSize:11,fontWeight:700,color:'#B42318',background:'rgba(180,35,24,0.15)',
-                  padding:'2px 8px',borderRadius:4}}>미납 {unpaidFixed.length}건</span>
-              : fixedItems.length > 0
-                ? <span style={{fontSize:11,fontWeight:700,color:'#2E7D45',background:'rgba(46,125,69,0.15)',
-                    padding:'2px 8px',borderRadius:4}}>전부 납부완료</span>
-                : null
-            }
-          </div>
-          <div style={{display:'flex',alignItems:'center',gap:8}}>
-            {fixedItems.length > 0 && (
-              <span style={{fontSize:11,color:'#6E6A63',fontFamily:'inherit',fontVariantNumeric:'tabular-nums'}}>
-                {paidFixedAmt.toLocaleString()} / {totalFixedAmt.toLocaleString()}원
-              </span>
-            )}
-            <button onClick={()=>setShowFixedMgr(v=>!v)}
-              style={{background:'#F3F1EC',border:'1px solid #DCD7CE',color:'#1D1B18',borderRadius:4,
-                padding:'5px 10px',fontSize:11,cursor:'pointer',fontFamily:'inherit'}}>
-              {showFixedMgr ? '▲ 접기' : '항목 관리'}
-            </button>
-          </div>
-        </div>
+      <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(min(100%, 460px), 1fr))', gap:'28px 40px', margin:'12px 0 30px'}}>
+        {/* 고정지출 */}
+        <section>
+          {sectionTitle('고정지출', <>
+            {fixedItems.length > 0 && (unpaidFixed.length > 0
+              ? <span style={{color:T.red, fontWeight:700}}>미납 {unpaidFixed.length}건</span>
+              : <span style={{color:T.green, fontWeight:700}}>모두 납부</span>)}
+            <Btn onClick={()=>setShowFixedMgr(v=>!v)} small>{showFixedMgr ? '관리 닫기' : '항목 관리'}</Btn>
+          </>)}
 
-        {/* 항목 관리 패널 */}
-        {showFixedMgr && (
-          <div style={{padding:'14px 18px',borderBottom:'1px solid #DCD7CE',background:'rgba(195,38,28,0.04)'}}>
-            <div style={{fontSize:11,fontWeight:600,color:'#C3261C',marginBottom:12}}>고정지출 항목 설정</div>
-            {/* 기존 항목 목록 */}
-            {fixedItems.length > 0 && (
-              <div style={{display:'flex',flexDirection:'column',gap:6,marginBottom:12}}>
-                {fixedItems.map(item=>(
-                  <div key={item.id} style={{background:'#F3F1EC',borderRadius:4,padding:'8px 12px',
-                    display:'flex',alignItems:'center',gap:10,flexWrap:'wrap'}}>
-                    {editFixedId===item.id ? (
-                      <>
-                        <input value={editFixed.label||''} onChange={e=>setEditFixed(f=>({...f,label:e.target.value}))}
-                          placeholder="항목명" style={{background:'#FFFFFF',border:'1px solid #C3261C',borderRadius:5,
-                            color:'#1D1B18',padding:'4px 8px',fontSize:11,outline:'none',width:100,fontFamily:'inherit'}}/>
-                        <input type="number" value={editFixed.dueDay||''} onChange={e=>setEditFixed(f=>({...f,dueDay:e.target.value}))}
-                          placeholder="예정일" style={{background:'#FFFFFF',border:'1px solid #DCD7CE',borderRadius:5,
-                            color:'#1D1B18',padding:'4px 8px',fontSize:11,outline:'none',width:60,fontFamily:'inherit'}}/>
-                        <input type="number" value={editFixed.amount||''} onChange={e=>setEditFixed(f=>({...f,amount:e.target.value}))}
-                          placeholder="금액" style={{background:'#FFFFFF',border:'1px solid #DCD7CE',borderRadius:5,
-                            color:'#1D1B18',padding:'4px 8px',fontSize:11,outline:'none',width:90,fontFamily:'inherit',fontVariantNumeric:'tabular-nums'}}/>
-                        <select value={editFixed.categoryId||''} onChange={e=>setEditFixed(f=>({...f,categoryId:e.target.value}))}
-                          style={{background:'#FFFFFF',border:'1px solid #DCD7CE',borderRadius:5,color:'#1D1B18',
-                            padding:'4px 8px',fontSize:11,outline:'none',fontFamily:'inherit'}}>
-                          {categories.map(c=><option key={c.id} value={c.id}>{c.label}</option>)}
-                        </select>
-                        <button onClick={saveEditFixed} style={{background:'#C3261C',color:'#FFFFFF',border:'none',borderRadius:5,padding:'4px 10px',fontSize:11,cursor:'pointer',fontFamily:'inherit'}}>저장</button>
-                        <button onClick={()=>setEditFixedId(null)} style={{background:'transparent',border:'none',color:'#6E6A63',fontSize:12,cursor:'pointer'}}>✕</button>
-                      </>
-                    ) : (
-                      <>
-                        <span style={{fontSize:12,fontWeight:600,color:'#1D1B18',flex:1}}>{item.label}</span>
-                        <span style={{fontSize:11,color:'#6E6A63'}}>매월 {item.dueDay}일</span>
-                        <span style={{fontSize:12,color:'#B42318',fontFamily:'inherit',fontVariantNumeric:'tabular-nums',fontWeight:700}}>
-                          {item.amount.toLocaleString()}원
-                        </span>
-                        <span style={{fontSize:10,color:'#6E6A63'}}>
-                          {categories.find(c=>c.id===item.categoryId)?.label||'—'}
-                        </span>
-                        <button onClick={()=>{setEditFixedId(item.id);setEditFixed({...item})}}
-                          style={{background:'transparent',border:'none',color:'#6E6A63',fontSize:11,cursor:'pointer',padding:0}}>수정</button>
-                        <button onClick={()=>deleteFixedItem(item.id)}
-                          style={{background:'transparent',border:'none',color:'#B42318',fontSize:11,cursor:'pointer',padding:0}}>삭제</button>
-                      </>
+          {showFixedMgr && (
+            <div style={{background:T.chip, borderRadius:4, padding:'12px 14px', margin:'8px 0'}}>
+              {fixedItems.map(item=>(
+                <div key={item.id} style={{display:'flex', alignItems:'center', gap:8, flexWrap:'wrap', padding:'6px 0', borderBottom:`1px solid ${T.rule}`}}>
+                  {editFixedId===item.id ? (
+                    <>
+                      <input value={editFixed.label||''} onChange={e=>setEditFixed(f=>({...f,label:e.target.value}))}
+                        placeholder="항목명" aria-label="항목명" style={field({ width:110, fontSize:13, padding:'5px 8px' })}/>
+                      <span style={{fontSize:12, color:T.sub}}>매월</span>
+                      <input type="number" value={editFixed.dueDay||''} onChange={e=>setEditFixed(f=>({...f,dueDay:e.target.value}))}
+                        aria-label="예정일" min="1" max="31" style={field({ width:56, fontSize:13, padding:'5px 8px' })}/>
+                      <span style={{fontSize:12, color:T.sub}}>일</span>
+                      {money(editFixed.amount ?? '', v=>setEditFixed(f=>({...f,amount:v})), { label:'금액', width:110, extra:{ fontSize:13, padding:'5px 8px' } })}
+                      <select value={editFixed.categoryId||''} onChange={e=>setEditFixed(f=>({...f,categoryId:e.target.value}))}
+                        aria-label="카테고리" style={field({ fontSize:13, padding:'5px 8px' })}>
+                        {categories.map(c=><option key={c.id} value={c.id}>{c.label}</option>)}
+                      </select>
+                      <Btn onClick={saveEditFixed} kind="primary" small>저장</Btn>
+                      <Btn onClick={()=>setEditFixedId(null)} small>취소</Btn>
+                    </>
+                  ) : (
+                    <>
+                      <span style={{fontSize:13, fontWeight:600, flex:1}}>{item.label}</span>
+                      <span style={{fontSize:12, color:T.sub}}>매월 {item.dueDay}일 · {categories.find(c=>c.id===item.categoryId)?.label||'미분류'}</span>
+                      <span style={{fontSize:13, ...num}}>{won(item.amount)}</span>
+                      <button onClick={()=>{setEditFixedId(item.id);setEditFixed({...item})}}
+                        style={{background:'transparent',border:'none',color:T.sub,fontSize:12,cursor:'pointer',padding:0,fontFamily:'inherit'}}>수정</button>
+                      <button onClick={()=>deleteFixedItem(item.id)}
+                        style={{background:'transparent',border:'none',color:T.red,fontSize:12,cursor:'pointer',padding:0,fontFamily:'inherit'}}>삭제</button>
+                    </>
+                  )}
+                </div>
+              ))}
+              <div style={{display:'flex', gap:8, alignItems:'center', flexWrap:'wrap', paddingTop:10}}>
+                <input value={newFixed.label} onChange={e=>setNewFixed(f=>({...f,label:e.target.value}))}
+                  placeholder="새 항목 (예: 임대료)" style={field({ flex:1, minWidth:120, fontSize:13 })}/>
+                <span style={{fontSize:12, color:T.sub}}>매월</span>
+                <input type="number" value={newFixed.dueDay} onChange={e=>setNewFixed(f=>({...f,dueDay:e.target.value}))}
+                  placeholder="1" min="1" max="31" aria-label="예정일" style={field({ width:56, fontSize:13 })}/>
+                <span style={{fontSize:12, color:T.sub}}>일</span>
+                {money(newFixed.amount, v=>setNewFixed(f=>({...f,amount:v})), { label:'금액', width:120, extra:{ fontSize:13 } })}
+                <select value={newFixed.categoryId} onChange={e=>setNewFixed(f=>({...f,categoryId:e.target.value}))}
+                  aria-label="카테고리" style={field({ fontSize:13 })}>
+                  <option value="">카테고리</option>
+                  {categories.map(c=><option key={c.id} value={c.id}>{c.label}</option>)}
+                </select>
+                <Btn onClick={addFixedItem} kind="primary">추가</Btn>
+              </div>
+            </div>
+          )}
+
+          {fixedItems.length === 0 ? empty('항목 관리에서 매달 나가는 돈(임대료 등)을 추가하세요') : (
+            <>
+              {fixedItems.map(item=>{
+                const payment = fixedPayments[item.id]
+                const isPaid = payment?.paid
+                const cat = categories.find(c=>c.id===item.categoryId)
+                return (
+                  <div key={item.id} style={{display:'flex', alignItems:'center', gap:10, padding:'8px 0', borderBottom:`1px solid ${T.soft}`}}>
+                    <span style={{fontSize:12, fontWeight:700, width:30, flexShrink:0, color: isPaid ? T.green : T.red}}>{isPaid ? '납부' : '미납'}</span>
+                    <div style={{flex:1, minWidth:0}}>
+                      <div style={{display:'flex', alignItems:'baseline'}}>
+                        <span style={{fontSize:14, fontWeight:600, color: isPaid ? T.sub : T.ink, whiteSpace:'nowrap'}}>{item.label}</span>
+                        {leader()}
+                        <span style={{fontSize:14, ...num, color: isPaid ? T.sub : T.ink, whiteSpace:'nowrap'}}>{won(item.amount)}</span>
+                      </div>
+                      <div style={{fontSize:11, color:T.sub, marginTop:2}}>
+                        매월 {item.dueDay}일 · {cat?.label||'미분류'}
+                        {isPaid && <span style={{color:T.green}}> · {+payment.paidDate}일에 냄</span>}
+                      </div>
+                    </div>
+                    {isThisMonth && (
+                      isPaid ? <Btn onClick={()=>unpayFixed(item.id)} small>취소</Btn>
+                      : payingItemId === item.id ? (
+                        <div style={{display:'flex', alignItems:'center', gap:6, flexShrink:0}}>
+                          <input type="date" value={payingDate} onChange={e=>setPayingDate(e.target.value)} aria-label="낸 날짜"
+                            style={field({ fontSize:12, padding:'4px 6px' })}/>
+                          <Btn onClick={async()=>{ await payFixed(item, payingDate); setPayingItemId(null); setPayingDate('') }} kind="ok" small>확인</Btn>
+                          <Btn onClick={()=>{ setPayingItemId(null); setPayingDate('') }} small>취소</Btn>
+                        </div>
+                      ) : <Btn onClick={()=>{ setPayingItemId(item.id); setPayingDate(`${curMonth}-${getNowDD()}`) }} kind="ok" small>냈어요</Btn>
                     )}
                   </div>
-                ))}
+                )
+              })}
+              {total('낸 돈', paidFixedAmt, { note:`전체 ${won(totalFixedAmt)}원 중` })}
+            </>
+          )}
+        </section>
+
+        {/* 형과의 단기 대여금 */}
+        <section>
+          {sectionTitle('형과의 단기 대여금', <>
+            {loanBalance > 0 && <Btn onClick={()=>{ setShowConvert(v=>!v); setConvertAmount(String(loanBalance)) }} small>투자금 회수로 전환</Btn>}
+            <Btn onClick={()=>setShowLoanMgr(v=>!v)} small>{showLoanMgr ? '입력 닫기' : '기록 추가'}</Btn>
+          </>)}
+
+          {showConvert && (
+            <div style={{background:T.chip, borderRadius:4, padding:'12px 14px', margin:'8px 0'}}>
+              <div style={{fontSize:13, fontWeight:700, marginBottom:8}}>잔액 중 일부(또는 전체)를 투자금 회수로 전환</div>
+              <div style={{display:'flex', gap:8, alignItems:'center', flexWrap:'wrap'}}>
+                {money(convertAmount, setConvertAmount, { label:'전환할 금액', width:150 })}
+                <span style={{fontSize:12, color:T.sub}}>/ 잔액 {won(loanBalance)}원</span>
+                <Btn onClick={convertToInvestment} kind="primary" disabled={saving}>{saving ? '처리 중...' : '전환'}</Btn>
+                <Btn onClick={()=>setShowConvert(false)}>취소</Btn>
               </div>
-            )}
-            {/* 새 항목 추가 */}
-            <div style={{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap',paddingTop:10,borderTop:'1px solid #DCD7CE'}}>
-              <input value={newFixed.label} onChange={e=>setNewFixed(f=>({...f,label:e.target.value}))}
-                placeholder="항목명 (예: 임대료)"
-                style={{flex:1,minWidth:100,background:'#F3F1EC',border:'1px solid #DCD7CE',borderRadius:4,
-                  color:'#1D1B18',padding:'7px 10px',fontSize:12,outline:'none',fontFamily:'inherit'}}/>
-              <div style={{display:'flex',alignItems:'center',gap:4}}>
-                <span style={{fontSize:11,color:'#6E6A63',whiteSpace:'nowrap'}}>매월</span>
-                <input type="number" value={newFixed.dueDay} onChange={e=>setNewFixed(f=>({...f,dueDay:e.target.value}))}
-                  placeholder="1" min="1" max="31"
-                  style={{width:50,background:'#F3F1EC',border:'1px solid #DCD7CE',borderRadius:4,
-                    color:'#1D1B18',padding:'7px 8px',fontSize:12,outline:'none',fontFamily:'inherit'}}/>
-                <span style={{fontSize:11,color:'#6E6A63'}}>일</span>
+              <div style={{fontSize:11, color:T.sub, marginTop:8}}>전환하면 대여금 잔액이 줄고, 투자관리의 형 "대출금 상환 회수"에 자동으로 적혀요.</div>
+            </div>
+          )}
+
+          {showLoanMgr && (
+            <div style={{background:T.chip, borderRadius:4, padding:'12px 14px', margin:'8px 0', display:'flex', gap:8, alignItems:'center', flexWrap:'wrap'}}>
+              <input type="date" value={loanForm.date} onChange={e=>setLoanForm(f=>({...f,date:e.target.value}))} aria-label="날짜"
+                style={field({ fontSize:13 })}/>
+              <div style={{display:'flex', gap:12}}>
+                {[['lent','빌려줌'],['received','받음']].map(([k,l])=>textTab(loanForm.type===k, l, ()=>setLoanForm(f=>({...f,type:k}))))}
               </div>
-              <input type="number" value={newFixed.amount} onChange={e=>setNewFixed(f=>({...f,amount:e.target.value}))}
-                placeholder="금액"
-                style={{width:100,background:'#F3F1EC',border:'1px solid #DCD7CE',borderRadius:4,
-                  color:'#1D1B18',padding:'7px 10px',fontSize:12,outline:'none',fontFamily:'inherit',fontVariantNumeric:'tabular-nums'}}/>
-              <select value={newFixed.categoryId} onChange={e=>setNewFixed(f=>({...f,categoryId:e.target.value}))}
-                style={{background:'#F3F1EC',border:'1px solid #DCD7CE',borderRadius:4,color:'#1D1B18',
-                  padding:'7px 10px',fontSize:12,outline:'none',fontFamily:'inherit'}}>
-                <option value="">카테고리</option>
-                {categories.map(c=><option key={c.id} value={c.id}>{c.label}</option>)}
-              </select>
-              <button onClick={addFixedItem}
-                style={{background:'#C3261C',color:'#FFFFFF',border:'none',borderRadius:4,padding:'7px 14px',
-                  fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'inherit',whiteSpace:'nowrap'}}>
-                + 추가
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* 체크리스트 */}
-        {fixedItems.length === 0 ? (
-          <div style={{padding:'20px',textAlign:'center',color:'#6E6A63',fontSize:12}}>
-            항목 관리에서 고정지출 항목을 추가하세요
-          </div>
-        ) : (
-          <div style={{padding:'8px 0'}}>
-            {fixedItems.map(item=>{
-              const payment = fixedPayments[item.id]
-              const isPaid = payment?.paid
-              const cat = categories.find(c=>c.id===item.categoryId)
-              return (
-                <div key={item.id} style={{
-                  display:'flex',alignItems:'center',gap:12,padding:'10px 18px',
-                  borderBottom:'1px solid #F3F1EC',
-                  background: isPaid ? 'rgba(46,125,69,0.04)' : 'transparent'
-                }}>
-                  {/* 상태 아이콘 */}
-                  <div style={{fontSize:18,flexShrink:0}}>
-                    {isPaid ? '납부' : '대기'}
-                  </div>
-                  {/* 항목 정보 */}
-                  <div style={{flex:1,minWidth:0}}>
-                    <div style={{fontSize:13,fontWeight:600,
-                      color:isPaid?'#6E6A63':'#1D1B18',
-                      textDecoration:isPaid?'line-through':'none'}}>
-                      {item.label}
-                    </div>
-                    <div style={{fontSize:10,color:'#6E6A63',marginTop:2}}>
-                      매월 {item.dueDay}일 예정 · {cat?.label||'미분류'}
-                      {isPaid && <span style={{color:'#2E7D45',marginLeft:6}}>→ {+payment.paidDate}일 납부완료</span>}
-                    </div>
-                  </div>
-                  {/* 금액 */}
-                  <div style={{fontSize:13,fontWeight:700,
-                    color:isPaid?'#6E6A63':'#B42318',
-                    fontFamily:'inherit',fontVariantNumeric:'tabular-nums',flexShrink:0,
-                    textDecoration:isPaid?'line-through':'none'}}>
-                    {item.amount.toLocaleString()}원
-                  </div>
-                  {/* 납부 버튼 */}
-                  {isThisMonth && (
-  isPaid ? (
-    <button onClick={()=>unpayFixed(item.id)}
-      style={{background:'transparent',border:'1px solid #DCD7CE',color:'#6E6A63',
-        borderRadius:6,padding:'5px 10px',fontSize:10,cursor:'pointer',
-        fontFamily:'inherit',flexShrink:0,whiteSpace:'nowrap'}}>
-      취소
-    </button>
-  ) : payingItemId === item.id ? (
-    <div style={{display:'flex',alignItems:'center',gap:6,flexShrink:0}}>
-      <input type="date" value={payingDate} onChange={e=>setPayingDate(e.target.value)}
-        style={{background:'#F3F1EC',border:'1px solid #2E7D45',borderRadius:6,
-          color:'#1D1B18',padding:'4px 8px',fontSize:11,outline:'none',fontFamily:'inherit'}}/>
-      <button onClick={async()=>{ await payFixed(item, payingDate); setPayingItemId(null); setPayingDate('') }}
-        style={{background:'#2E7D45',color:'#FFFFFF',border:'none',borderRadius:6,
-          padding:'5px 10px',fontSize:11,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
-        확인
-      </button>
-      <button onClick={()=>{ setPayingItemId(null); setPayingDate('') }}
-        style={{background:'transparent',border:'none',color:'#6E6A63',fontSize:12,cursor:'pointer'}}>
-          ✕
-        </button>
-    </div>
-  ) : (
-    <button onClick={()=>{ setPayingItemId(item.id); setPayingDate(`${curMonth}-${getNowDD()}`); }}
-      style={{background:'#2E7D45',color:'#FFFFFF',border:'none',
-        borderRadius:6,padding:'5px 12px',fontSize:11,fontWeight:700,
-        cursor:'pointer',fontFamily:'inherit',flexShrink:0,whiteSpace:'nowrap'}}>
-      납부 </button>
-  )
-)}
-                </div>
-              )
-            })}
-            {/* 고정지출 합계 */}
-            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',
-              padding:'10px 18px',background:'rgba(0,0,0,0.02)'}}>
-              <span style={{fontSize:11,color:'#6E6A63'}}>고정지출 합계</span>
-              <span style={{fontSize:13,fontWeight:700,color:'#B42318',fontFamily:'inherit',fontVariantNumeric:'tabular-nums'}}>
-                {paidFixedAmt.toLocaleString()}원 납부 / {totalFixedAmt.toLocaleString()}원
-              </span>
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* ── 형과의 단기 대여금 ── */}
-      <div style={{background:'#FFFFFF',border:'1px solid rgba(43,92,158,0.3)',borderRadius:6,marginBottom:18,overflow:'hidden'}}>
-        <div style={{padding:'14px 18px',borderBottom:'1px solid #DCD7CE',
-          display:'flex',justifyContent:'space-between',alignItems:'center',flexWrap:'wrap',gap:8}}>
-          <div>
-            <span style={{fontSize:13,fontWeight:600}}>형과의 단기 대여금</span>
-            <span style={{fontSize:11,color:'#6E6A63',marginLeft:10}}>
-              {loanBalance>0 ? `형이 ${loanBalance.toLocaleString()}원 빚진 상태` :
-               loanBalance<0 ? `내가 ${Math.abs(loanBalance).toLocaleString()}원 빚진 상태` : '잔액 없음'}
-            </span>
-          </div>
-          <div style={{display:'flex',gap:8}}>
-            {loanBalance > 0 && (
-              <button onClick={()=>{ setShowConvert(v=>!v); setConvertAmount(String(loanBalance)) }}
-                style={{background:'rgba(195,38,28,0.12)',border:'1px solid rgba(195,38,28,0.3)',color:'#C3261C',
-                  borderRadius:4,padding:'6px 12px',fontSize:11,fontWeight:600,cursor:'pointer',fontFamily:'inherit'}}>
-                투자금 회수로 전환
-              </button>
-            )}
-            <button onClick={()=>setShowLoanMgr(v=>!v)}
-              style={{background:'#F3F1EC',border:'1px solid #DCD7CE',color:'#1D1B18',borderRadius:4,
-                padding:'6px 10px',fontSize:11,cursor:'pointer',fontFamily:'inherit'}}>
-              {showLoanMgr ? '▲ 접기' : '+ 기록 추가'}
-            </button>
-          </div>
-        </div>
-
-        {/* 전환 폼 */}
-        {showConvert && (
-          <div style={{padding:'14px 18px',borderBottom:'1px solid #DCD7CE',background:'rgba(195,38,28,0.04)'}}>
-            <div style={{fontSize:11,fontWeight:600,color:'#C3261C',marginBottom:10}}>
-              잔액 중 일부(또는 전체)를 투자금 회수로 전환
-            </div>
-            <div style={{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap'}}>
-              <input type="number" value={convertAmount} onChange={e=>setConvertAmount(e.target.value)}
-                placeholder="전환할 금액" max={loanBalance}
-                style={{width:160,background:'#F3F1EC',border:'1px solid rgba(195,38,28,0.3)',borderRadius:4,
-                  color:'#C3261C',padding:'8px 10px',fontSize:13,outline:'none',fontFamily:'inherit',fontVariantNumeric:'tabular-nums',fontWeight:700}}/>
-              <span style={{fontSize:11,color:'#6E6A63'}}>/ 잔액 {loanBalance.toLocaleString()}원</span>
-              <button onClick={convertToInvestment} disabled={saving}
-                style={{background:'#C3261C',color:'#FFFFFF',border:'none',borderRadius:4,padding:'8px 16px',
-                  fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
-                {saving?'처리 중...':'전환 확정'}
-              </button>
-              <button onClick={()=>setShowConvert(false)}
-                style={{background:'transparent',border:'1px solid #DCD7CE',color:'#6E6A63',borderRadius:4,
-                  padding:'8px 14px',fontSize:11,cursor:'pointer',fontFamily:'inherit'}}>
-                취소
-              </button>
-            </div>
-            <div style={{fontSize:10,color:'#6E6A63',marginTop:8}}>
-              전환하면 대여금 잔액이 줄고, 투자관리 탭의 형 "대출금 상환 회수"에 자동 기록돼요.
-            </div>
-          </div>
-        )}
-
-        {/* 기록 추가 폼 */}
-        {showLoanMgr && (
-          <div style={{padding:'14px 18px',borderBottom:'1px solid #DCD7CE',background:'rgba(43,92,158,0.04)'}}>
-            <div style={{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap'}}>
-              <input type="date" value={loanForm.date} onChange={e=>setLoanForm(f=>({...f,date:e.target.value}))}
-                style={{background:'#F3F1EC',border:'1px solid #DCD7CE',borderRadius:4,color:'#1D1B18',
-                  padding:'7px 10px',fontSize:12,outline:'none',fontFamily:'inherit'}}/>
-              <div style={{display:'flex',gap:4}}>
-                {[['lent','빌려줌'],['received','받음']].map(([k,l])=>(
-                  <button key={k} onClick={()=>setLoanForm(f=>({...f,type:k}))}
-                    style={{padding:'7px 12px',borderRadius:6,border:'none',fontSize:11,fontWeight:600,cursor:'pointer',fontFamily:'inherit',
-                      background:loanForm.type===k?(k==='lent'?'#B42318':'#2E7D45'):'#F3F1EC',
-                      color:loanForm.type===k?'#FFFFFF':'#6E6A63'}}>
-                    {l}
-                  </button>
-                ))}
-              </div>
-              <input type="number" value={loanForm.amount} onChange={e=>setLoanForm(f=>({...f,amount:e.target.value}))}
-                placeholder="금액"
-                style={{width:120,background:'#F3F1EC',border:'1px solid #DCD7CE',borderRadius:4,color:'#1D1B18',
-                  padding:'7px 10px',fontSize:12,outline:'none',fontFamily:'inherit',fontVariantNumeric:'tabular-nums'}}/>
+              {money(loanForm.amount, v=>setLoanForm(f=>({...f,amount:v})), { label:'금액', width:120, extra:{ fontSize:13 } })}
               <input value={loanForm.memo} onChange={e=>setLoanForm(f=>({...f,memo:e.target.value}))}
-                placeholder="메모 (선택)"
-                style={{flex:1,minWidth:100,background:'#F3F1EC',border:'1px solid #DCD7CE',borderRadius:4,color:'#1D1B18',
-                  padding:'7px 10px',fontSize:12,outline:'none',fontFamily:'inherit'}}/>
-              <button onClick={addLoanRecord}
-                style={{background:'#2B5C9E',color:'#FFFFFF',border:'none',borderRadius:4,padding:'7px 16px',
-                  fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'inherit',whiteSpace:'nowrap'}}>
-                + 추가
-              </button>
+                placeholder="메모 (선택)" style={field({ flex:1, minWidth:100, fontSize:13 })}/>
+              <Btn onClick={addLoanRecord} kind="primary">추가</Btn>
             </div>
-          </div>
-        )}
+          )}
 
-        {/* 내역 */}
-        {loanRecords.length === 0 ? (
-          <div style={{padding:'20px',textAlign:'center',color:'#6E6A63',fontSize:12}}>
-            + 기록 추가에서 대여/상환 내역을 입력하세요
-          </div>
-        ) : (
-          <div style={{padding:'8px 0'}}>
-            {[...loanRecords].sort((a,b)=>b.date.localeCompare(a.date)).map(r=>(
-              <div key={r.id} style={{display:'flex',alignItems:'center',gap:12,padding:'9px 18px',
-                borderBottom:'1px solid #ECE8E1',flexWrap:'wrap'}}>
-                <div style={{fontSize:11,color:'#6E6A63',fontFamily:'inherit',fontVariantNumeric:'tabular-nums',minWidth:75}}>{r.date}</div>
-                <span style={{fontSize:11,fontWeight:700,padding:'2px 8px',borderRadius:4,
-                  background: r.type==='lent'?'rgba(180,35,24,0.15)':r.type==='converted'?'rgba(195,38,28,0.15)':'rgba(46,125,69,0.15)',
-                  color: r.type==='lent'?'#B42318':r.type==='converted'?'#C3261C':'#2E7D45'}}>
-                  {r.type==='lent'?'빌려줌':r.type==='converted'?'투자전환':'받음'}
-                </span>
-                <span style={{flex:1,fontSize:11,color:'#6E6A63'}}>{r.memo||'—'}</span>
-                <span style={{fontSize:13,fontWeight:700,fontFamily:'inherit',fontVariantNumeric:'tabular-nums',
-                  color:r.type==='lent'?'#B42318':r.type==='converted'?'#C3261C':'#2E7D45'}}>
-                  {r.type==='lent'?'+':'-'}{r.amount.toLocaleString()}원
-                </span>
-                <button onClick={()=>deleteLoanRecord(r.id)}
-                  style={{background:'transparent',border:'1px solid #E8C4BF',color:'#B42318',
-                    padding:'3px 8px',fontSize:10,borderRadius:4,cursor:'pointer',fontFamily:'inherit'}}>
-                  삭제
-                </button>
-              </div>
-            ))}
-            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',
-              padding:'10px 18px',background:'rgba(0,0,0,0.02)'}}>
-              <span style={{fontSize:11,color:'#6E6A63'}}>현재 잔액</span>
-              <span style={{fontSize:13,fontWeight:700,fontFamily:'inherit',fontVariantNumeric:'tabular-nums',
-                color:loanBalance>0?'#B42318':loanBalance<0?'#2E7D45':'#6E6A63'}}>
-                {loanBalance.toLocaleString()}원
-              </span>
-            </div>
-          </div>
-        )}
+          {loanRecords.length === 0 ? empty('기록 추가에서 빌려준 돈, 받은 돈을 적으세요') : (
+            <>
+              {[...loanRecords].sort((a,b)=>b.date.localeCompare(a.date)).map(r=>{
+                const c = r.type==='lent' ? T.red : r.type==='converted' ? T.accent : T.green
+                return (
+                  <div key={r.id} style={{display:'flex', alignItems:'baseline', gap:8, padding:'7px 0', borderBottom:`1px solid ${T.soft}`, fontSize:13}}>
+                    <span style={{color:T.sub, ...num, whiteSpace:'nowrap'}}>{r.date.slice(5).replace('-','.')}</span>
+                    <span style={{fontWeight:700, color:c, whiteSpace:'nowrap'}}>{r.type==='lent'?'빌려줌':r.type==='converted'?'투자전환':'받음'}</span>
+                    <span style={{color:T.sub, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', minWidth:0, maxWidth:'40%'}}>{r.memo||''}</span>
+                    {leader()}
+                    <span style={{...num, fontWeight:600, color:c, whiteSpace:'nowrap'}}>{r.type==='lent'?'+ ':'− '}{won(r.amount)}</span>
+                    <button onClick={()=>deleteLoanRecord(r.id)} aria-label="삭제"
+                      style={{background:'transparent',border:'none',color:T.red,fontSize:11,cursor:'pointer',padding:0,fontFamily:'inherit'}}>삭제</button>
+                  </div>
+                )
+              })}
+              {total('남은 대여금', loanBalance, {
+                note: loanBalance>0 ? '형이 갚을 돈' : loanBalance<0 ? '내가 갚을 돈' : '없음',
+                color: loanBalance>0 ? T.red : loanBalance<0 ? T.green : undefined })}
+            </>
+          )}
+        </section>
       </div>
 
-      {/* 입력 영역 */}
-      <div id="expense-input" style={{background:'#FFFFFF',border:'1px solid #DCD7CE',borderRadius:6,marginBottom:18,scrollMarginTop:70}}>
-        <div style={{display:'flex',borderBottom:'1px solid #DCD7CE'}}>
-          {[['bank','계좌내역 엑셀'],['manual','직접 입력']].map(([mode,label])=>(
-            <button key={mode} onClick={()=>setInputMode(mode)}
-              style={{flex:1,padding:'12px',fontSize:12,fontWeight:600,border:'none',cursor:'pointer',
-                fontFamily:'inherit',borderRadius:mode==='bank'?'12px 0 0 0':'0 12px 0 0',
-                background:inputMode===mode?'rgba(195,38,28,0.1)':'transparent',
-                color:inputMode===mode?'#C3261C':'#6E6A63',
-                borderBottom:inputMode===mode?'2px solid #C3261C':'2px solid transparent'}}>
-              {label}
-            </button>
-          ))}
-        </div>
+      {/* 지출 입력 */}
+      <section id="expense-input" style={{marginBottom:30, scrollMarginTop:70}}>
+        {sectionTitle('지출 입력', <div style={{display:'flex', gap:14}}>
+          {textTab(inputMode==='manual', '직접 입력', ()=>setInputMode('manual'))}
+          {textTab(inputMode==='bank', '계좌내역 엑셀·PDF', ()=>setInputMode('bank'))}
+        </div>)}
 
-        {/* 계좌내역 엑셀 */}
         {inputMode === 'bank' && (
           <BankImport categories={categories} onSaved={months=>{
             // 반영한 달로 이동해서 바로 확인할 수 있게
@@ -835,136 +737,75 @@ const [payingDate, setPayingDate]     = useState('')
           }}/>
         )}
 
-        {/* 직접 입력 */}
         {inputMode === 'manual' && (
-          <div style={{padding:18}}>
-            <div style={{background:'rgba(43,92,158,0.08)',border:'1px solid rgba(43,92,158,0.2)',
-              borderRadius:6,padding:'14px 16px',marginBottom:16}}>
-              <label style={{fontSize:11,fontWeight:700,color:'#2B5C9E',display:'block',marginBottom:8}}>전월 이월 잔액</label>
-              <div style={{display:'flex',gap:10,alignItems:'center'}}>
-                <input type="number" value={carryover} onChange={e=>setCarryover(e.target.value)}
-                  placeholder="전달에서 이월된 계좌 잔액"
-                  style={{flex:1,background:'#F3F1EC',border:'1px solid rgba(43,92,158,0.3)',borderRadius:4,
-                    color:'#2B5C9E',padding:'10px 12px',fontSize:14,outline:'none',fontFamily:'inherit',fontVariantNumeric:'tabular-nums',fontWeight:700}}/>
-                <button onClick={saveCarryover}
-                  style={{background:'#2B5C9E',color:'#FFFFFF',border:'none',borderRadius:4,
-                    padding:'10px 16px',fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'inherit',whiteSpace:'nowrap'}}>
-                  저장
-                </button>
-              </div>
-              <div style={{fontSize:10,color:'#6E6A63',marginTop:6,display:'flex',gap:8,alignItems:'center',flexWrap:'wrap'}}>
-                {data.carryoverSource==='bank' ? '이 달 통장 거래내역(PDF)의 시작 잔액으로 자동 입력됐어요'
-                  : data.carryoverSource==='bank-prev' ? '지난달 통장 거래내역(PDF)의 말일 잔액으로 자동 입력됐어요'
-                  : data.carryoverSource==='manual' ? '직접 입력한 값이에요 (PDF를 올려도 바뀌지 않아요)'
-                  : 'PDF를 올리면 통장 잔액으로 자동 입력돼요'}
-                {data.carryoverSource==='manual' && (
-                  <button onClick={resetCarryoverAuto}
-                    style={{background:'transparent',border:'1px solid rgba(43,92,158,0.3)',color:'#2B5C9E',borderRadius:5,
-                      padding:'2px 8px',fontSize:10,cursor:'pointer',fontFamily:'inherit'}}>통장 잔액 기준으로 되돌리기</button>
-                )}
-              </div>
+          <div style={{paddingTop:10}}>
+            <div style={{display:'flex', gap:8, alignItems:'center', flexWrap:'wrap', marginBottom:14}}>
+              <span style={{fontSize:13, color:T.sub}}>날짜</span>
+              {isThisMonth && <>
+                <Btn onClick={()=>setDay(getNowDD())} kind={day===getNowDD() ? 'primary' : 'plain'}>{`오늘 (${+getNowDD()}일)`}</Btn>
+                <Btn onClick={()=>setDay(getYestDD())} kind={day===getYestDD() ? 'primary' : 'plain'}>{`어제 (${+getYestDD()}일)`}</Btn>
+              </>}
+              <select value={day} onChange={e=>setDay(e.target.value)} aria-label="날짜" style={field({ fontSize:13 })}>
+                {Array.from({length:days},(_,i)=><option key={i} value={pad(i+1)}>{i+1}일 ({getDow(pad(i+1))})</option>)}
+              </select>
+              {data[day] && <span style={{fontSize:12, color:T.blue}}>이미 적힌 날이에요. 고쳐서 저장하면 바뀌어요</span>}
             </div>
-            <div style={{marginBottom:16}}>
-              <label style={{fontSize:10,color:'#6E6A63',fontWeight:600,display:'block',marginBottom:8}}>날짜</label>
-              <div style={{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap'}}>
-                {isThisMonth && (
-                  <>
-                    <button onClick={()=>setDay(getNowDD())}
-                      style={{padding:'7px 14px',borderRadius:4,border:'none',fontSize:12,fontWeight:600,cursor:'pointer',fontFamily:'inherit',
-                        background:day===getNowDD()?'#C3261C':'#F3F1EC',color:day===getNowDD()?'#FFFFFF':'#6E6A63'}}>
-                      오늘 ({+getNowDD()}일)
-                    </button>
-                    <button onClick={()=>setDay(getYestDD())}
-                      style={{padding:'7px 14px',borderRadius:4,border:'none',fontSize:12,fontWeight:600,cursor:'pointer',fontFamily:'inherit',
-                        background:day===getYestDD()?'#C3261C':'#F3F1EC',color:day===getYestDD()?'#FFFFFF':'#6E6A63'}}>
-                      어제 ({+getYestDD()}일)
-                    </button>
-                  </>
-                )}
-                <select value={day} onChange={e=>setDay(e.target.value)}
-                  style={{background:'#F3F1EC',border:'1px solid #DCD7CE',borderRadius:4,color:'#1D1B18',
-                    padding:'7px 10px',fontSize:12,fontFamily:'inherit',outline:'none'}}>
-                  {Array.from({length:days},(_,i)=><option key={i} value={pad(i+1)}>{i+1}일 ({getDow(pad(i+1))})</option>)}
-                </select>
+
+            <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(min(100%, 300px), 1fr))', gap:'4px 40px'}}>
+              <div>
+                <div style={{fontSize:12, fontWeight:700, color:T.sub, padding:'6px 0 2px', borderBottom:`1px solid ${T.rule}`}}>들어온 돈</div>
+                <div style={{display:'flex', alignItems:'center', padding:'5px 0', minHeight:44}}>
+                  <span style={{fontSize:14, whiteSpace:'nowrap'}}>실입금</span>
+                  <span style={{fontSize:11, color:T.sub, marginLeft:6, whiteSpace:'nowrap'}}>수수료 뺀 금액</span>
+                  {leader()}
+                  {money(deposit, setDeposit, { label:'실입금', width:'min(150px, 38vw)' })}
+                </div>
               </div>
-            </div>
-            <div style={{background:'rgba(46,125,69,0.08)',border:'1px solid rgba(46,125,69,0.2)',
-              borderRadius:6,padding:'14px 16px',marginBottom:16}}>
-              <label style={{fontSize:11,fontWeight:700,color:'#2E7D45',display:'block',marginBottom:8}}>실입금액</label>
-              <input type="number" value={deposit} onChange={e=>setDeposit(e.target.value)}
-                placeholder="수수료 제외 실제 입금된 금액"
-                style={{background:'#F3F1EC',border:'1px solid rgba(46,125,69,0.3)',borderRadius:4,color:'#2E7D45',
-                  padding:'10px 12px',fontSize:14,outline:'none',width:'100%',fontFamily:'inherit',fontVariantNumeric:'tabular-nums',fontWeight:700}}/>
-            </div>
-            {secs.map(sec=>{
-              const secCats = categories.filter(f=>f.sec===sec)
-              if(!secCats.length) return null
-              return (
-                <div key={sec}>
-                  <div style={{fontSize:10,fontWeight:600,color:'#6E6A63',textTransform:'uppercase',letterSpacing:.8,
-                    margin:'14px 0 8px',paddingBottom:6,borderBottom:'1px solid #DCD7CE'}}>
-                    {secIcons[sec]} {sec}
-                  </div>
-                  <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(140px,1fr))',gap:10}}>
+              {secs.map(sec=>{
+                const secCats = categories.filter(f=>f.sec===sec)
+                if(!secCats.length) return null
+                return (
+                  <div key={sec}>
+                    <div style={{fontSize:12, fontWeight:700, color:T.sub, padding:'6px 0 2px', borderBottom:`1px solid ${T.rule}`}}>{sec}</div>
                     {secCats.map(f=>(
-                      <div key={f.id} style={{display:'flex',flexDirection:'column',gap:4}}>
-                        <label style={{fontSize:10,color:'#6E6A63',fontWeight:600}}>{f.label}</label>
-                        {inp(f.id)}
+                      <div key={f.id} style={{display:'flex', alignItems:'center', padding:'5px 0', minHeight:44}}>
+                        <span style={{fontSize:14, whiteSpace:'nowrap'}}>{f.label}</span>
+                        {leader()}
+                        {money(form[f.id] ?? '', v=>setForm(p=>({...p,[f.id]:v})), { label:f.label, width:'min(150px, 38vw)' })}
                       </div>
                     ))}
                   </div>
-                </div>
-              )
-            })}
-            {(+deposit>0 || categories.some(f=>+form[f.id]>0)) && (
-              <div style={{marginTop:16,background:'#F3F1EC',borderRadius:6,padding:'12px 14px',display:'flex',flexDirection:'column',gap:6}}>
-                <div style={{display:'flex',justifyContent:'space-between',fontSize:12}}>
-                  <span style={{color:'#6E6A63'}}>당일 지출 합계</span>
-                  <span style={{color:'#B42318',fontFamily:'inherit',fontVariantNumeric:'tabular-nums',fontWeight:700}}>
-                    -{categories.reduce((a,f)=>a+(+form[f.id]||0),0).toLocaleString()}원
-                  </span>
-                </div>
-                {+deposit>0 && (
-                  <div style={{display:'flex',justifyContent:'space-between',fontSize:12}}>
-                    <span style={{color:'#6E6A63'}}>당일 실입금</span>
-                    <span style={{color:'#2E7D45',fontFamily:'inherit',fontVariantNumeric:'tabular-nums',fontWeight:700}}>
-                      +{(+deposit).toLocaleString()}원
-                    </span>
-                  </div>
-                )}
-              </div>
-            )}
-            <div style={{marginTop:14}}>
-              <button onClick={save} disabled={saving}
-                style={{background:'#C3261C',color:'#FFFFFF',border:'none',borderRadius:4,padding:'9px 20px',
-                  fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
-                {saving?'저장 중...':'저 장'}
-              </button>
+                )
+              })}
+            </div>
+
+            <div style={{maxWidth:420, marginTop:14}}>
+              {total(`${+day}일 지출`, formExp, { minus:true })}
+              {+deposit>0 && line(`${+day}일 실입금`, +deposit, { plus:true })}
+            </div>
+            <div style={{marginTop:12}}>
+              <Btn onClick={save} kind="primary" disabled={saving}>{saving ? '저장 중...' : '저장'}</Btn>
             </div>
           </div>
         )}
-      </div>
+      </section>
 
-      {/* 내역 테이블 */}
-      <div style={{background:'#FFFFFF',border:'1px solid #DCD7CE',borderRadius:6,overflow:'hidden'}}>
-        <div style={{padding:'14px 18px',borderBottom:'1px solid #DCD7CE',fontSize:13,fontWeight:600,
-          display:'flex',justifyContent:'space-between'}}>
-          <span>{mLabel(curMonth)} 지출 내역</span>
-          <span style={{color:'#B42318',fontFamily:'inherit',fontVariantNumeric:'tabular-nums'}}>{grand.toLocaleString()}원</span>
-        </div>
-        {loading ? <div style={{textAlign:'center',color:'#6E6A63',padding:40}}>로딩 중...</div> : (
+      {/* 일별 내역 */}
+      <section>
+        {sectionTitle('일별 지출 내역', <span style={{...num}}>합계 <b style={{color:T.ink}}>{won(grand)}</b>원</span>)}
+        {loading ? <div style={{color:T.sub, padding:'30px 0'}}>불러오는 중...</div> : (
           <div style={{overflowX:'auto'}}>
-            <table style={{width:'100%',borderCollapse:'collapse',fontSize:12}}>
+            <table style={{width:'100%', borderCollapse:'collapse', fontSize:13, ...num}}>
               <thead>
-                <tr style={{background:'#F3F1EC'}}>
-                  {['날짜','실입금','지출합계','실수익',...categories.map(f=>f.label),''].map(h=>(
-                    <th key={h} style={{padding:'8px 10px',fontSize:10,fontWeight:600,color:'#6E6A63',
-                      textAlign:h==='날짜'?'left':'right',whiteSpace:'nowrap'}}>{h}</th>
+                <tr>
+                  {['날짜','실입금','지출','남은 돈',...categories.map(f=>f.label),''].map((h,i)=>(
+                    <th key={h+i} style={{padding:'8px 10px', fontSize:12, fontWeight:600, color:T.sub, borderBottom:`1px solid ${T.ink}`,
+                      textAlign:i===0?'left':'right', whiteSpace:'nowrap'}}>{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
-                {Object.keys(data).filter(dd=>/^\d{2}$/.test(dd)).sort().map(dd=>{
+                {dayRows.map(dd=>{
                   const e = data[dd]
                   if(typeof e !== 'object' || !e) return null
                   const expSum = categories.reduce((a,f)=>a+(e[f.id]||0),0)
@@ -972,49 +813,36 @@ const [payingDate, setPayingDate]     = useState('')
                   const profit = dep - expSum
                   if(!expSum && !dep) return null
                   const txCount = (data.bankSeen||[]).filter(k=>k.startsWith(`${curMonth}-${dd}|`)).length
+                  const td = { padding:'8px 10px', borderBottom:`1px solid ${T.soft}`, textAlign:'right', whiteSpace:'nowrap' }
                   return (
                     <Fragment key={dd}>
                     <tr>
-                      <td style={{padding:'8px 10px',borderBottom:'1px solid #DCD7CE',color:getDowColor(dd),fontWeight:600,whiteSpace:'nowrap'}}>
+                      <td style={{...td, textAlign:'left', color:getDowColor(dd), fontWeight:600}}>
                         {+dd}일 ({getDow(dd)})
                         {txCount>0 && (
                           <button onClick={()=>setOpenDay(openDay===dd?null:dd)}
-                            style={{marginLeft:6,background:openDay===dd?'rgba(43,92,158,0.15)':'transparent',border:'1px solid rgba(43,92,158,0.3)',
-                              color:'#2B5C9E',borderRadius:4,padding:'1px 6px',fontSize:10,cursor:'pointer',fontFamily:'inherit',fontWeight:500}}>
-                            {openDay===dd?'▾':'▸'} 거래 {txCount}건
+                            style={{marginLeft:8, background:'none', border:'none', borderBottom:`1px solid ${T.blue}`, color:T.blue,
+                              padding:0, fontSize:11, cursor:'pointer', fontFamily:'inherit', fontWeight:500}}>
+                            거래 {txCount}건 {openDay===dd ? '접기' : '보기'}
                           </button>
                         )}
                       </td>
-                      <td style={{padding:'8px 10px',borderBottom:'1px solid #DCD7CE',textAlign:'right',color:'#2E7D45',fontFamily:'inherit',fontVariantNumeric:'tabular-nums',fontWeight:700}}>
-                        {dep>0?dep.toLocaleString():'—'}
-                      </td>
-                      <td style={{padding:'8px 10px',borderBottom:'1px solid #DCD7CE',textAlign:'right',color:'#B42318',fontFamily:'inherit',fontVariantNumeric:'tabular-nums',fontWeight:700}}>
-                        {expSum>0?expSum.toLocaleString():'—'}
-                      </td>
-                      <td style={{padding:'8px 10px',borderBottom:'1px solid #DCD7CE',textAlign:'right',color:profit>=0?'#C3261C':'#B42318',fontFamily:'inherit',fontVariantNumeric:'tabular-nums',fontWeight:700}}>
-                        {dep>0?profit.toLocaleString():'—'}
-                      </td>
+                      <td style={{...td, color:T.green}}>{dep>0 ? won(dep) : '—'}</td>
+                      <td style={{...td, color:T.red, fontWeight:600}}>{expSum>0 ? won(expSum) : '—'}</td>
+                      <td style={{...td, color:profit<0 ? T.red : T.ink}}>{dep>0 ? won(profit) : '—'}</td>
                       {categories.map(f=>(
-                        <td key={f.id} style={{padding:'8px 10px',borderBottom:'1px solid #DCD7CE',textAlign:'right',fontFamily:'inherit',fontVariantNumeric:'tabular-nums',color:'#1D1B18'}}>
-                          {wonCell(e[f.id])}
-                        </td>
+                        <td key={f.id} style={{...td, color: e[f.id] ? T.ink : T.faint}}>{wonCell(e[f.id])}</td>
                       ))}
-                      <td style={{padding:'8px 10px',borderBottom:'1px solid #DCD7CE',textAlign:'right'}}>
+                      <td style={{...td}}>
                         <button onClick={()=>editDay(dd)}
-                          style={{background:'transparent',border:'1px solid #DCD7CE',color:'#1D1B18',marginRight:4,
-                            padding:'3px 8px',fontSize:10,borderRadius:4,cursor:'pointer',fontFamily:'inherit'}}>
-                          수정
-                        </button>
+                          style={{background:'transparent',border:'none',color:T.sub,fontSize:12,cursor:'pointer',padding:'0 6px',fontFamily:'inherit'}}>수정</button>
                         <button onClick={()=>del_row(dd)}
-                          style={{background:'transparent',border:'1px solid #E8C4BF',color:'#B42318',
-                            padding:'3px 8px',fontSize:10,borderRadius:4,cursor:'pointer',fontFamily:'inherit'}}>
-                          삭제
-                        </button>
+                          style={{background:'transparent',border:'none',color:T.red,fontSize:12,cursor:'pointer',padding:'0 0 0 6px',fontFamily:'inherit'}}>삭제</button>
                       </td>
                     </tr>
                     {openDay===dd && (
                       <tr>
-                        <td colSpan={5+categories.length} style={{padding:'8px 10px 12px',borderBottom:'1px solid #DCD7CE',background:'rgba(43,92,158,0.03)'}}>
+                        <td colSpan={5+categories.length} style={{padding:'8px 10px 12px', borderBottom:`1px solid ${T.rule}`, background:'#FFFFFF'}}>
                           <BankTxList ym={curMonth} data={data} categories={categories} day={dd} onChanged={refreshData}/>
                         </td>
                       </tr>
@@ -1022,26 +850,26 @@ const [payingDate, setPayingDate]     = useState('')
                     </Fragment>
                   )
                 })}
-                {Object.keys(data).filter(dd=>/^\d{2}$/.test(dd)).length===0 && (
-                  <tr><td colSpan={categories.length+5} style={{padding:28,textAlign:'center',color:'#6E6A63'}}>입력된 데이터가 없습니다</td></tr>
+                {dayRows.length===0 && (
+                  <tr><td colSpan={categories.length+5} style={{padding:28, textAlign:'center', color:T.sub}}>입력된 내역이 없어요</td></tr>
                 )}
               </tbody>
               <tfoot>
-                <tr style={{background:'#ECE8E1'}}>
-                  <td style={{padding:'10px',fontWeight:700,color:'#C3261C'}}>합 계</td>
-                  <td style={{padding:'10px',textAlign:'right',fontWeight:700,color:'#2E7D45',fontFamily:'inherit',fontVariantNumeric:'tabular-nums'}}>{totalDeposit.toLocaleString()}</td>
-                  <td style={{padding:'10px',textAlign:'right',fontWeight:700,color:'#B42318',fontFamily:'inherit',fontVariantNumeric:'tabular-nums'}}>{grand.toLocaleString()}</td>
-                  <td style={{padding:'10px',textAlign:'right',fontWeight:700,color:realProfit>=0?'#C3261C':'#B42318',fontFamily:'inherit',fontVariantNumeric:'tabular-nums'}}>{realProfit.toLocaleString()}</td>
-                  {categories.map(f=>(
-                    <td key={f.id} style={{padding:'10px',textAlign:'right',fontWeight:700,color:'#C3261C',fontFamily:'inherit',fontVariantNumeric:'tabular-nums'}}>{wonCell(tot[f.id])}</td>
-                  ))}
-                  <td></td>
+                <tr style={{fontWeight:800}}>
+                  {(() => { const tf = { padding:'10px', borderTop:`3px double ${T.ink}`, textAlign:'right', whiteSpace:'nowrap' }; return (<>
+                    <td style={{...tf, textAlign:'left'}}>합계</td>
+                    <td style={{...tf, color:T.green}}>{won(totalDeposit)}</td>
+                    <td style={{...tf, color:T.red}}>{won(grand)}</td>
+                    <td style={{...tf, color:realProfit<0 ? T.red : T.ink}}>{won(realProfit)}</td>
+                    {categories.map(f=><td key={f.id} style={tf}>{wonCell(tot[f.id])}</td>)}
+                    <td style={tf}></td>
+                  </>) })()}
                 </tr>
               </tfoot>
             </table>
           </div>
         )}
-      </div>
+      </section>
     </div>
   )
 }

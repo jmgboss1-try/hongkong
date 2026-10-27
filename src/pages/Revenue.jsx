@@ -53,7 +53,7 @@ export default function Revenue() {
   const isNewMonth = curMonth >= SPLIT_FROM
   const days = daysIn(curMonth)
   const monthOpts = []
-  for(let y=2022;y<=2026;y++){const sm=y===2022?10:1;for(let m=sm;m<=12;m++){monthOpts.push(`${y}-${pad(m)}`)}}
+  for(let y=2022;y<=Math.max(2026,new Date().getFullYear());y++){const sm=y===2022?10:1;for(let m=sm;m<=12;m++){monthOpts.push(`${y}-${pad(m)}`)}}
 
   const getDow = (ym, d) => {
     const [y,m] = ym.split('-').map(Number)

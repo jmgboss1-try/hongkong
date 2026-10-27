@@ -323,7 +323,7 @@ export default function Dashboard() {
   const profit = rev.total - exp.total
   const totalLaborCost = Object.values(staffStats).reduce((a,s)=>a+s.wage,0)
   const monthOpts=[]
-  for(let y=2022;y<=2026;y++){const sm=y===2022?10:1;for(let m=sm;m<=12;m++){monthOpts.push(`${y}-${pad(m)}`)}}
+  for(let y=2022;y<=Math.max(2026,new Date().getFullYear());y++){const sm=y===2022?10:1;for(let m=sm;m<=12;m++){monthOpts.push(`${y}-${pad(m)}`)}}
 
   const ch = CHANNELS.find(c=>c.key===chartChannel)
   const won = n => (n||0).toLocaleString('ko-KR')
