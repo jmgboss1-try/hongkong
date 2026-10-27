@@ -386,16 +386,7 @@ export default function Checklist() {
     .map(it=>({ item:it, found: findUpcomingDate(it, 3, holidays) }))
     .filter(x=>x.found && x.found.offset>0) // 0=오늘은 제외, 1~3일 후만
 
-  // 확정된 대타 중 오늘부터 7일 이내(당일 포함)인 것
   const nameOf = uid => employees.find(e=>e.uid===uid)?.name || '—'
-    const upcomingSubs = subRequests
-    .filter(r=>r.confirmedUid)
-    .map(r=>{
-      const diffDays = Math.round((new Date(r.date) - new Date(today)) / (1000*60*60*24))
-      return { ...r, diffDays }
-    })
-    .filter(r=>r.diffDays>=0 && r.diffDays<=7)
-    .sort((a,b)=>a.diffDays-b.diffDays)
 
     // 아직 확정 안 된 대타 요청 (D-30 이내 — 지원자를 빨리 구해야 하니 넉넉하게)
   const openSubs = subRequests
@@ -406,6 +397,19 @@ export default function Checklist() {
     })
     .filter(r=>r.diffDays>=0 && r.diffDays<=30)
     .sort((a,b)=>a.diffDays-b.diffDays)
+
+  // 알림 한 줄: 왼쪽 색 띠 + 꼬리표 + 내용 (박스를 작게, 색으로 구분)
+  const alertRow = (key, color, tag, title, sub, extra) => (
+    <div key={key} style={{display:'flex',alignItems:'baseline',gap:10,padding:'7px 12px',
+      borderLeft:`4px solid ${color}`,background:`${color}12`,borderRadius:'0 4px 4px 0'}}>
+      <span style={{fontSize:12,fontWeight:800,color,whiteSpace:'nowrap',flexShrink:0}}>{tag}</span>
+      <div style={{flex:1,minWidth:0,fontSize:13,color:'#1D1B18',lineHeight:1.5}}>
+        <span style={{fontWeight:700}}>{title}</span>
+        {sub && <span style={{fontSize:12,color:'#6E6A63',marginLeft:8}}>{sub}</span>}
+        {extra}
+      </div>
+    </div>
+  )
 
   // 직전 영업일 미완료 항목 (일요일+임시휴무는 건너뛰고 계산됨)
   const prevWeekly = prevBusinessDate ? getWeeklyForDate(prevBusinessDate) : []
@@ -802,26 +806,10 @@ export default function Checklist() {
 
       {/* 공지·메모 알림 — 휴무일에도 항상 표시 */}
       {!loading && pinnedNotices.length > 0 && (
-        <div style={{marginBottom:18,display:'flex',flexDirection:'column',gap:8}}>
-          {pinnedNotices.map(n=>(
-            <div key={n.type+n.id} style={{
-              background: n.type==='notice' ? 'rgba(195,38,28,0.10)' : 'rgba(43,92,158,0.10)',
-              border: n.type==='notice' ? '1.5px solid rgba(195,38,28,0.4)' : '1.5px solid rgba(43,92,158,0.35)',
-              borderRadius:6,padding:'12px 16px',display:'flex',alignItems:'flex-start',gap:10,
-            }}>
-              <span style={{fontSize:18}}>{n.type==='notice' ? '공지' : '메모'}</span>
-              <div>
-                <div style={{fontSize:11,fontWeight:800,
-                  color: n.type==='notice' ? '#C3261C' : '#2B5C9E', marginBottom:2}}>
-                  {n.type==='notice' ? `공지 · ${n.authorName}` : `메모 · ${n.authorName}`}
-                </div>
-                <div style={{fontSize:13,color:'#1D1B18',lineHeight:1.6,whiteSpace:'pre-wrap'}}>
-                  {n.content}
-                </div>
-                <div style={{marginTop:8}}><PhotoGrid images={n.images} label={n.type==='notice' ? '공지 사진' : '메모 사진'}/></div>
-              </div>
-            </div>
-          ))}
+        <div style={{marginBottom:14,display:'flex',flexDirection:'column',gap:4}}>
+          {pinnedNotices.map(n=>alertRow(n.type+n.id, n.type==='notice' ? '#C3261C' : '#2B5C9E', n.type==='notice' ? '공지' : '메모',
+            <span style={{whiteSpace:'pre-wrap',fontWeight:600}}>{n.content}</span>, n.authorName,
+            n.images?.length > 0 && <div style={{marginTop:6}}><PhotoGrid images={n.images} label={n.type==='notice' ? '공지 사진' : '메모 사진'}/></div>))}
         </div>
       )}
 
@@ -850,83 +838,24 @@ export default function Checklist() {
             </div>
           )}
 
-                    {/* 미확정 대타 구함 알림 (D-7 이내) */}
+          {/* 미확정 대타 구함 알림 (D-30 이내) */}
           {openSubs.length > 0 && (
-            <div style={{marginBottom:18,display:'flex',flexDirection:'column',gap:8}}>
+            <div style={{marginBottom:14,display:'flex',flexDirection:'column',gap:4}}>
               {openSubs.map(r=>{
                 const dLabel = r.diffDays===0 ? '오늘' : r.diffDays===1 ? '내일' : `D-${r.diffDays}`
-                const dDow = DAYS_KR[dowOfDate(r.date)]
-                return (
-                  <div key={r.id} style={{
-                    background:'rgba(180,35,24,0.10)',border:'1.5px solid rgba(180,35,24,0.35)',
-                    borderRadius:6,padding:'12px 16px',display:'flex',alignItems:'center',gap:10,
-                  }}>
-                    <span style={{fontSize:18}}></span>
-                    <div>
-                      <div style={{fontSize:13,fontWeight:800,color:'#B42318'}}>
-                        {dLabel}({dDow}) {nameOf(r.requesterUid)} 대타 구함!
-                      </div>
-                      <div style={{fontSize:11,color:'#B42318',marginTop:2,fontWeight:600}}>
-                        {r.startH}:{r.startM}~{r.endH}:{r.endM}
-                        <span style={{color:'#6E6A63',fontWeight:400,marginLeft:6}}>({r.date}) — 지원 가능해요!</span>
-                      </div>
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-          )}
-
-          {/* 다가오는 대타 확정 알림 (D-7 이내) */}
-          {upcomingSubs.length > 0 && (
-            <div style={{marginBottom:18,display:'flex',flexDirection:'column',gap:8}}>
-              {upcomingSubs.map(r=>{
-                const dLabel = r.diffDays===0 ? '오늘' : r.diffDays===1 ? '내일' : `D-${r.diffDays}`
-                const dDow = DAYS_KR[dowOfDate(r.date)]
-                return (
-                  <div key={r.id} style={{
-                    background:'rgba(46,125,69,0.10)',border:'1.5px solid rgba(46,125,69,0.35)',
-                    borderRadius:6,padding:'12px 16px',display:'flex',alignItems:'center',gap:10,
-                  }}>
-                    <span style={{fontSize:18}}></span>
-                    <div>
-                      <div style={{fontSize:13,fontWeight:800,color:'#2E7D45'}}>
-                        {dLabel}({dDow}) 대타 확정: {nameOf(r.requesterUid)} → {nameOf(r.confirmedUid)}
-                      </div>
-                      <div style={{fontSize:11,color:'#2E7D45',marginTop:2,fontWeight:600}}>
-                        {r.startH}:{r.startM}~{r.endH}:{r.endM}
-                        <span style={{color:'#6E6A63',fontWeight:400,marginLeft:6}}>({r.date})</span>
-                      </div>
-                    </div>
-                  </div>
-                )
+                return alertRow(r.id, '#B42318', '대타 구함',
+                  `${dLabel}(${DAYS_KR[dowOfDate(r.date)]}) ${nameOf(r.requesterUid)} ${r.startH}:${r.startM}~${r.endH}:${r.endM}`,
+                  `${r.date.slice(5).replace('-','/')} · 지원 가능해요`)
               })}
             </div>
           )}
 
           {/* 다가오는 특별 항목 미리 알림 (2~3일 전) */}
           {upcomingAlerts.length > 0 && (
-            <div style={{marginBottom:18,display:'flex',flexDirection:'column',gap:8}}>
-              {upcomingAlerts.map(({item,found})=>{
-                const dLabel = found.offset===1 ? '내일' : `${found.offset}일 후`
-                return (
-                  <div key={item.id} style={{
-                    background:'rgba(107,79,160,0.10)',border:'1.5px solid rgba(107,79,160,0.35)',
-                    borderRadius:6,padding:'12px 16px',display:'flex',alignItems:'center',gap:10,
-                  }}>
-                    <span style={{fontSize:18}}></span>
-                    <div>
-                      <div style={{fontSize:13,fontWeight:800,color:'#6B4FA0'}}>
-                        {dLabel}({DAYS_KR[found.dow]}) {item.label} 있는 날!
-                      </div>
-                      <div style={{fontSize:11,color:'#6B4FA0',marginTop:2,fontWeight:600}}>
-                        {item.alertUid && alertNameOf(item.alertUid) && `${alertNameOf(item.alertUid)}님 — `}
-                        {item.alertMsg || '일찍 출근 필요'} <span style={{color:'#6E6A63',fontWeight:400}}>({found.dateStr})</span>
-                      </div>
-                    </div>
-                  </div>
-                )
-              })}
+            <div style={{marginBottom:14,display:'flex',flexDirection:'column',gap:4}}>
+              {upcomingAlerts.map(({item,found})=>alertRow(item.id, '#6B4FA0', found.offset===1 ? '내일' : `${found.offset}일 후`,
+                `${DAYS_KR[found.dow]}요일 ${item.label}`,
+                `${item.alertUid && alertNameOf(item.alertUid) ? `${alertNameOf(item.alertUid)}님 — ` : ''}${item.alertMsg || '일찍 출근 필요'}`))}
             </div>
           )}
 
@@ -951,24 +880,10 @@ export default function Checklist() {
 
             {/* 오늘 조기출근/특별 알림 배너 */}
             {todayWeekly.filter(it=>it.alertUid||it.alertMsg).length > 0 && (
-              <div style={{marginBottom:16,display:'flex',flexDirection:'column',gap:8}}>
-                {todayWeekly.filter(it=>it.alertUid||it.alertMsg).map(it=>(
-                  <div key={it.id} style={{
-                    background:'rgba(180,35,24,0.12)',border:'1.5px solid rgba(180,35,24,0.4)',
-                    borderRadius:6,padding:'12px 16px',display:'flex',alignItems:'center',gap:10,
-                  }}>
-                    <span style={{fontSize:18}}></span>
-                    <div>
-                      <div style={{fontSize:13,fontWeight:800,color:'#B42318'}}>
-                        오늘은 {it.label} 있는 날!
-                      </div>
-                      <div style={{fontSize:11,color:'#B42318',marginTop:2,fontWeight:600}}>
-                        {it.alertUid && alertNameOf(it.alertUid) && `${alertNameOf(it.alertUid)}님 — `}
-                        {it.alertMsg || '일찍 출근 필요'}
-                      </div>
-                    </div>
-                  </div>
-                ))}
+              <div style={{marginBottom:14,display:'flex',flexDirection:'column',gap:4}}>
+                {todayWeekly.filter(it=>it.alertUid||it.alertMsg).map(it=>alertRow(it.id, '#B42318', '오늘',
+                  `${it.label} 있는 날`,
+                  `${it.alertUid && alertNameOf(it.alertUid) ? `${alertNameOf(it.alertUid)}님 — ` : ''}${it.alertMsg || '일찍 출근 필요'}`))}
               </div>
             )}
 

@@ -89,6 +89,9 @@ const [payingDate, setPayingDate]     = useState('')
   // 입력 모드
   const [inputMode, setInputMode] = useState('manual')
   const [editCarry, setEditCarry] = useState(false) // 요약의 '이월 고치기'
+  // 형 대여금은 기록이 길어서 기본은 접어 둠 (펼친 상태는 이 기기에 기억)
+  const [loanOpen, setLoanOpen] = useState(()=>{ try { return localStorage.getItem('expenses.loanOpen')==='1' } catch { return false } })
+  const toggleLoanOpen = () => setLoanOpen(v=>{ try { localStorage.setItem('expenses.loanOpen', v ? '0' : '1') } catch { /* 저장 못 해도 됨 */ } return !v })
   const [openDay, setOpenDay] = useState(null) // 지출 내역 표에서 통장 거래를 펼친 날짜
 
 
@@ -665,9 +668,12 @@ const [payingDate, setPayingDate]     = useState('')
         {/* 형과의 단기 대여금 */}
         <section>
           {sectionTitle('형과의 단기 대여금', <>
-            {loanBalance > 0 && <Btn onClick={()=>{ setShowConvert(v=>!v); setConvertAmount(String(loanBalance)) }} small>투자금 회수로 전환</Btn>}
-            <Btn onClick={()=>setShowLoanMgr(v=>!v)} small>{showLoanMgr ? '입력 닫기' : '기록 추가'}</Btn>
+            {!loanOpen && <span style={{...num}}>남은 대여금 <b style={{color: loanBalance>0 ? T.red : loanBalance<0 ? T.green : T.ink}}>{won(loanBalance)}</b>원</span>}
+            {loanOpen && loanBalance > 0 && <Btn onClick={()=>{ setShowConvert(v=>!v); setConvertAmount(String(loanBalance)) }} small>투자금 회수로 전환</Btn>}
+            {loanOpen && <Btn onClick={()=>setShowLoanMgr(v=>!v)} small>{showLoanMgr ? '입력 닫기' : '기록 추가'}</Btn>}
+            <Btn onClick={toggleLoanOpen} small>{loanOpen ? '접기' : `펼치기 (${loanRecords.length}건)`}</Btn>
           </>)}
+          {loanOpen && <>
 
           {showConvert && (
             <div style={{background:T.chip, borderRadius:4, padding:'12px 14px', margin:'8px 0'}}>
@@ -717,6 +723,7 @@ const [payingDate, setPayingDate]     = useState('')
                 color: loanBalance>0 ? T.red : loanBalance<0 ? T.green : undefined })}
             </>
           )}
+          </>}
         </section>
       </div>
 
