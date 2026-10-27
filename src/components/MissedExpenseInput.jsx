@@ -30,7 +30,8 @@ const defaultDateFor = month => {
 }
 
 // 대시보드용 "못 적은 지출 입력" — 지출관리와 같은 expenses/{YYYY-MM} 문서에 기록
-export default function MissedExpenseInput({ curMonth, onSaved }) {
+// bare: 제목 줄 없이 (지출관리의 '직접 입력' 탭 안에서 쓸 때)
+export default function MissedExpenseInput({ curMonth, onSaved, bare }) {
   const [categories, setCategories] = useState(DEFAULT_CATEGORIES)
   const [monthData, setMonthData]   = useState({})
   const [date, setDate]             = useState(()=>defaultDateFor(curMonth))
@@ -120,11 +121,13 @@ export default function MissedExpenseInput({ curMonth, onSaved }) {
 
   return (
     <div>
-      <div style={{display:'flex',justifyContent:'space-between',alignItems:'baseline',flexWrap:'wrap',gap:8,
+      {!bare && (
+        <div style={{display:'flex',justifyContent:'space-between',alignItems:'baseline',flexWrap:'wrap',gap:8,
         borderBottom:'2px solid #1D1B18',paddingBottom:6}}>
         <h2 style={{fontSize:16,fontWeight:800,margin:0,fontFamily:'inherit'}}>못 적은 지출 입력</h2>
         <div style={{fontSize:12,color:'#6E6A63'}}>지출관리에 바로 반영돼요</div>
-      </div>
+        </div>
+      )}
 
       <div style={{padding:'14px 0 0',display:'flex',flexDirection:'column',gap:14}}>
         {/* 입력 폼 */}

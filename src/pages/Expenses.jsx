@@ -2,13 +2,13 @@ import { Fragment, useEffect, useState } from 'react'
 import BankImport from '../components/BankImport'
 import BankReconCard from '../components/BankReconCard'
 import BankTxList from '../components/BankTxList'
+import MissedExpenseInput from '../components/MissedExpenseInput'
 import { bankSummary } from '../lib/bankRecon'
 import { inferLegacyCls } from '../lib/bankReclass'
 import { db } from '../firebase'
 import { doc, getDoc, setDoc } from 'firebase/firestore'
 
 const pad = n => String(n).padStart(2,'0')
-const daysIn = ym => { const[y,m]=ym.split('-').map(Number); return new Date(y,m,0).getDate() }
 const mLabel = ym => { const[y,m]=ym.split('-'); return `${y}년 ${+m}월` }
 const wonCell = n => (n&&n!==0) ? n.toLocaleString('ko-KR') : '—'
 const DAYS_KR = ['일','월','화','수','목','금','토']
@@ -28,7 +28,6 @@ const DEFAULT_CATEGORIES = [
 ]
 
 const getNowDD  = () => pad(new Date().getDate())
-const getYestDD = () => { const d=new Date(); d.setDate(d.getDate()-1); return pad(d.getDate()) }
 const todayFullStr = () => { const n=new Date(); return `${n.getFullYear()}-${pad(n.getMonth()+1)}-${pad(n.getDate())}` }
 
 // 장부 화면의 작은 버튼 (primary: 빨강, ok: 초록, danger: 빨간 글씨)
@@ -87,7 +86,8 @@ const [payingDate, setPayingDate]     = useState('')
   const [convertAmount, setConvertAmount] = useState('')
 
   // 입력 모드
-  const [inputMode, setInputMode] = useState('manual')
+  const [inputMode, setInputMode] = useState('bank') // 지출은 대부분 통장 PDF·엑셀로 들어오니 기본은 계좌내역
+  const [editRow, setEditRow] = useState(null) // 일별 표에서 펼쳐 고치는 날짜
   const [editCarry, setEditCarry] = useState(false) // 요약의 '이월 고치기'
   // 형 대여금은 기록이 길어서 기본은 접어 둠 (펼친 상태는 이 기기에 기억)
   const [loanOpen, setLoanOpen] = useState(()=>{ try { return localStorage.getItem('expenses.loanOpen')==='1' } catch { return false } })
@@ -95,7 +95,6 @@ const [payingDate, setPayingDate]     = useState('')
   const [openDay, setOpenDay] = useState(null) // 지출 내역 표에서 통장 거래를 펼친 날짜
 
 
-  const days = daysIn(curMonth)
   const monthOpts = []
   for(let y=2022;y<=Math.max(2026,new Date().getFullYear());y++){const sm=y===2022?10:1;for(let m=sm;m<=12;m++){monthOpts.push(`${y}-${pad(m)}`)}}
   const now = new Date()
@@ -328,18 +327,20 @@ const [payingDate, setPayingDate]     = useState('')
   }
 }
 
-  // ── 직접 입력 저장 ──
+  // ── 일별 표에서 하루 고치기 저장 ──
   async function save() {
     setSaving(true)
     try {
-      const entry = {}
+      // 다른 화면(통장 가져오기·대시보드)에서 바꾼 내용을 덮어쓰지 않도록 저장 직전에 다시 읽음
+      const snap = await getDoc(doc(db,'expenses',curMonth))
+      const latest = snap.exists() ? snap.data() : {}
+      const entry = { ...(latest[day]||{}) }
       categories.forEach(f=>{ entry[f.id] = +form[f.id]||0 })
       entry.deposit = +deposit||0
-      const newData = { ...data, [day]: entry }
+      const newData = { ...latest, [day]: entry }
       await setDoc(doc(db,'expenses',curMonth), newData)
-      setData(newData); setForm({}); setDeposit('')
-      alert('저장됐습니다!')
-    } catch(e) { console.error(e) }
+      setData(newData); setEditRow(null)
+    } catch(e) { console.error(e); alert('저장 중 오류가 발생했어요. 다시 시도해 주세요.') }
     setSaving(false)
   }
 
@@ -368,10 +369,10 @@ const [payingDate, setPayingDate]     = useState('')
     load()
   }
 
-  // 지출 내역 표의 수정: 그 날짜를 직접 입력 화면에 불러옴
+  // 지출 내역 표의 수정: 그 날 줄 아래에 카테고리별 칸을 펼침 (값은 day 효과가 채움)
   function editDay(dd) {
-    setInputMode('manual'); setDay(dd)
-    document.getElementById('expense-input')?.scrollIntoView({ behavior:'smooth', block:'start' })
+    if(editRow===dd) { setEditRow(null); return }
+    setDay(dd); setEditRow(dd); setOpenDay(null)
   }
 
   async function del_row(dd) {
@@ -730,8 +731,8 @@ const [payingDate, setPayingDate]     = useState('')
       {/* 지출 입력 */}
       <section id="expense-input" style={{marginBottom:30, scrollMarginTop:70}}>
         {sectionTitle('지출 입력', <div style={{display:'flex', gap:14}}>
-          {textTab(inputMode==='manual', '직접 입력', ()=>setInputMode('manual'))}
           {textTab(inputMode==='bank', '계좌내역 엑셀·PDF', ()=>setInputMode('bank'))}
+          {textTab(inputMode==='manual', '직접 입력', ()=>setInputMode('manual'))}
         </div>)}
 
         {inputMode === 'bank' && (
@@ -745,54 +746,11 @@ const [payingDate, setPayingDate]     = useState('')
         )}
 
         {inputMode === 'manual' && (
-          <div style={{paddingTop:10}}>
-            <div style={{display:'flex', gap:8, alignItems:'center', flexWrap:'wrap', marginBottom:14}}>
-              <span style={{fontSize:13, color:T.sub}}>날짜</span>
-              {isThisMonth && <>
-                <Btn onClick={()=>setDay(getNowDD())} kind={day===getNowDD() ? 'primary' : 'plain'}>{`오늘 (${+getNowDD()}일)`}</Btn>
-                <Btn onClick={()=>setDay(getYestDD())} kind={day===getYestDD() ? 'primary' : 'plain'}>{`어제 (${+getYestDD()}일)`}</Btn>
-              </>}
-              <select value={day} onChange={e=>setDay(e.target.value)} aria-label="날짜" style={field({ fontSize:13 })}>
-                {Array.from({length:days},(_,i)=><option key={i} value={pad(i+1)}>{i+1}일 ({getDow(pad(i+1))})</option>)}
-              </select>
-              {data[day] && <span style={{fontSize:12, color:T.blue}}>이미 적힌 날이에요. 고쳐서 저장하면 바뀌어요</span>}
+          <div style={{paddingTop:6}}>
+            <div style={{fontSize:12, color:T.sub, marginBottom:4}}>
+              현금으로 낸 것처럼 통장에 안 찍히는 지출만 여기서 적으세요. 이미 적힌 날을 고치려면 아래 일별 표의 수정을 누르세요.
             </div>
-
-            <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(min(100%, 300px), 1fr))', gap:'4px 40px'}}>
-              <div>
-                <div style={{fontSize:12, fontWeight:700, color:T.sub, padding:'6px 0 2px', borderBottom:`1px solid ${T.rule}`}}>들어온 돈</div>
-                <div style={{display:'flex', alignItems:'center', padding:'5px 0', minHeight:44}}>
-                  <span style={{fontSize:14, whiteSpace:'nowrap'}}>실입금</span>
-                  <span style={{fontSize:11, color:T.sub, marginLeft:6, whiteSpace:'nowrap'}}>수수료 뺀 금액</span>
-                  {leader()}
-                  {money(deposit, setDeposit, { label:'실입금', width:'min(150px, 38vw)' })}
-                </div>
-              </div>
-              {secs.map(sec=>{
-                const secCats = categories.filter(f=>f.sec===sec)
-                if(!secCats.length) return null
-                return (
-                  <div key={sec}>
-                    <div style={{fontSize:12, fontWeight:700, color:T.sub, padding:'6px 0 2px', borderBottom:`1px solid ${T.rule}`}}>{sec}</div>
-                    {secCats.map(f=>(
-                      <div key={f.id} style={{display:'flex', alignItems:'center', padding:'5px 0', minHeight:44}}>
-                        <span style={{fontSize:14, whiteSpace:'nowrap'}}>{f.label}</span>
-                        {leader()}
-                        {money(form[f.id] ?? '', v=>setForm(p=>({...p,[f.id]:v})), { label:f.label, width:'min(150px, 38vw)' })}
-                      </div>
-                    ))}
-                  </div>
-                )
-              })}
-            </div>
-
-            <div style={{maxWidth:420, marginTop:14}}>
-              {total(`${+day}일 지출`, formExp, { minus:true })}
-              {+deposit>0 && line(`${+day}일 실입금`, +deposit, { plus:true })}
-            </div>
-            <div style={{marginTop:12}}>
-              <Btn onClick={save} kind="primary" disabled={saving}>{saving ? '저장 중...' : '저장'}</Btn>
-            </div>
+            <MissedExpenseInput curMonth={curMonth} onSaved={refreshData} bare/>
           </div>
         )}
       </section>
@@ -842,11 +800,36 @@ const [payingDate, setPayingDate]     = useState('')
                       ))}
                       <td style={{...td}}>
                         <button onClick={()=>editDay(dd)}
-                          style={{background:'transparent',border:'none',color:T.sub,fontSize:12,cursor:'pointer',padding:'0 6px',fontFamily:'inherit'}}>수정</button>
+                          style={{background:'transparent',border:'none',color: editRow===dd ? T.accent : T.sub,fontSize:12,cursor:'pointer',padding:'0 6px',fontFamily:'inherit',fontWeight: editRow===dd ? 700 : 400}}>{editRow===dd ? '닫기' : '수정'}</button>
                         <button onClick={()=>del_row(dd)}
                           style={{background:'transparent',border:'none',color:T.red,fontSize:12,cursor:'pointer',padding:'0 0 0 6px',fontFamily:'inherit'}}>삭제</button>
                       </td>
                     </tr>
+                    {editRow===dd && (
+                      <tr>
+                        <td colSpan={5+categories.length} style={{padding:'10px 10px 14px', borderBottom:`1px solid ${T.rule}`, background:'#FFFFFF'}}>
+                          <div style={{fontSize:13, fontWeight:700, marginBottom:6}}>{+dd}일 ({getDow(dd)}) 고치기</div>
+                          <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(200px, 1fr))', gap:'2px 24px', width:'min(820px, 78vw)'}}>
+                            {[{ id:'__deposit', label:'실입금' }, ...categories].map(f=>(
+                              <div key={f.id} style={{display:'flex', alignItems:'center', padding:'3px 0'}}>
+                                <span style={{fontSize:13, whiteSpace:'nowrap', color: f.id==='__deposit' ? T.green : T.ink}}>{f.label}</span>
+                                {leader()}
+                                {f.id==='__deposit'
+                                  ? money(deposit, setDeposit, { label:'실입금', width:110, extra:{ fontSize:13, padding:'5px 8px' } })
+                                  : money(form[f.id] ?? '', v=>setForm(p=>({...p,[f.id]:v})), { label:f.label, width:110, extra:{ fontSize:13, padding:'5px 8px' } })}
+                              </div>
+                            ))}
+                          </div>
+                          <div style={{display:'flex', gap:8, alignItems:'center', marginTop:10, flexWrap:'wrap', width:'min(820px, 78vw)'}}>
+                            <Btn onClick={save} kind="primary" disabled={saving}>{saving ? '저장 중...' : '저장'}</Btn>
+                            <Btn onClick={()=>setEditRow(null)}>취소</Btn>
+                            <span style={{fontSize:12, color:T.sub, ...num}}>지출 {won(formExp)}원</span>
+                            {(data.bankSeen||[]).some(k=>k.startsWith(`${curMonth}-${dd}|`)) &&
+                              <span style={{fontSize:12, color:T.sub}}>통장에서 가져온 금액은 '거래 보기'에서 한 건씩 옮기는 게 더 정확해요</span>}
+                          </div>
+                        </td>
+                      </tr>
+                    )}
                     {openDay===dd && (
                       <tr>
                         <td colSpan={5+categories.length} style={{padding:'8px 10px 12px', borderBottom:`1px solid ${T.rule}`, background:'#FFFFFF'}}>
