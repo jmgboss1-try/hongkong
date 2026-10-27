@@ -25,7 +25,6 @@ function getScheduleForMonth(emp, month) {
     ? { workDays: applicable[0].workDays, avgHours: applicable[0].avgHours }
     : { workDays: emp.workDays || [1,2,3,4,5], avgHours: emp.avgHours || 8 }
 }
-const wonFmt = n => n ? n.toLocaleString('ko-KR')+'원' : '—'
 const wonK   = n => n>=10000 ? (n/10000).toFixed(0)+'만' : n.toLocaleString()
 const pct = (a,b) => b>0 ? Math.round(a/b*100) : 0
 
@@ -42,8 +41,8 @@ const CHANNELS = [
 
 const CHART_TYPES = [
   { key:'bar',  label:'막대' },
-  { key:'line', label:'라인' },
-  { key:'area', label:'누적영역' },
+  { key:'line', label:'선' },
+  { key:'area', label:'면적' },
 ]
 
 function getRevValue(r, channel) {
@@ -84,7 +83,7 @@ export default function Dashboard() {
     return `${now.getFullYear()}-${pad(now.getMonth()+1)}`
   })
   const [rev, setRev]           = useState({kiosk:0,del:0,pos:0,total:0})
-  const [exp, setExp]           = useState({total:0,mat:0,mgmt:0,sal:0})
+  const [exp, setExp]           = useState({total:0,bySec:{}})
   const [staff, setStaff]       = useState([])
   const [staffStats, setStaffStats] = useState({})
   const [loading, setLoading]   = useState(true)
@@ -208,21 +207,30 @@ export default function Dashboard() {
   }
 
   // 지출 합계 — 대시보드에서 지출을 추가하면 이 부분만 다시 불러옴
+  //   카테고리 설정(expenseCategories/default)의 구분(재료비·관리비·인건비)별로도 나눔
   async function loadExpenses() {
-    const expSnap = await getDoc(doc(db,'expenses',curMonth))
+    const [expSnap, catSnap] = await Promise.all([
+      getDoc(doc(db,'expenses',curMonth)),
+      getDoc(doc(db,'expenseCategories','default')).catch(()=>null),
+    ])
+    const secOf = Object.fromEntries((catSnap?.exists() ? (catSnap.data().list||[]) : []).map(c=>[c.id, c.sec]))
     if(expSnap.exists()) {
       const d = expSnap.data()
       let expTotal=0, dep=0
+      const bySec = {}
       const carryover = d.carryover||0
-      Object.values(d).forEach(e=>{
-        if(typeof e!=='object'||e===null) return
+      Object.entries(d).forEach(([dd,e])=>{
+        if(!/^\d{2}$/.test(dd) || typeof e!=='object' || e===null) return
         dep+=e.deposit||0
         Object.entries(e).forEach(([k,v])=>{
-          if(!['deposit','carryover'].includes(k) && typeof v==='number') expTotal+=v
+          if(k==='deposit' || typeof v!=='number') return
+          expTotal+=v
+          const sec = secOf[k] || '기타'
+          bySec[sec] = (bySec[sec]||0) + v
         })
       })
-      setExp({total:expTotal,mat:0,mgmt:0,sal:0,deposit:dep,carryover,balance:carryover+dep-expTotal,bank:bankSummary(d).bank})
-    } else setExp({total:0,mat:0,mgmt:0,sal:0,deposit:0,carryover:0,balance:0})
+      setExp({total:expTotal,bySec,deposit:dep,carryover,balance:carryover+dep-expTotal,bank:bankSummary(d).bank})
+    } else setExp({total:0,bySec:{},deposit:0,carryover:0,balance:0})
   }
 
   // 일별 차트: 이번달 vs 전월 (일자 정렬)
@@ -318,165 +326,161 @@ export default function Dashboard() {
   for(let y=2022;y<=2026;y++){const sm=y===2022?10:1;for(let m=sm;m<=12;m++){monthOpts.push(`${y}-${pad(m)}`)}}
 
   const ch = CHANNELS.find(c=>c.key===chartChannel)
+  const won = n => (n||0).toLocaleString('ko-KR')
+  const num = { fontVariantNumeric:'tabular-nums' }
+  const T = { ink:'#1D1B18', sub:'#6E6A63', faint:'#A8A39A', rule:'#DCD7CE', accent:'#C3261C', red:'#B42318', green:'#2E7D45', field:'#FFFFFF' }
+  const monthIdx = monthOpts.indexOf(curMonth)
+  const SECS = ['재료비','관리비','인건비','기타']
 
-  const KPI = ({label,value,note,color}) => (
-    <div style={{background:'#FFFFFF',border:'1px solid #DCD7CE',borderRadius:6,padding:'18px 20px',position:'relative',overflow:'hidden'}}>
-      <div style={{position:'absolute',top:0,left:0,right:0,height:3,background:color}}/>
-      <div style={{fontSize:10,fontWeight:600,color:'#6E6A63',textTransform:'uppercase',letterSpacing:.8,marginBottom:6}}>{label}</div>
-      <div style={{fontSize:20,fontWeight:700,color,fontFamily:'inherit',fontVariantNumeric:'tabular-nums'}}>{value}</div>
-      <div style={{fontSize:10,color:'#6E6A63',marginTop:4,lineHeight:1.6}}>{note}</div>
+  // 장부 한 줄: 이름 ……… 금액 (영수증처럼 점선으로 이음)
+  const line = (label, value, { strong, sub, minus, color, note } = {}) => (
+    <div key={label} style={{display:'flex', alignItems:'baseline', padding: sub ? '3px 0 3px 14px' : '7px 0',
+      fontSize: strong ? 17 : sub ? 13 : 15, fontWeight: strong ? 800 : sub ? 400 : 600, color: sub ? T.sub : T.ink}}>
+      <span style={{whiteSpace:'nowrap'}}>{label}</span>
+      {note && <span style={{fontSize:12, color:T.sub, marginLeft:6, whiteSpace:'nowrap'}}>{note}</span>}
+      <span aria-hidden="true" style={{flex:1, borderBottom:`1px dotted ${T.faint}`, margin:'0 8px', minWidth:12, transform:'translateY(-4px)'}}/>
+      <span style={{...num, whiteSpace:'nowrap', color: color || 'inherit'}}>{minus && value ? '− ' : ''}{won(value)}</span>
     </div>
+  )
+  const sectionTitle = (text, right) => (
+    <div style={{display:'flex', justifyContent:'space-between', alignItems:'baseline', gap:10, borderBottom:`2px solid ${T.ink}`, paddingBottom:6, marginBottom:6}}>
+      <h2 style={{fontSize:16, fontWeight:800, margin:0, fontFamily:'inherit', color:T.ink}}>{text}</h2>
+      {right}
+    </div>
+  )
+  const textTab = (on, label, onClick, key) => (
+    <button key={key||label} type="button" onClick={onClick}
+      style={{background:'none', border:'none', padding:'4px 0', cursor:'pointer', fontFamily:'inherit', fontSize:13,
+        fontWeight: on ? 800 : 500, color: on ? T.ink : T.sub, borderBottom:`2px solid ${on ? T.accent : 'transparent'}`}}>
+      {label}
+    </button>
   )
 
   return (
-    <div>
-      <div style={{display:'flex',alignItems:'flex-end',justifyContent:'space-between',marginBottom:22}}>
-        <div>
-          <div style={{fontSize:20,fontWeight:700}}>대시보드</div>
-          <div style={{fontSize:12,color:'#6E6A63',marginTop:2}}>{mLabel(curMonth)} 전체 현황</div>
+    <div style={{maxWidth:1040}}>
+      {/* 머리: 이 달 장부 */}
+      <header style={{display:'flex', alignItems:'center', justifyContent:'space-between', gap:12, flexWrap:'wrap',
+        paddingBottom:10, borderBottom:`3px double ${T.ink}`, marginBottom:22}}>
+        <h1 style={{fontSize:24, fontWeight:800, margin:0, letterSpacing:'-0.01em', fontFamily:'inherit', color:T.ink}}>{mLabel(curMonth)} 장부</h1>
+        <div style={{display:'flex', alignItems:'center', gap:6}}>
+          <button type="button" aria-label="이전 달" disabled={monthIdx<=0} onClick={()=>setCurMonth(monthOpts[monthIdx-1])}
+            style={{background:'none', border:`1px solid ${T.rule}`, borderRadius:4, padding:'6px 10px', cursor:'pointer', fontFamily:'inherit', color:T.ink}}>이전</button>
+          <select value={curMonth} onChange={e=>setCurMonth(e.target.value)} aria-label="달 고르기"
+            style={{background:T.field, border:`1px solid ${T.rule}`, borderRadius:4, color:T.ink, padding:'7px 10px', fontSize:13, fontFamily:'inherit', outline:'none'}}>
+            {monthOpts.map(m=><option key={m} value={m}>{mLabel(m)}</option>)}
+          </select>
+          <button type="button" aria-label="다음 달" disabled={monthIdx>=monthOpts.length-1} onClick={()=>setCurMonth(monthOpts[monthIdx+1])}
+            style={{background:'none', border:`1px solid ${T.rule}`, borderRadius:4, padding:'6px 10px', cursor:'pointer', fontFamily:'inherit', color:T.ink}}>다음</button>
         </div>
-        <select value={curMonth} onChange={e=>setCurMonth(e.target.value)}
-          style={{background:'#F3F1EC',border:'1px solid #DCD7CE',borderRadius:4,color:'#1D1B18',
-            padding:'8px 12px',fontSize:12,fontFamily:'inherit',outline:'none'}}>
-          {monthOpts.map(m=><option key={m} value={m}>{mLabel(m)}</option>)}
-        </select>
-      </div>
+      </header>
 
-      {loading ? <div style={{textAlign:'center',color:'#6E6A63',padding:60}}>로딩 중...</div> : (
+      {loading ? <div style={{color:T.sub, padding:'40px 0'}}>불러오는 중...</div> : (
         <>
-          <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:14,marginBottom:14}}>
-            <KPI label="월 총 매출" value={wonFmt(rev.total)} note={`배달 ${pct(rev.del,rev.total)}% · 포스 ${pct(rev.pos,rev.total)}% · 키오스크 ${pct(rev.kiosk,rev.total)}%`} color="#C3261C"/>
-            <KPI label="월 총 지출" value={wonFmt(exp.total)} note={`재료비 ${wonFmt(exp.mat)} · 관리비 ${wonFmt(exp.mgmt)}`} color="#B42318"/>
-            <KPI label="인건비" value={wonFmt(totalLaborCost)} note={`인건비율 ${pct(totalLaborCost,rev.total)}% · ${staff.length}명`} color="#2B5C9E"/>
-          </div>
-          <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:14,marginBottom:20}}>
-            <KPI label="총 실입금액" value={wonFmt(exp.deposit||0)} note="수수료 제외 계좌 실입금" color="#2E7D45"/>
-            <KPI label="영업 잔액" value={wonFmt(Math.abs(exp.balance||0))}
-              note={exp.bank?.closing!=null
-                ? `실제 통장 ${(exp.bank.closing||0).toLocaleString('ko-KR')}원 · ${exp.bank.diff===0?'장부와 일치':'지출관리에서 차이 확인'}`
-                : `이월 ${wonFmt(exp.carryover||0)} + 입금 - 지출 (통장 잔액과는 다를 수 있어요)`}
-              color={(exp.balance||0)>=0?'#C3261C':'#B42318'}/>
-            <KPI label="매출 기준 순이익" value={wonFmt(Math.abs(profit))} note={profit>=0?'흑자 ▲':'적자 ▼'} color={profit>=0?'#6E6A63':'#B42318'}/>
-          </div>
-
-          {/* ── 못 적은 지출 입력 (지출관리와 동기화) ── */}
-          <div style={{marginBottom:20}}>
-            <MissedExpenseInput curMonth={curMonth} onSaved={()=>loadExpenses().catch(e=>console.error(e))}/>
-          </div>
-
-          {/* ── 매출 추이 그래프 ── */}
-          <div style={{background:'#FFFFFF',border:'1px solid #DCD7CE',borderRadius:6,padding:18,marginBottom:20}}>
-            {/* 헤더 */}
-            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:12,flexWrap:'wrap',gap:10}}>
-              <div style={{fontSize:13,fontWeight:600}}>매출 추이</div>
-              <div style={{display:'flex',gap:14,alignItems:'center',flexWrap:'wrap'}}>
-                {/* 일별/월별 탭 */}
-                <div style={{display:'flex',gap:6}}>
-                  {[['daily','일별'],['monthly','월별(12개월)']].map(([key,label])=>(
-                    <button key={key} onClick={()=>setChartTab(key)}
-                      style={{padding:'5px 12px',borderRadius:6,border:'none',fontSize:11,fontWeight:600,
-                        cursor:'pointer',fontFamily:'inherit',
-                        background:chartTab===key?'#C3261C':'#F3F1EC',
-                        color:chartTab===key?'#FFFFFF':'#6E6A63',
-                        outline:chartTab===key?'none':'1px solid #DCD7CE'}}>
-                      {label}
-                    </button>
-                  ))}
-                </div>
-                {/* 차트 종류 */}
-                <div style={{display:'flex',gap:6}}>
-                  {CHART_TYPES.map(t=>(
-                    <button key={t.key} onClick={()=>setChartType(t.key)}
-                      style={{padding:'5px 12px',borderRadius:6,border:'none',fontSize:11,fontWeight:600,
-                        cursor:'pointer',fontFamily:'inherit',
-                        background:chartType===t.key?'#2B5C9E':'#F3F1EC',
-                        color:chartType===t.key?'#FFFFFF':'#6E6A63',
-                        outline:chartType===t.key?'none':'1px solid #DCD7CE'}}>
-                      {t.label}
-                    </button>
-                  ))}
-                </div>
-                {/* 비교 토글 */}
-                <button onClick={()=>setShowCompare(v=>!v)}
-                  style={{padding:'5px 12px',borderRadius:6,border:'none',fontSize:11,fontWeight:600,
-                    cursor:'pointer',fontFamily:'inherit',
-                    background:showCompare?'#2E7D45':'#F3F1EC',
-                    color:showCompare?'#FFFFFF':'#6E6A63',
-                    outline:showCompare?'none':'1px solid #DCD7CE'}}>
-                  {chartTab==='daily' ? '전월 비교' : '전년 비교'}
-                </button>
-              </div>
-            </div>
-
-            {/* 채널 필터 */}
-            <div style={{display:'flex',gap:6,flexWrap:'wrap',marginBottom:12}}>
-              {CHANNELS.map(c=>(
-                <button key={c.key} onClick={()=>setChartChannel(c.key)}
-                  style={{padding:'4px 10px',borderRadius:5,border:'none',fontSize:11,fontWeight:600,
-                    cursor:'pointer',fontFamily:'inherit',
-                    background:chartChannel===c.key?c.color:'#F3F1EC',
-                    color:chartChannel===c.key?'#FFFFFF':'#6E6A63',
-                    outline:chartChannel===c.key?'none':'1px solid #DCD7CE'}}>
-                  {c.label}
-                </button>
-              ))}
-            </div>
-
-            {/* 비교 요약 배지 */}
-            {showCompare && compareSummary && (
-              <div style={{display:'flex',gap:16,alignItems:'center',flexWrap:'wrap',
-                background:'#F3F1EC',borderRadius:4,padding:'10px 14px',marginBottom:14,fontSize:12}}>
-                <span style={{color:'#6E6A63'}}>
-                  이번 기간 <b style={{color:'#C3261C'}}>{compareSummary.curTotal.toLocaleString()}원</b>
-                </span>
-                <span style={{color:'#6E6A63'}}>
-                  {compareSummary.prevLabel} <b style={{color:'#2B5C9E'}}>{compareSummary.prevTotal.toLocaleString()}원</b>
-                </span>
-                {compareSummary.diffPct !== null && (
-                  <span style={{fontWeight:700,
-                    color: compareSummary.diffPct>=0 ? '#2E7D45' : '#B42318'}}>
-                    {compareSummary.diffPct>=0?'▲':'▼'} {Math.abs(compareSummary.diffPct)}%
+          <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(min(100%, 380px), 1fr))', gap:'28px 40px', marginBottom:34}}>
+            {/* 손익 */}
+            <section>
+              {sectionTitle('이 달 손익')}
+              {line('매출', rev.total)}
+              {line('키오스크', rev.kiosk, { sub:true, note:`${pct(rev.kiosk,rev.total)}%` })}
+              {line('배달', rev.del, { sub:true, note:`${pct(rev.del,rev.total)}%` })}
+              {line('포스', rev.pos, { sub:true, note:`${pct(rev.pos,rev.total)}%` })}
+              {line('지출', exp.total, { minus:true })}
+              {SECS.filter(sec => (exp.bySec?.[sec]||0) > 0).map(sec => line(sec, exp.bySec[sec], { sub:true, minus:true }))}
+              <div style={{borderTop:`3px double ${T.ink}`, marginTop:8, paddingTop:4}}>
+                <div style={{display:'flex', alignItems:'baseline', justifyContent:'space-between', gap:10, padding:'6px 0'}}>
+                  <span style={{fontSize:16, fontWeight:800}}>{profit >= 0 ? '남은 돈' : '모자란 돈'} <span style={{fontSize:12, fontWeight:400, color:T.sub}}>매출 − 지출</span></span>
+                  <span style={{fontSize:34, fontWeight:800, letterSpacing:'-0.02em', color: profit>=0 ? T.ink : T.red, ...num}}>
+                    {profit<0 ? '− ' : ''}{won(Math.abs(profit))}<span style={{fontSize:16, fontWeight:600, marginLeft:2}}>원</span>
                   </span>
-                )}
+                </div>
+                <div style={{fontSize:12, color:T.sub, lineHeight:1.6}}>
+                  인건비(근무기록 기준) {won(totalLaborCost)}원 · 매출의 {pct(totalLaborCost,rev.total)}% · {staff.length}명
+                </div>
               </div>
-            )}
+            </section>
 
-            {/* 그래프 */}
+            {/* 통장 */}
+            <section>
+              {sectionTitle('통장', exp.bank?.closing!=null && (
+                <span style={{fontSize:12, fontWeight:700, color: exp.bank.diff===0 ? T.green : T.red}}>
+                  {exp.bank.diff===0 ? '통장과 일치해요' : `통장과 ${won(Math.abs(exp.bank.diff))}원 차이`}
+                </span>
+              ))}
+              {line('전월 이월', exp.carryover)}
+              {line('실입금', exp.deposit, { note:'수수료 빼고 들어온 돈' })}
+              {line('지출', exp.total, { minus:true })}
+              <div style={{borderTop:`1px solid ${T.ink}`, marginTop:6}}>
+                {line('영업 잔액', exp.balance, { strong:true, color:(exp.balance||0) < 0 ? T.red : undefined })}
+              </div>
+              {exp.bank?.closing!=null
+                ? line('실제 통장 잔액', exp.bank.closing, { note:'계좌내역 기준' })
+                : <p style={{fontSize:12, color:T.sub, margin:'6px 0 0', lineHeight:1.6}}>지출관리에서 계좌내역을 올리면 실제 통장 잔액과 맞춰볼 수 있어요</p>}
+            </section>
+          </div>
+
+          {/* 못 적은 지출 입력 (지출관리와 동기화) */}
+          <section style={{marginBottom:34}}>
+            <MissedExpenseInput curMonth={curMonth} onSaved={()=>loadExpenses().catch(e=>console.error(e))}/>
+          </section>
+
+          {/* 매출 추이 */}
+          <section>
+            {sectionTitle('매출 추이', (
+              <div style={{display:'flex', gap:14, alignItems:'center', flexWrap:'wrap'}}>
+                {[['daily','일별'],['monthly','최근 12개월']].map(([k,l]) => textTab(chartTab===k, l, ()=>setChartTab(k), k))}
+                <span style={{width:1, height:14, background:T.rule}}/>
+                {CHART_TYPES.map(t => textTab(chartType===t.key, t.label, ()=>setChartType(t.key), t.key))}
+              </div>
+            ))}
+            <div style={{display:'flex', gap:10, alignItems:'center', flexWrap:'wrap', margin:'10px 0 12px'}}>
+              <select value={chartChannel} onChange={e=>setChartChannel(e.target.value)} aria-label="매출 구분"
+                style={{background:T.field, border:`1px solid ${T.rule}`, borderRadius:4, color:T.ink, padding:'6px 10px', fontSize:13, fontFamily:'inherit', outline:'none'}}>
+                {CHANNELS.map(c => <option key={c.key} value={c.key}>{c.label}</option>)}
+              </select>
+              <label style={{display:'flex', alignItems:'center', gap:6, fontSize:13, color:T.ink, cursor:'pointer'}}>
+                <input type="checkbox" checked={showCompare} onChange={e=>setShowCompare(e.target.checked)} style={{accentColor:T.accent}}/>
+                {chartTab==='daily' ? '지난달과 비교' : '작년과 비교'}
+              </label>
+              {showCompare && compareSummary && (
+                <span style={{fontSize:13, color:T.sub, ...num}}>
+                  이번 {won(compareSummary.curTotal)}원 · {compareSummary.prevLabel} {won(compareSummary.prevTotal)}원
+                  {compareSummary.diffPct !== null && (
+                    <b style={{marginLeft:6, color: compareSummary.diffPct>=0 ? T.green : T.red}}>
+                      {compareSummary.diffPct>=0 ? '▲' : '▼'} {Math.abs(compareSummary.diffPct)}%
+                    </b>
+                  )}
+                </span>
+              )}
+            </div>
             {chartLoading ? (
-              <div style={{textAlign:'center',color:'#6E6A63',padding:40}}>로딩 중...</div>
+              <div style={{color:T.sub, padding:'40px 0'}}>불러오는 중...</div>
             ) : chartData.length === 0 ? (
-              <div style={{textAlign:'center',color:'#6E6A63',padding:40}}>데이터가 없습니다</div>
+              <div style={{color:T.sub, padding:'40px 0'}}>이 기간엔 매출 기록이 없어요</div>
             ) : (
-              <ResponsiveContainer width="100%" height={280}>
+              <ResponsiveContainer width="100%" height={260}>
                 <ComposedChart data={chartData} margin={{top:4,right:4,left:0,bottom:0}}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#DCD7CE" vertical={false}/>
-                  <XAxis dataKey="label" tick={{fill:'#6E6A63',fontSize:10}} axisLine={false} tickLine={false}
+                  <CartesianGrid stroke="#ECE8E1" vertical={false}/>
+                  <XAxis dataKey="label" tick={{fill:T.sub,fontSize:11}} axisLine={{stroke:T.ink}} tickLine={false}
                     interval={chartTab==='daily'?3:0}/>
-                  <YAxis tickFormatter={wonK} tick={{fill:'#6E6A63',fontSize:10}} axisLine={false} tickLine={false} width={50}/>
-                  <Tooltip content={<CustomTooltip/>}/>
-
+                  <YAxis tickFormatter={wonK} tick={{fill:T.sub,fontSize:11}} axisLine={false} tickLine={false} width={48}/>
+                  <Tooltip content={<CustomTooltip/>} cursor={{fill:'rgba(0,0,0,0.04)'}}/>
                   {chartType==='bar' && (
-                    <Bar dataKey="value" name={ch?.label||'매출'} fill={ch?.color||'#C3261C'} radius={[4,4,0,0]}/>
+                    <Bar dataKey="value" name={ch?.label||'매출'} fill={T.accent} radius={[2,2,0,0]} maxBarSize={22}/>
                   )}
                   {chartType==='line' && (
-                    <Line type="monotone" dataKey="value" name={ch?.label||'매출'} stroke={ch?.color||'#C3261C'}
-                      strokeWidth={2.5} dot={{r:3,fill:ch?.color||'#C3261C'}}/>
+                    <Line type="monotone" dataKey="value" name={ch?.label||'매출'} stroke={T.accent} strokeWidth={2} dot={{r:3,fill:T.accent}}/>
                   )}
                   {chartType==='area' && (
-                    <Area type="monotone" dataKey="value" name={ch?.label||'매출'}
-                      stroke={ch?.color||'#C3261C'} fill={ch?.color||'#C3261C'} fillOpacity={0.25} strokeWidth={2}/>
+                    <Area type="monotone" dataKey="value" name={ch?.label||'매출'} stroke={T.accent} fill={T.accent} fillOpacity={0.12} strokeWidth={2}/>
                   )}
-
                   {showCompare && (
-                    <Line type="monotone" dataKey="compareValue"
-                      name={chartTab==='daily'?'전월':'전년 동월'}
-                      stroke="#6E6A63" strokeWidth={1.5} strokeDasharray="5 4" dot={false}/>
+                    <Line type="monotone" dataKey="compareValue" name={chartTab==='daily'?'지난달':'작년 같은 달'}
+                      stroke={T.sub} strokeWidth={1.5} strokeDasharray="5 4" dot={false}/>
                   )}
                 </ComposedChart>
               </ResponsiveContainer>
             )}
-          </div>
-
+          </section>
         </>
       )}
     </div>

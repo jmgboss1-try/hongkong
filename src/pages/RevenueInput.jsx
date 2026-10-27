@@ -248,7 +248,7 @@ export default function RevenueInput() {
       <div style={{maxWidth:640}}>
         <header style={{display:'flex', justifyContent:'space-between', alignItems:'baseline', gap:12, paddingBottom:10,
           borderBottom: T.leader ? `3px double ${T.strong}` : `1px solid ${T.rule}`}}>
-          <h1 style={{fontSize:22, fontWeight:800, margin:0, letterSpacing:'-0.01em'}}>매출 입력</h1>
+          <h1 style={{fontSize:22, fontWeight:800, margin:0, letterSpacing:'-0.01em', fontFamily:'inherit', color:T.ink}}>매출 입력</h1>
           <span style={{fontSize:14, color:T.sub}}>{todayLabel}</span>
         </header>
 
@@ -396,7 +396,7 @@ export default function RevenueInput() {
         {/* 오늘 입력 내역 */}
         {(hasMorning || hasMiddle || hasClose) && (
           <section style={{marginTop:34}}>
-            <h2 style={{fontSize:15, fontWeight:800, margin:'0 0 6px'}}>오늘 입력 내역</h2>
+            <h2 style={{fontSize:15, fontWeight:800, margin:'0 0 6px', fontFamily:'inherit', color:T.ink}}>오늘 입력 내역</h2>
             <div style={{overflowX:'auto'}}>
               <table style={{width:'100%', borderCollapse:'collapse', fontSize:13, minWidth:480}}>
                 <thead>
