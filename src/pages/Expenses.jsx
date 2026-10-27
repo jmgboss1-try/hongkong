@@ -30,6 +30,31 @@ const DEFAULT_CATEGORIES = [
 const getNowDD  = () => pad(new Date().getDate())
 const todayFullStr = () => { const n=new Date(); return `${n.getFullYear()}-${pad(n.getMonth()+1)}-${pad(n.getDate())}` }
 
+// 형 대여금: 받은 돈(받음·투자전환)은 가장 오래된 빌려준 돈부터 갚은 것으로 맞춤
+// → 지금 남은 대여금이 언제 빌려준 돈인지, 그동안 얼마씩 받았는지 보여줌
+function loanFifo(records) {
+  const sorted = [...records].sort((a,b)=>a.date.localeCompare(b.date) || String(a.id).localeCompare(String(b.id)))
+  const open = []     // 아직 덜 갚은 기록 [{rec, dir, left, paid:[{date,amount,type}]}] (모두 같은 방향)
+  const after = {}    // 기록 id → 그 기록까지의 잔액
+  let bal = 0
+  for (const r of sorted) {
+    const dir = r.type==='lent' ? 1 : -1
+    bal += dir * r.amount
+    after[r.id] = bal
+    let left = r.amount
+    while (left > 0 && open.length && open[0].dir !== dir) {
+      const o = open[0], take = Math.min(o.left, left)
+      o.left -= take; left -= take
+      o.paid.push({ date:r.date, amount:take, type:r.type })
+      if (o.left === 0) open.shift()
+    }
+    if (left > 0) open.push({ rec:r, dir, left, paid:[] })
+  }
+  return { open, after }
+}
+const daysSince = date => Math.max(0, Math.round((new Date(todayFullStr()) - new Date(date)) / 86400000))
+const mdDot = date => `${+date.slice(5,7)}.${+date.slice(8,10)}`
+
 // 장부 화면의 작은 버튼 (primary: 빨강, ok: 초록, danger: 빨간 글씨)
 function Btn({ children, onClick, kind = 'plain', disabled, small }) {
   const solid = kind==='primary' || kind==='ok'
@@ -395,6 +420,7 @@ const [payingDate, setPayingDate]     = useState('')
   const currentBalance  = carryoverAmt + totalDeposit - grand
 
   const loanBalance = loanRecords.reduce((a,r)=> r.type==='lent' ? a+r.amount : a-r.amount, 0)
+  const loanFlow = loanFifo(loanRecords)
 
   const unpaidFixed = fixedItems.filter(i=>!fixedPayments[i.id]?.paid)
   const totalFixedAmt = fixedItems.reduce((a,i)=>a+i.amount,0)
@@ -669,7 +695,7 @@ const [payingDate, setPayingDate]     = useState('')
         {/* 형과의 단기 대여금 */}
         <section>
           {sectionTitle('형과의 단기 대여금', <>
-            {!loanOpen && <span style={{...num}}>남은 대여금 <b style={{color: loanBalance>0 ? T.red : loanBalance<0 ? T.green : T.ink}}>{won(loanBalance)}</b>원</span>}
+            {!loanOpen && <span style={{...num}}>남은 대여금 <b style={{color: loanBalance>0 ? T.red : loanBalance<0 ? T.green : T.ink}}>{won(loanBalance)}</b>원{loanFlow.open.length > 0 && ` · ${mdDot(loanFlow.open[0].rec.date)} 빌려준 돈부터 남음`}</span>}
             {loanOpen && loanBalance > 0 && <Btn onClick={()=>{ setShowConvert(v=>!v); setConvertAmount(String(loanBalance)) }} small>투자금 회수로 전환</Btn>}
             {loanOpen && <Btn onClick={()=>setShowLoanMgr(v=>!v)} small>{showLoanMgr ? '입력 닫기' : '기록 추가'}</Btn>}
             <Btn onClick={toggleLoanOpen} small>{loanOpen ? '접기' : `펼치기 (${loanRecords.length}건)`}</Btn>
@@ -705,17 +731,48 @@ const [payingDate, setPayingDate]     = useState('')
 
           {loanRecords.length === 0 ? empty('기록 추가에서 빌려준 돈, 받은 돈을 적으세요') : (
             <>
-              {[...loanRecords].sort((a,b)=>b.date.localeCompare(a.date)).map(r=>{
+              {/* 아직 남은 돈: 언제 빌려준 돈인지 */}
+              {loanFlow.open.length > 0 && (
+                <div style={{margin:'8px 0 14px'}}>
+                  <div style={{fontSize:12, fontWeight:700, color:T.sub, marginBottom:2}}>
+                    {loanFlow.open[0].dir > 0 ? '아직 못 받은 돈' : '내가 더 받은 돈'} <span style={{fontWeight:400}}>· 받은 돈은 먼저 빌려준 것부터 갚은 걸로 계산</span>
+                  </div>
+                  {loanFlow.open.map(o=>(
+                    <div key={o.rec.id} style={{borderLeft:`4px solid ${o.dir>0 ? T.red : T.green}`, background: o.dir>0 ? '#B4231810' : '#2E7D4510',
+                      borderRadius:'0 4px 4px 0', padding:'7px 12px', marginTop:4}}>
+                      <div style={{display:'flex', alignItems:'baseline', fontSize:14}}>
+                        <span style={{fontWeight:700, whiteSpace:'nowrap', ...num}}>{mdDot(o.rec.date)} {o.dir>0 ? '빌려준 돈' : '받은 돈'}</span>
+                        <span style={{fontSize:12, color:T.sub, marginLeft:6, whiteSpace:'nowrap', ...num}}>{daysSince(o.rec.date)}일째</span>
+                        {leader()}
+                        <span style={{fontSize:12, color:T.sub, marginRight:6}}>남은 돈</span>
+                        <span style={{...num, fontWeight:800, color: o.dir>0 ? T.red : T.green, whiteSpace:'nowrap'}}>{won(o.left)}</span>
+                      </div>
+                      <div style={{fontSize:12, color:T.sub, marginTop:2, lineHeight:1.6, ...num}}>
+                        원금 {won(o.rec.amount)}
+                        {o.paid.map((p,i)=><span key={i}> · {mdDot(p.date)} {won(p.amount)} {p.type==='converted' ? '투자전환' : p.type==='lent' ? '빌려줌' : '받음'}</span>)}
+                        {o.rec.memo && <span> · {o.rec.memo}</span>}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* 전체 기록: 최근 것부터, 그때의 잔액과 함께 */}
+              <div style={{fontSize:12, fontWeight:700, color:T.sub, padding:'4px 0', borderBottom:`1px solid ${T.rule}`, display:'flex'}}>
+                <span style={{flex:1}}>전체 기록</span><span style={{width:96, textAlign:'right'}}>그때 잔액</span><span style={{width:30}}/>
+              </div>
+              {[...loanRecords].sort((a,b)=>b.date.localeCompare(a.date) || String(b.id).localeCompare(String(a.id))).map(r=>{
                 const c = r.type==='lent' ? T.red : r.type==='converted' ? T.accent : T.green
                 return (
                   <div key={r.id} style={{display:'flex', alignItems:'baseline', gap:8, padding:'7px 0', borderBottom:`1px solid ${T.soft}`, fontSize:13}}>
-                    <span style={{color:T.sub, ...num, whiteSpace:'nowrap'}}>{r.date.slice(5).replace('-','.')}</span>
+                    <span style={{color:T.sub, ...num, whiteSpace:'nowrap'}}>{mdDot(r.date)}</span>
                     <span style={{fontWeight:700, color:c, whiteSpace:'nowrap'}}>{r.type==='lent'?'빌려줌':r.type==='converted'?'투자전환':'받음'}</span>
-                    <span style={{color:T.sub, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', minWidth:0, maxWidth:'40%'}}>{r.memo||''}</span>
+                    <span style={{color:T.sub, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', minWidth:0, maxWidth:'35%'}}>{r.memo||''}</span>
                     {leader()}
                     <span style={{...num, fontWeight:600, color:c, whiteSpace:'nowrap'}}>{r.type==='lent'?'+ ':'− '}{won(r.amount)}</span>
+                    <span style={{...num, color:T.sub, whiteSpace:'nowrap', width:88, textAlign:'right'}}>{won(loanFlow.after[r.id])}</span>
                     <button onClick={()=>deleteLoanRecord(r.id)} aria-label="삭제"
-                      style={{background:'transparent',border:'none',color:T.red,fontSize:11,cursor:'pointer',padding:0,fontFamily:'inherit'}}>삭제</button>
+                      style={{background:'transparent',border:'none',color:T.red,fontSize:11,cursor:'pointer',padding:0,fontFamily:'inherit',width:30,textAlign:'right'}}>삭제</button>
                   </div>
                 )
               })}
