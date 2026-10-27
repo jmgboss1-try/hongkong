@@ -565,7 +565,7 @@ const [payingDate, setPayingDate]     = useState('')
       {/* 통장 잔액 맞추기 (영업 잔액 vs 실제 통장) */}
       <BankReconCard ym={curMonth} data={data} categories={categories} onChanged={refreshData}/>
 
-      <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(min(100%, 460px), 1fr))', gap:'28px 40px', margin:'12px 0 30px'}}>
+      <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(min(100%, 460px), 1fr))', gap:'28px 40px', marginBottom:30}}>
         {/* 고정지출 */}
         <section>
           {sectionTitle('고정지출', <>

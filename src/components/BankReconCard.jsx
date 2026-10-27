@@ -6,6 +6,8 @@ import BankTxList from './BankTxList'
 
 const wonFmt = n => (n||0).toLocaleString('ko-KR')
 const sign = n => n > 0 ? `+${wonFmt(n)}` : n < 0 ? `−${wonFmt(-n)}` : '0'
+const T = { ink:'#1D1B18', sub:'#6E6A63', faint:'#A8A39A', rule:'#DCD7CE', soft:'#ECE8E1', accent:'#C3261C', red:'#B42318', green:'#2E7D45', blue:'#2B5C9E' }
+const num = { fontVariantNumeric:'tabular-nums' }
 const md = d => d ? `${+d.slice(5,7)}/${+d.slice(8,10)}` : ''
 
 // 영업 외 종류 → 연결되는 대여금 장부 (BankImport와 같음)
@@ -24,12 +26,18 @@ export default function BankReconCard({ ym, data, categories, onChanged }) {
   const b = s.bank
   const nonOp = (data?.nonOp || []).slice().sort((a,b)=>a.date.localeCompare(b.date))
 
-  const line = (label, val, opts={}) => (
-    <div style={{display:'flex',justifyContent:'space-between',gap:10,padding:'4px 0',fontSize:12,
-      borderTop: opts.total ? '1px solid #DCD7CE' : 'none', marginTop: opts.total ? 4 : 0, paddingTop: opts.total ? 8 : 4}}>
-      <span style={{color: opts.total ? '#1D1B18' : '#6E6A63', fontWeight: opts.total ? 700 : 400, paddingLeft: opts.sub ? 14 : 0}}>{label}</span>
-      <span style={{fontFamily:'inherit',fontVariantNumeric:'tabular-nums', fontWeight: opts.total ? 700 : 400, color: opts.color || (opts.total ? '#1D1B18' : '#6E6A63')}}>{val}</span>
+  // 장부 한 줄: 이름 ……… 금액 (지출관리·대시보드와 같은 모양)
+  const line = (label, value, { sub, strong, color, note, prefix } = {}) => (
+    <div key={label} style={{display:'flex', alignItems:'baseline', padding: sub ? '3px 0 3px 14px' : '6px 0',
+      fontSize: strong ? 16 : sub ? 13 : 14, fontWeight: strong ? 800 : sub ? 400 : 600, color: sub ? T.sub : T.ink}}>
+      <span style={{whiteSpace:'nowrap'}}>{label}</span>
+      {note && <span style={{fontSize:12, color:T.sub, marginLeft:6, whiteSpace:'nowrap', fontWeight:400}}>{note}</span>}
+      <span aria-hidden="true" style={{flex:1, borderBottom:`1px dotted ${T.faint}`, margin:'0 8px', minWidth:12, transform:'translateY(-4px)'}}/>
+      <span style={{...num, whiteSpace:'nowrap', color: color || 'inherit'}}>{prefix && value ? prefix : ''}{wonFmt(value)}</span>
     </div>
+  )
+  const total = (label, value, opts) => (
+    <div style={{borderTop:`3px double ${T.ink}`, marginTop:6, paddingTop:2}}>{line(label, value, { strong:true, ...opts })}</div>
   )
   const kinds = Object.entries(s.byKind)
 
@@ -98,56 +106,55 @@ export default function BankReconCard({ ym, data, categories, onChanged }) {
     setSaving(false)
   }
 
+  const pickedCount = Object.values(picks).filter(Boolean).length
+
   return (
-    <div style={{background:'#FFFFFF',border:'1px solid #DCD7CE',borderRadius:6,padding:'16px 18px',marginBottom:18}}>
-      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',flexWrap:'wrap',gap:8,marginBottom:10}}>
-        <span style={{fontSize:13,fontWeight:600}}>통장 잔액 맞추기</span>
+    <section style={{marginBottom:30}}>
+      <div style={{display:'flex', justifyContent:'space-between', alignItems:'baseline', gap:10, flexWrap:'wrap',
+        borderBottom:`2px solid ${T.ink}`, paddingBottom:6, marginBottom:6}}>
+        <h2 style={{fontSize:16, fontWeight:800, margin:0, fontFamily:'inherit', color:T.ink}}>통장 잔액 맞추기</h2>
         {b && b.diff !== null && (
-          <span style={{fontSize:12,fontWeight:700,color: b.diff===0 ? '#2E7D45' : '#C3261C'}}>
+          <span style={{fontSize:13, fontWeight:700, ...num, color: b.diff===0 ? T.green : T.accent}}>
             {b.diff===0 ? '통장과 일치해요' : `통장과 ${wonFmt(Math.abs(b.diff))}원 차이`}
           </span>
         )}
       </div>
 
-      <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(260px,1fr))',gap:18}}>
+      <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(min(100%, 340px), 1fr))', gap:'12px 40px'}}>
         <div>
-          {line('전월 이월', wonFmt(s.carryover))}
-          {line('+ 실입금', wonFmt(s.deposit))}
-          {line('− 지출', wonFmt(s.expense))}
-          {line('= 영업 잔액', `${wonFmt(s.operating)}원`, { total:true, color: s.operating>=0 ? '#C3261C' : '#B42318' })}
-          {line('+ 영업 외 입금', wonFmt(s.nonOpIn))}
-          {kinds.filter(([,v])=>v.in).map(([k,v])=>line(NONOP_LABELS[k]||k, wonFmt(v.in), { sub:true }))}
-          {line('− 영업 외 출금', wonFmt(s.nonOpOut))}
-          {kinds.filter(([,v])=>v.out).map(([k,v])=>line(NONOP_LABELS[k]||k, wonFmt(v.out), { sub:true }))}
-          {line('= 계산상 통장 잔액', `${wonFmt(s.expected)}원`, { total:true })}
-          {b && b.closing !== null && line(`실제 통장 잔액 (${md(b.to)} 기준)`, `${wonFmt(b.closing)}원`, { total:true, color:'#2B5C9E' })}
+          {line('영업 잔액', s.operating, { note:'이월 + 실입금 − 지출', color: s.operating<0 ? T.red : undefined })}
+          {line('영업 외 입금', s.nonOpIn, { prefix:'+ ' })}
+          {kinds.filter(([,v])=>v.in).map(([k,v])=>line(NONOP_LABELS[k]||k, v.in, { sub:true }))}
+          {line('영업 외 출금', s.nonOpOut, { prefix:'− ' })}
+          {kinds.filter(([,v])=>v.out).map(([k,v])=>line(NONOP_LABELS[k]||k, v.out, { sub:true }))}
+          {total('계산상 통장 잔액', s.expected)}
+          {b && b.closing !== null && line('실제 통장 잔액', b.closing, { note:`${md(b.to)} 기준`, color:T.blue })}
         </div>
 
-        <div style={{fontSize:11,color:'#6E6A63',lineHeight:1.7}}>
+        <div style={{fontSize:13, color:T.sub, lineHeight:1.7, paddingTop:6}}>
           {!b ? (
             <>
-              위 <b style={{color:'#1D1B18'}}>계좌내역 엑셀</b> 탭에서 이 달 통장 거래내역(PDF·엑셀)을 올리면
-              실제 통장 잔액과 비교해 드려요.<br/>
-              영업 잔액은 장사 성적(실입금 − 지출)이고, 통장 잔액에는 형 대여금·투자금 같은 영업 외 거래도 들어 있어서 둘은 다를 수 있어요.
+              아래 <b style={{color:T.ink}}>계좌내역 엑셀·PDF</b> 탭에서 이 달 통장 거래내역을 올리면 실제 통장 잔액과 비교해 드려요.
+              영업 잔액은 장사 성적(실입금 − 지출)이고, 통장에는 형 대여금·투자금 같은 영업 외 거래도 있어서 둘은 다를 수 있어요.
             </>
           ) : b.closing === null ? (
             <>이 은행 파일에는 잔액 칸이 없어서 실제 통장 잔액을 계산할 수 없어요. 잔액이 있는 PDF로 올려주세요.</>
           ) : b.diff === 0 ? (
             <>
-              <div style={{color:'#2E7D45',fontWeight:600,marginBottom:4}}>장부가 통장과 정확히 맞아요.</div>
+              <div style={{color:T.green, fontWeight:700}}>장부가 통장과 정확히 맞아요.</div>
               {md(b.from)}~{md(b.to)} 통장 거래 {b.count}건 기준이에요.
             </>
           ) : (
             <>
-              <div style={{color:'#1D1B18',fontWeight:600,marginBottom:6}}>차이가 나는 이유 ({md(b.from)}~{md(b.to)} 통장 거래 {b.count}건 기준)</div>
+              <div style={{color:T.ink, fontWeight:700, marginBottom:4}}>차이가 나는 이유 <span style={{fontWeight:400, color:T.sub, fontSize:12}}>({md(b.from)}~{md(b.to)} 통장 거래 {b.count}건 기준)</span></div>
               {[
                 [b.reasons.carryover, `통장 시작 잔액은 ${wonFmt(b.opening)}원인데 전월 이월은 ${wonFmt(s.carryover)}원이에요. 전월 이월을 ${wonFmt(b.opening)}원으로 고치면 맞아요.`],
                 [b.reasons.unhandledIn, '아직 정리 안 된 입금이 있어요. 계좌내역 탭에서 다시 올려 실입금으로 맞추거나 영업 외 입금으로 기록하세요.'],
-                [b.reasons.unhandledOut, '아직 정리 안 된 출금이 있어요. 아래 \'아직 정리 안 된 출금\' 목록에서 바로 골라주세요.'],
-                [b.reasons.offBank, '통장이 아닌 곳에서 낸 지출이에요(현금·직접 입력·고정지출 납부 등). 이 중 통장에서 나간 건은 바로 위 \'정리 안 된 출금\'과 서로 상쇄돼요.'],
+                [b.reasons.unhandledOut, '아직 정리 안 된 출금이 있어요. 아래 목록에서 바로 골라주세요.'],
+                [b.reasons.offBank, '통장이 아닌 곳에서 낸 지출이에요(현금·직접 입력·고정지출 납부 등). 이 중 통장에서 나간 건은 정리 안 된 출금과 서로 상쇄돼요.'],
               ].filter(([v])=>v).map(([v,text],i)=>(
-                <div key={i} style={{display:'flex',gap:8,marginBottom:6}}>
-                  <b style={{fontFamily:'inherit',fontVariantNumeric:'tabular-nums',color: v>0 ? '#C3261C' : '#B42318',minWidth:96,textAlign:'right'}}>{sign(v)}</b>
+                <div key={i} style={{display:'flex', gap:12, padding:'6px 0', borderTop:`1px solid ${T.soft}`}}>
+                  <b style={{...num, color: v>0 ? T.accent : T.red, minWidth:92, textAlign:'right', flexShrink:0}}>{sign(v)}</b>
                   <span>{text}</span>
                 </div>
               ))}
@@ -157,44 +164,42 @@ export default function BankReconCard({ ym, data, categories, onChanged }) {
       </div>
 
       {b && unhandled.length > 0 && (
-        <div style={{marginTop:14,background:'rgba(195,38,28,0.05)',border:'1px solid rgba(195,38,28,0.25)',borderRadius:6,padding:12}}>
-          <div style={{fontSize:12,fontWeight:600,color:'#C3261C',marginBottom:4}}>
-            아직 정리 안 된 출금 {unhandled.length}건 · {wonFmt(unhandled.reduce((a,t)=>a+t.out,0))}원
+        <div style={{marginTop:16, borderLeft:`4px solid ${T.accent}`, background:'#C3261C0D', padding:'10px 14px', borderRadius:'0 4px 4px 0'}}>
+          <div style={{display:'flex', justifyContent:'space-between', alignItems:'baseline', gap:8, flexWrap:'wrap'}}>
+            <span style={{fontSize:14, fontWeight:800, color:T.accent}}>아직 정리 안 된 출금 {unhandled.length}건</span>
+            <span style={{fontSize:14, fontWeight:700, ...num}}>{wonFmt(unhandled.reduce((a,t)=>a+t.out,0))}원</span>
           </div>
-          <div style={{fontSize:10,color:'#6E6A63',marginBottom:10,lineHeight:1.6}}>
-            여기서 바로 골라서 저장하면 돼요(PDF를 다시 올리지 않아도 돼요).
-            임대료처럼 이미 고정지출·직접 입력으로 적어둔 지출이면 <b>'이미 지출에 있음'</b>을 고르세요 — 금액은 더하지 않고 연결만 해요.
+          <div style={{fontSize:12, color:T.sub, margin:'2px 0 6px', lineHeight:1.6}}>
+            여기서 골라 저장하면 돼요 (PDF를 다시 올리지 않아도 돼요). 임대료처럼 이미 고정지출·직접 입력으로 적어둔 지출이면 <b>'이미 지출에 있음'</b>을 고르세요. 금액은 더하지 않고 연결만 해요.
           </div>
-          <div style={{display:'flex',flexDirection:'column',gap:6}}>
-            {unhandled.map(t=>(
-              <div key={t.key} style={{display:'flex',alignItems:'center',gap:10,background:'#F3F1EC',borderRadius:4,padding:'7px 12px',flexWrap:'wrap'}}>
-                <span style={{fontSize:11,color:'#6E6A63',fontFamily:'inherit',fontVariantNumeric:'tabular-nums',minWidth:80}}>{t.date.slice(5)} {t.time.slice(0,5)}</span>
-                <span style={{flex:1,fontSize:12,color:'#1D1B18',minWidth:120}}>{t.desc || '—'}</span>
-                <span style={{fontSize:13,fontWeight:700,color:'#B42318',fontFamily:'inherit',fontVariantNumeric:'tabular-nums'}}>{wonFmt(t.out)}원</span>
-                <select value={picks[t.key]||''} onChange={e=>setPicks(p=>({ ...p, [t.key]: e.target.value }))}
-                  style={{background:'#FFFFFF',border:`1px solid ${picks[t.key]?'#DCD7CE':'#B42318'}`,borderRadius:6,color:'#1D1B18',
-                    padding:'5px 8px',fontSize:11,outline:'none',fontFamily:'inherit',minWidth:130}}>
-                  <option value="">— 골라주세요 —</option>
-                  {secs.map(sec=>(
-                    <optgroup key={sec} label={sec}>
-                      {categories.filter(c=>c.sec===sec).map(c=><option key={c.id} value={c.id}>{c.label}</option>)}
-                    </optgroup>
-                  ))}
-                  <optgroup label="영업 외 (지출 아님)">
-                    {Object.entries(NONOP_LABELS).map(([k,l])=><option key={k} value={`nonop:${k}`}>{l}</option>)}
+          {unhandled.map(t=>(
+            <div key={t.key} style={{display:'flex', alignItems:'center', gap:10, padding:'7px 0', borderTop:`1px solid ${T.rule}`, flexWrap:'wrap'}}>
+              <span style={{fontSize:12, color:T.sub, ...num, minWidth:76}}>{md(t.date)} {t.time.slice(0,5)}</span>
+              <span style={{flex:1, fontSize:13, color:T.ink, minWidth:120}}>{t.desc || '—'}</span>
+              <span style={{fontSize:14, fontWeight:700, ...num}}>{wonFmt(t.out)}</span>
+              <select value={picks[t.key]||''} onChange={e=>setPicks(p=>({ ...p, [t.key]: e.target.value }))} aria-label="분류"
+                style={{background:'#FFFFFF', border:`1px solid ${picks[t.key] ? '#CBC5BA' : T.red}`, borderRadius:4, color:T.ink,
+                  padding:'6px 8px', fontSize:12, outline:'none', fontFamily:'inherit', minWidth:150}}>
+                <option value="">골라주세요</option>
+                {secs.map(sec=>(
+                  <optgroup key={sec} label={sec}>
+                    {categories.filter(c=>c.sec===sec).map(c=><option key={c.id} value={c.id}>{c.label}</option>)}
                   </optgroup>
-                  <optgroup label="투자관리 회수로 기록 (영업 외)">
-                    {INVEST_OPTIONS.map(o=><option key={o.value} value={o.value}>{o.label}</option>)}
-                  </optgroup>
-                  <option value="ack">이미 지출에 있음 (금액 안 더함)</option>
-                </select>
-              </div>
-            ))}
-          </div>
-          <button onClick={savePicks} disabled={saving || !Object.values(picks).some(Boolean)}
-            style={{marginTop:10,background:'#C3261C',color:'#FFFFFF',border:'none',borderRadius:4,padding:'8px 18px',
-              fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'inherit',opacity:Object.values(picks).some(Boolean)?1:0.5}}>
-            {saving ? '저장 중...' : `고른 ${Object.values(picks).filter(Boolean).length}건 저장`}
+                ))}
+                <optgroup label="영업 외 (지출 아님)">
+                  {Object.entries(NONOP_LABELS).map(([k,l])=><option key={k} value={`nonop:${k}`}>{l}</option>)}
+                </optgroup>
+                <optgroup label="투자관리 회수로 기록 (영업 외)">
+                  {INVEST_OPTIONS.map(o=><option key={o.value} value={o.value}>{o.label}</option>)}
+                </optgroup>
+                <option value="ack">이미 지출에 있음 (금액 안 더함)</option>
+              </select>
+            </div>
+          ))}
+          <button onClick={savePicks} disabled={saving || !pickedCount}
+            style={{marginTop:8, background:T.accent, color:'#FFFFFF', border:'none', borderRadius:4, padding:'7px 16px',
+              fontSize:13, fontWeight:700, cursor:'pointer', fontFamily:'inherit', opacity: pickedCount ? 1 : 0.5}}>
+            {saving ? '저장 중...' : `고른 ${pickedCount}건 저장`}
           </button>
         </div>
       )}
@@ -204,23 +209,24 @@ export default function BankReconCard({ ym, data, categories, onChanged }) {
       {nonOp.length > 0 && (
         <div style={{marginTop:10}}>
           <button type="button" onClick={()=>setShowList(v=>!v)}
-            style={{background:'transparent',border:'none',color:'#2B5C9E',fontSize:11,cursor:'pointer',fontFamily:'inherit',padding:0}}>
-            {showList ? '▾ 영업 외 거래 접기' : `▸ 영업 외 거래 ${nonOp.length}건 보기`} <span style={{color:'#6E6A63'}}>(투자·정산은 투자관리 탭에 옮겨 적을 때 참고하세요)</span>
+            style={{background:'none', border:'none', borderBottom:`1px solid ${T.blue}`, color:T.blue, fontSize:13, cursor:'pointer', fontFamily:'inherit', padding:0}}>
+            {showList ? '영업 외 거래 접기' : `영업 외 거래 ${nonOp.length}건 보기`}
           </button>
+          <span style={{fontSize:12, color:T.sub, marginLeft:8}}>투자·정산은 투자관리 탭에 옮겨 적을 때 참고하세요</span>
           {showList && (
-            <div style={{display:'flex',flexDirection:'column',gap:4,marginTop:8}}>
+            <div style={{marginTop:6}}>
               {nonOp.map(x=>(
-                <div key={x.key} style={{display:'flex',gap:10,fontSize:11,background:'#F3F1EC',borderRadius:6,padding:'6px 10px',flexWrap:'wrap'}}>
-                  <span style={{color:'#6E6A63',fontFamily:'inherit',fontVariantNumeric:'tabular-nums',minWidth:44}}>{md(x.date)}</span>
-                  <span style={{minWidth:96}}>{NONOP_LABELS[x.kind==='loan_sangam'?'loan':x.kind]||x.kind}</span>
-                  <span style={{flex:1,color:'#1D1B18'}}>{x.desc}</span>
-                  <span style={{fontFamily:'inherit',fontVariantNumeric:'tabular-nums',color: x.dir==='in' ? '#2E7D45' : '#B42318'}}>{x.dir==='in'?'+':'−'}{wonFmt(x.amount)}</span>
+                <div key={x.key} style={{display:'flex', gap:10, fontSize:13, padding:'6px 0', borderBottom:`1px solid ${T.soft}`, alignItems:'baseline'}}>
+                  <span style={{color:T.sub, ...num, minWidth:44}}>{md(x.date)}</span>
+                  <span style={{minWidth:90, color:T.sub}}>{NONOP_LABELS[x.kind==='loan_sangam'?'loan':x.kind]||x.kind}</span>
+                  <span style={{flex:1, color:T.ink, minWidth:0}}>{x.desc}</span>
+                  <span style={{...num, fontWeight:600, color: x.dir==='in' ? T.green : T.red}}>{x.dir==='in'?'+ ':'− '}{wonFmt(x.amount)}</span>
                 </div>
               ))}
             </div>
           )}
         </div>
       )}
-    </div>
+    </section>
   )
 }
