@@ -807,7 +807,7 @@ const [payingDate, setPayingDate]     = useState('')
             <div style={{fontSize:12, color:T.sub, marginBottom:4}}>
               현금으로 낸 것처럼 통장에 안 찍히는 지출만 여기서 적으세요. 이미 적힌 날을 고치려면 아래 일별 표의 수정을 누르세요.
             </div>
-            <MissedExpenseInput curMonth={curMonth} onSaved={refreshData} bare/>
+            <MissedExpenseInput curMonth={curMonth} onSaved={refreshData}/>
           </div>
         )}
       </section>

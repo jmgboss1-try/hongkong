@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react'
 import { db } from '../firebase'
 import { doc, getDoc, getDocs, collection } from 'firebase/firestore'
-import MissedExpenseInput from '../components/MissedExpenseInput'
 import { bankSummary } from '../lib/bankRecon'
 import { ComposedChart, Bar, Line, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts'
 
@@ -417,11 +416,6 @@ export default function Dashboard() {
                 : <p style={{fontSize:12, color:T.sub, margin:'6px 0 0', lineHeight:1.6}}>지출관리에서 계좌내역을 올리면 실제 통장 잔액과 맞춰볼 수 있어요</p>}
             </section>
           </div>
-
-          {/* 못 적은 지출 입력 (지출관리와 동기화) */}
-          <section style={{marginBottom:34}}>
-            <MissedExpenseInput curMonth={curMonth} onSaved={()=>loadExpenses().catch(e=>console.error(e))}/>
-          </section>
 
           {/* 매출 추이 */}
           <section>

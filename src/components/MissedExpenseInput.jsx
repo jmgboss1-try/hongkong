@@ -29,9 +29,8 @@ const defaultDateFor = month => {
   return y.slice(0,7)===month ? y : `${month}-01`
 }
 
-// 대시보드용 "못 적은 지출 입력" — 지출관리와 같은 expenses/{YYYY-MM} 문서에 기록
-// bare: 제목 줄 없이 (지출관리의 '직접 입력' 탭 안에서 쓸 때)
-export default function MissedExpenseInput({ curMonth, onSaved, bare }) {
+// 지출관리 '직접 입력' 탭: 통장에 안 찍히는 지출을 한 줄로 추가 (expenses/{YYYY-MM} 문서에 기록)
+export default function MissedExpenseInput({ curMonth, onSaved }) {
   const [categories, setCategories] = useState(DEFAULT_CATEGORIES)
   const [monthData, setMonthData]   = useState({})
   const [date, setDate]             = useState(()=>defaultDateFor(curMonth))
@@ -67,17 +66,7 @@ export default function MissedExpenseInput({ curMonth, onSaved, bare }) {
   const dayItems = categories.filter(c=>(dayEntry[c.id]||0)>0)
   const dayTotal = dayItems.reduce((a,c)=>a+dayEntry[c.id],0)
 
-  // 이번 달(선택 월)에서 지출이 하나도 없는 날짜 — 오늘 이전까지만
   const [y,m] = ym.split('-').map(Number)
-  const now = new Date()
-  const thisYm = `${now.getFullYear()}-${pad(now.getMonth()+1)}`
-  const lastDay = ym===thisYm ? now.getDate()-1 : (ym<thisYm ? new Date(y,m,0).getDate() : 0)
-  const emptyDays = []
-  for(let d=1; d<=lastDay; d++) {
-    const e = monthData[pad(d)]
-    const sum = (e && typeof e==='object') ? categories.reduce((a,c)=>a+(e[c.id]||0),0) : 0
-    if(sum===0) emptyDays.push(pad(d))
-  }
 
   async function save() {
     const amt = +String(amount).replace(/[^0-9]/g,'') || 0
@@ -121,15 +110,7 @@ export default function MissedExpenseInput({ curMonth, onSaved, bare }) {
 
   return (
     <div>
-      {!bare && (
-        <div style={{display:'flex',justifyContent:'space-between',alignItems:'baseline',flexWrap:'wrap',gap:8,
-        borderBottom:'2px solid #1D1B18',paddingBottom:6}}>
-        <h2 style={{fontSize:16,fontWeight:800,margin:0,fontFamily:'inherit'}}>못 적은 지출 입력</h2>
-        <div style={{fontSize:12,color:'#6E6A63'}}>지출관리에 바로 반영돼요</div>
-        </div>
-      )}
-
-      <div style={{padding:'14px 0 0',display:'flex',flexDirection:'column',gap:14}}>
+      <div style={{padding:'10px 0 0',display:'flex',flexDirection:'column',gap:12}}>
         {/* 입력 폼 */}
         <div style={{display:'flex',gap:8,flexWrap:'wrap',alignItems:'center'}}>
           <input type="date" value={date} onChange={e=>e.target.value && setDate(e.target.value)} style={inputStyle}/>
@@ -173,30 +154,6 @@ export default function MissedExpenseInput({ curMonth, onSaved, bare }) {
           ))}
         </div>
 
-        {/* 지출이 없는 날짜 */}
-        {lastDay>0 && (
-          <div>
-            <div style={{fontSize:13,color:'#6E6A63',marginBottom:8}}>
-              {+m}월 지출이 하나도 없는 날 {emptyDays.length>0 ? `${emptyDays.length}일` : '— 모두 입력됨'}
-            </div>
-            <div style={{display:'flex',gap:5,flexWrap:'wrap'}}>
-              {emptyDays.map(d=>{
-                const dow = new Date(y,m-1,+d).getDay()
-                const active = d===dd
-                return (
-                  <button key={d} onClick={()=>setDate(`${ym}-${d}`)}
-                    style={{padding:'5px 9px',borderRadius:4,fontSize:12,fontWeight:600,cursor:'pointer',
-                      fontFamily:'inherit',fontVariantNumeric:'tabular-nums',border:'none',
-                      background:active?'#C3261C':'#FFFFFF',
-                      color:active?'#FFFFFF':dow===0?'#B42318':dow===6?'#2B5C9E':'#1D1B18',
-                      outline:active?'none':'1px solid #DCD7CE'}}>
-                    {+d}일
-                  </button>
-                )
-              })}
-            </div>
-          </div>
-        )}
       </div>
     </div>
   )
