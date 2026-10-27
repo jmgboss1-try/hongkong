@@ -269,13 +269,8 @@ export default function Revenue() {
     return m.kiosk+m.del+m.pos+mid.kiosk+mid.del+mid.pos+t.kiosk+t.del+t.pos > 0
   }).sort()
 
-  const cellBase  = {fontFamily:'inherit',fontVariantNumeric:'tabular-nums', textAlign:'right'}
-  const borderFull = {borderBottom:'1px solid #DCD7CE'}
-  const borderSub  = {borderBottom:'1px solid #ECE8E1'}
   const activeType = editDay ? editType : inputType
   const TYPE_COLORS = { morning:'#C3261C', middle:'#6B4FA0', close:'#2B5C9E' }
-  const typeColor  = TYPE_COLORS[activeType]
-  const typeBorder = activeType==='morning' ? 'rgba(195,38,28,0.35)' : activeType==='middle' ? 'rgba(107,79,160,0.35)' : 'rgba(43,92,158,0.35)'
 
   const now = new Date()
   const curYM = `${now.getFullYear()}-${pad(now.getMonth()+1)}`
@@ -292,415 +287,282 @@ export default function Revenue() {
   // 채널 상세보기 토글 (합계만 / 채널별)
   const [showChannelDetail, setShowChannelDetail] = useState(true)
 
+  // ── 장부 화면 조각 (지출관리·대시보드와 같은 모양). 함수로 그려야 입력칸 포커스가 안 빠짐 ──
+  const T = { ink:'#1D1B18', sub:'#6E6A63', faint:'#A8A39A', rule:'#DCD7CE', soft:'#ECE8E1', accent:'#C3261C',
+    red:'#B42318', green:'#2E7D45', blue:'#2B5C9E', purple:'#6B4FA0' }
+  const num = { fontVariantNumeric:'tabular-nums' }
+  const won = n => (n||0).toLocaleString('ko-KR')
+  const monthIdx = monthOpts.indexOf(curMonth)
+  const field = extra => ({ background:'#FFFFFF', border:'1px solid #CBC5BA', borderRadius:4, color:T.ink, padding:'8px 10px',
+    fontSize:14, outline:'none', fontFamily:'inherit', boxSizing:'border-box', ...extra })
+  const money = (val, set, label) => (
+    <input type="text" inputMode="numeric" placeholder="0" aria-label={label}
+      value={val === '' || val == null ? '' : (+val).toLocaleString('ko-KR')}
+      onChange={e=>set(e.target.value.replace(/[^0-9]/g,''))}
+      style={field({ width:'min(160px, 40vw)', textAlign:'right', ...num })}/>
+  )
+  const leader = () => <span aria-hidden="true" style={{flex:1, borderBottom:`1px dotted ${T.faint}`, margin:'0 8px', minWidth:12, transform:'translateY(-4px)'}}/>
+  const line = (label, value, { strong, sub, color, note, key, text } = {}) => (
+    <div key={key||label} style={{display:'flex', alignItems:'baseline', padding: sub ? '3px 0 3px 14px' : '7px 0',
+      fontSize: strong ? 17 : sub ? 13 : 15, fontWeight: strong ? 800 : sub ? 400 : 600, color: sub ? T.sub : T.ink}}>
+      <span style={{whiteSpace:'nowrap'}}>{label}</span>
+      {note && <span style={{fontSize:12, color:T.sub, marginLeft:6, whiteSpace:'nowrap', fontWeight:400}}>{note}</span>}
+      {leader()}
+      <span style={{...num, whiteSpace:'nowrap', color: color || 'inherit'}}>{text ?? won(value)}</span>
+    </div>
+  )
+  const inputRow = (label, control, note) => (
+    <div key={label} style={{display:'flex', alignItems:'center', padding:'5px 0', minHeight:44}}>
+      <span style={{fontSize:14, whiteSpace:'nowrap'}}>{label}</span>
+      {note && <span style={{fontSize:11, color:T.sub, marginLeft:6, whiteSpace:'nowrap'}}>{note}</span>}
+      {leader()}
+      {control}
+    </div>
+  )
+  const sectionTitle = (text, right, color) => (
+    <div style={{display:'flex', justifyContent:'space-between', alignItems:'baseline', gap:10, flexWrap:'wrap',
+      borderBottom:`2px solid ${T.ink}`, paddingBottom:6, marginBottom:6}}>
+      <h2 style={{fontSize:16, fontWeight:800, margin:0, fontFamily:'inherit', color: color || T.ink}}>{text}</h2>
+      {right && <div style={{display:'flex', alignItems:'center', gap:14, flexWrap:'wrap', fontSize:12, color:T.sub}}>{right}</div>}
+    </div>
+  )
+  const textTab = (on, label, onClick, color = T.accent) => (
+    <button key={label} type="button" onClick={onClick}
+      style={{background:'none', border:'none', padding:'4px 0', cursor:'pointer', fontFamily:'inherit', fontSize:13,
+        fontWeight: on ? 800 : 500, color: on ? T.ink : T.sub, borderBottom:`2px solid ${on ? color : 'transparent'}`}}>
+      {label}
+    </button>
+  )
+  const chip = (on, label, onClick) => (
+    <button type="button" onClick={onClick}
+      style={{fontFamily:'inherit', cursor:'pointer', borderRadius:4, whiteSpace:'nowrap', fontSize:12, padding:'6px 12px',
+        fontWeight: on ? 700 : 500, background: on ? T.accent : '#FFFFFF', color: on ? '#FFFFFF' : T.ink,
+        border: on ? 'none' : `1px solid ${T.rule}`}}>
+      {label}
+    </button>
+  )
+  const smallBtn = (label, onClick, danger) => (
+    <button type="button" onClick={onClick}
+      style={{background:'transparent', border:'none', color: danger ? T.red : T.sub, fontSize:12, cursor:'pointer',
+        padding: danger ? '0 0 0 6px' : '0 6px', fontFamily:'inherit'}}>{label}</button>
+  )
+
+  // 이 달 요약: 배달앱별 합계(마감 기준), 영업일, 하루 평균, 최고 매출일
+  const platTot = DELIVERY_PLATFORMS.map(p => ({ ...p, sum: activeDays.reduce((a,dd)=>a+(data[dd]?.[p.key]||0),0) }))
+  const dayTotals = activeDays.map(dd => { const t = getTotal(data[dd]); return { dd, sum: t.kiosk+t.del+t.pos } }).filter(x=>x.sum>0)
+  const best = dayTotals.reduce((a,x)=> !a || x.sum > a.sum ? x : a, null)
+  const avg = dayTotals.length ? Math.round(grand / dayTotals.length) : 0
+  const yest = (()=>{ const y=new Date(); y.setDate(y.getDate()-1); return pad(y.getDate()) })()
+  const typeLabel = t => t==='morning' ? '오전' : t==='middle' ? '미들타임' : '마감'
+
   return (
-    <div>
-      <div style={{display:'flex',alignItems:'flex-end',justifyContent:'space-between',marginBottom:22,flexWrap:'wrap',gap:10}}>
-        <div>
-          <div style={{fontSize:20,fontWeight:700}}>매출관리</div>
-          <div style={{fontSize:12,color:'#6E6A63',marginTop:2}}>{mLabel(curMonth)}</div>
-        </div>
-        <div style={{display:'flex',alignItems:'center',gap:12}}>
-          <div style={{fontSize:18,fontWeight:700,color:'#C3261C',fontFamily:'inherit',fontVariantNumeric:'tabular-nums'}}>{grand.toLocaleString()}원</div>
-          <select value={curMonth} onChange={e=>setCurMonth(e.target.value)}
-            style={{background:'#F3F1EC',border:'1px solid #DCD7CE',borderRadius:4,color:'#1D1B18',
-              padding:'8px 12px',fontSize:12,fontFamily:'inherit',outline:'none'}}>
+    <div style={{maxWidth:1100}}>
+      {/* 머리 */}
+      <header style={{display:'flex', alignItems:'center', justifyContent:'space-between', gap:12, flexWrap:'wrap',
+        paddingBottom:10, borderBottom:`3px double ${T.ink}`, marginBottom:22}}>
+        <h1 style={{fontSize:24, fontWeight:800, margin:0, letterSpacing:'-0.01em', fontFamily:'inherit', color:T.ink}}>{mLabel(curMonth)} 매출</h1>
+        <div style={{display:'flex', alignItems:'center', gap:6}}>
+          <button type="button" aria-label="이전 달" disabled={monthIdx<=0} onClick={()=>setCurMonth(monthOpts[monthIdx-1])}
+            style={{background:'none', border:`1px solid ${T.rule}`, borderRadius:4, padding:'6px 10px', cursor:'pointer', fontFamily:'inherit', color:T.ink}}>이전</button>
+          <select value={curMonth} onChange={e=>setCurMonth(e.target.value)} aria-label="달 고르기"
+            style={{background:'#FFFFFF', border:`1px solid ${T.rule}`, borderRadius:4, color:T.ink, padding:'7px 10px', fontSize:13, fontFamily:'inherit', outline:'none'}}>
             {monthOpts.map(m=><option key={m} value={m}>{mLabel(m)}</option>)}
           </select>
+          <button type="button" aria-label="다음 달" disabled={monthIdx>=monthOpts.length-1} onClick={()=>setCurMonth(monthOpts[monthIdx+1])}
+            style={{background:'none', border:`1px solid ${T.rule}`, borderRadius:4, padding:'6px 10px', cursor:'pointer', fontFamily:'inherit', color:T.ink}}>다음</button>
         </div>
-      </div>
+      </header>
 
-      {isOwner && (
-        <div style={{background:'#FFFFFF',border:`1px solid ${editDay?'#C3261C':'#DCD7CE'}`,borderRadius:6,marginBottom:18}}>
-          <div style={{padding:'14px 18px',borderBottom:'1px solid #DCD7CE',fontSize:13,fontWeight:600,
-            color:editDay?'#C3261C':'#1D1B18',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
-            <span>
-              {editDay
-                ? `${+editDay}일 (${getDow(curMonth,editDay)}) ${editType==='morning'?'오전':editType==='middle'?'미들타임':'마감'} 수정 중`
-                : '매출 입력'}
-            </span>
-            {editDay && (
-              <button onClick={cancelEdit}
-                style={{background:'transparent',border:'1px solid #DCD7CE',color:'#6E6A63',
-                  borderRadius:6,padding:'4px 10px',fontSize:11,cursor:'pointer',fontFamily:'inherit'}}>
-                취소
-              </button>
+      {/* 이 달 요약 */}
+      {!loading && (
+        <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(min(100%, 380px), 1fr))', gap:'28px 40px', marginBottom:30}}>
+          <section>
+            {sectionTitle('채널별 매출')}
+            {line('키오스크', tot.kiosk, { note: grand ? `${Math.round(tot.kiosk/grand*100)}%` : undefined })}
+            {line('배달', tot.del, { note: grand ? `${Math.round(tot.del/grand*100)}%` : undefined })}
+            {platTot.filter(p=>p.sum>0).map(p=>line(p.label, p.sum, { sub:true, key:p.key }))}
+            {line('포스', tot.pos, { note: grand ? `${Math.round(tot.pos/grand*100)}%` : undefined })}
+            <div style={{borderTop:`3px double ${T.ink}`, marginTop:6, paddingTop:2}}>{line('매출 합계', grand, { strong:true })}</div>
+          </section>
+          <section>
+            {sectionTitle('한눈에')}
+            {line('마감 입력한 날', 0, { text:`${dayTotals.length}일` })}
+            {line('하루 평균', avg)}
+            {best && line('가장 많이 판 날', best.sum, { note:`${+best.dd}일 (${getDow(curMonth,best.dd)})` })}
+            {isNewMonth && activeDays.some(dd=>(hasMorningData(dd)||hasMiddleData(dd)) && !hasTotalData(dd)) && (
+              <div style={{marginTop:8, fontSize:13, color:T.red}}>
+                마감이 빠진 날: {activeDays.filter(dd=>(hasMorningData(dd)||hasMiddleData(dd)) && !hasTotalData(dd)).map(dd=>`${+dd}일`).join(', ')}
+              </div>
             )}
-          </div>
-
-          {isNewMonth && !editDay && (
-            <div style={{padding:'12px 18px 0',display:'flex',gap:6,alignItems:'center',flexWrap:'wrap'}}>
-              {[['morning','오전 입력','#C3261C'],['middle','미들타임 입력','#6B4FA0'],['close','마감 입력','#2B5C9E']].map(([t,label,c])=>(
-                <button key={t} onClick={()=>setInputType(t)}
-                  style={{padding:'7px 16px',borderRadius:4,border:'none',fontSize:12,fontWeight:600,
-                    cursor:'pointer',fontFamily:'inherit',
-                    background:inputType===t?`${c}22`:'#F3F1EC',
-                    color:inputType===t?c:'#6E6A63',
-                    outline:inputType===t?`1.5px solid ${c}55`:'1.5px solid transparent'}}>
-                  {label}
-                </button>
-              ))}
-              {inputType==='close' && (
-                <span style={{marginLeft:8,fontSize:10,color:'#6E6A63'}}>오후는 자동 계산됩니다 (마감-오전-미들)</span>
-              )}
-            </div>
-          )}
-          {((editDay ? editType : inputType) === 'middle') && (
-            <div style={{padding:'12px 18px 0'}}>
-              <div style={{background:'rgba(107,79,160,0.08)',border:'1px solid rgba(107,79,160,0.2)',
-                borderRadius:4,padding:'8px 10px',fontSize:10,color:'#6B4FA0',lineHeight:1.6}}>
-                POS/키오스크에 찍힌 <b>누적 금액 그대로</b> 입력하세요. 오전 매출을 자동으로 빼서 미들타임 순수 매출만 저장돼요.
-              </div>
-            </div>
-          )}
-
-          <div style={{padding:'14px 18px',display:'grid',gridTemplateColumns:'140px repeat(3,1fr)',gap:10}}>
-            <div style={{display:'flex',flexDirection:'column',gap:4}}>
-              <label style={{fontSize:10,color:'#6E6A63',fontWeight:600}}>날짜</label>
-              {editDay ? (
-                <div style={{background:'#F3F1EC',border:'1px solid #C3261C',borderRadius:4,
-                  color:'#C3261C',padding:'8px 10px',fontSize:13,fontWeight:700}}>
-                  {+editDay}일 ({getDow(curMonth,editDay)})
-                </div>
-              ) : (
-                <div style={{display:'flex',flexDirection:'column',gap:6}}>
-                  {isThisMonth && (
-                    <div style={{display:'flex',gap:6}}>
-                      <button onClick={()=>setDay(pad(now.getDate()))}
-                        style={{flex:1,padding:'5px',borderRadius:6,border:'none',fontSize:11,fontWeight:600,cursor:'pointer',fontFamily:'inherit',
-                          background:day===pad(now.getDate())?'#C3261C':'#F3F1EC',
-                          color:day===pad(now.getDate())?'#FFFFFF':'#6E6A63'}}>
-                        오늘 ({now.getDate()}일)
-                      </button>
-                      <button onClick={()=>{const y=new Date();y.setDate(y.getDate()-1);setDay(pad(y.getDate()))}}
-                        style={{flex:1,padding:'5px',borderRadius:6,border:'none',fontSize:11,fontWeight:600,cursor:'pointer',fontFamily:'inherit',
-                          background:(()=>{const y=new Date();y.setDate(y.getDate()-1);return day===pad(y.getDate())})()? '#C3261C':'#F3F1EC',
-                          color:(()=>{const y=new Date();y.setDate(y.getDate()-1);return day===pad(y.getDate())})()? '#FFFFFF':'#6E6A63'}}>
-                        어제 ({(()=>{const y=new Date();y.setDate(y.getDate()-1);return y.getDate()})()}일)
-                      </button>
-                    </div>
-                  )}
-                  <select value={day} onChange={e=>setDay(e.target.value)}
-                    style={{background:'#F3F1EC',border:'1px solid #DCD7CE',borderRadius:4,color:'#1D1B18',
-                      padding:'8px 10px',fontSize:12,fontFamily:'inherit',outline:'none'}}>
-                    {Array.from({length:days},(_,i)=>{
-                      const dd = pad(i+1)
-                      const dup = isNewMonth ? isDuplicateNew(dd, inputType) : isDuplicateOld(dd)
-                      return (
-                        <option key={i} value={dd} style={{color:dup?'#B42318':'inherit'}}>
-                          {i+1}일 ({getDow(curMonth,dd)}){dup?' ⚠중복':''}
-                        </option>
-                      )
-                    })}
-                  </select>
-                </div>
-              )}
-            </div>
-            {/* 키오스크 */}
-            <div style={{display:'flex',flexDirection:'column',gap:4}}>
-              <label style={{fontSize:10,fontWeight:600,color:isNewMonth?typeColor:'#6E6A63'}}>키오스크 (원)</label>
-              <input type="number" value={kiosk} onChange={e=>setKiosk(e.target.value)}
-                placeholder="0" min="0"
-                style={{background:'#F3F1EC',border:`1px solid ${isNewMonth?typeBorder:'#DCD7CE'}`,
-                  borderRadius:4,color:'#1D1B18',padding:'8px 10px',fontSize:12,outline:'none',width:'100%'}}/>
-            </div>
-            {/* 배달 - 토글 */}
-            <div style={{display:'flex',flexDirection:'column',gap:4}}>
-              <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
-                <label style={{fontSize:10,fontWeight:600,color:isNewMonth?typeColor:'#6E6A63'}}>배달 (원)</label>
-                <button onClick={()=>setShowDelDetail(v=>!v)}
-                  style={{fontSize:9,color:showDelDetail?typeColor:'#6E6A63',background:'transparent',
-                    border:`1px solid ${showDelDetail?typeBorder:'#DCD7CE'}`,borderRadius:4,
-                    padding:'2px 7px',cursor:'pointer',fontFamily:'inherit'}}>
-                  {showDelDetail ? '▲ 합계 입력' : '▼ 플랫폼별 입력'}
-                </button>
-              </div>
-              {!showDelDetail ? (
-                <input type="number" value={del} onChange={e=>setDel(e.target.value)}
-                  placeholder="0" min="0"
-                  style={{background:'#F3F1EC',border:`1px solid ${isNewMonth?typeBorder:'#DCD7CE'}`,
-                    borderRadius:4,color:'#1D1B18',padding:'8px 10px',fontSize:12,outline:'none',width:'100%'}}/>
-              ) : (
-                <div style={{display:'flex',flexDirection:'column',gap:6}}>
-                  <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:6}}>
-                    {[
-                      [baemin,setBaemin,'배달의민족','#2E7D45'],
-                      [coupang,setCoupang,'쿠팡이츠','#B42318'],
-                      [yogiyo,setYogiyo,'요기요','#C3261C'],
-                      [ddangyeo,setDdangyeo,'땡겨요','#2B5C9E'],
-                    ].map(([val,set,label,color])=>(
-                      <div key={label}>
-                        <label style={{fontSize:9,color:color,fontWeight:600,display:'block',marginBottom:3}}>{label}</label>
-                        <input type="number" value={val} onChange={e=>set(e.target.value)}
-                          placeholder="0" min="0"
-                          style={{background:'#F3F1EC',border:`1px solid ${color}33`,
-                            borderRadius:6,color:'#1D1B18',padding:'7px 8px',fontSize:12,
-                            outline:'none',width:'100%',fontFamily:'inherit',fontVariantNumeric:'tabular-nums'}}/>
-                      </div>
-                    ))}
-                  </div>
-                  {delTotal > 0 && (
-                    <div style={{textAlign:'right',fontSize:11,color:typeColor,fontFamily:'inherit',fontVariantNumeric:'tabular-nums',fontWeight:700}}>
-                      배달 합계: {delTotal.toLocaleString()}원
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-            {/* 포스 */}
-            <div style={{display:'flex',flexDirection:'column',gap:4}}>
-              <label style={{fontSize:10,fontWeight:600,color:isNewMonth?typeColor:'#6E6A63'}}>포스/현장 (원)</label>
-              <input type="number" value={pos} onChange={e=>setPos(e.target.value)}
-                placeholder="0" min="0"
-                style={{background:'#F3F1EC',border:`1px solid ${isNewMonth?typeBorder:'#DCD7CE'}`,
-                  borderRadius:4,color:'#1D1B18',padding:'8px 10px',fontSize:12,outline:'none',width:'100%'}}/>
-            </div>
-          </div>
-          {isMiddleActive && (
-            <div style={{padding:'0 18px 14px'}}>
-              <div style={{background:'#F3F1EC',borderRadius:4,padding:'10px 14px',
-                display:'flex',justifyContent:'space-between',alignItems:'center'}}>
-                <span style={{fontSize:11,color:'#6B4FA0',fontWeight:600}}>→ 미들타임 순수 매출 (저장될 값)</span>
-                <span style={{fontSize:15,fontWeight:700,color:'#6B4FA0',fontFamily:'inherit',fontVariantNumeric:'tabular-nums'}}>
-                  {pureMiddlePreview.toLocaleString()}원
-                </span>
-              </div>
-            </div>
-          )}
-          <div style={{padding:'0 18px 18px'}}>
-            <button onClick={save} disabled={saving}
-              style={{background:'#C3261C',color:'#FFFFFF',border:'none',borderRadius:4,padding:'9px 20px',
-                fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
-              {saving ? '저장 중...' : editDay ? '수정 완료' : '저 장'}
-            </button>
-          </div>
+          </section>
         </div>
       )}
 
-      <div style={{background:'#FFFFFF',border:'1px solid #DCD7CE',borderRadius:6,overflow:'hidden'}}>
-        <div style={{padding:'14px 18px',borderBottom:'1px solid #DCD7CE',fontSize:13,fontWeight:600,
-          display:'flex',justifyContent:'space-between',alignItems:'center',flexWrap:'wrap',gap:8}}>
-          <span>{mLabel(curMonth)} 매출 내역</span>
-          <div style={{display:'flex',alignItems:'center',gap:10}}>
-            <div style={{display:'flex',gap:4}}>
-              {[[true,'채널별'],[false,'합계만']].map(([val,label])=>(
-                <button key={label} onClick={()=>setShowChannelDetail(val)}
-                  style={{padding:'4px 10px',borderRadius:5,border:'none',fontSize:10,fontWeight:600,
-                    cursor:'pointer',fontFamily:'inherit',
-                    background:showChannelDetail===val?'#C3261C':'#F3F1EC',
-                    color:showChannelDetail===val?'#FFFFFF':'#6E6A63',
-                    outline:showChannelDetail===val?'none':'1px solid #DCD7CE'}}>
-                  {label}
-                </button>
-              ))}
+      {/* 매출 입력 (사장만) */}
+      {isOwner && (
+        <section style={{marginBottom:30}}>
+          {sectionTitle(
+            editDay ? `${+editDay}일 (${getDow(curMonth,editDay)}) ${typeLabel(editType)} 고치는 중` : '매출 입력',
+            editDay
+              ? <button type="button" onClick={cancelEdit} style={{background:'#FFFFFF', border:`1px solid ${T.rule}`, borderRadius:4, padding:'4px 10px', fontSize:12, cursor:'pointer', fontFamily:'inherit', color:T.ink}}>취소</button>
+              : isNewMonth && <>
+                  {textTab(inputType==='morning', '오전', ()=>setInputType('morning'), TYPE_COLORS.morning)}
+                  {textTab(inputType==='middle', '미들타임', ()=>setInputType('middle'), TYPE_COLORS.middle)}
+                  {textTab(inputType==='close', '마감', ()=>setInputType('close'), TYPE_COLORS.close)}
+                </>,
+            editDay ? T.accent : undefined)}
+
+          <div style={{paddingTop:8}}>
+            {!editDay && (
+              <div style={{display:'flex', gap:8, alignItems:'center', flexWrap:'wrap', marginBottom:10}}>
+                <span style={{fontSize:13, color:T.sub}}>날짜</span>
+                {isThisMonth && <>
+                  {chip(day===pad(now.getDate()), `오늘 (${now.getDate()}일)`, ()=>setDay(pad(now.getDate())))}
+                  {chip(day===yest, `어제 (${+yest}일)`, ()=>setDay(yest))}
+                </>}
+                <select value={day} onChange={e=>setDay(e.target.value)} aria-label="날짜" style={field({ fontSize:13 })}>
+                  {Array.from({length:days},(_,i)=>{
+                    const dd = pad(i+1)
+                    const dup = isNewMonth ? isDuplicateNew(dd, inputType) : isDuplicateOld(dd)
+                    return <option key={i} value={dd}>{i+1}일 ({getDow(curMonth,dd)}){dup ? ' · 입력됨' : ''}</option>
+                  })}
+                </select>
+                {isNewMonth && inputType==='close' && <span style={{fontSize:12, color:T.sub}}>오후는 마감 − 오전 − 미들로 자동 계산돼요</span>}
+              </div>
+            )}
+            {activeType === 'middle' && (
+              <div style={{fontSize:12, color:T.purple, marginBottom:6, lineHeight:1.6}}>
+                POS·키오스크에 찍힌 <b>누적 금액 그대로</b> 적으세요. 오전 매출을 빼서 미들타임 매출만 저장돼요.
+              </div>
+            )}
+
+            <div style={{maxWidth:520}}>
+              {inputRow('키오스크', money(kiosk, setKiosk, '키오스크'))}
+              {!showDelDetail
+                ? inputRow('배달', money(del, setDel, '배달'))
+                : <>
+                    <div style={{fontSize:12, fontWeight:700, color:T.sub, padding:'8px 0 2px', borderBottom:`1px solid ${T.rule}`}}>배달 (앱별)</div>
+                    {inputRow('배달의민족', money(baemin, setBaemin, '배달의민족'))}
+                    {inputRow('쿠팡이츠', money(coupang, setCoupang, '쿠팡이츠'))}
+                    {inputRow('요기요', money(yogiyo, setYogiyo, '요기요'))}
+                    {inputRow('땡겨요', money(ddangyeo, setDdangyeo, '땡겨요'))}
+                    {line('배달 합계', delTotal, { sub:true })}
+                  </>}
+              <button type="button" onClick={()=>setShowDelDetail(v=>!v)}
+                style={{background:'none', border:'none', borderBottom:`1px solid ${T.blue}`, color:T.blue, padding:0, fontSize:12, cursor:'pointer', fontFamily:'inherit', margin:'2px 0 4px'}}>
+                {showDelDetail ? '배달을 합계 하나로 입력' : '배달을 앱별로 입력'}
+              </button>
+              {inputRow('포스·현장', money(pos, setPos, '포스'))}
+              <div style={{borderTop:`3px double ${T.ink}`, marginTop:6, paddingTop:2}}>
+                {isMiddleActive
+                  ? line('미들타임 매출 (저장될 값)', pureMiddlePreview, { strong:true, color:T.purple })
+                  : line(`${+(editDay||day)}일 ${isNewMonth ? typeLabel(activeType) : ''} 합계`, (+kiosk||0)+(showDelDetail?delTotal:(+del||0))+(+pos||0), { strong:true })}
+              </div>
             </div>
-            <span style={{color:'#C3261C',fontFamily:'inherit',fontVariantNumeric:'tabular-nums'}}>{grand.toLocaleString()}원</span>
+            <button onClick={save} disabled={saving}
+              style={{marginTop:10, background:T.accent, color:'#FFFFFF', border:'none', borderRadius:4, padding:'8px 20px',
+                fontSize:13, fontWeight:700, cursor:'pointer', fontFamily:'inherit', opacity: saving ? 0.6 : 1}}>
+              {saving ? '저장 중...' : editDay ? '고친 내용 저장' : '저장'}
+            </button>
           </div>
-        </div>
-        {loading ? (
-          <div style={{textAlign:'center',color:'#6E6A63',padding:40}}>로딩 중...</div>
-        ) : (
+        </section>
+      )}
+
+      {/* 일별 매출 내역 */}
+      <section>
+        {sectionTitle('일별 매출 내역', <>
+          {textTab(showChannelDetail, '채널별', ()=>setShowChannelDetail(true))}
+          {textTab(!showChannelDetail, '합계만', ()=>setShowChannelDetail(false))}
+        </>)}
+        {loading ? <div style={{color:T.sub, padding:'30px 0'}}>불러오는 중...</div> : (
           <div style={{overflowX:'auto'}}>
-            <table style={{width:'100%',borderCollapse:'collapse',fontSize:12}}>
+            <table style={{width:'100%', borderCollapse:'collapse', fontSize:13, ...num}}>
               <thead>
-                <tr style={{background:'#F3F1EC'}}>
-                  {[
-                    '날짜','요일',
-                    ...(isNewMonth ? ['구분'] : []),
-                    ...(showChannelDetail ? ['키오스크','배달','포스'] : []),
-                    '합계',
-                    ...(isOwner ? ['관리'] : [])
-                  ].map(h=>(
-                    <th key={h} style={{padding:'8px 14px',fontSize:10,fontWeight:600,color:'#6E6A63',
-                      textAlign:['날짜','요일','구분'].includes(h)?'left':'right',whiteSpace:'nowrap'}}>{h}</th>
+                <tr>
+                  {['날짜', ...(isNewMonth ? ['구분'] : []), ...(showChannelDetail ? ['키오스크','배달','포스'] : []), '합계', ...(isOwner ? [''] : [])].map((h,i)=>(
+                    <th key={h+i} style={{padding:'8px 12px', fontSize:12, fontWeight:600, color:T.sub, borderBottom:`1px solid ${T.ink}`,
+                      textAlign:['날짜','구분'].includes(h)?'left':'right', whiteSpace:'nowrap'}}>{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
                 {activeDays.length === 0 && (
-                  <tr>
-                    <td colSpan={isOwner?9:8} style={{padding:28,textAlign:'center',color:'#6E6A63'}}>
-                      입력된 데이터가 없습니다
-                    </td>
-                  </tr>
+                  <tr><td colSpan={isOwner?7:6} style={{padding:28, textAlign:'center', color:T.sub}}>입력된 매출이 없어요</td></tr>
                 )}
                 {activeDays.map(dd => {
                   const r = data[dd]
-                  const hasMorning = hasMorningData(dd)
-                  const hasMiddle  = hasMiddleData(dd)
-                  const hasTotal   = hasTotalData(dd)
+                  const dayCell = rowSpan => (
+                    <td rowSpan={rowSpan} style={{padding:'8px 12px', borderBottom:`1px solid ${T.rule}`, verticalAlign:'top', whiteSpace:'nowrap',
+                      color:getDowColor(curMonth,dd), fontWeight:600}}>{+dd}일 ({getDow(curMonth,dd)})</td>
+                  )
+                  const platLines = keys => DELIVERY_PLATFORMS.some(p=>(r[keys[p.key]]||0)!==0) && (
+                    <div style={{marginTop:2}}>
+                      {DELIVERY_PLATFORMS.filter(p=>(r[keys[p.key]]||0)!==0).map(p=>(
+                        <div key={p.key} style={{display:'flex', justifyContent:'space-between', gap:8, fontSize:11, lineHeight:1.5, color:T.sub}}>
+                          <span>{p.label}</span><span>{won(r[keys[p.key]])}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )
+                  const td = (last, extra) => ({ padding:'7px 12px', borderBottom:`1px solid ${last ? T.rule : T.soft}`, textAlign:'right', whiteSpace:'nowrap', verticalAlign:'top', ...extra })
 
                   if (!isNewMonth) {
                     const t = getTotal(r)
-                    const s = t.kiosk+t.del+t.pos
                     return (
                       <tr key={dd}>
-                        <td style={{padding:'9px 14px',...borderFull,color:'#1D1B18',fontFamily:'inherit',fontVariantNumeric:'tabular-nums'}}>{+dd}일</td>
-                        <td style={{padding:'9px 14px',...borderFull,color:getDowColor(curMonth,dd),fontWeight:600}}>{getDow(curMonth,dd)}</td>
-                        {showChannelDetail && (
-                          <>
-                            <td style={{padding:'9px 14px',...borderFull,...cellBase}}>{wonCell(t.kiosk)}</td>
-                            <td style={{padding:'9px 14px',...borderFull,...cellBase}}>
-                              {wonCell(t.del)}
-                              {DELIVERY_PLATFORMS.some(p=>(r[p.key]||0)>0) && (
-                                <div style={{marginTop:3}}>
-                                  {DELIVERY_PLATFORMS.filter(p=>(r[p.key]||0)>0).map(p=>(
-                                    <div key={p.key} style={{display:'flex',justifyContent:'space-between',fontSize:9,color:'#6E6A63'}}>
-                                      <span style={{color:p.color}}>{p.label}</span>
-                                      <span style={{fontFamily:'inherit',fontVariantNumeric:'tabular-nums'}}>{(r[p.key]||0).toLocaleString()}</span>
-                                    </div>
-                                  ))}
-                                </div>
-                              )}
-                            </td>
-                            <td style={{padding:'9px 14px',...borderFull,...cellBase}}>{wonCell(t.pos)}</td>
-                          </>
-                        )}
-                        <td style={{padding:'9px 14px',...borderFull,...cellBase,color:'#C3261C',fontWeight:700}}>{s.toLocaleString()}</td>
-                        {isOwner && (
-                          <td style={{padding:'9px 14px',...borderFull,textAlign:'right',whiteSpace:'nowrap'}}>
-                            <button onClick={()=>startEdit(dd,'close')}
-                              style={{background:'transparent',border:'1px solid #DCD7CE',color:'#1D1B18',padding:'3px 8px',fontSize:10,borderRadius:4,cursor:'pointer',fontFamily:'inherit',marginRight:4}}>수정</button>
-                            <button onClick={()=>delRow(dd,'close')}
-                              style={{background:'transparent',border:'1px solid #E8C4BF',color:'#B42318',padding:'3px 8px',fontSize:10,borderRadius:4,cursor:'pointer',fontFamily:'inherit'}}>삭제</button>
-                          </td>
-                        )}
+                        {dayCell(1)}
+                        {showChannelDetail && <>
+                          <td style={td(true)}>{wonCell(t.kiosk)}</td>
+                          <td style={td(true)}>{wonCell(t.del)}{platLines({ baemin:'baemin', coupang:'coupang', yogiyo:'yogiyo', ddangyeo:'ddangyeo' })}</td>
+                          <td style={td(true)}>{wonCell(t.pos)}</td>
+                        </>}
+                        <td style={td(true, { fontWeight:700 })}>{won(t.kiosk+t.del+t.pos)}</td>
+                        {isOwner && <td style={td(true)}>{smallBtn('수정', ()=>startEdit(dd,'close'))}{smallBtn('삭제', ()=>delRow(dd,'close'), true)}</td>}
                       </tr>
                     )
                   }
 
-                  const afternoon  = getAfternoon(r)
-                  const morningRec = getMorning(r)
-                  const middleRec  = getMiddle(r)
-                  const totalRec   = getTotal(r)
-                  const morningSum = morningRec.kiosk+morningRec.del+morningRec.pos
-                  const middleSum  = middleRec.kiosk+middleRec.del+middleRec.pos
-                  const totalSum   = totalRec.kiosk+totalRec.del+totalRec.pos
-                  const aftSum     = afternoon ? afternoon.kiosk+afternoon.del+afternoon.pos : 0
-                  const isNeg      = afternoon && (afternoon.kiosk<0||afternoon.del<0||afternoon.pos<0)
-
-                  const subRows = []
-                  if (hasMorning) {
-                    subRows.push({id:'morning', label:'오전', color:'#C3261C',
-                      k:morningRec.kiosk, d:morningRec.del, p:morningRec.pos, sum:morningSum,
-                      canEdit:true, eType:'morning', isAuto:false})
+                  const afternoon = getAfternoon(r)
+                  const mRec = getMorning(r), midRec = getMiddle(r), tRec = getTotal(r)
+                  const hasM = hasMorningData(dd), hasMid = hasMiddleData(dd), hasT = hasTotalData(dd)
+                  const isNeg = afternoon && (afternoon.kiosk<0||afternoon.del<0||afternoon.pos<0)
+                  const rows = []
+                  if (hasM) rows.push({ id:'morning', label:'오전', color:TYPE_COLORS.morning, v:mRec, eType:'morning',
+                    plat:{baemin:'morningBaemin',coupang:'morningCoupang',yogiyo:'morningYogiyo',ddangyeo:'morningDdangyeo'} })
+                  if (hasMid) rows.push({ id:'middle', label:'미들', color:TYPE_COLORS.middle, v:midRec, eType:'middle',
+                    plat:{baemin:'middleBaemin',coupang:'middleCoupang',yogiyo:'middleYogiyo',ddangyeo:'middleDdangyeo'} })
+                  if ((hasM||hasMid) && hasT) {
+                    rows.push({ id:'afternoon', label: isNeg ? '오후 (오전+미들이 더 큼)' : '오후', auto:true, color: isNeg ? T.red : T.blue, v:afternoon })
+                    rows.push({ id:'total', label:'하루 합계', color:T.ink, v:tRec, eType:'close', strong:true,
+                      plat:{baemin:'baemin',coupang:'coupang',yogiyo:'yogiyo',ddangyeo:'ddangyeo'} })
+                  } else if (hasM||hasMid) {
+                    rows.push({ id:'warn', label:'마감 미입력', color:T.red, v:null })
+                  } else if (hasT) {
+                    rows.push({ id:'total', label:'마감', color:T.ink, v:tRec, eType:'close', strong:true,
+                      plat:{baemin:'baemin',coupang:'coupang',yogiyo:'yogiyo',ddangyeo:'ddangyeo'} })
                   }
-                  if (hasMiddle) {
-                    subRows.push({id:'middle', label:'미들', color:'#6B4FA0',
-                      k:middleRec.kiosk, d:middleRec.del, p:middleRec.pos, sum:middleSum,
-                      canEdit:true, eType:'middle', isAuto:false})
-                  }
-                  if ((hasMorning || hasMiddle) && hasTotal) {
-                    subRows.push({id:'afternoon', label:'오후', color:isNeg?'#B42318':'#2B5C9E',
-                      k:afternoon.kiosk, d:afternoon.del, p:afternoon.pos, sum:aftSum,
-                      canEdit:false, isAuto:true, isNeg})
-                    subRows.push({id:'total', label:'합계', color:'#2E7D45',
-                      k:totalRec.kiosk, d:totalRec.del, p:totalRec.pos, sum:totalSum,
-                      canEdit:true, eType:'close', isAuto:false})
-                  } else if ((hasMorning || hasMiddle) && !hasTotal) {
-                    subRows.push({id:'warn', label:'마감미입력', color:'#B42318',
-                      k:null, d:null, p:null, sum:null, canEdit:false, isWarn:true})
-                  } else if (!hasMorning && !hasMiddle && hasTotal) {
-                    subRows.push({id:'total', label:'—', color:'#1D1B18',
-                      k:totalRec.kiosk, d:totalRec.del, p:totalRec.pos, sum:totalSum,
-                      canEdit:true, eType:'close', isAuto:false})
-                  }
-
-                  const rowCount = subRows.length
-                  return subRows.map((row, ri) => {
-                    const isLast = ri === rowCount - 1
-                    const bStyle = isLast ? borderFull : borderSub
-                    const rowBg  =
-                      row.id==='morning'   ? 'rgba(195,38,28,0.04)'  :
-                      row.id==='middle'    ? 'rgba(107,79,160,0.04)' :
-                      row.id==='afternoon' ? 'rgba(43,92,158,0.04)' :
-                      row.id==='total'     ? 'rgba(46,125,69,0.04)'  :
-                      row.isWarn           ? 'rgba(180,35,24,0.04)' : 'transparent'
-                    const delPlatformKeys = row.id==='morning'
-                      ? {baemin:'morningBaemin',coupang:'morningCoupang',yogiyo:'morningYogiyo',ddangyeo:'morningDdangyeo'}
-                      : row.id==='middle'
-                      ? {baemin:'middleBaemin',coupang:'middleCoupang',yogiyo:'middleYogiyo',ddangyeo:'middleDdangyeo'}
-                      : {baemin:'baemin',coupang:'coupang',yogiyo:'yogiyo',ddangyeo:'ddangyeo'}
+                  return rows.map((row, ri) => {
+                    const last = ri === rows.length-1
+                    const v = row.v
+                    const sum = v ? v.kiosk+v.del+v.pos : null
                     return (
-                      <tr key={`${dd}-${row.id}`} style={{background:rowBg}}>
-                        {ri === 0 && (
-                          <>
-                            <td rowSpan={rowCount}
-                              style={{padding:'9px 14px',...borderFull,color:'#1D1B18',
-                                fontFamily:'inherit',fontVariantNumeric:'tabular-nums',verticalAlign:'middle'}}>
-                              {+dd}일
-                            </td>
-                            <td rowSpan={rowCount}
-                              style={{padding:'9px 14px',...borderFull,
-                                color:getDowColor(curMonth,dd),fontWeight:600,verticalAlign:'middle'}}>
-                              {getDow(curMonth,dd)}
-                            </td>
-                          </>
-                        )}
-                        <td style={{padding:'6px 14px',...bStyle,fontSize:11,fontWeight:700,
-                          color:row.color,whiteSpace:'nowrap'}}>
-                          {row.isNeg ? '오후(오전+미들>합계)' : row.label}
-                          {row.isAuto && !row.isNeg
-                            ? <span style={{fontSize:9,color:'#A8A39A',marginLeft:4,fontWeight:400}}>자동</span>
-                            : null}
+                      <tr key={`${dd}-${row.id}`}>
+                        {ri === 0 && dayCell(rows.length)}
+                        <td style={td(last, { textAlign:'left', color:row.color, fontWeight: row.strong ? 700 : 600, fontSize:12 })}>
+                          {row.label}{row.auto && !isNeg && <span style={{fontSize:11, color:T.faint, marginLeft:4, fontWeight:400}}>자동</span>}
                         </td>
-                        {showChannelDetail && [row.k, row.d, row.p].map((v, ci) => {
-                          const isDel = ci === 1
-                          return (
-                          <td key={ci} style={{padding:'6px 14px',...bStyle,...cellBase,
-                            color:row.isNeg&&row.id==='afternoon'?'#B42318':'#1D1B18'}}>
-                            {v !== null ? wonCell(v) : '—'}
-                            {isDel && ['morning','middle'].includes(row.id) && DELIVERY_PLATFORMS.some(p=>(r[delPlatformKeys[p.key]]||0)>0) && (
-                              <div style={{marginTop:3}}>
-                                {DELIVERY_PLATFORMS.filter(p=>(r[delPlatformKeys[p.key]]||0)>0).map(p=>(
-                                  <div key={p.key} style={{display:'flex',justifyContent:'space-between',fontSize:9,color:'#6E6A63'}}>
-                                    <span style={{color:p.color}}>{p.label}</span>
-                                    <span style={{fontFamily:'inherit',fontVariantNumeric:'tabular-nums'}}>{(r[delPlatformKeys[p.key]]||0).toLocaleString()}</span>
-                                  </div>
-                                ))}
-                              </div>
-                            )}
-                            {isDel && row.id==='afternoon' && DELIVERY_PLATFORMS.some(p=>{
-                              const val = (r[p.key]||0)-(r[`morning${p.key.charAt(0).toUpperCase()+p.key.slice(1)}`]||0)-(r[`middle${p.key.charAt(0).toUpperCase()+p.key.slice(1)}`]||0)
-                              return val !== 0
-                            }) && (
-                              <div style={{marginTop:3}}>
-                                {DELIVERY_PLATFORMS.map(p=>{
-                                  const cap = p.key.charAt(0).toUpperCase()+p.key.slice(1)
-                                  const val = (r[p.key]||0)-(r[`morning${cap}`]||0)-(r[`middle${cap}`]||0)
-                                  if(!val) return null
-                                  return (
-                                    <div key={p.key} style={{display:'flex',justifyContent:'space-between',fontSize:9,color:'#6E6A63'}}>
-                                      <span style={{color:p.color}}>{p.label}</span>
-                                      <span style={{fontFamily:'inherit',fontVariantNumeric:'tabular-nums'}}>{val.toLocaleString()}</span>
-                                    </div>
-                                  )
-                                })}
-                              </div>
-                            )}
+                        {showChannelDetail && <>
+                          <td style={td(last, { color: v && v.kiosk<0 ? T.red : undefined })}>{v ? wonCell(v.kiosk) : '—'}</td>
+                          <td style={td(last, { color: v && v.del<0 ? T.red : undefined })}>
+                            {v ? wonCell(v.del) : '—'}
+                            {row.plat && platLines(row.plat)}
                           </td>
-                        )})}
-                        <td style={{padding:'6px 14px',...bStyle,...cellBase,
-                          fontWeight:row.id==='total'?700:500,
-                          color:row.id==='total'?'#2E7D45':row.id==='morning'?'#C3261C':row.id==='middle'?'#6B4FA0':
-                                row.id==='afternoon'?(row.isNeg?'#B42318':'#2B5C9E'):'#6E6A63'}}>
-                          {row.sum !== null ? row.sum.toLocaleString() : '—'}
-                        </td>
+                          <td style={td(last, { color: v && v.pos<0 ? T.red : undefined })}>{v ? wonCell(v.pos) : '—'}</td>
+                        </>}
+                        <td style={td(last, { fontWeight: row.strong ? 800 : 500, color: row.strong ? T.ink : row.color })}>{sum !== null ? won(sum) : '—'}</td>
                         {isOwner && (
-                          <td style={{padding:'6px 14px',...bStyle,textAlign:'right',whiteSpace:'nowrap'}}>
-                            {row.canEdit && (
-                              <>
-                                <button onClick={()=>startEdit(dd, row.eType)}
-                                  style={{background:'transparent',border:'1px solid #DCD7CE',color:'#1D1B18',
-                                    padding:'3px 8px',fontSize:10,borderRadius:4,cursor:'pointer',fontFamily:'inherit',marginRight:4}}>
-                                  수정
-                                </button>
-                                <button onClick={()=>delRow(dd, row.eType)}
-                                  style={{background:'transparent',border:'1px solid #E8C4BF',color:'#B42318',
-                                    padding:'3px 8px',fontSize:10,borderRadius:4,cursor:'pointer',fontFamily:'inherit'}}>
-                                  삭제
-                                </button>
-                              </>
-                            )}
+                          <td style={td(last)}>
+                            {row.eType && <>{smallBtn('수정', ()=>startEdit(dd,row.eType))}{smallBtn('삭제', ()=>delRow(dd,row.eType), true)}</>}
                           </td>
                         )}
                       </tr>
@@ -709,23 +571,23 @@ export default function Revenue() {
                 })}
               </tbody>
               <tfoot>
-                <tr style={{background:'#ECE8E1'}}>
-                  <td colSpan={isNewMonth?3:2} style={{padding:'10px 14px',fontWeight:700,color:'#C3261C'}}>합 계</td>
-                  {showChannelDetail && (
-                    <>
-                      <td style={{padding:'10px 14px',...cellBase,fontWeight:700,color:'#C3261C'}}>{wonCell(tot.kiosk)}</td>
-                      <td style={{padding:'10px 14px',...cellBase,fontWeight:700,color:'#C3261C'}}>{wonCell(tot.del)}</td>
-                      <td style={{padding:'10px 14px',...cellBase,fontWeight:700,color:'#C3261C'}}>{wonCell(tot.pos)}</td>
-                    </>
-                  )}
-                  <td style={{padding:'10px 14px',...cellBase,fontWeight:700,color:'#C3261C'}}>{grand.toLocaleString()}</td>
-                  {isOwner && <td></td>}
+                <tr style={{fontWeight:800}}>
+                  {(() => { const tf = { padding:'10px 12px', borderTop:`3px double ${T.ink}`, textAlign:'right', whiteSpace:'nowrap' }; return (<>
+                    <td colSpan={isNewMonth?2:1} style={{...tf, textAlign:'left'}}>합계</td>
+                    {showChannelDetail && <>
+                      <td style={tf}>{wonCell(tot.kiosk)}</td>
+                      <td style={tf}>{wonCell(tot.del)}</td>
+                      <td style={tf}>{wonCell(tot.pos)}</td>
+                    </>}
+                    <td style={{...tf, color:T.accent}}>{won(grand)}</td>
+                    {isOwner && <td style={tf}></td>}
+                  </>) })()}
                 </tr>
               </tfoot>
             </table>
           </div>
         )}
-      </div>
+      </section>
     </div>
   )
 }
