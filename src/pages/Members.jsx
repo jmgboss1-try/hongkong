@@ -262,6 +262,7 @@ export default function Members() {
         fixedSalary: +form.fixedSalary || 0,
         wageHistory: newHistory,
         scheduleHistory: newScheduleHistory,
+        shiftTimes: form.shiftTimes || {},
       }, {merge:true})
 
       await load()
@@ -606,6 +607,35 @@ export default function Members() {
             </div>
             <div style={{fontSize:10,color:'#6E6A63',marginTop:6}}>
               주 {Array.isArray(form.workDays)?form.workDays.length:5}일 소정근로
+            </div>
+          </div>
+
+          {/* 출퇴근 예정 시각 (NFC 출퇴근: 예정보다 10분 넘게 일찍 오거나 늦게 퇴근한 시간은 승인 대기) */}
+          <div style={{padding:'0 18px 14px'}}>
+            <label style={{fontSize:10,color:'#6E6A63',fontWeight:600,display:'block',marginBottom:8}}>요일별 출퇴근 예정 시각 (NFC 출퇴근 기준)</label>
+            <div style={{display:'flex',flexDirection:'column',gap:6}}>
+              {['월','화','수','목','금','토','일'].map((day,i)=>{
+                const idx = i+1===7 ? 0 : i+1
+                if(!(form.workDays || [1,2,3,4,5]).includes(idx)) return null
+                const st = form.shiftTimes?.[idx] || {}
+                const setT = (k,v) => setF('shiftTimes', { ...(form.shiftTimes||{}), [idx]: { ...st, [k]: v } })
+                const tStyle = {background:'#FFFFFF',border:'1px solid #CBC5BA',borderRadius:4,color:'#1D1B18',padding:'5px 8px',fontSize:13,fontFamily:'inherit',fontVariantNumeric:'tabular-nums'}
+                return (
+                  <div key={day} style={{display:'flex',alignItems:'center',gap:8,fontSize:13}}>
+                    <span style={{width:18,fontWeight:700,color:idx===0?'#B42318':idx===6?'#2B5C9E':'#1D1B18'}}>{day}</span>
+                    <input type="time" value={st.start||''} onChange={e=>setT('start',e.target.value)} aria-label={`${day} 출근`} style={tStyle}/>
+                    <span style={{color:'#6E6A63'}}>~</span>
+                    <input type="time" value={st.end||''} onChange={e=>setT('end',e.target.value)} aria-label={`${day} 퇴근`} style={tStyle}/>
+                    {idx===[1,2,3,4,5,6,0].find(d=>(form.workDays||[1,2,3,4,5]).includes(d)) && st.start && st.end && (
+                      <button type="button" onClick={()=>setF('shiftTimes', Object.fromEntries((form.workDays||[1,2,3,4,5]).map(d=>[d,{start:st.start,end:st.end}])))}
+                        style={{background:'none',border:'none',color:'#2B5C9E',fontSize:12,cursor:'pointer',fontFamily:'inherit',padding:0,borderBottom:'1px solid #2B5C9E'}}>모든 근무일에 같게</button>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+            <div style={{fontSize:10,color:'#6E6A63',marginTop:6,lineHeight:1.6}}>
+              비워두면 그 요일은 예정 없음으로 보고, 출퇴근을 찍으면 그날 근무 전체가 승인 대기로 가요.
             </div>
           </div>
 

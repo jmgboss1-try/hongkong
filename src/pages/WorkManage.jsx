@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { db } from '../firebase'
 import { doc, getDoc, setDoc, collection, getDocs } from 'firebase/firestore'
+import AttendancePanel from '../components/AttendancePanel'
 
 const pad = n => String(n).padStart(2,'0')
 
@@ -319,6 +320,9 @@ function getEmpStats(emp) {
           {monthOpts.map(m=><option key={m} value={m}>{mLabel(m)}</option>)}
         </select>
       </div>
+
+      {/* NFC 출퇴근: 승인 대기·퇴근 누락·설정 (찍힌 시간은 아래 근무시간에 자동 반영) */}
+      <AttendancePanel curMonth={curMonth} nameMap={nameMap} onApplied={load}/>
 
       {/* 월 합계 */}
       <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:14,marginBottom:20}}>

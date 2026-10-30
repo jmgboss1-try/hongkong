@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { AuthProvider, useAuth } from './AuthContext'
+import Clock from './pages/Clock'
 import Login from './pages/Login'
 import Dashboard from './pages/Dashboard'
 import Revenue from './pages/Revenue'
@@ -79,6 +80,9 @@ function AppRoutes() {
       <Route path="/upload/:sid" element={<PhoneUpload />} />
     </Routes>
   )
+
+  // NFC 출퇴근 페이지: 메뉴 없이 폰 화면 하나로. 로그인 안 돼 있으면 이 주소에서 바로 로그인
+  if (location.pathname === '/clock') return user ? <Clock /> : <Login />
 
   if (!user) return (
     <Routes>
