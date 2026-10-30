@@ -162,7 +162,7 @@ useEffect(() => {
     padding:'7px 10px',
     fontSize:13,
     background:'#fff',
-    color:'#FFFFFF',
+    color:'#000',
     whiteSpace:'nowrap',
   }
 
@@ -178,7 +178,7 @@ useEffect(() => {
           display:'flex',justifyContent:'space-between',alignItems:'center',
           background:'#f8f9fa',borderRadius:'12px 12px 0 0'}}>
           <div>
-            <div style={{fontSize:15,fontWeight:700,color:'#FFFFFF'}}>
+            <div style={{fontSize:15,fontWeight:700,color:'#000'}}>
               {mLabel(month)} 임금내역 보고서
             </div>
             <div style={{fontSize:11,color:'#666',marginTop:2}}>세무사 제출용</div>
@@ -249,7 +249,7 @@ useEffect(() => {
         {/* 보고서 본문 — 인쇄 시 이것만 출력 */}
         <div id="tax-report-print" style={{padding:'28px 32px'}}>
           <div style={{textAlign:'center',marginBottom:22}}>
-            <div style={{fontSize:17,fontWeight:700,color:'#FFFFFF',marginBottom:4}}>
+            <div style={{fontSize:17,fontWeight:700,color:'#000',marginBottom:4}}>
               홍콩반점 중앙대점 — {mLabel(month)} 임금내역
             </div>
             <div style={{fontSize:12,color:'#555'}}>근로소득 원천징수 내역서</div>
