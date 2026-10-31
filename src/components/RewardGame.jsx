@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { db } from '../firebase'
-import { doc, getDoc, setDoc } from 'firebase/firestore'
+import { doc, setDoc } from 'firebase/firestore'
+import { parseAmount, addRewardBonuses } from '../lib/rewards'
 
 // 개근 포상 게임: 개근한 직원끼리 룰렛 또는 사다리로 상품을 정함
 // 결과는 rewards/{YYYY-MM} = { list:[{uid,name,prize,amount,paid}], game, playedAt } 에 저장
@@ -11,15 +12,6 @@ const SEG = ['#C3261C','#F3F1EC','#2B5C9E','#FFFFFF','#2E7D45','#F3F1EC','#B4530
 const SEG_TEXT = c => ['#F3F1EC','#FFFFFF'].includes(c) ? T.ink : '#FFFFFF'
 const LANE = ['#C3261C','#2B5C9E','#2E7D45','#B45309','#6B4FA0','#1D1B18']
 
-// '1만원' '1만 5천원' '5,000원' '3천원' → 원 (꽝 등 숫자 없으면 0)
-function parseAmount(text) {
-  const s = String(text||'').replace(/[,\s원]/g,'')
-  let total = 0, m
-  if ((m = s.match(/(\d+(?:\.\d+)?)만/))) total += Math.round(parseFloat(m[1])*10000)
-  if ((m = s.match(/(\d+(?:\.\d+)?)천/))) total += Math.round(parseFloat(m[1])*1000)
-  if (!total && (m = s.match(/^\d+$/))) total = +m[0]
-  return total
-}
 const won = n => (n||0).toLocaleString('ko-KR')
 
 function Btn({ children, onClick, kind = 'plain', disabled }) {
@@ -35,7 +27,7 @@ function Btn({ children, onClick, kind = 'plain', disabled }) {
 }
 
 // ── 룰렛: 상품 칸이 그려진 판을 직원마다 한 번씩 돌림 ──
-function Roulette({ people, prizes, results, onResult }) {
+export function Roulette({ people, prizes, results, onResult }) {
   const [angle, setAngle] = useState(0)
   const [spinning, setSpinning] = useState(false)
   const next = people.find(p => !results[p.uid])
@@ -181,7 +173,7 @@ export default function RewardGame({ ym, people, onClose, onSaved, practice }) {
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const prizes = prizeText.split(/[,\n]/).map(s=>s.trim()).filter(Boolean)
-  const [y, m] = ym.split('-')
+  const m = ym.split('-')[1]
   const done = people.length > 0 && people.every(p => results[p.uid])
 
   function onResult(p, prize) {
@@ -193,17 +185,8 @@ export default function RewardGame({ ym, people, onClose, onSaved, practice }) {
     setSaving(true)
     try {
       const list = people.map(p => ({ uid:p.uid, name:p.name, prize:results[p.uid], amount:+amounts[p.uid]||0, paid:!!withBonus && (+amounts[p.uid]||0) > 0 }))
-      await setDoc(doc(db,'rewards',ym), { list, game, playedAt:new Date().toISOString() })
-      if (withBonus) {
-        // 급여관리 상여에 더함 (저장 직전에 다시 읽음)
-        const snap = await getDoc(doc(db,'bonuses',ym))
-        const b = snap.exists() ? snap.data() : {}
-        const day = `${ym}-${String(new Date(+y, +m, 0).getDate()).padStart(2,'0')}`
-        let n = Date.now()
-        for (const r of list) if (r.amount > 0)
-          b[r.uid] = [...(b[r.uid]||[]), { id:String(n++), date:day, amount:r.amount, memo:`${+m}월 개근 포상 (${game==='roulette'?'룰렛':'사다리'}: ${r.prize})` }]
-        await setDoc(doc(db,'bonuses',ym), b)
-      }
+      await setDoc(doc(db,'rewards',ym), { list, game, prizes, eligible: people, status:'done', playedAt:new Date().toISOString() }, { merge:true })
+      if (withBonus) await addRewardBonuses(ym, list, game==='roulette' ? '룰렛' : '사다리')
       setSaved(withBonus ? 'bonus' : 'only'); onSaved?.()
     } catch(e) { console.error(e); alert('저장하지 못했어요. 다시 시도해 주세요.') }
     setSaving(false)

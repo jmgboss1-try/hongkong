@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import RewardPrompt from '../components/RewardPrompt'
 import { db } from '../firebase'
 import { doc, getDoc, getDocs, collection } from 'firebase/firestore'
 import { withSubMemos, loadSubs } from '../lib/attendance'
@@ -375,6 +376,9 @@ export default function Dashboard() {
             style={{background:'none', border:`1px solid ${T.rule}`, borderRadius:4, padding:'6px 10px', cursor:'pointer', fontFamily:'inherit', color:T.ink}}>다음</button>
         </div>
       </header>
+
+      {/* 지난달 개근 포상: 할지 묻기·진행 상황 */}
+      <RewardPrompt/>
 
       {loading ? <div style={{color:T.sub, padding:'40px 0'}}>불러오는 중...</div> : (
         <>

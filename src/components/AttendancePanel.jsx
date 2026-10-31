@@ -3,6 +3,7 @@ import { db } from '../firebase'
 import { doc, getDoc, getDocs, collection, setDoc, deleteField, Timestamp } from 'firebase/firestore'
 import { DEFAULT_RADIUS, DEFAULT_SINCE, GRACE_MIN, pad, hm, toDate, calcRecord, applyRecord, getPosition, minsLabel, monthStatus, breakFor, breakForShift, recBreak, DEFAULT_BREAKS } from '../lib/attendance'
 import RewardGame from './RewardGame'
+import RewardPrompt from './RewardPrompt'
 
 const DAYS_KR = ['일','월','화','수','목','금','토']
 const T = { ink:'#1D1B18', sub:'#6E6A63', faint:'#A8A39A', rule:'#DCD7CE', soft:'#ECE8E1', accent:'#C3261C', red:'#B42318', green:'#2E7D45', blue:'#2B5C9E', amber:'#B45309' }
@@ -319,6 +320,9 @@ export default function AttendancePanel({ curMonth, nameMap, onApplied }) {
       {rows.length === 0 && !showSet && (
         <div style={{fontSize:13, color:T.sub, padding:'10px 0'}}>이 달 출퇴근 기록이 없어요. 처음이면 설정에서 매장 위치를 저장하고 태그를 만들어 주세요.</div>
       )}
+
+      {/* 지난달 개근 포상 */}
+      <div style={{marginTop:10}}><RewardPrompt/></div>
 
       {/* 승인 대기 */}
       {pending.map(r=>{

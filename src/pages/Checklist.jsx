@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { prevYmOf, monthNum, rewardResults } from '../lib/rewards'
 import { db } from '../firebase'
 import { doc, getDoc, setDoc, deleteDoc, collection, getDocs } from 'firebase/firestore'
 import { PhotoPicker, PhotoGrid, Lightbox } from '../components/PhotoAttach'
@@ -131,6 +132,10 @@ export default function Checklist() {
   const [employees, setEmployees] = useState([]) // [{uid,name}]
   const [subRequests, setSubRequests] = useState([]) // 대타 확정 목록
   const [pinnedNotices, setPinnedNotices] = useState([]) // 공지/메모 중 체크리스트 알림 대상
+  const [reward, setReward] = useState(null) // 지난달 개근 포상 (rewards/{지난달}) — 매장에 공개
+  useEffect(() => {
+    getDoc(doc(db,'rewards',prevYmOf())).then(s => setReward(s.exists() ? s.data() : null)).catch(() => {})
+  }, [])
 
   const today = todayStr()
   const todayDow = new Date().getDay()
@@ -801,6 +806,18 @@ export default function Checklist() {
               )}
             </>
           )}
+        </div>
+      )}
+
+      {/* 지난달 개근 직원과 포상 결과 */}
+      {reward?.eligible?.length > 0 && (
+        <div style={{marginBottom:6}}>
+          {alertRow('reward', '#2E7D45', `${monthNum(prevYmOf())}월 개근`,
+            reward.eligible.map(e => {
+              const r = rewardResults(reward).find(x => x.uid === e.uid)
+              return r ? `${e.name} ${r.prize}` : reward.status === 'open' ? `${e.name} (룰렛 전)` : e.name
+            }).join(' · '),
+            '지각·조퇴·결근 없이 한 달! 축하해요')}
         </div>
       )}
 
