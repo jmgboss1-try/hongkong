@@ -109,7 +109,21 @@ export default function Dashboard() {
   async function load() {
     setLoading(true)
     try {
-      const revSnap = await getDoc(doc(db,'revenue',curMonth))
+      // 매출·지출·직원·근무시간·대타를 한 번에 같이 불러옴 (하나씩 기다리면 몇 초씩 걸림)
+      const [cy2,cm2]=curMonth.split('-').map(Number)
+      const prevMonth=cm2===1?`${cy2-1}-12`:`${cy2}-${pad(cm2-1)}`
+      const [revSnap,,usersSnap,whSnap,exSnap,memoSnap,prevWhSnap,prevExSnap,prevMemoSnap,subs] = await Promise.all([
+        getDoc(doc(db,'revenue',curMonth)),
+        loadExpenses(),
+        getDocs(collection(db,'users')),
+        getDoc(doc(db,'workhours',curMonth)),
+        getDoc(doc(db,'workextra',curMonth)),
+        getDoc(doc(db,'workmemos',curMonth)),
+        getDoc(doc(db,'workhours',prevMonth)),
+        getDoc(doc(db,'workextra',prevMonth)),
+        getDoc(doc(db,'workmemos',prevMonth)),
+        loadSubs(),
+      ])
       if(revSnap.exists()) {
         const d = revSnap.data()
         let k=0,dl=0,p=0
@@ -123,9 +137,6 @@ export default function Dashboard() {
         setRev({kiosk:k,del:dl,pos:p,total:k+dl+p})
       } else setRev({kiosk:0,del:0,pos:0,total:0})
 
-      await loadExpenses()
-
-      const usersSnap = await getDocs(collection(db,'users'))
       const emps = []
       usersSnap.forEach(d=>{
         const data=d.data()
@@ -137,20 +148,9 @@ export default function Dashboard() {
       })
       setStaff(emps)
 
-      const [cy2,cm2]=curMonth.split('-').map(Number)
-      const prevMonth=cm2===1?`${cy2-1}-12`:`${cy2}-${pad(cm2-1)}`
-      const [whSnap,exSnap,memoSnap,prevWhSnap,prevExSnap,prevMemoSnap] = await Promise.all([
-        getDoc(doc(db,'workhours',curMonth)),
-        getDoc(doc(db,'workextra',curMonth)),
-        getDoc(doc(db,'workmemos',curMonth)),
-        getDoc(doc(db,'workhours',prevMonth)),
-        getDoc(doc(db,'workextra',prevMonth)),
-        getDoc(doc(db,'workmemos',prevMonth)),
-      ])
       const whData=whSnap.exists()?whSnap.data():{}
       const extraData=exSnap.exists()?exSnap.data():{}
       // 대타 게시판에서 확정된 날은 비고 없이도 주휴 계산에서 대타로 인정 (인건비 탭과 같음)
-      const subs=await loadSubs()
       const memoData=withSubMemos(memoSnap.exists()?memoSnap.data():{},subs,curMonth)
       const prevWhData=prevWhSnap.exists()?prevWhSnap.data():{}
       const prevExData=prevExSnap.exists()?prevExSnap.data():{}

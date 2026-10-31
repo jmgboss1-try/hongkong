@@ -86,58 +86,50 @@ export default function WorkManage() {
   async function load() {
     setLoading(true)
     try {
-      const usersSnap = await getDocs(collection(db,'users'))
+      // 필요한 문서를 한 번에 같이 불러옴 (하나씩 기다리면 몇 초씩 걸림)
+      const [cy,cm] = curMonth.split('-').map(Number)
+      const prevMonth = cm===1 ? `${cy-1}-12` : `${cy}-${pad(cm-1)}`
+      const data = s => s?.exists() ? s.data() : {}
+      const [usersSnap, sevSnap, whSnap, exSnap, memoSnap, prevWhSnap, prevExSnap, prevMemoSnap, subList, attSnap] = await Promise.all([
+        getDocs(collection(db,'users')),
+        getDoc(doc(db,'severance',curMonth)),
+        getDoc(doc(db,'workhours',curMonth)),
+        getDoc(doc(db,'workextra',curMonth)),
+        getDoc(doc(db,'workmemos',curMonth)),
+        getDoc(doc(db,'workhours',prevMonth)),
+        getDoc(doc(db,'workextra',prevMonth)),
+        getDoc(doc(db,'workmemos',prevMonth)),
+        loadSubs(),
+        getDoc(doc(db,'attendance',curMonth)).catch(()=>null),
+      ])
       const finalEmps = []
       const nameData = {}
-usersSnap.forEach(d => {
-        const data = d.data()
-        nameData[d.id] = data.name
-        if(data.status==='approved'
-  && data.role!=='owner'
-  && data.role!=='store'
-  && data.role!=='investor'
-  && data.payType!=='fixed') {
+      usersSnap.forEach(d => {
+        const u = d.data()
+        nameData[d.id] = u.name
+        if(u.status==='approved' && u.role!=='owner' && u.role!=='store' && u.role!=='investor' && u.payType!=='fixed') {
           finalEmps.push({
             uid:d.id,
-            name:data.name,
-            wage:data.wage||10030,
-            wageHistory:data.wageHistory||[],
-            workDays:data.workDays||[1,2,3,4,5],
-            avgHours:data.avgHours||8,
-            scheduleHistory:data.scheduleHistory||[]
+            name:u.name,
+            wage:u.wage||10030,
+            wageHistory:u.wageHistory||[],
+            workDays:u.workDays||[1,2,3,4,5],
+            avgHours:u.avgHours||8,
+            scheduleHistory:u.scheduleHistory||[]
           })
         }
       })
       setEmployees(finalEmps)
       setNameMap(nameData)
-
-      const sevSnap = await getDoc(doc(db,'severance',curMonth))
-      setSeverance(sevSnap.exists() ? sevSnap.data() : {})
-
-const whSnap = await getDoc(doc(db,'workhours',curMonth))
-      setWorkHours(whSnap.exists() ? whSnap.data() : {})
-
-      const exSnap = await getDoc(doc(db,'workextra',curMonth))
-      setWorkExtra(exSnap.exists() ? exSnap.data() : {})
-
-const memoSnap = await getDoc(doc(db,'workmemos',curMonth))
-      setMemos(memoSnap.exists() ? memoSnap.data() : {})
-
-      // 이전달 데이터 불러오기
-      const [cy,cm] = curMonth.split('-').map(Number)
-      const prevMonth = cm===1 ? `${cy-1}-12` : `${cy}-${pad(cm-1)}`
-      const prevWhSnap = await getDoc(doc(db,'workhours',prevMonth))
-      setPrevWorkHours(prevWhSnap.exists() ? prevWhSnap.data() : {})
-      const prevExSnap = await getDoc(doc(db,'workextra',prevMonth))
-setPrevWorkExtra(prevExSnap.exists() ? prevExSnap.data() : {})
-
-const prevMemoSnap = await getDoc(doc(db,'workmemos',prevMonth))
-setPrevMemos(prevMemoSnap.exists() ? prevMemoSnap.data() : {})
-
-      setSubs(await loadSubs())
-      const attSnap = await getDoc(doc(db,'attendance',curMonth)).catch(()=>null)
-      setAtt(attSnap?.exists() ? attSnap.data() : {})
-
+      setSeverance(data(sevSnap))
+      setWorkHours(data(whSnap))
+      setWorkExtra(data(exSnap))
+      setMemos(data(memoSnap))
+      setPrevWorkHours(data(prevWhSnap))
+      setPrevWorkExtra(data(prevExSnap))
+      setPrevMemos(data(prevMemoSnap))
+      setSubs(subList)
+      setAtt(data(attSnap))
     } catch(e) { console.error(e) }
     setLoading(false)
   }

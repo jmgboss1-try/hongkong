@@ -48,31 +48,22 @@ const [employType, setEmployType] = useState('part')
     async function load() {
       setLoading(true)
       try {
-        // 시급
-        const userSnap = await getDoc(doc(db,'users',user.uid))
+        // 시급·근무시간·추가근무·매장 일정·급여 확인을 한 번에 같이 불러옴
+        const [userSnap, whSnap, exSnap, evSnap, prSnap] = await Promise.all([
+          getDoc(doc(db,'users',user.uid)),
+          getDoc(doc(db,'workhours',curMonth)),
+          getDoc(doc(db,'workextra',curMonth)),
+          getDoc(doc(db,'events',curMonth)),
+          getDoc(doc(db,'payroll',curMonth)),
+        ])
         if(userSnap.exists()) {
           setWage(userSnap.data().wage||10030)
           setEmployType(userSnap.data().employType||'part')
         }
-
-        // 사장이 입력한 근무시간
-        const whSnap = await getDoc(doc(db,'workhours',curMonth))
-        const whData = whSnap.exists() ? whSnap.data() : {}
-        setWorkHours(whData[user.uid] || {})
-
-        // 추가근무(분)
-        const exSnap = await getDoc(doc(db,'workextra',curMonth))
-        const exData = exSnap.exists() ? exSnap.data() : {}
-        setWorkExtra(exData[user.uid] || {})
-
-        // 매장 이벤트
-        const evSnap = await getDoc(doc(db,'events',curMonth))
+        setWorkHours((whSnap.exists() ? whSnap.data() : {})[user.uid] || {})
+        setWorkExtra((exSnap.exists() ? exSnap.data() : {})[user.uid] || {})
         setEvents(evSnap.exists() ? evSnap.data() : {})
-
-        // 급여 확인
-        const prSnap = await getDoc(doc(db,'payroll',curMonth))
-        if(prSnap.exists()) setPayroll(prSnap.data()[user.uid]||null)
-        else setPayroll(null)
+        setPayroll(prSnap.exists() ? (prSnap.data()[user.uid]||null) : null)
 
       } catch(e) { console.error(e) }
       setLoading(false)

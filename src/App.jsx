@@ -1,30 +1,49 @@
+import { lazy, Suspense } from 'react'
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { AuthProvider, useAuth } from './AuthContext'
-import Clock from './pages/Clock'
 import Login from './pages/Login'
-import Dashboard from './pages/Dashboard'
-import Revenue from './pages/Revenue'
-import Expenses from './pages/Expenses'
-import Staff from './pages/Staff'
-import Members from './pages/Members'
-import Payroll from './pages/Payroll'
-import Investment from './pages/Investment'
-import MySchedule from './pages/MySchedule'
-import Team from './pages/Team'
-import ExpensesInput from './pages/ExpensesInput'
-import Cash from './pages/Cash'
-import WorkManage from './pages/WorkManage'
-import MyPayroll from './pages/MyPayroll'
-import Notice from './pages/Notice'
-import ConsumptionAnalysis from './pages/ConsumptionAnalysis'
-import RevenueInput from './pages/RevenueInput'
-import SubstituteBoard from './pages/SubstituteBoard'
-import LossClaims from './pages/LossClaims'
-import Checklist from './pages/Checklist'
-import Prepaid from './pages/Prepaid'
-import SalesAnalysis from './pages/SalesAnalysis'
-import PhoneUpload from './pages/PhoneUpload'
 import Layout from './components/Layout'
+
+// 화면별로 필요할 때만 코드를 내려받음 (한 파일로 묶으면 첫 화면이 1MB 넘게 기다려야 함)
+// 포스처럼 하루 종일 켜 둔 화면은 그사이 새 버전이 올라가면 예전 화면 파일이 없어져 못 불러옴 → 한 번 새로고침해서 새 버전으로
+const lazyPage = load => lazy(() => load().catch(err => {
+  let last = 0
+  try { last = +sessionStorage.getItem('pageReloadAt') || 0 } catch { /* 없어도 됨 */ }
+  if (Date.now() - last > 30000) {
+    try { sessionStorage.setItem('pageReloadAt', String(Date.now())) } catch { /* 없어도 됨 */ }
+    window.location.reload()
+    return new Promise(() => {})
+  }
+  throw err
+}))
+const Clock = lazyPage(() => import('./pages/Clock'))
+const Dashboard = lazyPage(() => import('./pages/Dashboard'))
+const Revenue = lazyPage(() => import('./pages/Revenue'))
+const Expenses = lazyPage(() => import('./pages/Expenses'))
+const Staff = lazyPage(() => import('./pages/Staff'))
+const Members = lazyPage(() => import('./pages/Members'))
+const Payroll = lazyPage(() => import('./pages/Payroll'))
+const Investment = lazyPage(() => import('./pages/Investment'))
+const MySchedule = lazyPage(() => import('./pages/MySchedule'))
+const Team = lazyPage(() => import('./pages/Team'))
+const ExpensesInput = lazyPage(() => import('./pages/ExpensesInput'))
+const Cash = lazyPage(() => import('./pages/Cash'))
+const WorkManage = lazyPage(() => import('./pages/WorkManage'))
+const MyPayroll = lazyPage(() => import('./pages/MyPayroll'))
+const Notice = lazyPage(() => import('./pages/Notice'))
+const ConsumptionAnalysis = lazyPage(() => import('./pages/ConsumptionAnalysis'))
+const RevenueInput = lazyPage(() => import('./pages/RevenueInput'))
+const SubstituteBoard = lazyPage(() => import('./pages/SubstituteBoard'))
+const LossClaims = lazyPage(() => import('./pages/LossClaims'))
+const Checklist = lazyPage(() => import('./pages/Checklist'))
+const Prepaid = lazyPage(() => import('./pages/Prepaid'))
+const SalesAnalysis = lazyPage(() => import('./pages/SalesAnalysis'))
+const PhoneUpload = lazyPage(() => import('./pages/PhoneUpload'))
+
+// 화면 코드를 내려받는 동안 (보통 한순간)
+function PageLoading() {
+  return <div style={{padding:'40px 0', color:'#6E6A63', fontSize:14}}>불러오는 중...</div>
+}
 
 function PendingScreen() {
   async function handleLogout() {
@@ -76,13 +95,15 @@ function AppRoutes() {
 
   // 폰 사진 업로드 페이지: 로그인 없이 접근 (포스에서 만든 QR로 진입)
   if (location.pathname.startsWith('/upload/')) return (
-    <Routes>
-      <Route path="/upload/:sid" element={<PhoneUpload />} />
-    </Routes>
+    <Suspense fallback={<PageLoading/>}>
+      <Routes>
+        <Route path="/upload/:sid" element={<PhoneUpload />} />
+      </Routes>
+    </Suspense>
   )
 
   // NFC 출퇴근 페이지: 메뉴 없이 폰 화면 하나로. 로그인 안 돼 있으면 이 주소에서 바로 로그인
-  if (location.pathname === '/clock') return user ? <Clock /> : <Login />
+  if (location.pathname === '/clock') return user ? <Suspense fallback={<PageLoading/>}><Clock /></Suspense> : <Login />
 
   if (!user) return (
     <Routes>
@@ -93,6 +114,7 @@ function AppRoutes() {
 
   return (
     <Layout>
+      <Suspense fallback={<PageLoading/>}>
       <Routes>
         <Route path="/" element={<PrivateRoute ownerOnly><Dashboard /></PrivateRoute>} />
         {/* 매출: 사장 + 투자자 접근 가능 */}
@@ -119,6 +141,7 @@ function AppRoutes() {
         <Route path="/sales-analysis" element={<PrivateRoute storeOk storeOnly><SalesAnalysis /></PrivateRoute>} />
         <Route path="*" element={<Navigate to={homePath({ isOwner, isStore, isInvestor })} />} />
       </Routes>
+      </Suspense>
     </Layout>
   )
 }
