@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { db } from '../firebase'
 import { doc, getDoc, setDoc, collection, query, where, getDocs } from 'firebase/firestore'
 import { useAuth, GradeBadge } from '../AuthContext'
+import MyAttendance from '../components/MyAttendance'
 
 const pad = n => String(n).padStart(2,'0')
 const daysIn = ym => { const[y,m]=ym.split('-').map(Number); return new Date(y,m,0).getDate() }
@@ -213,6 +214,9 @@ const [employType, setEmployType] = useState('part')
           <div style={{fontSize:32,marginLeft:16}}></div>
         </div>
       </div>
+
+      {/* NFC 출퇴근: 지각·조퇴·결근, 인정 시간 */}
+      <MyAttendance curMonth={curMonth} uid={user.uid}/>
 
       {/* 급여 확인 섹션 */}
       {payroll?.confirmedByOwner && (

@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
 import { db } from '../firebase'
-import { doc, getDoc, setDoc, deleteField, Timestamp } from 'firebase/firestore'
-import { DEFAULT_RADIUS, GRACE_MIN, pad, hm, toDate, calcRecord, applyRecord, getPosition, minsLabel } from '../lib/attendance'
+import { doc, getDoc, getDocs, collection, setDoc, deleteField, Timestamp } from 'firebase/firestore'
+import { DEFAULT_RADIUS, DEFAULT_SINCE, GRACE_MIN, pad, hm, toDate, calcRecord, applyRecord, getPosition, minsLabel, monthStatus } from '../lib/attendance'
+import RewardGame from './RewardGame'
 
 const DAYS_KR = ['일','월','화','수','목','금','토']
 const T = { ink:'#1D1B18', sub:'#6E6A63', faint:'#A8A39A', rule:'#DCD7CE', soft:'#ECE8E1', accent:'#C3261C', red:'#B42318', green:'#2E7D45', blue:'#2B5C9E', amber:'#B45309' }
@@ -31,12 +32,27 @@ export default function AttendancePanel({ curMonth, nameMap, onApplied }) {
   const [edit, setEdit] = useState(null) // { uid, dd, in:'HH:MM', out:'HH:MM' }
   const [radius, setRadius] = useState('')
   const [note, setNote] = useState('')
+  const [staff, setStaff] = useState([])      // 근태를 볼 직원 (users 문서 그대로)
+  const [holidays, setHolidays] = useState([]) // checklist/holidays
+  const [subs, setSubs] = useState([])         // substitutes/requests
+  const [reward, setReward] = useState(null)   // rewards/{달}
+  const [openUid, setOpenUid] = useState(null) // 근태 상세를 펼친 직원
+  const [showGame, setShowGame] = useState(false)
+  const [since, setSince] = useState('')
 
   async function load(sync) {
     try {
-      const [aSnap, cSnap] = await Promise.all([getDoc(doc(db,'attendance',curMonth)), getDoc(doc(db,'attendance','_config'))])
+      const opt = p => p.then(x => x.exists() ? x.data() : null).catch(() => null)
+      const [aSnap, cSnap, uSnap, hol, sub, rw] = await Promise.all([
+        getDoc(doc(db,'attendance',curMonth)), getDoc(doc(db,'attendance','_config')), getDocs(collection(db,'users')),
+        opt(getDoc(doc(db,'checklist','holidays'))), opt(getDoc(doc(db,'substitutes','requests'))), opt(getDoc(doc(db,'rewards',curMonth))),
+      ])
       let a = aSnap.exists() ? aSnap.data() : {}
       setCfg(cSnap.exists() ? cSnap.data() : null)
+      const list = []
+      uSnap.forEach(d => { const u = d.data(); if (u.status==='approved' && !['owner','store','investor'].includes(u.role)) list.push({ uid:d.id, ...u }) })
+      setStaff(list.sort((x,y)=>(x.joinDate||'').localeCompare(y.joinDate||'')))
+      setHolidays(hol?.list || []); setSubs(sub?.list || []); setReward(rw)
       if (sync) {
         // 직원 폰에서 근무시간 반영이 안 됐거나(권한) 승인 상태가 바뀐 기록을 근무관리에 맞춤
         let changed = false
@@ -109,6 +125,21 @@ export default function AttendancePanel({ curMonth, nameMap, onApplied }) {
     setBusy(false)
   }
 
+  // 결근 처리: 사유가 있는 날은 '결근 아님' (출근 기록 없이 excused 표시)
+  async function setExcused(uid, dd, on) {
+    setBusy(true)
+    try {
+      await setDoc(doc(db,'attendance',curMonth), { [uid]: { [dd]: { excused: on ? true : deleteField() } } }, { merge:true })
+      await load(false)
+    } catch(e) { console.error(e); alert('저장하지 못했어요.') }
+    setBusy(false)
+  }
+  async function saveSince() {
+    if (!since) return
+    const c = { ...(cfg||{}), since }
+    await setDoc(doc(db,'attendance','_config'), c); setCfg(c); setNote('집계 시작일을 저장했어요')
+  }
+
   async function saveStoreLocation() {
     setBusy(true); setNote('')
     try {
@@ -124,6 +155,13 @@ export default function AttendancePanel({ curMonth, nameMap, onApplied }) {
     const c = { ...cfg, radius: +radius || DEFAULT_RADIUS }
     await setDoc(doc(db,'attendance','_config'), c); setCfg(c); setNote('범위를 저장했어요')
   }
+
+  // 직원별 이 달 근태 (예정 시각을 넣었거나 기록이 있는 직원만)
+  const stats = staff
+    .filter(u => (u.shiftTimes && Object.keys(u.shiftTimes).length) || att[u.uid])
+    .map(u => ({ u, st: monthStatus({ ym:curMonth, uid:u.uid, user:u, recs:att[u.uid], holidays, subs, since: cfg?.since || DEFAULT_SINCE }) }))
+  const perfectList = stats.filter(x => x.st.perfect)
+  const monthOver = stats[0]?.st.monthOver ?? (curMonth < `${now.getFullYear()}-${pad(now.getMonth()+1)}`)
 
   const clockUrl = `${window.location.origin}/clock`
   const sectionTitle = (text, right) => (
@@ -190,6 +228,13 @@ export default function AttendancePanel({ curMonth, nameMap, onApplied }) {
             <span style={{color:T.sub}}>m</span>
             {cfg && radius && <Btn onClick={saveRadius}>범위 저장</Btn>}
           </div>
+          <div style={{fontWeight:700}}>지각·결근 집계 시작일</div>
+          <div style={{display:'flex', gap:8, alignItems:'center', flexWrap:'wrap', margin:'4px 0 12px'}}>
+            <input type="date" value={since || cfg?.since || DEFAULT_SINCE} onChange={e=>setSince(e.target.value)} aria-label="집계 시작일"
+              style={{background:'#FFFFFF', border:'1px solid #CBC5BA', borderRadius:4, padding:'4px 6px', fontSize:13, fontFamily:'inherit'}}/>
+            {since && <Btn onClick={saveSince}>저장</Btn>}
+            <span style={{color:T.sub}}>이 날 전에는 기록이 없어도 결근으로 보지 않아요</span>
+          </div>
           <div style={{fontWeight:700}}>2. NFC 태그에 넣을 주소</div>
           <div style={{display:'flex', gap:8, alignItems:'center', flexWrap:'wrap', margin:'4px 0'}}>
             <code style={{background:'#FFFFFF', border:`1px solid ${T.rule}`, borderRadius:4, padding:'3px 8px', fontSize:13}}>{clockUrl}</code>
@@ -243,6 +288,63 @@ export default function AttendancePanel({ curMonth, nameMap, onApplied }) {
           {noOut.map(recLine)}
         </div>
       )}
+
+      {/* 이 달 근태: 지각·조퇴·결근, 개근 */}
+      {stats.length > 0 && (
+        <div style={{marginTop:14}}>
+          <div style={{fontSize:12, fontWeight:700, color:T.sub, padding:'4px 0', borderBottom:`1px solid ${T.rule}`}}>
+            이 달 근태 <span style={{fontWeight:400}}>· 지각·조퇴는 예정보다 1분이라도 늦거나 이르면, 결근은 예정일에 출근 기록이 없으면 (이름을 누르면 날짜별로 보여요)</span>
+          </div>
+          {stats.map(({ u, st }) => {
+            const c = st.cnt, open = openUid === u.uid
+            return (
+              <div key={u.uid} style={{borderBottom:`1px solid ${T.soft}`}}>
+                <div onClick={()=>setOpenUid(open ? null : u.uid)} style={{display:'flex', alignItems:'baseline', gap:10, padding:'7px 0', fontSize:13, cursor:'pointer', flexWrap:'wrap'}}>
+                  <b style={{minWidth:56}}>{u.name}</b>
+                  <span style={{...num, color:T.sub}}>출근 {c.worked}일</span>
+                  <span style={{...num, color: c.late ? T.red : T.sub}}>지각 {c.late}회{c.late ? ` (${minsLabel(c.lateMins)})` : ''}</span>
+                  <span style={{...num, color: c.leftEarly ? T.red : T.sub}}>조퇴 {c.leftEarly}회{c.leftEarly ? ` (${minsLabel(c.leftEarlyMins)})` : ''}</span>
+                  <span style={{...num, color: c.absent ? T.red : T.sub}}>결근 {c.absent}일</span>
+                  {c.noOut > 0 && <span style={{color:T.amber}}>퇴근 미기록 {c.noOut}</span>}
+                  <span style={{flex:1}}/>
+                  {st.perfect && <span style={{fontSize:12, fontWeight:800, color:T.green}}>{st.monthOver ? '개근' : '개근 중'}</span>}
+                </div>
+                {open && (
+                  <div style={{padding:'0 0 8px 12px'}}>
+                    {st.days.filter(d=>d.late || d.leftEarly || d.absent || d.excused || d.noOut).length === 0 && <div style={{fontSize:12, color:T.sub}}>지각·조퇴·결근 없음</div>}
+                    {st.days.filter(d=>d.late || d.leftEarly || d.absent || d.excused || d.noOut).map(d => (
+                      <div key={d.dd} style={{display:'flex', alignItems:'center', gap:10, fontSize:12, padding:'3px 0', flexWrap:'wrap'}}>
+                        <span style={{...num, color:T.sub, minWidth:62}}>{+d.dd}일 ({dow(d.dd)})</span>
+                        {d.sched && <span style={{color:T.sub}}>예정 {d.sched.start}~{d.sched.end}</span>}
+                        {d.rec?.in && <span style={{...num}}>{hm(toDate(d.rec.in))} ~ {d.rec.out ? hm(toDate(d.rec.out)) : '—'}</span>}
+                        {d.late > 0 && <b style={{color:T.red}}>지각 {minsLabel(d.late)}</b>}
+                        {d.leftEarly > 0 && <b style={{color:T.red}}>조퇴 {minsLabel(d.leftEarly)}</b>}
+                        {d.noOut && <b style={{color:T.amber}}>퇴근 미기록</b>}
+                        {d.absent && <><b style={{color:T.red}}>결근</b><Btn onClick={()=>setExcused(u.uid, d.dd, true)} disabled={busy}>결근 아님</Btn></>}
+                        {d.excused && <><span style={{color:T.sub}}>결근 아님(사유 있음)</span><Btn onClick={()=>setExcused(u.uid, d.dd, false)} disabled={busy}>결근으로 되돌리기</Btn></>}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )
+          })}
+
+          {/* 개근 포상 */}
+          <div style={{marginTop:10, fontSize:13, display:'flex', alignItems:'center', gap:10, flexWrap:'wrap'}}>
+            <b>개근 포상</b>
+            {reward?.list ? (
+              <span>{reward.list.map(r=>`${r.name} ${r.prize}${r.paid ? ' (상여 지급)' : ''}`).join(' · ')}</span>
+            ) : !monthOver ? (
+              <span style={{color:T.sub}}>이 달이 끝나면 개근한 직원끼리 게임을 할 수 있어요{perfectList.length ? ` · 지금까지 개근 ${perfectList.map(x=>x.u.name).join(', ')}` : ''}</span>
+            ) : perfectList.length ? (
+              <><span>개근 {perfectList.map(x=>x.u.name).join(', ')}</span><Btn kind="primary" onClick={()=>setShowGame(true)}>포상 게임 하기</Btn></>
+            ) : <span style={{color:T.sub}}>이 달 개근한 직원이 없어요</span>}
+          </div>
+        </div>
+      )}
+      {showGame && <RewardGame ym={curMonth} people={perfectList.map(x=>({ uid:x.u.uid, name:x.u.name }))}
+        onClose={()=>setShowGame(false)} onSaved={()=>{ load(false); onApplied?.() }}/>}
 
       {rows.length > 0 && (
         <div style={{marginTop:10}}>
