@@ -7,14 +7,14 @@ import { HAIRS, HAIR_COLORS, SKINS, SHIRTS, ACCS, lookOf, AVATAR_CSS } from '../
 const T = { ink:'#1D1B18', sub:'#6E6A63', rule:'#DCD7CE', accent:'#C3261C', green:'#2E7D45' }
 
 // 내 기록: 우리 매장 화면에 나오는 내 캐릭터 꾸미기 (users/{uid}.avatar)
-export default function AvatarEditor({ uid, userData }) {
+export default function AvatarEditor({ uid, userData, title = '내 캐릭터', hint = '출근하면 매장 화면에서 이 캐릭터가 일해요', onSaved }) {
   const [look, setLook] = useState(() => lookOf({ uid, avatar: userData?.avatar }))
   const [open, setOpen] = useState(false)
   const [msg, setMsg] = useState('')
   const set = (k, v) => { setLook(l => ({ ...l, [k]: v })); setMsg('') }
 
   async function save() {
-    try { await setDoc(doc(db,'users',uid), { avatar: look }, { merge:true }); setMsg('저장했어요. 매장 화면에 바로 나와요') }
+    try { await setDoc(doc(db,'users',uid), { avatar: look }, { merge:true }); setMsg('저장했어요. 매장 화면에 바로 나와요'); onSaved?.(look) }
     catch(e) { console.error(e); setMsg('저장하지 못했어요. 다시 시도해 주세요') }
   }
 
@@ -41,8 +41,8 @@ export default function AvatarEditor({ uid, userData }) {
       <div style={{display:'flex', alignItems:'center', gap:12, borderBottom:`2px solid ${T.ink}`, paddingBottom:6}}>
         <svg width="40" height="50" viewBox="0 0 40 50" aria-hidden="true"><Avatar look={look} size={40}/></svg>
         <div style={{flex:1}}>
-          <h2 style={{fontSize:16, fontWeight:800, margin:0, fontFamily:'inherit'}}>내 캐릭터</h2>
-          <div style={{fontSize:12, color:T.sub}}>출근하면 매장 화면에서 이 캐릭터가 일해요</div>
+          <h2 style={{fontSize:16, fontWeight:800, margin:0, fontFamily:'inherit'}}>{title}</h2>
+          <div style={{fontSize:12, color:T.sub}}>{hint}</div>
         </div>
         <button type="button" onClick={()=>setOpen(v=>!v)} className="av-chip"
           style={{background:'none', border:'none', borderBottom:'1px solid #2B5C9E', color:'#2B5C9E', padding:0, fontSize:13, cursor:'pointer', fontFamily:'inherit'}}>

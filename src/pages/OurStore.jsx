@@ -1,8 +1,9 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { db } from '../firebase'
 import { collection, doc, getDoc, getDocs, onSnapshot } from 'firebase/firestore'
-import { calcGrade } from '../AuthContext'
+import { calcGrade, useAuth } from '../AuthContext'
 import Avatar from '../components/Avatar'
+import AvatarEditor from '../components/AvatarEditor'
 import { lookOf, defaultLook, AVATAR_CSS, POSITIONS } from '../lib/avatar'
 import { toDate, hm, recBreak, planFor, dayStatus, monthStatus, loadMonthContext, pad } from '../lib/attendance'
 
@@ -29,13 +30,28 @@ const SLOTS = {
 const WOKS = [[655,82],[745,82],[835,82]]
 // 2인 테이블 (가운데 좌표) 4줄 x 3칸
 const TABLES = [200,330,460,590].flatMap(x => [295,395,495].map(y => [x,y]))
+// 홀 직원·사장님이 돌아다니는 지점 (테이블 사이 통로, 셀프바, 카운터 앞, 퇴식대 앞, 창가)
+const HALL_POINTS = [[265,345],[395,345],[525,345],[265,445],[395,445],[525,445],[655,345],[690,305],[600,248],[870,265],[330,520],[520,520]]
+// 같은 사람은 늘 같은 순서로 움직이게: uid로 만든 숫자
+const hashOf = str => { let h = 7; for (const ch of String(str)) h = (h * 31 + ch.charCodeAt(0)) >>> 0; return h }
 const CUSTOMER_LOOKS = Array.from({length:12}, (_,i) => ({ ...defaultLook(`손님${i*7}`), shirt: ['#2B5C9E','#6E6A63','#2E7D45','#B45309','#6B4FA0','#E8E4DC','#D9A441'][i % 7] }))
 
-// 문에서 들어오거나 나갈 때: 처음엔 from, 바로 다음 그림에서 to로 (CSS transition으로 걸어감)
+// 자리를 옮길 때: 처음엔 from, 다음 그림에서 to로 (CSS transition으로 걸어감). 걷는 동안은 children(true)
 function Mover({ from, to, children }) {
   const [pos, setPos] = useState(from)
-  useEffect(() => { const r = requestAnimationFrame(() => requestAnimationFrame(() => setPos(to))); return () => cancelAnimationFrame(r) }, [to[0], to[1]]) // eslint-disable-line react-hooks/exhaustive-deps
-  return <g className="os-move" style={{transform:`translate(${pos[0]}px, ${pos[1]}px)`}}>{children}</g>
+  const [moving, setMoving] = useState(false)
+  const posRef = useRef(from)
+  useEffect(() => {
+    let t
+    const r = requestAnimationFrame(() => requestAnimationFrame(() => {
+      const p = posRef.current
+      if (p[0] === to[0] && p[1] === to[1]) return
+      posRef.current = to; setPos(to); setMoving(true)
+      t = setTimeout(() => setMoving(false), 2600)
+    }))
+    return () => { cancelAnimationFrame(r); clearTimeout(t) }
+  }, [to[0], to[1]]) // eslint-disable-line react-hooks/exhaustive-deps
+  return <g className="os-move" style={{transform:`translate(${pos[0]}px, ${pos[1]}px)`}}>{children(moving)}</g>
 }
 
 function Badges({ flame, grade, star }) {
@@ -49,22 +65,25 @@ function Badges({ flame, grade, star }) {
   return <g transform={`translate(${-wsum/2},-${SIZE*1.25 + 16})`}>{items.map((it,i) => <g key={i} transform={`translate(${i*14},0)`}>{it}</g>)}</g>
 }
 
-function Person({ p }) {
-  const { look, pose, label, badges, pace } = p
-  const body = (
+function Person({ p, moving }) {
+  const { look, label, badges, boss } = p
+  const pose = moving ? 'walk' : p.pose
+  return (
     <>
       <g transform={`translate(${-SIZE/2},${-SIZE*1.25})`}><Avatar look={look} size={SIZE} pose={pose} title={label}/></g>
       <Badges {...badges}/>
       {pose === 'rest' && <text className="av-float" x="14" y={-SIZE*1.1} fontSize="14" fontWeight="800" fill={T.blue}>z</text>}
-      <text x="0" y="16" textAnchor="middle" fontSize="13" fontWeight="800" fill={T.ink} stroke="#FFFFFF" strokeWidth="4" paintOrder="stroke">{label}</text>
+      <text x="0" y="16" textAnchor="middle" fontSize="13" fontWeight="800" fill={boss ? T.accent : T.ink} stroke="#FFFFFF" strokeWidth="4" paintOrder="stroke">{label}</text>
     </>
   )
-  return pace ? <g className="av-pace" style={{'--pace': `${pace}px`}}>{body}</g> : body
 }
 
 export default function OurStore() {
+  const { user, userData, isOwner } = useAuth()
   const [now, setNow] = useState(() => new Date())
+  const [beat, setBeat] = useState(() => Math.floor(Date.now() / 1000)) // 2초마다: 돌아다니는 자리 바꾸기
   const [staff, setStaff] = useState([])
+  const [owner, setOwner] = useState(null) // 사장님: 출퇴근 없이 늘 매장에 있음
   const [att, setAtt] = useState({})
   const [rev, setRev] = useState({})
   const [checks, setChecks] = useState({})
@@ -74,6 +93,7 @@ export default function OurStore() {
   const todayStr = `${ym}-${dd}`
 
   useEffect(() => { const t = setInterval(() => setNow(new Date()), 15000); return () => clearInterval(t) }, [])
+  useEffect(() => { const t = setInterval(() => setBeat(Math.floor(Date.now() / 1000)), 2000); return () => clearInterval(t) }, [])
 
   useEffect(() => {
     let off = false
@@ -84,7 +104,9 @@ export default function OurStore() {
     ]).then(([us, cfg, c]) => {
       if (off) return
       const list = []
-      us.forEach(d => { const u = d.data(); if (u.status==='approved' && !['owner','store','investor'].includes(u.role)) list.push({ uid:d.id, ...u }) })
+      let boss = null
+      us.forEach(d => { const u = d.data(); if (u.role === 'owner' && !boss) boss = { uid:d.id, ...u }; if (u.status==='approved' && !['owner','store','investor'].includes(u.role)) list.push({ uid:d.id, ...u }) })
+      setOwner(boss)
       setStaff(list); setCkCfg(cfg); setCtx(c)
     }).catch(e => console.error(e))
     const subs = [
@@ -115,30 +137,48 @@ export default function OurStore() {
   const people = [], waiting = [], gone = []
   const used = {}
   const slotFor = key => { const list = SLOTS[key] || SLOTS.hall; const i = used[key] = (used[key] ?? -1) + 1; const [x,y] = list[i % list.length]; return [x + Math.floor(i / list.length) * 18, y] }
+  const positionsOf = u => { const ps = (u.positions?.length ? u.positions : [u.position]).filter(p => POSITIONS.some(x => x.id === p)); return ps.length ? ps : ['hall'] }
+  // 이 사람이 오가는 자리들: 홀이면 통로 여러 곳, 나머지 포지션은 자기 자리 하나씩. 여러 포지션이면 그 사이를 오감
+  const stationsOf = (ps, weights) => ps.flatMap(p => p === 'hall' ? HALL_POINTS : Array(weights?.[p] || 1).fill(slotFor(p)))
+  // 9~14초마다 다음 자리로 (사람마다 다른 박자)
+  const pick = (uid, points) => {
+    if (points.length === 1) return points[0]
+    const h = hashOf(uid), period = 9 + (h % 6)
+    const epoch = Math.floor((beat + (h % period)) / period)
+    return points[(h + epoch * 7) % points.length]
+  }
   for (const u of staff) {
     const rec = att[u.uid]?.[dd] || null
     const inD = toDate(rec?.in), outD = toDate(rec?.out)
     const plan = rec?.schedStart ? { start:rec.schedStart, end:rec.schedEnd } : planFor(u, now, ctx?.plan, u.uid)
     const grade = calcGrade(u.joinDate)
     const flame = ctx ? monthStatus({ ym, uid:u.uid, user:u, recs:att[u.uid], holidays:ctx.holidays, subs:ctx.subs, plan:ctx.plan, since:ctx.since }).perfect : false
-    const posKey = POSITIONS.some(p => p.id === u.position) ? u.position : 'hall'
-    const base = { uid:u.uid, label:u.name, look:lookOf(u), badges:{ flame, grade, star: ckDone }, posKey, inD, outD, plan, late: rec?.in ? dayStatus(rec, plan).late : 0 }
+    const ps = positionsOf(u), posKey = ps[0]
+    const base = { uid:u.uid, label:u.name, look:lookOf(u), badges:{ flame, grade, star: ckDone }, posKey, ps, inD, outD, plan, late: rec?.in ? dayStatus(rec, plan).late : 0 }
     if (inD && outD) {
       if (nowMs - outD.getTime() < 180000) people.push({ ...base, state:'leaving', pose:'walk', from: slotFor(posKey), to: DOOR })
       else gone.push(base)
     } else if (inD) {
       const br = recBreak(rec)
       const resting = br && nowMin >= toMin(br.start) && nowMin < toMin(br.end)
-      const to = resting ? slotFor('rest') : slotFor(posKey)
+      const to = resting ? slotFor('rest') : pick(u.uid, stationsOf(ps))
       const arriving = nowMs - inD.getTime() < 120000
-      people.push({ ...base, state: resting ? 'rest' : 'work', pose: resting ? 'rest' : 'work', from: arriving ? DOOR : to, to,
-        pace: !resting && posKey === 'hall' ? 110 : 0, brEnd: resting ? br.end : null })
+      people.push({ ...base, state: resting ? 'rest' : 'work', pose: resting ? 'rest' : 'work', from: arriving ? DOOR : to, to, brEnd: resting ? br.end : null })
     } else if (plan) {
       waiting.push({ ...base, overdue: nowMin > toMin(plan.start) })
     }
   }
+  // 사장님: 늘 매장에 있음. 주로 주방, 가끔 홀에 나와 둘러봄
+  if (owner) {
+    const to = pick(owner.uid, stationsOf(['kitchen','hall'], { kitchen: 14 }))
+    people.push({ uid:owner.uid, label:'사장님', boss:true, look:lookOf(owner), badges:{}, posKey:'kitchen', ps:['kitchen','hall'], state:'work', pose:'work', from:to, to })
+  }
+  // 같은 자리에 두 사람이 오면 옆으로 살짝 비켜 섬
+  const taken = {}
+  for (const p of people) { const k = p.to.join(','); const n = taken[k] = (taken[k] || 0) + 1; if (n > 1) p.to = [p.to[0] + (n-1)*22, p.to[1] + (n-1)*6] }
   waiting.sort((a,b) => toMin(a.plan.start) - toMin(b.plan.start))
-  const occupiedWoks = people.filter(p => p.state==='work' && p.posKey==='wok').length
+  // 웍 앞에 서 있는 사람 수만큼 불
+  const occupiedWoks = Math.min(3, people.filter(p => p.state==='work' && SLOTS.wok.some(([x,y]) => Math.abs(p.to[0]-x) < 30 && Math.abs(p.to[1]-y) < 30)).length)
 
   const tile = (x, y, w, h, a, b, id) => (
     <>
@@ -153,7 +193,7 @@ export default function OurStore() {
       <style>{AVATAR_CSS}</style>
       <header style={{display:'flex', alignItems:'baseline', justifyContent:'space-between', gap:12, flexWrap:'wrap', paddingBottom:10, borderBottom:`3px double ${T.ink}`, marginBottom:16}}>
         <h1 style={{fontSize:24, fontWeight:800, margin:0, fontFamily:'inherit', color:T.ink}}>우리 매장</h1>
-        <div style={{fontSize:14, color:T.sub, ...num}}>{now.getMonth()+1}월 {now.getDate()}일 {hm(now)} · 지금 {people.filter(p=>p.state!=='leaving').length}명 근무 중</div>
+        <div style={{fontSize:14, color:T.sub, ...num}}>{now.getMonth()+1}월 {now.getDate()}일 {hm(now)} · 지금 {people.filter(p=>p.state!=='leaving' && !p.boss).length}명 근무 중</div>
       </header>
 
       <div style={{background:'#2A211C', borderRadius:6, padding:8}}>
@@ -260,8 +300,8 @@ export default function OurStore() {
           })}
 
           {/* 직원 */}
-          {[...people].sort((a,b) => a.to[1] - b.to[1]).map(p => (
-            <Mover key={p.uid + p.state} from={p.from} to={p.to}><g opacity={p.state === 'leaving' ? 0.85 : 1}><Person p={p}/></g></Mover>
+          {[...people].sort((a,b) => String(a.uid).localeCompare(String(b.uid))).map(p => (
+            <Mover key={p.uid + p.state} from={p.from} to={p.to}>{moving => <g opacity={p.state === 'leaving' ? 0.85 : 1}><Person p={p} moving={moving || p.state === 'leaving'}/></g>}</Mover>
           ))}
         </svg>
       </div>
@@ -270,11 +310,11 @@ export default function OurStore() {
       <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(min(100%, 300px), 1fr))', gap:'18px 32px', marginTop:18}}>
         <section>
           <h2 style={{fontSize:15, fontWeight:800, margin:'0 0 4px', fontFamily:'inherit', borderBottom:`2px solid ${T.ink}`, paddingBottom:4}}>근무 중</h2>
-          {people.filter(p => p.state !== 'leaving').length === 0 && <div style={{fontSize:13, color:T.sub, padding:'6px 0'}}>지금 근무 중인 사람이 없어요</div>}
-          {people.filter(p => p.state !== 'leaving').map(p => (
+          {people.filter(p => p.state !== 'leaving' && !p.boss).length === 0 && <div style={{fontSize:13, color:T.sub, padding:'6px 0'}}>지금 근무 중인 사람이 없어요</div>}
+          {people.filter(p => p.state !== 'leaving' && !p.boss).map(p => (
             <div key={p.uid} style={{display:'flex', gap:8, alignItems:'baseline', fontSize:14, padding:'5px 0', borderBottom:`1px solid ${T.soft}`}}>
               <b style={{minWidth:56}}>{p.label}</b>
-              <span style={{color:T.sub, fontSize:12}}>{POSITIONS.find(x=>x.id===p.posKey)?.label}</span>
+              <span style={{color:T.sub, fontSize:12}}>{(p.ps||[p.posKey]).map(k => POSITIONS.find(x=>x.id===k)?.label.split(' ')[0]).join('·')}</span>
               <span style={{flex:1}}/>
               <span style={{...num, fontSize:13, color: p.state==='rest' ? T.blue : p.late ? T.red : T.green}}>
                 {p.state === 'rest' ? `브레이크 ~${p.brEnd}` : `${hm(p.inD)} 출근${p.late ? ` (지각 ${p.late}분)` : ''}`}
@@ -297,6 +337,14 @@ export default function OurStore() {
           ))}
         </section>
       </div>
+      {/* 사장님 캐릭터 꾸미기 (사장님 계정에서만) */}
+      {isOwner && user && (
+        <div style={{marginTop:22}}>
+          <AvatarEditor uid={user.uid} userData={owner?.uid === user.uid ? owner : userData} title="사장님 캐릭터" hint="늘 매장에 있어요. 주로 주방에 있다가 가끔 홀을 둘러봐요"
+            onSaved={look => setOwner(o => o && o.uid === user.uid ? { ...o, avatar: look } : o)}/>
+        </div>
+      )}
+
       <div style={{fontSize:12, color:T.sub, marginTop:12, lineHeight:1.7}}>
         캐릭터는 직원이 내 기록에서 꾸미고, 자리는 인원관리의 포지션으로 정해져요. 머리 위 표시: 불꽃은 이번 달 개근 중, 병아리·별·왕관은 근속 등급, 노란 별은 오늘 체크리스트 완료.
       </div>

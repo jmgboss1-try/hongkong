@@ -1,6 +1,6 @@
 // 우리 매장 캐릭터
 // users/{uid}.avatar = { hair, hairColor, skin, shirt, acc }   직원이 내 기록에서 꾸밈
-// users/{uid}.position = 'wok' | 'kitchen' | 'hall' | 'counter' | 'delivery'   사장님이 인원관리에서 정함
+// users/{uid}.positions = ['wok' | 'kitchen' | 'hall' | 'counter' | 'delivery', ...]   사장님이 인원관리에서 정함 (여러 개 가능, position = 첫 번째)
 
 export const HAIRS = [
   { id:'short', label:'짧은 머리' }, { id:'long', label:'긴 머리' }, { id:'bun', label:'올림머리' },
@@ -41,7 +41,7 @@ export const AVATAR_CSS = `
 .av-flame { animation: avFlame .35s ease-in-out infinite; transform-box: fill-box; transform-origin: 50% 100% }
 .av-float { animation: avFloat 2.4s ease-out infinite }
 .av-pace { animation: avPace 7s ease-in-out infinite }
-.os-move { transition: transform 3s linear }
+.os-move { transition: transform 2.5s linear }
 @media (prefers-reduced-motion: reduce) {
   .av-bob, .av-walk, .av-arm, .av-flame, .av-float, .av-pace { animation: none !important }
   .os-move { transition: none !important }

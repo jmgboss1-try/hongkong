@@ -265,7 +265,8 @@ export default function Members() {
         wageHistory: newHistory,
         scheduleHistory: newScheduleHistory,
         shiftTimes: form.shiftTimes || {},
-        position: form.position || 'hall',
+        positions: form.positions?.length ? form.positions : [form.position || 'hall'],
+        position: (form.positions?.length ? form.positions : [form.position || 'hall'])[0],
       }, {merge:true})
 
       await load()
@@ -615,12 +616,15 @@ export default function Members() {
 
           {/* 우리 매장 화면에서 일하는 자리 */}
           <div style={{padding:'0 18px 14px'}}>
-            <label style={{fontSize:10,color:'#6E6A63',fontWeight:600,display:'block',marginBottom:8}}>포지션 (우리 매장 화면에서 캐릭터가 일하는 자리)</label>
+            <label style={{fontSize:10,color:'#6E6A63',fontWeight:600,display:'block',marginBottom:8}}>포지션 (우리 매장 화면에서 캐릭터가 일하는 자리 · 여러 개 고르면 그 사이를 오가요)</label>
             <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>
               {POSITIONS.map(p => {
-                const on = (form.position || 'hall') === p.id
+                const cur = form.positions?.length ? form.positions : [form.position || 'hall']
+                const on = cur.includes(p.id)
+                // 여러 개 고를 수 있음 (고른 자리들을 오가며 일함). 하나는 꼭 남김
+                const toggle = () => { const next = on ? cur.filter(x => x !== p.id) : [...cur, p.id]; if (next.length) setF('positions', next) }
                 return (
-                  <button key={p.id} type="button" onClick={()=>setF('position', p.id)}
+                  <button key={p.id} type="button" onClick={toggle}
                     style={{fontFamily:'inherit',fontSize:12,padding:'6px 10px',borderRadius:4,cursor:'pointer',
                       border:on?'1px solid #C3261C':'1px solid #DCD7CE',background:on?'rgba(195,38,28,0.12)':'#F3F1EC',color:on?'#C3261C':'#6E6A63',fontWeight:on?700:500}}>
                     {p.label}
