@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { db } from '../firebase'
 import { doc, setDoc } from 'firebase/firestore'
 import { parseAmount, addRewardBonuses } from '../lib/rewards'
@@ -110,6 +110,8 @@ function trace(rungs, start) {
   return { end: c, path }
 }
 
+const LADDER_SECONDS = 5 // 한 사람이 사다리를 내려가는 시간 (천천히 보이게)
+
 function Ladder({ people, prizes, onResult }) {
   const n = people.length
   // 게임을 시작할 때 한 번만 섞고 그림 (다시 그려도 바뀌지 않게)
@@ -119,45 +121,91 @@ function Ladder({ people, prizes, onResult }) {
     return shuffle(list)
   })
   const [rungs] = useState(() => makeLadder(n))
-  const [shown, setShown] = useState([]) // 길을 보여준 사람 순서
+  const [arrived, setArrived] = useState([]) // 다 내려온 사람
+  const [running, setRunning] = useState(null) // 지금 내려가는 사람 번호
+  const [progress, setProgress] = useState(0)  // 0 → 1
   const W = Math.max(300, n*90), colX = c => 45 + c*((W-90)/Math.max(1,n-1)), H = 300, top = 30, rowY = r => top + 20 + r*((H-80)/rungs.length)
   const yOf = r => r < 0 ? top : r >= rungs.length ? H - 30 : rowY(r)
-
-  function reveal(i) {
-    if (shown.includes(i)) return
-    setShown(v => [...v, i])
-    const { end } = trace(rungs, i)
-    onResult(people[i], bottom[end])
+  const pointsOf = i => trace(rungs, i).path.map(([c, r]) => [colX(c), yOf(r)])
+  const lengthOf = pts => pts.slice(1).reduce((a, p, k) => a + Math.hypot(p[0]-pts[k][0], p[1]-pts[k][1]), 0)
+  // 길 위에서 비율 t 지점 좌표
+  const pointAt = (pts, t) => {
+    let left = lengthOf(pts) * t
+    for (let k = 1; k < pts.length; k++) {
+      const seg = Math.hypot(pts[k][0]-pts[k-1][0], pts[k][1]-pts[k-1][1])
+      if (left <= seg) { const f = seg ? left/seg : 0; return [pts[k-1][0] + (pts[k][0]-pts[k-1][0])*f, pts[k-1][1] + (pts[k][1]-pts[k-1][1])*f] }
+      left -= seg
+    }
+    return pts[pts.length-1]
   }
+
+  // 내려가는 동안 화면을 계속 그림 → 다 내려오면 결과
+  useEffect(() => {
+    if (running === null) return
+    let raf, start
+    const step = ts => {
+      if (start === undefined) start = ts
+      const t = Math.min(1, (ts - start) / (LADDER_SECONDS*1000))
+      setProgress(t)
+      if (t < 1) raf = requestAnimationFrame(step)
+      else {
+        const { end } = trace(rungs, running)
+        setArrived(v => [...v, running]); setRunning(null)
+        onResult(people[running], bottom[end])
+      }
+    }
+    raf = requestAnimationFrame(step)
+    return () => cancelAnimationFrame(raf)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [running])
+
+  function start(i) {
+    if (running !== null || arrived.includes(i)) return
+    setProgress(0); setRunning(i)
+  }
+  const endOf = i => trace(rungs, i).end
+  const winnerAt = c => arrived.find(i => endOf(i) === c) // 이 상품 칸에 도착한 사람
 
   return (
     <div style={{overflowX:'auto'}}>
       <svg width={W} height={H+40} viewBox={`0 0 ${W} ${H+40}`} style={{display:'block', margin:'0 auto'}}>
-        {people.map((p,i) => (
-          <g key={p.uid} onClick={()=>reveal(i)} style={{cursor:'pointer'}}>
-            <rect x={colX(i)-40} y={0} width={80} height={24} rx={4} fill={shown.includes(i) ? LANE[i % LANE.length] : '#FFFFFF'} stroke={T.ink}/>
-            <text x={colX(i)} y={13} textAnchor="middle" dominantBaseline="middle" fontSize="13" fontWeight="700"
-              fill={shown.includes(i) ? '#FFFFFF' : T.ink} style={{fontFamily:'inherit'}}>{p.name}</text>
-          </g>
-        ))}
+        {people.map((p,i) => {
+          const done = arrived.includes(i), now = running === i
+          return (
+            <g key={p.uid} onClick={()=>start(i)} style={{cursor: running === null && !done ? 'pointer' : 'default'}}>
+              <rect x={colX(i)-40} y={0} width={80} height={24} rx={4} fill={done || now ? LANE[i % LANE.length] : '#FFFFFF'} stroke={T.ink}/>
+              <text x={colX(i)} y={13} textAnchor="middle" dominantBaseline="middle" fontSize="13" fontWeight="700"
+                fill={done || now ? '#FFFFFF' : T.ink} style={{fontFamily:'inherit'}}>{p.name}</text>
+            </g>
+          )
+        })}
         {people.map((p,i) => <line key={'v'+i} x1={colX(i)} y1={top} x2={colX(i)} y2={H-30} stroke={T.rule} strokeWidth="3"/>)}
         {rungs.map((s, r) => [...s].map(c => <line key={`h${r}-${c}`} x1={colX(c)} y1={rowY(r)} x2={colX(c+1)} y2={rowY(r)} stroke={T.rule} strokeWidth="3"/>))}
-        {shown.map(i => {
-          const { path } = trace(rungs, i)
-          const pts = path.map(([c, r]) => `${colX(c)},${yOf(r)}`).join(' ')
-          return <polyline key={'p'+i} points={pts} fill="none" stroke={LANE[i % LANE.length]} strokeWidth="4" strokeLinejoin="round"
-            style={{strokeDasharray:2000, strokeDashoffset:0, animation:'ladderDraw 1.6s ease-out'}}/>
+        {[...arrived, ...(running !== null ? [running] : [])].map(i => {
+          const pts = pointsOf(i), len = lengthOf(pts), t = i === running ? progress : 1
+          const head = pointAt(pts, t)
+          return (
+            <g key={'p'+i}>
+              <polyline points={pts.map(p => p.join(',')).join(' ')} fill="none" stroke={LANE[i % LANE.length]} strokeWidth="4" strokeLinejoin="round"
+                strokeDasharray={len} strokeDashoffset={len * (1 - t)}/>
+              {i === running && <circle cx={head[0]} cy={head[1]} r="8" fill={LANE[i % LANE.length]} stroke="#FFFFFF" strokeWidth="2"/>}
+            </g>
+          )
         })}
-        {bottom.map((b,i) => (
-          <g key={'b'+i}>
-            <rect x={colX(i)-40} y={H-24} width={80} height={26} rx={4} fill="#F3F1EC" stroke={T.ink}/>
-            <text x={colX(i)} y={H-11} textAnchor="middle" dominantBaseline="middle" fontSize="12" fontWeight="700" fill={T.ink} style={{fontFamily:'inherit'}}>{b.length > 7 ? b.slice(0,7)+'…' : b}</text>
-          </g>
-        ))}
+        {bottom.map((b,c) => {
+          const w = winnerAt(c)
+          return (
+            <g key={'b'+c}>
+              <rect x={colX(c)-40} y={H-24} width={80} height={26} rx={4} fill={w !== undefined ? LANE[w % LANE.length] : '#F3F1EC'} stroke={T.ink}/>
+              <text x={colX(c)} y={H-11} textAnchor="middle" dominantBaseline="middle" fontSize="12" fontWeight="700"
+                fill={w !== undefined ? '#FFFFFF' : T.ink} style={{fontFamily:'inherit'}}>{b.length > 7 ? b.slice(0,7)+'…' : b}</text>
+            </g>
+          )
+        })}
       </svg>
-      <style>{'@keyframes ladderDraw { from { stroke-dashoffset: 2000 } to { stroke-dashoffset: 0 } }'}</style>
-      <div style={{textAlign:'center', fontSize:13, color:T.sub, marginTop:6}}>
-        {shown.length < n ? '위의 이름을 하나씩 누르면 사다리를 타고 내려가요' : '모두 내려왔어요'}
+      <div style={{textAlign:'center', fontSize:14, color: running !== null ? T.ink : T.sub, marginTop:6, fontWeight: running !== null ? 700 : 400}}>
+        {running !== null ? `${people[running].name} 내려가는 중...`
+          : arrived.length < n ? '위의 이름을 하나씩 누르면 사다리를 타고 천천히 내려가요' : '모두 내려왔어요'}
       </div>
     </div>
   )
