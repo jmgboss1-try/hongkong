@@ -38,6 +38,7 @@ export default function AttendancePanel({ curMonth, nameMap, onApplied }) {
   const [reward, setReward] = useState(null)   // rewards/{달}
   const [openUid, setOpenUid] = useState(null) // 근태 상세를 펼친 직원
   const [showGame, setShowGame] = useState(false)
+  const [practice, setPractice] = useState(false) // 포상 게임 연습 (저장 안 됨)
   const [since, setSince] = useState('')
   const [plan, setPlan] = useState(null)       // schedule/{달} 근무표
   const [brkEdit, setBrkEdit] = useState(null)   // 요일별 브레이크 편집 {요일: {start,end}}
@@ -428,11 +429,13 @@ export default function AttendancePanel({ curMonth, nameMap, onApplied }) {
             ) : perfectList.length ? (
               <><span>개근 {perfectList.map(x=>x.u.name).join(', ')}</span><Btn kind="primary" onClick={()=>setShowGame(true)}>포상 게임 하기</Btn></>
             ) : <span style={{color:T.sub}}>이 달 개근한 직원이 없어요</span>}
+            {link('연습해 보기', ()=>setPractice(true))}
           </div>
         </div>
       )}
       {showGame && <RewardGame ym={curMonth} people={perfectList.map(x=>({ uid:x.u.uid, name:x.u.name }))}
         onClose={()=>setShowGame(false)} onSaved={()=>{ load(false); onApplied?.() }}/>}
+      {practice && <RewardGame ym={curMonth} practice people={staff.map(u=>({ uid:u.uid, name:u.name }))} onClose={()=>setPractice(false)}/>}
 
       {rows.length > 0 && (
         <div style={{marginTop:10}}>

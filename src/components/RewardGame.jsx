@@ -171,7 +171,8 @@ function Ladder({ people, prizes, onResult }) {
   )
 }
 
-export default function RewardGame({ ym, people, onClose, onSaved }) {
+// practice: 연습 (저장 안 됨, 아무 직원으로 해볼 수 있음)
+export default function RewardGame({ ym, people, onClose, onSaved, practice }) {
   const [game, setGame] = useState('roulette')
   const [prizeText, setPrizeText] = useState('3만원, 2만원, 1만원, 꽝')
   const [started, setStarted] = useState(false)
@@ -212,8 +213,8 @@ export default function RewardGame({ ym, people, onClose, onSaved }) {
     <div onClick={onClose} style={{position:'fixed', inset:0, background:'rgba(0,0,0,0.6)', zIndex:1000, overflowY:'auto', padding:'30px 12px'}}>
       <div onClick={e=>e.stopPropagation()} style={{background:'#FAF9F6', borderRadius:6, maxWidth:760, margin:'0 auto', padding:'20px 22px', color:T.ink}}>
         <div style={{display:'flex', justifyContent:'space-between', alignItems:'baseline', borderBottom:`3px double ${T.ink}`, paddingBottom:8, marginBottom:14, gap:10, flexWrap:'wrap'}}>
-          <h2 style={{fontSize:22, fontWeight:800, margin:0, fontFamily:'inherit'}}>{+m}월 개근 포상 게임</h2>
-          <span style={{fontSize:13, color:T.sub}}>개근 {people.length}명: {people.map(p=>p.name).join(', ')}</span>
+          <h2 style={{fontSize:22, fontWeight:800, margin:0, fontFamily:'inherit'}}>{practice ? '포상 게임 연습' : `${+m}월 개근 포상 게임`}</h2>
+          <span style={{fontSize:13, color: practice ? T.red : T.sub}}>{practice ? '연습이라 결과는 저장되지 않아요' : `개근 ${people.length}명: ${people.map(p=>p.name).join(', ')}`}</span>
         </div>
 
         {!started ? (
@@ -237,6 +238,7 @@ export default function RewardGame({ ym, people, onClose, onSaved }) {
             </div>
             <div style={{display:'flex', gap:8}}>
               <Btn kind="primary" onClick={()=>setStarted(true)} disabled={!prizes.length || !people.length}>게임 시작</Btn>
+              {practice && done && <span style={{fontSize:13, color:T.sub}}>연습이 끝났어요. 실제 게임은 달이 끝난 뒤 개근한 직원끼리 해요.</span>}
               <Btn onClick={onClose}>닫기</Btn>
             </div>
           </>
@@ -267,10 +269,11 @@ export default function RewardGame({ ym, people, onClose, onSaved }) {
                 <span style={{fontSize:14, fontWeight:700, color:T.green}}>
                   {saved==='bonus' ? `저장했고 ${+m}월 급여 상여에 넣었어요` : '결과만 저장했어요'}
                 </span>
-              ) : done && <>
+              ) : done && !practice && <>
                 <Btn kind="ok" onClick={()=>save(true)} disabled={saving}>결과 저장 + {+m}월 급여 상여에 넣기</Btn>
                 <Btn onClick={()=>save(false)} disabled={saving}>결과만 저장</Btn>
               </>}
+              {practice && done && <span style={{fontSize:13, color:T.sub}}>연습이 끝났어요. 실제 게임은 달이 끝난 뒤 개근한 직원끼리 해요.</span>}
               <Btn onClick={onClose}>닫기</Btn>
             </div>
           </>
