@@ -38,6 +38,7 @@ const LossClaims = lazyPage(() => import('./pages/LossClaims'))
 const Checklist = lazyPage(() => import('./pages/Checklist'))
 const Prepaid = lazyPage(() => import('./pages/Prepaid'))
 const SalesAnalysis = lazyPage(() => import('./pages/SalesAnalysis'))
+const OurStore = lazyPage(() => import('./pages/OurStore'))
 const PhoneUpload = lazyPage(() => import('./pages/PhoneUpload'))
 
 // 화면 코드를 내려받는 동안 (보통 한순간)
@@ -139,6 +140,8 @@ function AppRoutes() {
         <Route path="/checklist" element={<PrivateRoute storeOk><Checklist /></PrivateRoute>} />
         <Route path="/prepaid" element={<PrivateRoute storeOk><Prepaid /></PrivateRoute>} />
         <Route path="/sales-analysis" element={<PrivateRoute storeOk storeOnly><SalesAnalysis /></PrivateRoute>} />
+        {/* 우리 매장: 사장 + 매장계정 (포스에 띄워 두는 화면) */}
+        <Route path="/our-store" element={<PrivateRoute storeOk storeOnly><OurStore /></PrivateRoute>} />
         <Route path="*" element={<Navigate to={homePath({ isOwner, isStore, isInvestor })} />} />
       </Routes>
       </Suspense>

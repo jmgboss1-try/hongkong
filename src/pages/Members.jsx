@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { avgHoursFromPattern } from '../lib/attendance'
+import { POSITIONS } from '../lib/avatar'
 import { db } from '../firebase'
 import { collection, getDocs, getDoc, doc, setDoc } from 'firebase/firestore'
 import { GradeBadge } from '../AuthContext'
@@ -264,6 +265,7 @@ export default function Members() {
         wageHistory: newHistory,
         scheduleHistory: newScheduleHistory,
         shiftTimes: form.shiftTimes || {},
+        position: form.position || 'hall',
       }, {merge:true})
 
       await load()
@@ -608,6 +610,23 @@ export default function Members() {
             </div>
             <div style={{fontSize:10,color:'#6E6A63',marginTop:6}}>
               주 {Array.isArray(form.workDays)?form.workDays.length:5}일 소정근로
+            </div>
+          </div>
+
+          {/* 우리 매장 화면에서 일하는 자리 */}
+          <div style={{padding:'0 18px 14px'}}>
+            <label style={{fontSize:10,color:'#6E6A63',fontWeight:600,display:'block',marginBottom:8}}>포지션 (우리 매장 화면에서 캐릭터가 일하는 자리)</label>
+            <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>
+              {POSITIONS.map(p => {
+                const on = (form.position || 'hall') === p.id
+                return (
+                  <button key={p.id} type="button" onClick={()=>setF('position', p.id)}
+                    style={{fontFamily:'inherit',fontSize:12,padding:'6px 10px',borderRadius:4,cursor:'pointer',
+                      border:on?'1px solid #C3261C':'1px solid #DCD7CE',background:on?'rgba(195,38,28,0.12)':'#F3F1EC',color:on?'#C3261C':'#6E6A63',fontWeight:on?700:500}}>
+                    {p.label}
+                  </button>
+                )
+              })}
             </div>
           </div>
 

@@ -4,6 +4,7 @@ import { doc, getDoc, setDoc, collection, query, where, getDocs } from 'firebase
 import { useAuth, GradeBadge } from '../AuthContext'
 import MyAttendance from '../components/MyAttendance'
 import MyRewardSpin from '../components/MyRewardSpin'
+import AvatarEditor from '../components/AvatarEditor'
 
 const pad = n => String(n).padStart(2,'0')
 const daysIn = ym => { const[y,m]=ym.split('-').map(Number); return new Date(y,m,0).getDate() }
@@ -144,6 +145,8 @@ const [employType, setEmployType] = useState('part')
     <div>
       {/* 지난달 개근이면 포상 룰렛 (사장님이 열었을 때) */}
       <MyRewardSpin uid={user.uid} name={userData?.name || ''}/>
+      {/* 우리 매장 화면에 나오는 내 캐릭터 */}
+      <AvatarEditor uid={user.uid} userData={userData}/>
       <div style={{display:'flex',alignItems:'flex-end',justifyContent:'space-between',marginBottom:22}}>
         <div>
           <div style={{fontSize:20,fontWeight:700}}>내 스케쥴</div>
