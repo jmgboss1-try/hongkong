@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { db } from '../firebase'
 import { doc, getDoc, setDoc, collection, getDocs } from 'firebase/firestore'
 import AttendancePanel from '../components/AttendancePanel'
+import { withSubMemos, loadSubs, dayStatus, hm, toDate } from '../lib/attendance'
 
 const pad = n => String(n).padStart(2,'0')
 
@@ -71,6 +72,8 @@ export default function WorkManage() {
   const [prevWorkHours, setPrevWorkHours] = useState({})
   const [prevWorkExtra, setPrevWorkExtra] = useState({})
   const [prevMemos, setPrevMemos] = useState({})
+  const [subs, setSubs] = useState([])   // 대타 게시판 (확정된 날은 주휴 계산에서 대타로 인정)
+  const [att, setAtt] = useState({})     // NFC 출퇴근 attendance/{달}
   const [loading, setLoading] = useState(true)
   const [activeEmp, setActiveEmp] = useState(null)
   const [showTodayOnly, setShowTodayOnly] = useState(false)
@@ -131,6 +134,10 @@ setPrevWorkExtra(prevExSnap.exists() ? prevExSnap.data() : {})
 const prevMemoSnap = await getDoc(doc(db,'workmemos',prevMonth))
 setPrevMemos(prevMemoSnap.exists() ? prevMemoSnap.data() : {})
 
+      setSubs(await loadSubs())
+      const attSnap = await getDoc(doc(db,'attendance',curMonth)).catch(()=>null)
+      setAtt(attSnap?.exists() ? attSnap.data() : {})
+
     } catch(e) { console.error(e) }
     setLoading(false)
   }
@@ -160,13 +167,18 @@ setPrevMemos(prevMemoSnap.exists() ? prevMemoSnap.data() : {})
     setMemos(newMemos)
   }
 
+  // 주휴 계산용 비고: 저장된 비고 + 대타 게시판에서 확정된 날
+  const [pcy, pcm] = curMonth.split('-').map(Number)
+  const calcMemos = withSubMemos(memos, subs, curMonth)
+  const calcPrevMemos = withSubMemos(prevMemos, subs, pcm===1 ? `${pcy-1}-12` : `${pcy}-${pad(pcm-1)}`)
+
 function getEmpStats(emp) {
     const wh = workHours[emp.uid] || {}
     const ex = workExtra[emp.uid] || {}
-    const empMemos = memos[emp.uid] || {}
+    const empMemos = calcMemos[emp.uid] || {}
     const prevWh = prevWorkHours[emp.uid] || {}
     const prevEx = prevWorkExtra[emp.uid] || {}
-    const prevEmpMemos = prevMemos[emp.uid] || {}
+    const prevEmpMemos = calcPrevMemos[emp.uid] || {}
     const wage = getWageForMonth(emp, curMonth)
     const schedule = getScheduleForMonth(emp, curMonth)
     const workDays = schedule.workDays || [1,2,3,4,5]
@@ -245,6 +257,9 @@ function getEmpStats(emp) {
     <div style={{background:'#FFFFFF',border:'1px solid #2E7D45',borderRadius:6,overflow:'hidden',marginBottom:18}}>
       <div style={{padding:'14px 18px',borderBottom:'1px solid #DCD7CE',fontSize:13,fontWeight:600,color:'#2E7D45'}}>
         오늘 ({+todayDD}일) 근무 인원 — {todayEmps.length}명
+        <div style={{fontSize:11,fontWeight:400,color:'#6E6A63',marginTop:3}}>
+          NFC로 찍은 직원은 퇴근을 찍으면 근무시간이 자동으로 채워져요. 비어 있거나 틀린 것만 고치세요 (퇴근 전에 미리 적으면 퇴근 때 NFC 시간으로 바뀌어요).
+        </div>
       </div>
       {todayEmps.length === 0 ? (
         <div style={{padding:24,textAlign:'center',color:'#6E6A63',fontSize:12}}>오늘 근무 예정 인원이 없습니다</div>
@@ -253,6 +268,7 @@ function getEmpStats(emp) {
           <div style={{display:'flex',alignItems:'center',gap:14,padding:'8px 18px',
             background:'#F3F1EC',fontSize:10,fontWeight:600,color:'#6E6A63'}}>
             <div style={{minWidth:80}}>이름</div>
+            <div style={{minWidth:170}}>NFC 출퇴근</div>
             <div style={{minWidth:120}}>근무시간 (h)</div>
             <div style={{minWidth:120}}>추가근무 (분)</div>
             <div style={{flex:1}}>비고</div>
@@ -273,7 +289,21 @@ function getEmpStats(emp) {
                   {emp.name}
                   {hasMissing && <span style={{fontSize:9,marginLeft:4}}>⚠{missing.length}</span>}
                 </div>
-                <input type="number" defaultValue={wh[todayDD]||''} min="0" max="24" step="0.5" placeholder="0"
+                {(() => {
+                  // 오늘 NFC 기록: 출근·퇴근 시각, 지각·조퇴
+                  const rec = curMonth===`${new Date().getFullYear()}-${pad(new Date().getMonth()+1)}` ? att[emp.uid]?.[todayDD] : null
+                  if (!rec?.in) return <div style={{minWidth:170,fontSize:12,color:'#A8A39A'}}>태그 안 함</div>
+                  const st = dayStatus(rec, rec.schedStart ? { start:rec.schedStart, end:rec.schedEnd } : null)
+                  return (
+                    <div style={{minWidth:170,fontSize:12,fontVariantNumeric:'tabular-nums',lineHeight:1.5}}>
+                      <span style={{fontWeight:700}}>{hm(toDate(rec.in))} ~ {rec.out ? hm(toDate(rec.out)) : ''}</span>
+                      {!rec.out && <span style={{color:'#2B5C9E',marginLeft:4}}>근무 중</span>}
+                      {st.late > 0 && <span style={{color:'#B42318',fontWeight:700,marginLeft:6}}>지각 {st.late}분</span>}
+                      {st.leftEarly > 0 && <span style={{color:'#B42318',fontWeight:700,marginLeft:6}}>조퇴 {st.leftEarly}분</span>}
+                    </div>
+                  )
+                })()}
+                <input key={`h${wh[todayDD]||0}`} type="number" defaultValue={wh[todayDD]||''} min="0" max="24" step="0.5" placeholder="0"
                   onBlur={e=>saveWorkHours(emp.uid,todayDD,e.target.value)}
                   onKeyDown={e=>e.key==='Enter'&&e.target.blur()}
                   style={{width:100,background:wh[todayDD]>0?'rgba(195,38,28,0.15)':'#F3F1EC',
@@ -281,7 +311,7 @@ function getEmpStats(emp) {
                     borderRadius:6,color:wh[todayDD]>0?'#C3261C':'#1D1B18',
                     padding:'7px 8px',fontSize:13,fontWeight:wh[todayDD]>0?700:400,
                     textAlign:'center',outline:'none',fontFamily:'inherit',fontVariantNumeric:'tabular-nums'}}/>
-                <input type="number" defaultValue={ex[todayDD]||''} min="0" max="180" step="5" placeholder="0"
+                <input key={`m${ex[todayDD]||0}`} type="number" defaultValue={ex[todayDD]||''} min="0" max="180" step="5" placeholder="0"
                   onBlur={e=>saveWorkExtra(emp.uid,todayDD,e.target.value)}
                   onKeyDown={e=>e.key==='Enter'&&e.target.blur()}
                   style={{width:100,background:ex[todayDD]>0?'rgba(195,38,28,0.15)':'#F3F1EC',

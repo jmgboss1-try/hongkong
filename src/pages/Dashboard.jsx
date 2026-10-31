@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { db } from '../firebase'
 import { doc, getDoc, getDocs, collection } from 'firebase/firestore'
+import { withSubMemos, loadSubs } from '../lib/attendance'
 import { bankSummary } from '../lib/bankRecon'
 import { ComposedChart, Bar, Line, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts'
 
@@ -148,10 +149,12 @@ export default function Dashboard() {
       ])
       const whData=whSnap.exists()?whSnap.data():{}
       const extraData=exSnap.exists()?exSnap.data():{}
-      const memoData=memoSnap.exists()?memoSnap.data():{}
+      // 대타 게시판에서 확정된 날은 비고 없이도 주휴 계산에서 대타로 인정 (인건비 탭과 같음)
+      const subs=await loadSubs()
+      const memoData=withSubMemos(memoSnap.exists()?memoSnap.data():{},subs,curMonth)
       const prevWhData=prevWhSnap.exists()?prevWhSnap.data():{}
       const prevExData=prevExSnap.exists()?prevExSnap.data():{}
-      const prevMemoData=prevMemoSnap.exists()?prevMemoSnap.data():{}
+      const prevMemoData=withSubMemos(prevMemoSnap.exists()?prevMemoSnap.data():{},subs,prevMonth)
       setPrevWH(prevWhData); setPrevEX(prevExData); setPrevMemo(prevMemoData)
 
       const stats={}

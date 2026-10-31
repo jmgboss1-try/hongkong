@@ -150,3 +150,19 @@ export async function loadMonthContext(ym) {
   ])
   return { att: att || {}, cfg, holidays: hol?.list || [], subs: subs?.list || [], since: cfg?.since || DEFAULT_SINCE }
 }
+
+// ── 대타 → 주휴 ──
+// 주휴 계산은 빠진 날 비고에 '대타'가 있으면 그 주 주휴를 살려줌. 대타 게시판에서 확정된 날은
+// 비고를 안 적어도 '대타'로 본다 (계산용 사본만 바꾸고 저장된 비고는 그대로)
+export function withSubMemos(memos, subs, ym) {
+  const out = { ...(memos||{}) }
+  for (const r of subs||[]) {
+    if (!r?.confirmedUid || !r.requesterUid || String(r.date).slice(0,7) !== ym) continue
+    const dd = r.date.slice(8,10)
+    const cur = out[r.requesterUid]?.[dd] || ''
+    if (cur.includes('대타')) continue
+    out[r.requesterUid] = { ...(out[r.requesterUid]||{}), [dd]: cur ? `${cur} (대타)` : '대타' }
+  }
+  return out
+}
+export const loadSubs = () => getDoc(doc(db,'substitutes','requests')).then(s => s.exists() ? (s.data().list||[]) : []).catch(() => [])

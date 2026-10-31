@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { db } from '../firebase'
 import { doc, getDoc, setDoc, collection, getDocs } from 'firebase/firestore'
+import { withSubMemos, loadSubs } from '../lib/attendance'
 
 const pad = n => String(n).padStart(2,'0')
 const daysIn = ym => { const[y,m]=ym.split('-').map(Number); return new Date(y,m,0).getDate() }
@@ -449,10 +450,12 @@ if(!isActive && !isRetired) return
 ])
       setWorkHours(wh.exists()?wh.data():{})
       setWorkExtra(ex.exists()?ex.data():{})
-      setMemos(me.exists()?me.data():{})
+      // 대타 게시판에서 확정된 날은 비고 없이도 주휴 계산에서 대타로 인정
+      const subs = await loadSubs()
+      setMemos(withSubMemos(me.exists()?me.data():{}, subs, curMonth))
       setPrevWorkHours(pwh.exists()?pwh.data():{})
       setPrevWorkExtra(pex.exists()?pex.data():{})
-      setPrevMemos(pme.exists()?pme.data():{})
+      setPrevMemos(withSubMemos(pme.exists()?pme.data():{}, subs, prev))
       setPayroll(pr.exists()?pr.data():{})
       // 이번 달 설정이 없으면 가장 최근 이전 달 설정을 이어서 사용
       const ownerDoc = ownerSnap.docs.filter(d=>d.id<=curMonth).sort((a,b)=>a.id<b.id?1:-1)[0]
