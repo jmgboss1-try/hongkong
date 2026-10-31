@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { avgHoursFromPattern } from '../lib/attendance'
 import { db } from '../firebase'
 import { collection, getDocs, getDoc, doc, setDoc } from 'firebase/firestore'
 import { GradeBadge } from '../AuthContext'
@@ -612,7 +613,7 @@ export default function Members() {
 
           {/* 출퇴근 예정 시각 (NFC 출퇴근: 예정보다 10분 넘게 일찍 오거나 늦게 퇴근한 시간은 승인 대기) */}
           <div style={{padding:'0 18px 14px'}}>
-            <label style={{fontSize:10,color:'#6E6A63',fontWeight:600,display:'block',marginBottom:8}}>요일별 출퇴근 예정 시각 (NFC 출퇴근 기준)</label>
+            <label style={{fontSize:10,color:'#6E6A63',fontWeight:600,display:'block',marginBottom:8}}>요일별 기본 근무 시간 (고정 근무자만 · 시간이 유동적이면 비워 두고 스케쥴 근무표에서 주마다 넣어요)</label>
             <div style={{display:'flex',flexDirection:'column',gap:6}}>
               {['월','화','수','목','금','토','일'].map((day,i)=>{
                 const idx = i+1===7 ? 0 : i+1
@@ -635,8 +636,20 @@ export default function Members() {
               })}
             </div>
             <div style={{fontSize:10,color:'#6E6A63',marginTop:6,lineHeight:1.6}}>
-              비워두면 그 요일은 예정 없음으로 보고, 출퇴근을 찍으면 그날 근무 전체가 승인 대기로 가요.
+              여기 넣은 시간이 매주 스케쥴 근무표에 자동으로 채워져요. 특정 날만 다르면 스케쥴에서 그 칸만 바꾸면 돼요.
+              근무표에도 시간이 없는 날 출퇴근을 찍으면 그날 근무 전체가 승인 대기로 가요.
             </div>
+            {(() => {
+              const avg = avgHoursFromPattern(form.shiftTimes, form.workDays || [1,2,3,4,5])
+              if (avg == null || +form.avgHours === avg) return null
+              return (
+                <div style={{display:'flex',alignItems:'center',gap:8,marginTop:8,fontSize:12,color:'#1D1B18',flexWrap:'wrap'}}>
+                  <span>위 시간으로 계산한 하루 평균 <b>{avg}시간</b> (토요일 브레이크 제외) · 지금 평균근무시간 {form.avgHours||8}시간</span>
+                  <button type="button" onClick={()=>setF('avgHours', avg)}
+                    style={{background:'#FFFFFF',border:'1px solid #DCD7CE',borderRadius:4,padding:'3px 10px',fontSize:12,cursor:'pointer',fontFamily:'inherit'}}>평균근무시간에 넣기</button>
+                </div>
+              )
+            })()}
           </div>
 
           {/* 주휴 계산 기준 */}

@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { db } from '../firebase'
 import { doc, getDoc, setDoc, deleteField, serverTimestamp } from 'firebase/firestore'
 import { useAuth } from '../AuthContext'
-import { DEFAULT_RADIUS, GRACE_MIN, ymOf, ddOf, hm, toDate, shiftFor, breakForShift, calcRecord, applyRecord, distanceM, getPosition, minsLabel } from '../lib/attendance'
+import { DEFAULT_RADIUS, GRACE_MIN, ymOf, ddOf, hm, toDate, planFor, breakForShift, calcRecord, applyRecord, distanceM, getPosition, minsLabel } from '../lib/attendance'
 
 const DAYS_KR = ['일','월','화','수','목','금','토']
 const T = { ink:'#1D1B18', sub:'#6E6A63', rule:'#DCD7CE', accent:'#C3261C', red:'#B42318', green:'#2E7D45', blue:'#2B5C9E', amber:'#B45309' }
@@ -30,10 +30,13 @@ export default function Clock() {
     setPhase('working'); setMsg('위치를 확인하고 있어요...')
     try {
       // 1. 매장 근처인지
-      const [pos, cfgSnap, meSnap] = await Promise.all([
+      const nowD = new Date()
+      const [pos, cfgSnap, meSnap, plan, subs] = await Promise.all([
         getPosition(),
         getDoc(doc(db,'attendance','_config')),
         getDoc(doc(db,'users',user.uid)),
+        getDoc(doc(db,'schedule',ymOf(nowD))).then(x => x.exists() ? x.data() : null).catch(() => null), // 이번 주 근무표 (직접 바꾼 날·일찍 마감)
+        getDoc(doc(db,'substitutes','requests')).then(x => x.exists() ? (x.data().list||[]) : []).catch(() => []), // 대타로 들어가는 날
       ])
       const cfg = cfgSnap.exists() ? cfgSnap.data() : null
       const me = meSnap.exists() ? meSnap.data() : userData
@@ -60,7 +63,10 @@ export default function Clock() {
       }
 
       if (!rec?.in) {
-        const sh = shiftFor(me, now)
+        // 예정: 근무표(기본 패턴·직접 바꾼 날·일찍 마감) → 없으면 오늘 대타로 확정된 시간
+        const todayStr = `${tYm}-${tDd}`
+        const cover = subs.find(r => r.confirmedUid === user.uid && r.date === todayStr)
+        const sh = planFor(me, now, plan, user.uid) || (cover ? { start:`${cover.startH}:${cover.startM}`, end:`${cover.endH}:${cover.endM}` } : null)
         const br = breakForShift(cfg, now, sh) // 풀타임이면 그날 매장 브레이크를 기록에 붙임 (근무시간에서 빠짐)
         await write(tYm, tDd, { in: serverTimestamp(), inDist: dist, name: me?.name || '', schedStart: sh?.start || null, schedEnd: sh?.end || null,
           ...(br ? { breakStart: br.start, breakEnd: br.end } : {}) })

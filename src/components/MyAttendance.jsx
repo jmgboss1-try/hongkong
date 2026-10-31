@@ -19,7 +19,7 @@ export default function MyAttendance({ curMonth, uid }) {
       getDoc(doc(db,'rewards',curMonth)).then(s => s.exists() ? s.data() : null).catch(() => null),
     ]).then(([ctx, me, reward]) => {
       if (off) return
-      const st = monthStatus({ ym:curMonth, uid, user:me, recs:ctx.att[uid], holidays:ctx.holidays, subs:ctx.subs, since:ctx.since })
+      const st = monthStatus({ ym:curMonth, uid, user:me, recs:ctx.att[uid], holidays:ctx.holidays, subs:ctx.subs, plan:ctx.plan, since:ctx.since })
       setData({ st, mine: reward?.list?.find(r => r.uid === uid) || null })
     }).catch(e => { console.error(e); if (!off) setData({ error:true }) })
     return () => { off = true }

@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react'
 import { db } from '../firebase'
 import { doc, getDoc, setDoc, collection, query, where, getDocs } from 'firebase/firestore'
 import { useAuth } from '../AuthContext'
-import { shiftFor, toDate, hm, dayStatus, breakForShift, recBreak } from '../lib/attendance'
+import { toDate, hm, dayStatus, breakForShift, recBreak, planFor, reapplyDay } from '../lib/attendance'
+import { deleteField } from 'firebase/firestore'
 
 const pad = n => String(n).padStart(2,'0')
 const DAYS_KR = ['일','월','화','수','목','금','토']
@@ -74,11 +75,17 @@ export default function Staff() {
   const [cfg, setCfg] = useState(null)       // attendance/_config (매장 브레이크)
   const [loading, setLoading] = useState(true)
   const [editDay, setEditDay] = useState(null) // 매장 일정 고치는 날짜 'YYYY-MM-DD'
+  const [plans, setPlans] = useState({})       // { 'YYYY-MM': schedule 문서 } 근무표에서 직접 바꾼 날·일찍 마감
+  const [cellEdit, setCellEdit] = useState(null)   // { uid, ds, start, end }
+  const [closeEdit, setCloseEdit] = useState(null) // { ds, time }
+  const [busy, setBusy] = useState(false)
+  const [reloadKey, setReloadKey] = useState(0)
   const [now, setNow] = useState(() => new Date())
 
   const monday = mondayOf(now); monday.setDate(monday.getDate() + weekOffset*7)
   const week = Array.from({length:7}, (_,i) => { const d = new Date(monday); d.setDate(d.getDate()+i); return d })
-  const months = [...new Set([ymOfDate(new Date()), ...week.map(ymOfDate)])]
+  const prevWeek = week.map(d => { const x = new Date(d); x.setDate(x.getDate()-7); return x })
+  const months = [...new Set([ymOfDate(new Date()), ...week.map(ymOfDate), ...prevWeek.map(ymOfDate)])]
   const monthsKey = months.join(',')
 
   // 1분마다 '지금' 다시 계산 (늦은 사람 표시)
@@ -94,16 +101,16 @@ export default function Staff() {
           opt(getDoc(doc(db,'substitutes','requests'))),
           opt(getDoc(doc(db,'checklist','holidays'))),
           opt(getDoc(doc(db,'attendance','_config'))),
-          ...monthsKey.split(',').flatMap(ym => [opt(getDoc(doc(db,'attendance',ym))), opt(getDoc(doc(db,'events',ym)))]),
+          ...monthsKey.split(',').flatMap(ym => [opt(getDoc(doc(db,'attendance',ym))), opt(getDoc(doc(db,'events',ym))), opt(getDoc(doc(db,'schedule',ym)))]),
         ])
         if (off) return
         const list = []
         usersSnap.forEach(d => { const u = d.data(); if (u.status==='approved' && !['owner','store','investor'].includes(u.role)) list.push({ uid:d.id, ...u }) })
         setStaff(list.sort((a,b)=>(a.joinDate||'').localeCompare(b.joinDate||'')))
         setSubs(subDoc?.list || []); setHolidays(holDoc?.list || []); setCfg(cfgDoc)
-        const a = {}, e = {}
-        monthsKey.split(',').forEach((ym,i) => { a[ym] = monthDocs[i*2] || {}; e[ym] = monthDocs[i*2+1] || {} })
-        setAtt(a); setEvents(e)
+        const a = {}, e = {}, pl = {}
+        monthsKey.split(',').forEach((ym,i) => { a[ym] = monthDocs[i*3] || {}; e[ym] = monthDocs[i*3+1] || {}; pl[ym] = monthDocs[i*3+2] || {} })
+        setAtt(a); setEvents(e); setPlans(pl)
         if (isOwner) {
           const pSnap = await getDocs(query(collection(db,'users'), where('status','==','pending')))
           const pl = []; pSnap.forEach(d => pl.push({ uid:d.id, ...d.data() }))
@@ -114,7 +121,7 @@ export default function Staff() {
     }
     load()
     return () => { off = true }
-  }, [monthsKey, isOwner])
+  }, [monthsKey, isOwner, reloadKey])
 
   async function approveUser(u, grade, joinDate, wage) {
     await setDoc(doc(db,'users',u.uid), { ...u, status:'approved', grade:+grade, wage:+wage||10030, joinDate:joinDate||'' })
@@ -140,11 +147,16 @@ export default function Staff() {
   function cellOf(u, d) {
     const ds = dateStr(d), ym = ds.slice(0,7), dd = ds.slice(8,10)
     const rec = att[ym]?.[u.uid]?.[dd] || null
-    const planned = rec?.schedStart ? { start:rec.schedStart, end:rec.schedEnd } : shiftFor(u, d)
+    const override = plans[ym]?.shifts?.[u.uid]?.[dd] || null   // 근무표에서 직접 넣은 칸
+    const planned = rec?.schedStart ? { start:rec.schedStart, end:rec.schedEnd } : (rec?.in ? null : planFor(u, d, plans[ym], u.uid))
     const gaveAway = subs.find(r => r.requesterUid===u.uid && r.date===ds && r.confirmedUid)
     const seeking = subs.find(r => r.requesterUid===u.uid && r.date===ds && !r.confirmedUid)
     const covering = subs.filter(r => r.confirmedUid===u.uid && r.date===ds)
-      .map(r => ({ start:`${r.startH}:${r.startM}`, end:`${r.endH}:${r.endM}`, for:r.requesterUid }))
+      .map(r => {
+        // 일찍 마감한 날이면 대타 근무도 마감 시각까지만
+        const close = plans[ym]?.closeAt?.[dd], end = `${r.endH}:${r.endM}`
+        return { start:`${r.startH}:${r.startM}`, end: close && toMin(close) > toMin(`${r.startH}:${r.startM}`) && toMin(close) < toMin(end) ? close : end, for:r.requesterUid }
+      })
     const closed = closedOf(d)
     const shifts = []   // 실제로 이 사람이 매장에 있을 예정인 시간 (인원 계산용)
     // 브레이크: 지난 날은 기록에 붙은 것, 앞으로는 매장 브레이크(풀타임만)
@@ -156,7 +168,56 @@ export default function Staff() {
     const st = rec?.in ? dayStatus(rec, planned) : null
     const late = !rec?.in && planned && !gaveAway && !closed && !rec?.excused &&
       (past || (today && now.getHours()*60+now.getMinutes() > toMin(planned.start)))
-    return { ds, rec, planned, brk, gaveAway, seeking, covering, closed, shifts, past, today, st, missing: late }
+    return { ds, rec, planned, override, brk, gaveAway, seeking, covering, closed, shifts, past, today, st, missing: late }
+  }
+
+  // ── 근무표 고치기 (사장) ──
+  // 칸 하나: {start,end} 직접 시간 / {off:true} 휴무 / null 기본 패턴으로 되돌리기. 오늘까지의 날이면 찍힌 기록도 새 근무표로 다시 계산
+  async function writePlan(entries) { // entries: [{ d, uid, val }]  uid 없으면 마감 시각
+    setBusy(true)
+    try {
+      const next = { ...plans }
+      for (const { d, uid, val } of entries) {
+        const ym = ymOfDate(d), dd = pad(d.getDate())
+        const field = uid ? { shifts: { [uid]: { [dd]: val ?? deleteField() } } } : { closeAt: { [dd]: val ?? deleteField() } }
+        await setDoc(doc(db,'schedule',ym), field, { merge:true })
+        const cur = { ...(next[ym]||{}) }
+        if (uid) { const sh = { ...(cur.shifts||{}) }, mine = { ...(sh[uid]||{}) }; if (val) mine[dd] = val; else delete mine[dd]; sh[uid] = mine; cur.shifts = sh }
+        else { const c = { ...(cur.closeAt||{}) }; if (val) c[dd] = val; else delete c[dd]; cur.closeAt = c }
+        next[ym] = cur
+      }
+      setPlans(next)
+      const todayStr = dateStr(new Date())
+      const touched = [...new Set(entries.map(e => dateStr(e.d)))].filter(ds => ds <= todayStr)
+      for (const ds of touched) {
+        const d = new Date(+ds.slice(0,4), +ds.slice(5,7)-1, +ds.slice(8,10))
+        await reapplyDay(d, { users: staff, plan: next[ds.slice(0,7)], cfg })
+      }
+      if (touched.length) setReloadKey(k => k+1)
+    } catch(e) { console.error(e); alert('저장하지 못했어요. 다시 시도해 주세요.') }
+    setBusy(false)
+  }
+  async function saveCell(val) {
+    const { uid, ds } = cellEdit
+    if (val && !val.off && (!val.start || !val.end)) return alert('시작과 끝 시각을 넣어 주세요')
+    await writePlan([{ d: new Date(+ds.slice(0,4), +ds.slice(5,7)-1, +ds.slice(8,10)), uid, val }])
+    setCellEdit(null)
+  }
+  async function saveClose(val) {
+    const { ds } = closeEdit
+    await writePlan([{ d: new Date(+ds.slice(0,4), +ds.slice(5,7)-1, +ds.slice(8,10)), val }])
+    setCloseEdit(null)
+  }
+  // 지난주 근무표에서 직접 넣은 칸(시간·휴무)을 이번 주 같은 요일로 복사
+  async function copyLastWeek() {
+    const entries = []
+    days.forEach((d, i) => {
+      const p = prevWeek[i], src = plans[ymOfDate(p)]?.shifts || {}
+      for (const u of staff) { const v = src[u.uid]?.[pad(p.getDate())]; if (v) entries.push({ d, uid:u.uid, val:v }) }
+    })
+    if (!entries.length) return alert('지난주에 직접 넣은 칸이 없어요. (기본 패턴만 쓰는 직원은 매주 자동으로 채워져요)')
+    if (!window.confirm(`지난주에 직접 넣은 ${entries.length}칸을 이번 주 같은 요일에 넣을까요? 이번 주에 이미 넣은 같은 칸은 바뀌어요.`)) return
+    await writePlan(entries)
   }
 
   // ── 지금 매장 ──
@@ -181,7 +242,8 @@ export default function Staff() {
   // ── 이번 주 근무표 ──
   const showSun = staff.some(u => week[6] && cellOf(u, week[6]).shifts.length)
   const days = showSun ? week : week.slice(0,6)
-  const rows = staff.filter(u => days.some(d => { const c = cellOf(u, d); return c.planned || c.shifts.length || c.rec?.in }))
+  // 사장은 모든 직원 (유동 근무자 칸을 채우려면), 직원은 이번 주에 근무가 있는 사람만
+  const rows = isOwner ? staff : staff.filter(u => days.some(d => { const c = cellOf(u, d); return c.planned || c.shifts.length || c.rec?.in }))
   // 시간대별 인원: 예정(대타 반영) 기준, 한 시간 칸에 걸쳐 있으면 1명
   let hFrom = 24, hTo = 0
   const shiftsByDay = days.map(d => rows.flatMap(u => cellOf(u, d).shifts))
@@ -207,6 +269,8 @@ export default function Staff() {
     <button type="button" onClick={onClick}
       style={{background: on ? T.ink : 'none', color: on ? '#FFFFFF' : T.ink, border:`1px solid ${on ? T.ink : T.rule}`, borderRadius:4, padding:'6px 10px', cursor:'pointer', fontFamily:'inherit', fontSize:13}}>{label}</button>
   )
+  const linkBtn = color => ({ background:'none', border:'none', borderBottom:`1px solid ${color}`, color, padding:0, fontSize:11, cursor:'pointer', fontFamily:'inherit' })
+  const timeStyle = { width:'100%', boxSizing:'border-box', fontSize:12, padding:'2px 4px', border:'1px solid #CBC5BA', borderRadius:4, fontFamily:'inherit' }
   const th = { padding:'8px 8px', fontSize:12, fontWeight:600, color:T.sub, borderBottom:`1px solid ${T.ink}`, textAlign:'center', whiteSpace:'nowrap' }
   const td = { padding:'7px 8px', borderBottom:`1px solid ${T.soft}`, textAlign:'center', verticalAlign:'top', whiteSpace:'nowrap', fontSize:12, ...num }
 
@@ -248,7 +312,11 @@ export default function Staff() {
 
         {/* 이번 주 근무표 */}
         <section style={{marginBottom:30}}>
-          {sectionTitle(`${weekOffset===0 ? '이번 주' : weekOffset===1 ? '다음 주' : weekOffset===-1 ? '지난주' : ''} 근무표 · ${weekLabel}`, '대타·임시휴무 반영, 지난 날은 실제 출퇴근')}
+          {sectionTitle(`${weekOffset===0 ? '이번 주' : weekOffset===1 ? '다음 주' : weekOffset===-1 ? '지난주' : ''} 근무표 · ${weekLabel}`,
+            isOwner ? <span style={{display:'flex', gap:10, alignItems:'baseline', flexWrap:'wrap'}}>
+              <span>칸을 눌러 그날 시간·휴무를 바꿔요 (파란 글씨 = 직접 넣은 칸)</span>
+              <button type="button" disabled={busy} onClick={copyLastWeek} style={linkBtn(T.blue)}>지난주와 같게</button>
+            </span> : '대타·임시휴무 반영, 지난 날은 실제 출퇴근')}
           {rows.length === 0 ? <div style={{fontSize:13, color:T.sub, padding:'10px 0'}}>인원관리에서 직원별 요일 출퇴근 예정 시각을 넣으면 근무표가 만들어져요</div> : (
             <div style={{overflowX:'auto'}}>
               <table style={{borderCollapse:'collapse', width:'100%', minWidth: 90 + days.length*110, tableLayout:'fixed'}}>
@@ -282,6 +350,32 @@ export default function Staff() {
                       )
                     })}
                   </tr>
+                  {/* 일찍 마감한 날: 그 시각 이후 예정은 잘림 (조퇴로 안 잡힘) */}
+                  {(isOwner || days.some(d => plans[ymOfDate(d)]?.closeAt?.[pad(d.getDate())])) && (
+                    <tr>
+                      <td style={{...td, textAlign:'left', color:T.sub}}>일찍 마감</td>
+                      {days.map(d => {
+                        const ds = dateStr(d), close = plans[ds.slice(0,7)]?.closeAt?.[ds.slice(8,10)]
+                        if (closeEdit?.ds === ds) return (
+                          <td key={ds} style={{...td, whiteSpace:'normal'}}>
+                            <input type="time" value={closeEdit.time} onChange={e=>setCloseEdit(c=>({...c,time:e.target.value}))} aria-label="마감 시각"
+                              style={{width:'100%', boxSizing:'border-box', fontSize:12, padding:'2px 4px', border:'1px solid #CBC5BA', borderRadius:4, fontFamily:'inherit'}}/>
+                            <div style={{display:'flex', gap:6, justifyContent:'center', marginTop:4}}>
+                              <button type="button" disabled={busy || !closeEdit.time} onClick={()=>saveClose(closeEdit.time)} style={linkBtn(T.accent)}>저장</button>
+                              {close && <button type="button" disabled={busy} onClick={()=>saveClose(null)} style={linkBtn(T.red)}>지우기</button>}
+                              <button type="button" onClick={()=>setCloseEdit(null)} style={linkBtn(T.sub)}>취소</button>
+                            </div>
+                          </td>
+                        )
+                        return (
+                          <td key={ds} style={td}>
+                            {close ? <span onClick={()=>isOwner && setCloseEdit({ ds, time:close })} style={{color:T.accent, fontWeight:700, cursor: isOwner ? 'pointer' : 'default'}}>{close} 마감</span>
+                              : isOwner && !closedOf(d) && <button type="button" onClick={()=>setCloseEdit({ ds, time:'20:00' })} style={{background:'none', border:'none', color:T.faint, fontSize:11, cursor:'pointer', fontFamily:'inherit'}}>+ 마감</button>}
+                          </td>
+                        )
+                      })}
+                    </tr>
+                  )}
                 </thead>
                 <tbody>
                   {rows.map(u => (
@@ -291,9 +385,26 @@ export default function Staff() {
                         const c = cellOf(u, d)
                         const inD = toDate(c.rec?.in), outD = toDate(c.rec?.out)
                         return (
-                          <td key={c.ds} style={{...td, background: c.closed ? '#F3F1EC' : c.today ? '#C3261C08' : undefined}}>
+                          cellEdit?.uid === u.uid && cellEdit?.ds === c.ds ? (
+                          <td key={c.ds} style={{...td, whiteSpace:'normal', background:'#FFFFFF', outline:`2px solid ${T.accent}`}}>
+                            <div style={{display:'flex', flexDirection:'column', gap:3}}>
+                              <input type="time" value={cellEdit.start} onChange={e=>setCellEdit(x=>({...x,start:e.target.value}))} aria-label="출근 예정" style={timeStyle}/>
+                              <input type="time" value={cellEdit.end} onChange={e=>setCellEdit(x=>({...x,end:e.target.value}))} aria-label="퇴근 예정" style={timeStyle}/>
+                            </div>
+                            <div style={{display:'flex', gap:6, justifyContent:'center', flexWrap:'wrap', marginTop:4}}>
+                              <button type="button" disabled={busy} onClick={()=>saveCell({ start:cellEdit.start, end:cellEdit.end })} style={linkBtn(T.accent)}>저장</button>
+                              <button type="button" disabled={busy} onClick={()=>saveCell({ off:true })} style={linkBtn(T.sub)}>휴무</button>
+                              {c.override && <button type="button" disabled={busy} onClick={()=>saveCell(null)} style={linkBtn(T.blue)}>기본으로</button>}
+                              <button type="button" onClick={()=>setCellEdit(null)} style={linkBtn(T.sub)}>취소</button>
+                            </div>
+                          </td>
+                          ) :
+                          <td key={c.ds} onClick={()=>isOwner && !c.closed && setCellEdit({ uid:u.uid, ds:c.ds, start:c.planned?.start || '', end:c.planned?.end || '' })}
+                            title={isOwner && !c.closed ? '눌러서 이날 시간 바꾸기' : undefined}
+                            style={{...td, cursor: isOwner && !c.closed ? 'pointer' : 'default', background: c.closed ? '#F3F1EC' : c.today ? '#C3261C08' : undefined}}>
+                            {c.override?.off && !c.closed && !c.rec?.in && <div style={{color:T.faint}}>휴무</div>}
                             {c.planned && !c.closed && (
-                              <div style={{color: c.gaveAway ? T.faint : T.ink, textDecoration: c.gaveAway ? 'line-through' : 'none', fontWeight:600}}>{c.planned.start}~{c.planned.end}</div>
+                              <div style={{color: c.gaveAway ? T.faint : c.override && !c.rec?.in ? T.blue : T.ink, textDecoration: c.gaveAway ? 'line-through' : 'none', fontWeight:600}}>{c.planned.start}~{c.planned.end}{c.planned.cut ? ' (마감)' : ''}</div>
                             )}
                             {c.brk && c.planned && !c.gaveAway && !c.closed && <div style={{color:T.sub, fontSize:11}}>휴게 {c.brk.start}~{c.brk.end}</div>}
                             {c.gaveAway && <div style={{color:T.purple, fontSize:11}}>대타 {nameOf(c.gaveAway.confirmedUid)}</div>}
@@ -305,7 +416,7 @@ export default function Staff() {
                               </div>
                             )}
                             {c.missing && <div style={{fontSize:11, color:T.red, fontWeight:700}}>{c.past ? '결근' : '아직 안 옴'}</div>}
-                            {!c.planned && !c.covering.length && !inD && !c.closed && <span style={{color:T.faint}}>·</span>}
+                            {!c.planned && !c.override?.off && !c.covering.length && !inD && !c.closed && <span style={{color:T.faint}}>{isOwner ? '+' : '·'}</span>}
                           </td>
                         )
                       })}

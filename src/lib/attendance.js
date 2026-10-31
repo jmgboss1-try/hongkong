@@ -132,7 +132,8 @@ export function dayStatus(rec, sched) {
 
 // 한 직원의 한 달: 날짜별 상태와 합계, 개근 여부
 //  user: users 문서 (shiftTimes, joinDate) / recs: attendance/{ym}[uid] / holidays: checklist/holidays.list / subs: substitutes/requests.list
-export function monthStatus({ ym, uid, user, recs, holidays, subs, since = DEFAULT_SINCE, now = new Date() }) {
+//  plan: schedule/{ym} 문서 (근무표에서 직접 바꾼 날, 일찍 마감)
+export function monthStatus({ ym, uid, user, recs, holidays, subs, plan, since = DEFAULT_SINCE, now = new Date() }) {
   const [y, m] = ym.split('-').map(Number)
   const last = new Date(y, m, 0).getDate()
   const todayStr = `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}`
@@ -142,7 +143,7 @@ export function monthStatus({ ym, uid, user, recs, holidays, subs, since = DEFAU
     const dd = pad(d), dateStr = `${ym}-${dd}`, date = new Date(y, m-1, d)
     if (dateStr > todayStr) break
     const rec = recs?.[dd] || null
-    const sched = rec?.schedStart ? { start:rec.schedStart, end:rec.schedEnd } : (rec?.in ? null : shiftFor(user, date))
+    const sched = rec?.schedStart ? { start:rec.schedStart, end:rec.schedEnd } : (rec?.in ? null : planFor(user, date, plan, uid))
     const counted = dateStr >= since && (!user?.joinDate || dateStr >= user.joinDate)
     const closed = date.getDay() === CLOSED_DOW || (holidays||[]).some(h => h.startDate <= dateStr && dateStr <= h.endDate)
     const subOut = (subs||[]).some(r => r.requesterUid === uid && r.confirmedUid && r.date === dateStr)
@@ -172,13 +173,14 @@ export function monthStatus({ ym, uid, user, recs, holidays, subs, since = DEFAU
 // 한 달 집계에 필요한 문서들 (권한이 없는 문서는 빈 값으로)
 export async function loadMonthContext(ym) {
   const safe = p => p.then(s => s.exists() ? s.data() : null).catch(() => null)
-  const [att, cfg, hol, subs] = await Promise.all([
+  const [att, cfg, hol, subs, plan] = await Promise.all([
     safe(getDoc(doc(db,'attendance',ym))),
     safe(getDoc(doc(db,'attendance','_config'))),
     safe(getDoc(doc(db,'checklist','holidays'))),
     safe(getDoc(doc(db,'substitutes','requests'))),
+    safe(getDoc(doc(db,'schedule',ym))),
   ])
-  return { att: att || {}, cfg, holidays: hol?.list || [], subs: subs?.list || [], since: cfg?.since || DEFAULT_SINCE }
+  return { att: att || {}, cfg, holidays: hol?.list || [], subs: subs?.list || [], plan, since: cfg?.since || DEFAULT_SINCE }
 }
 
 // ── 대타 → 주휴 ──
@@ -196,3 +198,56 @@ export function withSubMemos(memos, subs, ym) {
   return out
 }
 export const loadSubs = () => getDoc(doc(db,'substitutes','requests')).then(s => s.exists() ? (s.data().list||[]) : []).catch(() => [])
+
+// ── 근무표 (스케쥴 탭에서 주마다 짜는 예정) ──
+// schedule/{YYYY-MM} = { shifts: { uid: { dd: {start,end} | {off:true} } }, closeAt: { dd: 'HH:MM' } }
+//  - 그날 칸을 직접 넣었으면 그 시간(또는 휴무), 아니면 인원관리의 요일별 기본 패턴(shiftTimes)
+//  - 일찍 마감한 날(closeAt)은 그 시각 이후 예정은 잘라냄 (그 전에 끝나는 근무는 그대로, 마감 뒤에 시작하는 근무는 없음)
+export function planFor(user, date, plan, uid) {
+  const dd = pad(date.getDate())
+  const o = plan?.shifts?.[uid || user?.uid]?.[dd]
+  let p = o ? (o.off ? null : (o.start && o.end ? { start:o.start, end:o.end, custom:true } : null)) : shiftFor(user, date)
+  const close = plan?.closeAt?.[dd]
+  if (p && close) {
+    const S = toMin(p.start), C = toMin(close)
+    let E = toMin(p.end); if (E <= S) E += 1440
+    const Cm = C < S ? C + 1440 : C
+    if (C <= S && C + 1440 >= E) p = null           // 마감 뒤에 시작하는 근무
+    else if (Cm < E) p = { ...p, end: close, cut: true }
+  }
+  return p
+}
+
+// 근무표나 마감 시각을 바꾼 뒤: 그날 이미 찍힌 기록의 예정·브레이크를 새 근무표로 맞추고 근무시간을 다시 계산
+export async function reapplyDay(date, { users, plan, cfg }) {
+  const ym = `${date.getFullYear()}-${pad(date.getMonth()+1)}`, dd = pad(date.getDate())
+  const snap = await getDoc(doc(db,'attendance',ym))
+  const att = snap.exists() ? snap.data() : {}
+  for (const [uid, days] of Object.entries(att)) {
+    const rec = days?.[dd]
+    if (!rec?.in) continue
+    const user = users.find(u => u.uid === uid)
+    const p = planFor(user, date, plan, uid)
+    const upd = { schedStart: p?.start || null, schedEnd: p?.end || null }
+    if (!rec.editedBreak) {
+      const br = p ? breakForShift(cfg, date, p) : null
+      Object.assign(upd, br ? { breakStart:br.start, breakEnd:br.end } : { breakStart:null, breakEnd:null })
+    }
+    if (upd.schedStart === (rec.schedStart||null) && upd.schedEnd === (rec.schedEnd||null) && upd.breakStart === undefined) continue
+    await setDoc(doc(db,'attendance',ym), { [uid]: { [dd]: upd } }, { merge:true })
+    if (rec.out) await applyRecord(ym, uid, dd, { ...rec, ...upd })
+  }
+}
+
+// 요일별 기본 패턴으로 하루 평균 근무시간 (브레이크 기본값은 빼고). 패턴이 없으면 null
+export function avgHoursFromPattern(shiftTimes, workDays, cfg) {
+  const days = (workDays || []).filter(w => shiftTimes?.[w]?.start && shiftTimes?.[w]?.end)
+  if (!days.length) return null
+  const total = days.reduce((a, w) => {
+    const s = shiftTimes[w], S = toMin(s.start); let E = toMin(s.end); if (E <= S) E += 1440
+    const br = (cfg?.breaks || DEFAULT_BREAKS)[w]
+    const b = br && toMin(br.start) >= S && toMin(br.end) <= E ? toMin(br.end) - toMin(br.start) : 0
+    return a + (E - S - b)
+  }, 0)
+  return Math.round(total / days.length / 60 * 10) / 10
+}

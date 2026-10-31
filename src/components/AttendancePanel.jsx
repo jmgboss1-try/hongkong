@@ -39,22 +39,23 @@ export default function AttendancePanel({ curMonth, nameMap, onApplied }) {
   const [openUid, setOpenUid] = useState(null) // 근태 상세를 펼친 직원
   const [showGame, setShowGame] = useState(false)
   const [since, setSince] = useState('')
+  const [plan, setPlan] = useState(null)       // schedule/{달} 근무표
   const [brkEdit, setBrkEdit] = useState(null)   // 요일별 브레이크 편집 {요일: {start,end}}
   const [dayBrk, setDayBrk] = useState(null)     // 날짜별 브레이크 편집 { date, start, end }
 
   async function load(sync) {
     try {
       const opt = p => p.then(x => x.exists() ? x.data() : null).catch(() => null)
-      const [aSnap, cSnap, uSnap, hol, sub, rw] = await Promise.all([
+      const [aSnap, cSnap, uSnap, hol, sub, rw, pl] = await Promise.all([
         getDoc(doc(db,'attendance',curMonth)), getDoc(doc(db,'attendance','_config')), getDocs(collection(db,'users')),
-        opt(getDoc(doc(db,'checklist','holidays'))), opt(getDoc(doc(db,'substitutes','requests'))), opt(getDoc(doc(db,'rewards',curMonth))),
+        opt(getDoc(doc(db,'checklist','holidays'))), opt(getDoc(doc(db,'substitutes','requests'))), opt(getDoc(doc(db,'rewards',curMonth))), opt(getDoc(doc(db,'schedule',curMonth))),
       ])
       let a = aSnap.exists() ? aSnap.data() : {}
       setCfg(cSnap.exists() ? cSnap.data() : null)
       const list = []
       uSnap.forEach(d => { const u = d.data(); if (u.status==='approved' && !['owner','store','investor'].includes(u.role)) list.push({ uid:d.id, ...u }) })
       setStaff(list.sort((x,y)=>(x.joinDate||'').localeCompare(y.joinDate||'')))
-      setHolidays(hol?.list || []); setSubs(sub?.list || []); setReward(rw)
+      setHolidays(hol?.list || []); setSubs(sub?.list || []); setReward(rw); setPlan(pl)
       if (sync) {
         // 직원 폰에서 근무시간 반영이 안 됐거나(권한) 승인 상태가 바뀐 기록을 근무관리에 맞춤
         let changed = false
@@ -196,7 +197,7 @@ export default function AttendancePanel({ curMonth, nameMap, onApplied }) {
   // 직원별 이 달 근태 (예정 시각을 넣었거나 기록이 있는 직원만)
   const stats = staff
     .filter(u => (u.shiftTimes && Object.keys(u.shiftTimes).length) || att[u.uid])
-    .map(u => ({ u, st: monthStatus({ ym:curMonth, uid:u.uid, user:u, recs:att[u.uid], holidays, subs, since: cfg?.since || DEFAULT_SINCE }) }))
+    .map(u => ({ u, st: monthStatus({ ym:curMonth, uid:u.uid, user:u, recs:att[u.uid], holidays, subs, plan, since: cfg?.since || DEFAULT_SINCE }) }))
   const perfectList = stats.filter(x => x.st.perfect)
   const monthOver = stats[0]?.st.monthOver ?? (curMonth < `${now.getFullYear()}-${pad(now.getMonth()+1)}`)
 
