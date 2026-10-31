@@ -32,12 +32,22 @@ const todayFullStr = () => { const n=new Date(); return `${n.getFullYear()}-${pa
 
 // 형 대여금: 받은 돈(받음·투자전환)은 가장 오래된 빌려준 돈부터 갚은 것으로 맞춤
 // → 지금 남은 대여금이 언제 빌려준 돈인지, 그동안 얼마씩 받았는지 보여줌
+// type 'reset'(0으로 정리): 그날까지의 잔액을 0으로 만들고 남은 기록을 모두 닫음. 예전 기록은 지우지 않음
+// (계좌내역 가져오기가 같은 거래를 다시 넣지 않도록 기록이 남아 있어야 함). 정리 기록을 삭제하면 되돌려짐
+const LOAN_TYPE_LABEL = { lent:'빌려줌', received:'받음', converted:'투자전환', reset:'0으로 정리' }
+const loanSorted = records => [...records].sort((a,b)=>a.date.localeCompare(b.date) || String(a.id).localeCompare(String(b.id)))
 function loanFifo(records) {
-  const sorted = [...records].sort((a,b)=>a.date.localeCompare(b.date) || String(a.id).localeCompare(String(b.id)))
+  const sorted = loanSorted(records)
   const open = []     // 아직 덜 갚은 기록 [{rec, dir, left, paid:[{date,amount,type}]}] (모두 같은 방향)
   const after = {}    // 기록 id → 그 기록까지의 잔액
   let bal = 0
+  let lastReset = null
   for (const r of sorted) {
+    if (r.type==='reset') {
+      for (const o of open) o.paid.push({ date:r.date, amount:o.left, type:'reset' })
+      open.length = 0; bal = 0; after[r.id] = 0; lastReset = r
+      continue
+    }
     const dir = r.type==='lent' ? 1 : -1
     bal += dir * r.amount
     after[r.id] = bal
@@ -50,7 +60,7 @@ function loanFifo(records) {
     }
     if (left > 0) open.push({ rec:r, dir, left, paid:[] })
   }
-  return { open, after }
+  return { open, after, balance: bal, lastReset }
 }
 const daysSince = date => Math.max(0, Math.round((new Date(todayFullStr()) - new Date(date)) / 86400000))
 const mdDot = date => `${+date.slice(5,7)}.${+date.slice(8,10)}`
@@ -108,6 +118,9 @@ const [payingDate, setPayingDate]     = useState('')
   const [showLoanMgr, setShowLoanMgr]   = useState(false)
   const [loanForm, setLoanForm]         = useState({ date:'', type:'lent', amount:'', memo:'' })
   const [showConvert, setShowConvert]   = useState(false)
+  const [showReset, setShowReset]       = useState(false)
+  const [resetForm, setResetForm]       = useState({ date:'', memo:'' })
+  const [showOldLoans, setShowOldLoans] = useState(false)
   const [convertAmount, setConvertAmount] = useState('')
 
   // 입력 모드
@@ -221,9 +234,24 @@ const [payingDate, setPayingDate]     = useState('')
     saveLoanRecords([...loanRecords, newRec])
     setLoanForm({ date:'', type:'lent', amount:'', memo:'' })
   }
-  function deleteLoanRecord(id) {
-    if(!window.confirm('이 기록을 삭제하시겠습니까?')) return
+  function deleteLoanRecord(id, isReset) {
+    if(!window.confirm(isReset ? '이 정리를 되돌릴까요? 정리 전 남은 대여금이 다시 계산돼요.' : '이 기록을 삭제하시겠습니까?')) return
     saveLoanRecords(loanRecords.filter(r=>r.id!==id))
+  }
+  async function resetLoans() {
+    const date = resetForm.date || todayFullStr()
+    // 저장 직전 다시 읽기 (계좌내역 가져오기가 같은 장부에 쓸 수 있음)
+    const snap = await getDoc(doc(db,'loans','hyung'))
+    const list = snap.exists() ? (snap.data().list||[]) : []
+    const before = loanFifo(list.filter(r=>r.date<=date)).balance
+    if(!window.confirm(`${mdDot(date)}까지의 남은 대여금 ${before.toLocaleString()}원을 0으로 정리할까요?\n예전 기록은 지우지 않고 접어 둬요. 이 정리 기록을 삭제하면 되돌릴 수 있어요.`)) return
+    setSaving(true)
+    try {
+      const rec = { id:Date.now().toString(), date, type:'reset', amount:Math.abs(before), before, memo: resetForm.memo || '' }
+      await saveLoanRecords([...list, rec])
+      setResetForm({ date:'', memo:'' }); setShowReset(false); setShowOldLoans(false)
+    } catch(e) { console.error(e); alert('저장 중 오류가 발생했어요. 다시 시도해 주세요.') }
+    setSaving(false)
   }
   async function convertToInvestment() {
     const amt = +String(convertAmount).replace(/[^0-9]/g,'') || 0
@@ -419,8 +447,13 @@ const [payingDate, setPayingDate]     = useState('')
   const carryoverAmt    = data.carryover || 0
   const currentBalance  = carryoverAmt + totalDeposit - grand
 
-  const loanBalance = loanRecords.reduce((a,r)=> r.type==='lent' ? a+r.amount : a-r.amount, 0)
   const loanFlow = loanFifo(loanRecords)
+  const loanBalance = loanFlow.balance
+  // 마지막 '0으로 정리'까지의 기록은 접어 둠
+  const loanSortedDesc = loanSorted(loanRecords).reverse()
+  const resetIdx = loanFlow.lastReset ? loanSortedDesc.findIndex(r=>r.id===loanFlow.lastReset.id) : -1
+  const loanShown = resetIdx < 0 || showOldLoans ? loanSortedDesc : loanSortedDesc.slice(0, resetIdx+1)
+  const loanHidden = resetIdx < 0 ? 0 : loanSortedDesc.length - resetIdx - 1
 
   const unpaidFixed = fixedItems.filter(i=>!fixedPayments[i.id]?.paid)
   const totalFixedAmt = fixedItems.reduce((a,i)=>a+i.amount,0)
@@ -697,6 +730,7 @@ const [payingDate, setPayingDate]     = useState('')
           {sectionTitle('형과의 단기 대여금', <>
             {!loanOpen && <span style={{...num}}>남은 대여금 <b style={{color: loanBalance>0 ? T.red : loanBalance<0 ? T.green : T.ink}}>{won(loanBalance)}</b>원{loanFlow.open.length > 0 && ` · ${mdDot(loanFlow.open[0].rec.date)} 빌려준 돈부터 남음`}</span>}
             {loanOpen && loanBalance > 0 && <Btn onClick={()=>{ setShowConvert(v=>!v); setConvertAmount(String(loanBalance)) }} small>투자금 회수로 전환</Btn>}
+            {loanOpen && loanBalance !== 0 && <Btn onClick={()=>{ setShowReset(v=>!v); setResetForm({ date:todayFullStr(), memo:'' }) }} small>0으로 정리</Btn>}
             {loanOpen && <Btn onClick={()=>setShowLoanMgr(v=>!v)} small>{showLoanMgr ? '입력 닫기' : '기록 추가'}</Btn>}
             <Btn onClick={toggleLoanOpen} small>{loanOpen ? '접기' : `펼치기 (${loanRecords.length}건)`}</Btn>
           </>)}
@@ -712,6 +746,25 @@ const [payingDate, setPayingDate]     = useState('')
                 <Btn onClick={()=>setShowConvert(false)}>취소</Btn>
               </div>
               <div style={{fontSize:11, color:T.sub, marginTop:8}}>전환하면 대여금 잔액이 줄고, 투자관리의 형 "대출금 상환 회수"에 자동으로 적혀요.</div>
+            </div>
+          )}
+
+          {showReset && (
+            <div style={{background:T.chip, borderRadius:4, padding:'12px 14px', margin:'8px 0'}}>
+              <div style={{fontSize:13, fontWeight:700, marginBottom:8}}>남은 대여금을 0으로 정리하고 새로 시작</div>
+              <div style={{display:'flex', gap:8, alignItems:'center', flexWrap:'wrap'}}>
+                <input type="date" value={resetForm.date} onChange={e=>setResetForm(f=>({...f,date:e.target.value}))} aria-label="정리 날짜"
+                  style={field({ fontSize:13 })}/>
+                <span style={{fontSize:12, color:T.sub}}>까지</span>
+                <input value={resetForm.memo} onChange={e=>setResetForm(f=>({...f,memo:e.target.value}))}
+                  placeholder="메모 (예: 형과 정산 끝)" style={field({ flex:1, minWidth:120, fontSize:13 })}/>
+                <Btn onClick={resetLoans} kind="primary" disabled={saving}>{saving ? '처리 중...' : '0으로 정리'}</Btn>
+                <Btn onClick={()=>setShowReset(false)}>취소</Btn>
+              </div>
+              <div style={{fontSize:11, color:T.sub, marginTop:8, lineHeight:1.6}}>
+                그 날짜까지 남은 돈은 모두 정리된 걸로 보고, 그 뒤 거래부터 새로 계산해요. 예전 기록은 지우지 않고 접어 두기만 해요
+                (지우면 계좌내역을 다시 올릴 때 같은 거래가 또 들어가요). 정리 기록을 삭제하면 원래대로 돌아가요.
+              </div>
             </div>
           )}
 
@@ -761,21 +814,27 @@ const [payingDate, setPayingDate]     = useState('')
               <div style={{fontSize:12, fontWeight:700, color:T.sub, padding:'4px 0', borderBottom:`1px solid ${T.rule}`, display:'flex'}}>
                 <span style={{flex:1}}>전체 기록</span><span style={{width:96, textAlign:'right'}}>그때 잔액</span><span style={{width:30}}/>
               </div>
-              {[...loanRecords].sort((a,b)=>b.date.localeCompare(a.date) || String(b.id).localeCompare(String(a.id))).map(r=>{
-                const c = r.type==='lent' ? T.red : r.type==='converted' ? T.accent : T.green
+              {loanShown.map(r=>{
+                const c = r.type==='lent' ? T.red : r.type==='converted' ? T.accent : r.type==='reset' ? T.ink : T.green
                 return (
                   <div key={r.id} style={{display:'flex', alignItems:'baseline', gap:8, padding:'7px 0', borderBottom:`1px solid ${T.soft}`, fontSize:13}}>
                     <span style={{color:T.sub, ...num, whiteSpace:'nowrap'}}>{mdDot(r.date)}</span>
-                    <span style={{fontWeight:700, color:c, whiteSpace:'nowrap'}}>{r.type==='lent'?'빌려줌':r.type==='converted'?'투자전환':'받음'}</span>
+                    <span style={{fontWeight:700, color:c, whiteSpace:'nowrap'}}>{LOAN_TYPE_LABEL[r.type]||'받음'}</span>
                     <span style={{color:T.sub, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', minWidth:0, maxWidth:'35%'}}>{r.memo||''}</span>
                     {leader()}
-                    <span style={{...num, fontWeight:600, color:c, whiteSpace:'nowrap'}}>{r.type==='lent'?'+ ':'− '}{won(r.amount)}</span>
+                    <span style={{...num, fontWeight:600, color:c, whiteSpace:'nowrap'}}>{r.type==='reset' ? `${won(r.before ?? r.amount)} → 0` : `${r.type==='lent'?'+ ':'− '}${won(r.amount)}`}</span>
                     <span style={{...num, color:T.sub, whiteSpace:'nowrap', width:88, textAlign:'right'}}>{won(loanFlow.after[r.id])}</span>
-                    <button onClick={()=>deleteLoanRecord(r.id)} aria-label="삭제"
-                      style={{background:'transparent',border:'none',color:T.red,fontSize:11,cursor:'pointer',padding:0,fontFamily:'inherit',width:30,textAlign:'right'}}>삭제</button>
+                    <button onClick={()=>deleteLoanRecord(r.id, r.type==='reset')} aria-label={r.type==='reset' ? '정리 되돌리기' : '삭제'}
+                      style={{background:'transparent',border:'none',color:T.red,fontSize:11,cursor:'pointer',padding:0,fontFamily:'inherit',width:30,textAlign:'right',whiteSpace:'nowrap'}}>{r.type==='reset' ? '취소' : '삭제'}</button>
                   </div>
                 )
               })}
+              {loanHidden > 0 && (
+                <button type="button" onClick={()=>setShowOldLoans(v=>!v)}
+                  style={{background:'none', border:'none', borderBottom:`1px solid ${T.blue}`, color:T.blue, fontSize:12, cursor:'pointer', fontFamily:'inherit', padding:0, margin:'8px 0 4px'}}>
+                  {showOldLoans ? '정리 전 기록 접기' : `정리 전 기록 ${loanHidden}건 보기`}
+                </button>
+              )}
               {total('남은 대여금', loanBalance, {
                 note: loanBalance>0 ? '형이 갚을 돈' : loanBalance<0 ? '내가 갚을 돈' : '없음',
                 color: loanBalance>0 ? T.red : loanBalance<0 ? T.green : undefined })}
