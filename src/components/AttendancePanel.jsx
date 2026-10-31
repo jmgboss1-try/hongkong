@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { db } from '../firebase'
 import { doc, getDoc, getDocs, collection, setDoc, deleteField, Timestamp } from 'firebase/firestore'
-import { DEFAULT_RADIUS, DEFAULT_SINCE, GRACE_MIN, pad, hm, toDate, calcRecord, applyRecord, getPosition, minsLabel, monthStatus } from '../lib/attendance'
+import { DEFAULT_RADIUS, DEFAULT_SINCE, GRACE_MIN, pad, hm, toDate, calcRecord, applyRecord, getPosition, minsLabel, monthStatus, breakFor, breakForShift, recBreak, DEFAULT_BREAKS } from '../lib/attendance'
 import RewardGame from './RewardGame'
 
 const DAYS_KR = ['일','월','화','수','목','금','토']
@@ -39,6 +39,8 @@ export default function AttendancePanel({ curMonth, nameMap, onApplied }) {
   const [openUid, setOpenUid] = useState(null) // 근태 상세를 펼친 직원
   const [showGame, setShowGame] = useState(false)
   const [since, setSince] = useState('')
+  const [brkEdit, setBrkEdit] = useState(null)   // 요일별 브레이크 편집 {요일: {start,end}}
+  const [dayBrk, setDayBrk] = useState(null)     // 날짜별 브레이크 편집 { date, start, end }
 
   async function load(sync) {
     try {
@@ -98,13 +100,17 @@ export default function AttendancePanel({ curMonth, nameMap, onApplied }) {
   async function saveEdit() {
     const { uid, dd } = edit
     if (!edit.in) return alert('출근 시각을 넣어 주세요')
+    setBusy(true)
     const at = (s, plusDay) => { const [h,m] = s.split(':').map(Number); return new Date(cy, cm-1, +dd + (plusDay?1:0), h, m) }
     const inD = at(edit.in)
     const outD = edit.out ? at(edit.out, edit.out < edit.in) : null
-    setBusy(true)
     try {
-      const rec = { ...(att[uid]?.[dd]||{}), in: Timestamp.fromDate(inD), ...(outD ? { out: Timestamp.fromDate(outD) } : {}) }
-      await setDoc(doc(db,'attendance',curMonth), { [uid]: { [dd]: { in: rec.in, out: outD ? rec.out : deleteField(), editedByOwner: true } } }, { merge:true })
+      if ((edit.bStart && !edit.bEnd) || (!edit.bStart && edit.bEnd)) { setBusy(false); return alert('브레이크는 시작과 끝을 같이 넣어 주세요') }
+      const orig = att[uid]?.[dd] || {}
+      const brkChanged = edit.bStart !== (orig.breakStart||'') || edit.bEnd !== (orig.breakEnd||'') || !!edit.noBreak !== !!orig.noBreak
+      const brk = edit.noBreak ? { noBreak:true } : edit.bStart ? { breakStart:edit.bStart, breakEnd:edit.bEnd, noBreak:false } : { breakStart:null, breakEnd:null, noBreak:false }
+      const rec = { ...(att[uid]?.[dd]||{}), in: Timestamp.fromDate(inD), ...(outD ? { out: Timestamp.fromDate(outD) } : {}), ...brk }
+      await setDoc(doc(db,'attendance',curMonth), { [uid]: { [dd]: { in: rec.in, out: outD ? rec.out : deleteField(), editedByOwner: true, ...(brkChanged ? { editedBreak: true } : {}), ...brk } } }, { merge:true })
       if (outD) await applyRecord(curMonth, uid, dd, rec)
       setEdit(null); await load(false); onApplied?.()
     } catch(e) { console.error(e); alert('저장하지 못했어요. 다시 시도해 주세요.') }
@@ -138,6 +144,37 @@ export default function AttendancePanel({ curMonth, nameMap, onApplied }) {
     if (!since) return
     const c = { ...(cfg||{}), since }
     await setDoc(doc(db,'attendance','_config'), c); setCfg(c); setNote('집계 시작일을 저장했어요')
+  }
+
+  // 요일별 매장 브레이크 저장
+  async function saveBreaks() {
+    const clean = Object.fromEntries(Object.entries(brkEdit||{}).filter(([,v]) => v?.start && v?.end))
+    const c = { ...(cfg||{}), breaks: clean }
+    await setDoc(doc(db,'attendance','_config'), c); setCfg(c); setBrkEdit(null); setNote('요일별 브레이크를 저장했어요 (앞으로 찍는 출근부터 적용)')
+  }
+  // 그날만 브레이크 바꾸기: 설정에 남기고, 그날 이미 출근한 사람 기록에도 바로 반영 (풀타임만, 기록에서 직접 고친 건 그대로)
+  async function saveDayBreak(none) {
+    const { date } = dayBrk
+    if (!none && (!dayBrk.start || !dayBrk.end)) return alert('브레이크 시작과 끝을 넣어 주세요')
+    setBusy(true)
+    try {
+      const val = none ? { none:true } : { start:dayBrk.start, end:dayBrk.end }
+      const c = { ...(cfg||{}), breakDates: { ...(cfg?.breakDates||{}), [date]: val } }
+      await setDoc(doc(db,'attendance','_config'), c); setCfg(c)
+      const ym = date.slice(0,7), dd = date.slice(8,10)
+      const aSnap = await getDoc(doc(db,'attendance',ym)); const a = aSnap.exists() ? aSnap.data() : {}
+      const d = new Date(+date.slice(0,4), +date.slice(5,7)-1, +dd)
+      for (const [uid, days] of Object.entries(a)) {
+        const rec = days?.[dd]
+        if (!rec?.in || rec.editedBreak) continue
+        const br = rec.schedStart ? breakForShift(c, d, { start:rec.schedStart, end:rec.schedEnd }) : null
+        const upd = br ? { breakStart:br.start, breakEnd:br.end, noBreak:false } : { breakStart:null, breakEnd:null, noBreak:false }
+        await setDoc(doc(db,'attendance',ym), { [uid]: { [dd]: upd } }, { merge:true })
+        if (rec.out) await applyRecord(ym, uid, dd, { ...rec, ...upd })
+      }
+      setDayBrk(null); await load(false); onApplied?.(); setNote(`${+date.slice(5,7)}월 ${+dd}일 브레이크를 ${none ? '없음으로' : `${val.start}~${val.end}로`} 바꿨어요`)
+    } catch(e) { console.error(e); alert('저장하지 못했어요.') }
+    setBusy(false)
   }
 
   async function saveStoreLocation() {
@@ -187,6 +224,11 @@ export default function AttendancePanel({ curMonth, nameMap, onApplied }) {
         {isEdit ? (
           <>
             {timeIn(edit.in, v=>setEdit(e=>({...e,in:v})), '출근')}<span>~</span>{timeIn(edit.out, v=>setEdit(e=>({...e,out:v})), '퇴근')}
+            <span style={{color:T.sub, marginLeft:6}}>브레이크</span>
+            {timeIn(edit.bStart, v=>setEdit(e=>({...e,bStart:v,noBreak:false})), '브레이크 시작')}<span>~</span>{timeIn(edit.bEnd, v=>setEdit(e=>({...e,bEnd:v,noBreak:false})), '브레이크 끝')}
+            <label style={{display:'flex', alignItems:'center', gap:4, color:T.sub}}>
+              <input type="checkbox" checked={!!edit.noBreak} onChange={e=>setEdit(x=>({...x,noBreak:e.target.checked}))}/> 못 쉼
+            </label>
             <Btn kind="primary" onClick={saveEdit} disabled={busy}>저장</Btn>
             <Btn onClick={()=>setEdit(null)}>취소</Btn>
           </>
@@ -194,10 +236,12 @@ export default function AttendancePanel({ curMonth, nameMap, onApplied }) {
           <>
             <span style={{...num}}>{hm(inD)} ~ {outD ? hm(outD) : <span style={{color:T.red}}>퇴근 안 찍음</span>}</span>
             <span style={{color:T.sub, fontSize:12}}>{r.rec.schedStart ? `예정 ${r.rec.schedStart}~${r.rec.schedEnd}` : '예정 없음'}</span>
+            {recBreak(r.rec) && <span style={{color:T.sub, fontSize:12}}>브레이크 {r.rec.breakStart}~{r.rec.breakEnd}</span>}
+            {r.rec.noBreak && <span style={{color:T.amber, fontSize:12}}>브레이크 못 쉼</span>}
             <span style={{flex:1}}/>
             {r.c && <span style={{...num, fontWeight:600}}>{minsLabel(r.c.total)}</span>}
             {r.c?.pending && <span style={{color:T.amber, fontSize:12, fontWeight:700}}>승인 대기</span>}
-            <button type="button" onClick={()=>setEdit({ uid:r.uid, dd:r.dd, in:hm(inD), out: outD ? hm(outD) : '' })}
+            <button type="button" onClick={()=>setEdit({ uid:r.uid, dd:r.dd, in:hm(inD), out: outD ? hm(outD) : '', bStart:r.rec.breakStart||'', bEnd:r.rec.breakEnd||'', noBreak:!!r.rec.noBreak })}
               style={{background:'none', border:'none', color:T.sub, fontSize:12, cursor:'pointer', padding:0, fontFamily:'inherit'}}>수정</button>
             <button type="button" onClick={()=>remove(r)}
               style={{background:'none', border:'none', color:T.red, fontSize:12, cursor:'pointer', padding:0, fontFamily:'inherit'}}>삭제</button>
@@ -228,6 +272,27 @@ export default function AttendancePanel({ curMonth, nameMap, onApplied }) {
             <span style={{color:T.sub}}>m</span>
             {cfg && radius && <Btn onClick={saveRadius}>범위 저장</Btn>}
           </div>
+          <div style={{fontWeight:700}}>요일별 매장 브레이크</div>
+          <div style={{color:T.sub}}>이 시간을 통째로 포함하는 근무(풀타임)는 근무시간에서 자동으로 빠져요. 평일처럼 그때그때 다른 날은 비워 두고 아래 "날짜별 브레이크"에서 정해요.</div>
+          {brkEdit ? (
+            <div style={{display:'flex', flexDirection:'column', gap:4, margin:'6px 0 12px'}}>
+              {[1,2,3,4,5,6,0].map(w => (
+                <div key={w} style={{display:'flex', alignItems:'center', gap:6}}>
+                  <span style={{width:18, fontWeight:700}}>{DAYS_KR[w]}</span>
+                  {timeIn(brkEdit[w]?.start, v=>setBrkEdit(b=>({...b,[w]:{...(b[w]||{}),start:v}})), `${DAYS_KR[w]} 브레이크 시작`)}<span>~</span>
+                  {timeIn(brkEdit[w]?.end, v=>setBrkEdit(b=>({...b,[w]:{...(b[w]||{}),end:v}})), `${DAYS_KR[w]} 브레이크 끝`)}
+                  {(brkEdit[w]?.start || brkEdit[w]?.end) && <button type="button" onClick={()=>setBrkEdit(b=>{ const n={...b}; delete n[w]; return n })}
+                    style={{background:'none', border:'none', color:T.red, fontSize:12, cursor:'pointer', fontFamily:'inherit'}}>지우기</button>}
+                </div>
+              ))}
+              <div style={{display:'flex', gap:6, marginTop:4}}><Btn kind="primary" onClick={saveBreaks}>저장</Btn><Btn onClick={()=>setBrkEdit(null)}>취소</Btn></div>
+            </div>
+          ) : (
+            <div style={{display:'flex', gap:8, alignItems:'center', flexWrap:'wrap', margin:'4px 0 12px'}}>
+              <span>{Object.entries(cfg?.breaks || DEFAULT_BREAKS).filter(([,v])=>v?.start).map(([w,v])=>`${DAYS_KR[w]} ${v.start}~${v.end}`).join(' · ') || '없음'}</span>
+              <Btn onClick={()=>setBrkEdit({ ...(cfg?.breaks || DEFAULT_BREAKS) })}>바꾸기</Btn>
+            </div>
+          )}
           <div style={{fontWeight:700}}>지각·결근 집계 시작일</div>
           <div style={{display:'flex', gap:8, alignItems:'center', flexWrap:'wrap', margin:'4px 0 12px'}}>
             <input type="date" value={since || cfg?.since || DEFAULT_SINCE} onChange={e=>setSince(e.target.value)} aria-label="집계 시작일"
@@ -274,6 +339,28 @@ export default function AttendancePanel({ curMonth, nameMap, onApplied }) {
           </div>
         )
       })}
+
+      {/* 날짜별 브레이크: 평일처럼 그날그날 정하는 날 */}
+      {(() => {
+        const t = new Date(), tds = `${t.getFullYear()}-${pad(t.getMonth()+1)}-${pad(t.getDate())}`
+        const cur = breakFor(cfg, t)
+        return (
+          <div style={{display:'flex', alignItems:'center', gap:8, flexWrap:'wrap', fontSize:13, marginTop:10}}>
+            <b>브레이크</b>
+            {dayBrk ? <>
+              <input type="date" value={dayBrk.date} onChange={e=>setDayBrk(d=>({...d,date:e.target.value}))} aria-label="날짜"
+                style={{background:'#FFFFFF', border:'1px solid #CBC5BA', borderRadius:4, padding:'4px 6px', fontSize:13, fontFamily:'inherit'}}/>
+              {timeIn(dayBrk.start, v=>setDayBrk(d=>({...d,start:v})), '브레이크 시작')}<span>~</span>{timeIn(dayBrk.end, v=>setDayBrk(d=>({...d,end:v})), '브레이크 끝')}
+              <Btn kind="primary" onClick={()=>saveDayBreak(false)} disabled={busy}>저장</Btn>
+              <Btn onClick={()=>saveDayBreak(true)} disabled={busy}>그날 브레이크 없음</Btn>
+              <Btn onClick={()=>setDayBrk(null)}>취소</Btn>
+            </> : <>
+              <span style={{color:T.sub}}>오늘 {cur ? `${cur.start}~${cur.end}` : '없음'}</span>
+              <Btn onClick={()=>setDayBrk({ date:tds, start:cur?.start||'', end:cur?.end||'' })}>날짜별 브레이크 정하기</Btn>
+            </>}
+          </div>
+        )
+      })()}
 
       {/* 지금 근무 중 · 퇴근 안 찍은 기록 */}
       {working.length > 0 && (

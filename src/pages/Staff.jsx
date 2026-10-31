@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { db } from '../firebase'
 import { doc, getDoc, setDoc, collection, query, where, getDocs } from 'firebase/firestore'
 import { useAuth } from '../AuthContext'
-import { shiftFor, toDate, hm, dayStatus } from '../lib/attendance'
+import { shiftFor, toDate, hm, dayStatus, breakForShift, recBreak } from '../lib/attendance'
 
 const pad = n => String(n).padStart(2,'0')
 const DAYS_KR = ['일','월','화','수','목','금','토']
@@ -71,6 +71,7 @@ export default function Staff() {
   const [events, setEvents] = useState({})   // { 'YYYY-MM': events 문서 }
   const [subs, setSubs] = useState([])
   const [holidays, setHolidays] = useState([])
+  const [cfg, setCfg] = useState(null)       // attendance/_config (매장 브레이크)
   const [loading, setLoading] = useState(true)
   const [editDay, setEditDay] = useState(null) // 매장 일정 고치는 날짜 'YYYY-MM-DD'
   const [now, setNow] = useState(() => new Date())
@@ -88,17 +89,18 @@ export default function Staff() {
     async function load() {
       try {
         const opt = p => p.then(x => x.exists() ? x.data() : null).catch(() => null)
-        const [usersSnap, subDoc, holDoc, ...monthDocs] = await Promise.all([
+        const [usersSnap, subDoc, holDoc, cfgDoc, ...monthDocs] = await Promise.all([
           getDocs(collection(db,'users')),
           opt(getDoc(doc(db,'substitutes','requests'))),
           opt(getDoc(doc(db,'checklist','holidays'))),
+          opt(getDoc(doc(db,'attendance','_config'))),
           ...monthsKey.split(',').flatMap(ym => [opt(getDoc(doc(db,'attendance',ym))), opt(getDoc(doc(db,'events',ym)))]),
         ])
         if (off) return
         const list = []
         usersSnap.forEach(d => { const u = d.data(); if (u.status==='approved' && !['owner','store','investor'].includes(u.role)) list.push({ uid:d.id, ...u }) })
         setStaff(list.sort((a,b)=>(a.joinDate||'').localeCompare(b.joinDate||'')))
-        setSubs(subDoc?.list || []); setHolidays(holDoc?.list || [])
+        setSubs(subDoc?.list || []); setHolidays(holDoc?.list || []); setCfg(cfgDoc)
         const a = {}, e = {}
         monthsKey.split(',').forEach((ym,i) => { a[ym] = monthDocs[i*2] || {}; e[ym] = monthDocs[i*2+1] || {} })
         setAtt(a); setEvents(e)
@@ -145,14 +147,16 @@ export default function Staff() {
       .map(r => ({ start:`${r.startH}:${r.startM}`, end:`${r.endH}:${r.endM}`, for:r.requesterUid }))
     const closed = closedOf(d)
     const shifts = []   // 실제로 이 사람이 매장에 있을 예정인 시간 (인원 계산용)
-    if (planned && !gaveAway && !closed) shifts.push(planned)
+    // 브레이크: 지난 날은 기록에 붙은 것, 앞으로는 매장 브레이크(풀타임만)
+    const brk = rec?.in ? recBreak(rec) : (planned ? breakForShift(cfg, d, planned) : null)
+    if (planned && !gaveAway && !closed) shifts.push({ ...planned, brk })
     covering.forEach(c => shifts.push(c))
     const past = ds < dateStr(now)
     const today = ds === dateStr(now)
     const st = rec?.in ? dayStatus(rec, planned) : null
     const late = !rec?.in && planned && !gaveAway && !closed && !rec?.excused &&
       (past || (today && now.getHours()*60+now.getMinutes() > toMin(planned.start)))
-    return { ds, rec, planned, gaveAway, seeking, covering, closed, shifts, past, today, st, missing: late }
+    return { ds, rec, planned, brk, gaveAway, seeking, covering, closed, shifts, past, today, st, missing: late }
   }
 
   // ── 지금 매장 ──
@@ -183,7 +187,13 @@ export default function Staff() {
   const shiftsByDay = days.map(d => rows.flatMap(u => cellOf(u, d).shifts))
   shiftsByDay.flat().forEach(s => { hFrom = Math.min(hFrom, Math.floor(toMin(s.start)/60)); hTo = Math.max(hTo, Math.ceil((toMin(s.end) <= toMin(s.start) ? 1440 : toMin(s.end))/60)) })
   const hours = hTo > hFrom ? Array.from({length:hTo-hFrom}, (_,i)=>hFrom+i) : []
-  const countAt = (list, h) => list.filter(s => { const a = toMin(s.start), b = toMin(s.end) <= a ? 1440 : toMin(s.end); return a < (h+1)*60 && b > h*60 }).length
+  // 그 시간 칸에 근무하는 분이 있으면 1명 (브레이크로 그 시간 전체를 쉬면 빼고)
+  const ov = (a0,a1,b0,b1) => Math.max(0, Math.min(a1,b1) - Math.max(a0,b0))
+  const countAt = (list, h) => list.filter(s => {
+    const a = toMin(s.start), b = toMin(s.end) <= a ? 1440 : toMin(s.end), h0 = h*60, h1 = h0+60
+    const work = ov(a, b, h0, h1), rest = s.brk ? ov(Math.max(a, toMin(s.brk.start)), Math.min(b, toMin(s.brk.end)), h0, h1) : 0
+    return work - rest > 0
+  }).length
   const maxCount = Math.max(1, ...hours.flatMap(h => shiftsByDay.map(l => countAt(l, h))))
 
   const weekLabel = `${monday.getMonth()+1}월 ${monday.getDate()}일 ~ ${days[days.length-1].getMonth()+1}월 ${days[days.length-1].getDate()}일`
@@ -285,6 +295,7 @@ export default function Staff() {
                             {c.planned && !c.closed && (
                               <div style={{color: c.gaveAway ? T.faint : T.ink, textDecoration: c.gaveAway ? 'line-through' : 'none', fontWeight:600}}>{c.planned.start}~{c.planned.end}</div>
                             )}
+                            {c.brk && c.planned && !c.gaveAway && !c.closed && <div style={{color:T.sub, fontSize:11}}>휴게 {c.brk.start}~{c.brk.end}</div>}
                             {c.gaveAway && <div style={{color:T.purple, fontSize:11}}>대타 {nameOf(c.gaveAway.confirmedUid)}</div>}
                             {c.seeking && !c.gaveAway && <div style={{color:T.amber, fontSize:11, fontWeight:700}}>대타 구하는 중</div>}
                             {c.covering.map((v,i) => <div key={i} style={{color:T.purple, fontWeight:600}}>{v.start}~{v.end}<div style={{fontSize:11}}>{nameOf(v.for)} 대신</div></div>)}

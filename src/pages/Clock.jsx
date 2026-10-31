@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { db } from '../firebase'
 import { doc, getDoc, setDoc, deleteField, serverTimestamp } from 'firebase/firestore'
 import { useAuth } from '../AuthContext'
-import { DEFAULT_RADIUS, GRACE_MIN, ymOf, ddOf, hm, toDate, shiftFor, calcRecord, applyRecord, distanceM, getPosition, minsLabel } from '../lib/attendance'
+import { DEFAULT_RADIUS, GRACE_MIN, ymOf, ddOf, hm, toDate, shiftFor, breakForShift, calcRecord, applyRecord, distanceM, getPosition, minsLabel } from '../lib/attendance'
 
 const DAYS_KR = ['일','월','화','수','목','금','토']
 const T = { ink:'#1D1B18', sub:'#6E6A63', rule:'#DCD7CE', accent:'#C3261C', red:'#B42318', green:'#2E7D45', blue:'#2B5C9E', amber:'#B45309' }
@@ -61,7 +61,9 @@ export default function Clock() {
 
       if (!rec?.in) {
         const sh = shiftFor(me, now)
-        await write(tYm, tDd, { in: serverTimestamp(), inDist: dist, name: me?.name || '', schedStart: sh?.start || null, schedEnd: sh?.end || null })
+        const br = breakForShift(cfg, now, sh) // 풀타임이면 그날 매장 브레이크를 기록에 붙임 (근무시간에서 빠짐)
+        await write(tYm, tDd, { in: serverTimestamp(), inDist: dist, name: me?.name || '', schedStart: sh?.start || null, schedEnd: sh?.end || null,
+          ...(br ? { breakStart: br.start, breakEnd: br.end } : {}) })
         setResult({ kind:'in', rec: await readRec(tYm, tDd), ym:tYm, dd:tDd })
       } else if (!rec.out) {
         if (!force && now - toDate(rec.in) < 2*60*1000) {
@@ -156,6 +158,7 @@ export default function Clock() {
       <div style={{borderTop:`1px solid ${T.rule}`}}>
         {[
           ['예정', r.schedStart ? `${r.schedStart} ~ ${r.schedEnd}` : '오늘 예정 없음'],
+          ...(r.breakStart && !r.noBreak ? [['브레이크', `${r.breakStart} ~ ${r.breakEnd} (근무시간에서 빠져요)`]] : []),
           ['출근', hm(inD)],
           ['퇴근', outD ? hm(outD) : '—'],
           ...(c ? [['인정 시간', minsLabel(c.total)]] : []),

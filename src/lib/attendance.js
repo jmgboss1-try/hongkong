@@ -27,10 +27,34 @@ export function shiftFor(userData, date) {
   return s?.start && s?.end ? { start:s.start, end:s.end } : null
 }
 
+// ── 브레이크 ──
+// 기본: 요일별 매장 브레이크 _config.breaks {요일: {start,end}} (없으면 토요일 14:30~16:30)
+// 그날만: _config.breakDates {'YYYY-MM-DD': {start,end} | {none:true}} (평일처럼 유동적인 날)
+// 출근할 때 그날 브레이크를 기록에 복사(breakStart/breakEnd)하고, 사장님이 기록마다 바꾸거나 noBreak(못 쉼)로 할 수 있음
+export const DEFAULT_BREAKS = { 6: { start:'14:30', end:'16:30' } }
+export function breakFor(cfg, date) {
+  const ds = `${date.getFullYear()}-${pad(date.getMonth()+1)}-${pad(date.getDate())}`
+  const day = cfg?.breakDates?.[ds]
+  if (day) return day.none ? null : (day.start && day.end ? { start:day.start, end:day.end } : null)
+  const w = (cfg?.breaks || DEFAULT_BREAKS)[date.getDay()]
+  return w?.start && w?.end ? { start:w.start, end:w.end } : null
+}
+// 이 근무에 자동으로 붙일 브레이크: 예정 근무가 브레이크 시간을 통째로 포함할 때만 (풀타임). 일부만 걸치는 근무는 사장님이 기록에서 넣음
+export function breakForShift(cfg, date, shift) {
+  const br = breakFor(cfg, date)
+  if (!br || !shift) return null
+  const S = toMin(shift.start), B0 = toMin(br.start), B1 = toMin(br.end)
+  let E = toMin(shift.end); if (E <= S) E += 1440
+  return S <= B0 && E >= B1 ? br : null
+}
+export const recBreak = rec => !rec?.noBreak && rec?.breakStart && rec?.breakEnd ? { start:rec.breakStart, end:rec.breakEnd } : null
+const overlap = (a0, a1, b0, b1) => Math.max(0, Math.min(a1, b1) - Math.max(a0, b0))
+
 // 기록 하나 → 인정 시간 계산 (분)
 //  - 예정 출근보다 GRACE_MIN 넘게 일찍 오면 그 시간은 earlyMins (승인해야 인정), 10분 이내면 예정 시각부터
 //  - 예정 퇴근보다 GRACE_MIN 넘게 늦게 나가면 lateMins (승인해야 인정), 10분 이내면 예정 시각까지
 //  - 예정이 없는 날은 전체가 unschedMins (승인해야 인정)
+//  - 브레이크 시간은 인정 시간에서 뺌 (breakMins)
 export function calcRecord(rec) {
   const inD = toDate(rec?.in), outD = toDate(rec?.out)
   if (!inD || !outD) return null
@@ -40,17 +64,23 @@ export function calcRecord(rec) {
   const S = toMin(rec.schedStart)
   let E = toMin(rec.schedEnd)
   if (S != null && E != null && E <= S) E += 1440 // 자정 넘어 끝나는 근무 (예: 18:00~01:00)
-  let base = 0, early = 0, late = 0, unsched = 0
+  const br = recBreak(rec)
+  const B0 = br ? toMin(br.start) : 0, B1 = br ? toMin(br.end) : 0
+  const minus = (a, b) => br ? overlap(a, b, B0, B1) : 0 // 이 구간 중 브레이크와 겹친 분
+  let base = 0, early = 0, late = 0, unsched = 0, brk = 0
   if (S == null || E == null) {
-    unsched = Math.max(0, outM - inM)
+    unsched = Math.max(0, outM - inM - minus(inM, outM))
+    if (rec.unschedOk) brk += minus(inM, outM)
   } else {
-    if (inM < S - GRACE_MIN) early = S - inM
-    if (outM > E + GRACE_MIN) late = outM - E
-    base = Math.max(0, Math.min(outM, E) - Math.max(inM, S))
+    const a = Math.max(inM, S), b = Math.min(outM, E)
+    base = Math.max(0, b - a - (b > a ? minus(a, b) : 0))
+    brk += b > a ? minus(a, b) : 0
+    if (inM < S - GRACE_MIN) { early = S - inM - minus(inM, S); if (rec.earlyOk) brk += minus(inM, S) }
+    if (outM > E + GRACE_MIN) { late = outM - E - minus(E, outM); if (rec.lateOk) brk += minus(E, outM) }
   }
   const total = base + (rec.earlyOk ? early : 0) + (rec.lateOk ? late : 0) + (rec.unschedOk ? unsched : 0)
   const pending = (early && rec.earlyOk == null) || (late && rec.lateOk == null) || (unsched && rec.unschedOk == null)
-  return { base, early, late, unsched, total, pending: !!pending }
+  return { base, early, late, unsched, total, breakMins: brk, pending: !!pending }
 }
 
 // 인정 시간을 근무관리(workhours 시간 + workextra 분)에 넣고, 넣은 값을 기록에 남김
