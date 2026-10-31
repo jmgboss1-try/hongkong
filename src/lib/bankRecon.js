@@ -99,3 +99,39 @@ export async function appendInvestmentRecords(txs) {
   await setDoc(doc(db,'investment','records'), { list })
   return added
 }
+
+// '통장 밖 지출'이 어디서 생겼는지: 날짜·카테고리 칸마다 (적힌 금액 − 그 칸으로 들어간 통장 출금)
+//   rows : 통장 출금으로 설명되지 않는 칸 (amount > 0 이면 통장 밖, < 0 이면 칸 금액이 통장 출금보다 적음)
+//   acks : '이미 지출에 있음'으로 연결만 한 출금 (어느 칸인지 몰라서 따로 빼서 보여줌, 이만큼 통장 밖 금액이 줄어듦)
+//   unknown : 카테고리 기록(bankCls)이 없는 지출 출금
+// rows 합 − acks 합 − unknown 합 = reasons.offBank
+export function offBankDetail(data, categories) {
+  const d = data || {}
+  const nonOpKeys = new Set((d.nonOp||[]).map(x=>x.key))
+  const cls = d.bankCls || {}
+  const byCell = {}, acks = [], unknown = []
+  for (const k of d.importedKeys || []) {
+    if (nonOpKeys.has(k)) continue
+    const [date, time, out, , , desc] = String(k).split('|')
+    const t = { key:k, date, time, amount:+out||0, desc }
+    if (!t.amount) continue
+    const c = cls[k]
+    if (c === 'ack') acks.push(t)
+    else if (c && categories.some(x=>x.id===c)) (byCell[`${date.slice(8,10)}|${c}`] ||= []).push(t)
+    else unknown.push(t)
+  }
+  const ym = (d.bankSeen?.[0] || d.importedKeys?.[0] || '').slice(0,7)
+  const rows = []
+  const days = new Set([...Object.keys(d).filter(isDay), ...Object.keys(byCell).map(k=>k.slice(0,2))])
+  for (const dd of [...days].sort()) {
+    const e = d[dd] && typeof d[dd] === 'object' ? d[dd] : {}
+    for (const c of categories) {
+      const txs = byCell[`${dd}|${c.id}`] || []
+      const entered = e[c.id] || 0
+      const bank = txs.reduce((a,t)=>a+t.amount,0)
+      if (entered !== bank) rows.push({ day:dd, date: ym ? `${ym}-${dd}` : dd, cat:c.id, label:c.label, entered, bank, amount: entered - bank, txs })
+    }
+  }
+  const by = (a,b)=>(a.date+(a.time||'')).localeCompare(b.date+(b.time||''))
+  return { rows, acks: acks.sort(by), unknown: unknown.sort(by) }
+}

@@ -1,8 +1,9 @@
 import { useState } from 'react'
 import { db } from '../firebase'
 import { doc, getDoc, setDoc } from 'firebase/firestore'
-import { bankSummary, NONOP_LABELS, INVEST_OPTIONS, investOption, appendInvestmentRecords } from '../lib/bankRecon'
+import { bankSummary, offBankDetail, NONOP_LABELS, INVEST_OPTIONS, investOption, appendInvestmentRecords } from '../lib/bankRecon'
 import BankTxList from './BankTxList'
+import OffBankList from './OffBankList'
 
 const wonFmt = n => (n||0).toLocaleString('ko-KR')
 const sign = n => n > 0 ? `+${wonFmt(n)}` : n < 0 ? `−${wonFmt(-n)}` : '0'
@@ -22,6 +23,7 @@ export default function BankReconCard({ ym, data, categories, onChanged }) {
   const [showList, setShowList] = useState(false)
   const [picks, setPicks] = useState({})   // key → 카테고리 id | 'nonop:<kind>' | 'ack'
   const [saving, setSaving] = useState(false)
+  const [showOff, setShowOff] = useState(false)
   const s = bankSummary(data, categories)
   const b = s.bank
   const nonOp = (data?.nonOp || []).slice().sort((a,b)=>a.date.localeCompare(b.date))
@@ -152,16 +154,24 @@ export default function BankReconCard({ ym, data, categories, onChanged }) {
                 [b.reasons.unhandledIn, '아직 정리 안 된 입금이 있어요. 계좌내역 탭에서 다시 올려 실입금으로 맞추거나 영업 외 입금으로 기록하세요.'],
                 [b.reasons.unhandledOut, '아직 정리 안 된 출금이 있어요. 아래 목록에서 바로 골라주세요.'],
                 [b.reasons.offBank, '통장이 아닌 곳에서 낸 지출이에요(현금·직접 입력·고정지출 납부 등). 이 중 통장에서 나간 건은 정리 안 된 출금과 서로 상쇄돼요.'],
-              ].filter(([v])=>v).map(([v,text],i)=>(
+              ].map(([v,text],i)=>[v,text,i]).filter(([v])=>v).map(([v,text,i])=>(
                 <div key={i} style={{display:'flex', gap:12, padding:'6px 0', borderTop:`1px solid ${T.soft}`}}>
                   <b style={{...num, color: v>0 ? T.accent : T.red, minWidth:92, textAlign:'right', flexShrink:0}}>{sign(v)}</b>
-                  <span>{text}</span>
+                  <span>{text}
+                    {i===3 && <><br/><button type="button" onClick={()=>setShowOff(v=>!v)}
+                      style={{background:'none', border:'none', borderBottom:`1px solid ${T.blue}`, color:T.blue, fontSize:13, cursor:'pointer', fontFamily:'inherit', padding:0, marginTop:4}}>
+                      {showOff ? '접기' : '어느 지출인지 찾아보기'}</button></>}
+                  </span>
                 </div>
               ))}
             </>
           )}
         </div>
       </div>
+
+      {b && showOff && !!b.reasons.offBank && (
+        <OffBankList ym={ym} data={data} categories={categories} detail={offBankDetail(data, categories)} total={b.reasons.offBank} onChanged={onChanged}/>
+      )}
 
       {b && unhandled.length > 0 && (
         <div style={{marginTop:16, borderLeft:`4px solid ${T.accent}`, background:'#C3261C0D', padding:'10px 14px', borderRadius:'0 4px 4px 0'}}>
