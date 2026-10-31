@@ -15,18 +15,20 @@ import { toDate, hm, recBreak, planFor, dayStatus, monthStatus, loadMonthContext
 const T = { ink:'#1D1B18', sub:'#6E6A63', faint:'#A8A39A', rule:'#DCD7CE', soft:'#ECE8E1', accent:'#C3261C', red:'#B42318', green:'#2E7D45', blue:'#2B5C9E', amber:'#B45309' }
 const num = { fontVariantNumeric:'tabular-nums' }
 const W = 960, H = 600, SIZE = 40           // 그림 크기, 캐릭터 크기
-const DOOR = [265, 590]
+// 배치는 실제 매장 사진대로: 위쪽 주방(웍 3개), 그 앞 주문·포장 카운터, 왼쪽 창고·화장실, 오른쪽 퇴식대·입구, 아래 창가
+const DOOR = [860, 592]
 // 포지션별로 서 있을 자리 (발 위치)
 const SLOTS = {
-  wok:      [[95,128],[215,128],[335,128],[150,150]],
-  kitchen:  [[520,128],[620,128],[800,128],[700,150]],
-  hall:     [[395,380],[565,380],[395,520],[565,520]],
-  counter:  [[835,395],[890,395]],
-  delivery: [[75,535],[140,535],[105,565]],
-  rest:     [[55,345],[105,345],[155,345],[80,385]],
+  wok:      [[655,140],[745,140],[835,140],[700,160]],
+  kitchen:  [[510,140],[570,140],[450,140],[540,160]],
+  counter:  [[400,212],[470,212],[540,212]],
+  delivery: [[262,308],[300,300],[262,335]],
+  hall:     [[265,345],[395,345],[525,345],[265,445]],
+  rest:     [[55,290],[105,290],[80,320],[130,320]],
 }
-const WOKS = [[95,78],[215,78],[335,78]]
-const TABLES = [[310,330],[480,330],[650,330],[310,470],[480,470],[650,470]]
+const WOKS = [[655,82],[745,82],[835,82]]
+// 2인 테이블 (가운데 좌표) 4줄 x 3칸
+const TABLES = [200,330,460,590].flatMap(x => [295,395,495].map(y => [x,y]))
 const CUSTOMER_LOOKS = Array.from({length:12}, (_,i) => ({ ...defaultLook(`손님${i*7}`), shirt: ['#2B5C9E','#6E6A63','#2E7D45','#B45309','#6B4FA0','#E8E4DC','#D9A441'][i % 7] }))
 
 // 문에서 들어오거나 나갈 때: 처음엔 from, 바로 다음 그림에서 to로 (CSS transition으로 걸어감)
@@ -99,7 +101,7 @@ export default function OurStore() {
   const closeTotal = sum('kiosk','del','pos')
   const total = closeTotal || sum('morningKiosk','morningDel','morningPos','middleKiosk','middleDel','middlePos')
   const delTotal = r.del || sum('morningDel','middleDel')
-  const customers = Math.min(12, Math.round(total / 100000))
+  const customers = Math.min(TABLES.length * 2, Math.round(total / 100000))
   const bags = Math.min(6, Math.round(delTotal / 120000))
 
   // ── 오늘 체크리스트 ──
@@ -144,7 +146,7 @@ export default function OurStore() {
       <rect x={x} y={y} width={w} height={h} fill={`url(#${id})`}/>
     </>
   )
-  const label = (x, y, t) => <text x={x} y={y} fontSize="12" fill={T.sub} fontWeight="700">{t}</text>
+  const label = (x, y, t, dark) => <text x={x} y={y} fontSize="12" fill={dark ? '#E8E4DC' : T.sub} fontWeight="700">{t}</text>
 
   return (
     <div style={{maxWidth:1100}}>
@@ -156,67 +158,103 @@ export default function OurStore() {
 
       <div style={{background:'#2A211C', borderRadius:6, padding:8}}>
         <svg viewBox={`0 0 ${W} ${H}`} width="100%" role="img" aria-label="매장 안에서 일하는 직원들" style={{display:'block', shapeRendering:'crispEdges'}}>
-          {/* 바닥: 주방은 회색 타일, 홀은 따뜻한 타일 */}
-          {tile(20, 40, 920, 190, '#D9D5CE', '#CFCAC2', 'tk')}
-          {tile(20, 240, 920, 340, '#EFE3CF', '#E6D7BE', 'th')}
-          {/* 벽과 간판 */}
-          <rect x="0" y="0" width={W} height="40" fill="#8E2A21"/>
-          <rect x="360" y="6" width="240" height="28" fill="#C3261C" stroke="#F6C343" strokeWidth="2"/>
-          <text x="480" y="26" textAnchor="middle" fontSize="17" fontWeight="900" fill="#FFFFFF">홍콩반점 중앙대점</text>
-          <rect x="0" y="0" width="20" height={H} fill="#5A1E18"/><rect x={W-20} y="0" width="20" height={H} fill="#5A1E18"/>
-          <rect x="0" y={H-20} width="220" height="20" fill="#5A1E18"/><rect x="310" y={H-20} width={W-310} height="20" fill="#5A1E18"/>
-          <rect x="222" y={H-14} width="86" height="10" fill="#6E6A63"/>
-          {label(232, H-24, '입구')}
+          {/* 바닥: 주방은 밝은 회색 타일, 매장은 진회색 타일 (실제 매장처럼) */}
+          {tile(20, 40, 940, 540, '#4E4E4E', '#474747', 'th')}
+          {tile(360, 40, 580, 150, '#D3D6D9', '#C7CBCF', 'tk2')}
+          {/* 벽: 아이보리 + 빨간 띠, 아래쪽은 창가 */}
+          <rect x="0" y="0" width={W} height="40" fill="#EDE6D6"/><rect x="0" y="30" width={W} height="10" fill="#B8282A"/>
+          <rect x="0" y="0" width="20" height={H} fill="#EDE6D6"/><rect x={W-20} y="0" width="20" height={H} fill="#EDE6D6"/>
+          <rect x="0" y={H-20} width="790" height="20" fill="#3B4A5A"/><rect x="20" y={H-18} width="770" height="6" fill="#9FC3DD"/>
+          <rect x="910" y={H-20} width="50" height="20" fill="#EDE6D6"/>
+          {label(30, H-26, '창가', true)}
+          {/* 창가 바 좌석 */}
+          <rect x="30" y="548" width="740" height="12" fill="#F2F2F2"/>
+          {[60,120,180,240,300,360,420,480,540,600,660,720].map(x => <rect key={x} x={x} y="532" width="14" height="12" fill="#3A3A3A"/>)}
 
-          {/* 웍 화구 */}
-          <rect x="40" y="48" width="360" height="56" fill="#9AA0A6"/><rect x="40" y="96" width="360" height="8" fill="#6E747A"/>
+          {/* 계단 밑 휴게 자리 · 화장실 */}
+          <rect x="20" y="40" width="190" height="160" fill="#E4DDCF"/>
+          {[0,1,2,3,4].map(i => <rect key={i} x={20 + i*38} y={40 + i*12} width="38" height={160 - i*12} fill="#00000008"/>)}
+          <rect x="130" y="40" width="60" height="70" fill="#D8D2C4" stroke="#8A8378"/><rect x="176" y="72" width="5" height="5" fill="#8A8378"/>
+          {label(136, 128, '화장실')}
+          <rect x="20" y="240" width="140" height="110" fill="#5A5A5A"/>
+          <rect x="45" y="262" width="80" height="34" fill="#F4F4F2"/>
+          <rect x="78" y="266" width="12" height="10" fill="#FFFFFF" stroke="#B8B2A7"/>
+          {label(28, 344, '휴게', true)}
+
+          {/* 창고 선반 · 홍콩반점 냉장고 · 하이트진로 상자 (카운터 왼쪽) */}
+          <rect x="210" y="40" width="150" height="150" fill="#5E5E5E"/>
+          <rect x="216" y="46" width="68" height="40" fill="#3A3A3A"/>{[0,1,2].map(i => <rect key={i} x={222 + i*20} y="52" width="16" height="28" fill="#F2EFEA"/>)}
+          <rect x="296" y="46" width="56" height="86" fill="#F4F4F2"/><rect x="300" y="58" width="48" height="66" fill="#6F8FE8"/><rect x="296" y="46" width="56" height="12" fill="#C3261C"/>
+          <text x="324" y="56" textAnchor="middle" fontSize="8" fontWeight="900" fill="#FFFFFF">홍콩반점</text>
+          {[0,1,2].map(i => <rect key={i} x="222" y={100 + i*20} width="30" height="18" fill="#2B5C9E" stroke="#1E4577"/>)}
+          {Array.from({length:bags}).map((_,i) => <g key={i}><rect x={260 + (i%3)*24} y={140 + Math.floor(i/3)*24} width="20" height="20" fill="#FFFFFF" stroke="#C3261C"/><rect x={265 + (i%3)*24} y={145 + Math.floor(i/3)*24} width="10" height="5" fill="#C3261C"/></g>)}
+          {label(216, 204, `포장·배달${bags ? ` ${bags}건 대기` : ''}`, true)}
+
+          {/* 주방: 냉장고 · 준비 냉장고 · 웍 3개 · 개수대 */}
+          <rect x="360" y="40" width="580" height="8" fill="#F4F4F2"/>
+          <rect x="368" y="50" width="70" height="56" fill="#B9BEC3" stroke="#8D9297"/><rect x="368" y="78" width="70" height="2" fill="#8D9297"/>
+          {label(372, 118, '냉장고')}
+          <rect x="450" y="56" width="140" height="44" fill="#B9BEC3"/><rect x="458" y="62" width="40" height="22" fill="#E8D3A8"/>
+          <rect x="506" y="64" width="14" height="14" fill="#2E7D45"/><rect x="524" y="64" width="14" height="14" fill="#C3261C"/><rect x="544" y="62" width="34" height="26" fill="#DADDE0" stroke="#8D9297"/>
+          {label(452, 112, '준비')}
+          <rect x="610" y="50" width="270" height="62" fill="#A9AEB4"/><rect x="610" y="104" width="270" height="8" fill="#7C8187"/>
           {WOKS.map(([x,y],i) => (
             <g key={i}>
               {i < occupiedWoks && <rect className="av-flame" x={x-14} y={y+6} width="28" height="8" fill="#E8742A"/>}
               <ellipse cx={x} cy={y} rx="26" ry="14" fill="#2F2B28"/><ellipse cx={x} cy={y-2} rx="18" ry="8" fill={i < occupiedWoks ? '#C3261C' : '#45403B'}/>
             </g>
           ))}
-          {label(44, 62, '웍')}
-          {/* 준비대·설거지 */}
-          <rect x="470" y="54" width="240" height="46" fill="#B8BDC2"/><rect x="500" y="62" width="60" height="26" fill="#E8D3A8"/>
-          <rect x="580" y="64" width="16" height="16" fill="#2E7D45"/><rect x="600" y="66" width="14" height="14" fill="#C3261C"/><rect x="620" y="64" width="18" height="16" fill="#F6C343"/>
-          {label(474, 50, '준비')}
-          <rect x="740" y="54" width="170" height="46" fill="#B8BDC2"/><rect x="760" y="62" width="60" height="30" fill="#7FB2D9"/><rect x="835" y="62" width="60" height="30" fill="#7FB2D9"/>
-          {label(744, 50, '설거지')}
-          {/* 내주는 곳 (짬뽕 그릇) */}
-          <rect x="230" y="200" width="480" height="26" fill="#B07D4F"/><rect x="230" y="222" width="480" height="6" fill="#8A5F3A"/>
-          {[0,1,2,3].slice(0, Math.min(4, Math.ceil(customers/3))).map(i => <g key={i}><ellipse cx={290 + i*110} cy="210" rx="16" ry="7" fill="#FFFFFF"/><ellipse cx={290 + i*110} cy="209" rx="12" ry="4" fill="#C3261C"/></g>)}
+          <rect x="888" y="52" width="40" height="22" fill="#B9BEC3"/><rect x="888" y="80" width="40" height="22" fill="#B9BEC3"/>
+          <rect x="884" y="110" width="48" height="40" fill="#B9BEC3"/><rect x="890" y="116" width="36" height="26" fill="#7FB2D9"/>
+          {label(616, 64, '웍')}
+          {label(888, 162, '개수대')}
 
-          {/* 휴게 공간 */}
-          <rect x="20" y="240" width="190" height="170" fill="#D8CDB9"/>
-          <rect x="30" y="300" width="160" height="26" fill="#2E7D45"/><rect x="30" y="292" width="160" height="10" fill="#246338"/>
-          <rect x="88" y="360" width="40" height="22" fill="#B07D4F"/><rect x="100" y="352" width="10" height="10" fill="#FFFFFF"/>
-          <rect x="176" y="250" width="22" height="30" fill="#2E7D45"/><rect x="180" y="278" width="14" height="14" fill="#8A5F3A"/>
-          {label(30, 258, '휴게')}
-          {/* 배달·포장 */}
-          <rect x="20" y="430" width="190" height="150" fill="#E3D9C8"/>
-          {label(30, 448, `배달·포장${bags ? ` ${bags}건 대기` : ''}`)}
-          <rect x="30" y="456" width="170" height="30" fill="#9C7451"/>
-          {Array.from({length:bags}).map((_,i) => <g key={i}><rect x={36 + i*27} y="458" width="22" height="24" fill="#FFFFFF" stroke="#C3261C"/><rect x={42 + i*27} y="464" width="10" height="6" fill="#C3261C"/></g>)}
-          {/* 키오스크·카운터 */}
-          <rect x="770" y="250" width="160" height="110" fill="#E3D9C8"/>
-          <rect x="790" y="262" width="34" height="56" fill="#1D1B18"/><rect x="795" y="268" width="24" height="30" fill="#7FB2D9"/>
-          <rect x="840" y="300" width="80" height="40" fill="#B07D4F"/><rect x="862" y="290" width="26" height="14" fill="#1D1B18"/>
-          {label(836, 266, '키오스크·카운터')}
+          {/* 주문·포장 카운터 (위에 홍콩반점 글씨, 포스·밥솥) */}
+          <rect x="360" y="178" width="400" height="26" fill="#3A3A3A"/><rect x="360" y="178" width="400" height="5" fill="#9A9EA3"/>
+          <rect x="380" y="168" width="22" height="12" fill="#1D1B18"/><rect x="383" y="170" width="16" height="7" fill="#7FB2D9"/>
+          <rect x="560" y="166" width="20" height="16" fill="#F2F2F2" stroke="#B8B2A7"/><rect x="590" y="166" width="20" height="16" fill="#F2F2F2" stroke="#B8B2A7"/>
+          <text x="560" y="172" textAnchor="middle" fontSize="15" fontWeight="900" fill="#C3261C" stroke="#FFFFFF" strokeWidth="3" paintOrder="stroke">홍콩반점</text>
+          {label(616, 220, '주문·포장 카운터', true)}
+          {/* 카운터 오른쪽: 음료 냉장고 · 정수기 · 퇴식대 · 쓰레기통 */}
+          <rect x="768" y="160" width="40" height="44" fill="#F4F4F2"/><rect x="772" y="170" width="32" height="30" fill="#BFD6EA"/><rect x="768" y="160" width="40" height="9" fill="#C3261C"/>
+          <rect x="814" y="170" width="22" height="34" fill="#F4F4F2" stroke="#B8B2A7"/>
+          <rect x="842" y="150" width="98" height="54" fill="#9A9EA3"/><rect x="850" y="160" width="82" height="22" fill="#5E6268"/>
+          {label(856, 216, '퇴식대', true)}
+          <rect x="846" y="226" width="22" height="22" fill="#2A2A2A"/><rect x="874" y="226" width="22" height="22" fill="#2A2A2A"/>
 
-          {/* 손님 테이블: 오늘 매출만큼 손님 */}
+          {/* 셀프바 · 메뉴판 */}
+          <rect x="660" y="250" width="70" height="32" fill="#C3261C"/><rect x="664" y="252" width="62" height="8" fill="#2A2A2A"/>
+          {label(664, 296, '셀프바', true)}
+          <rect x="22" y="380" width="8" height="60" fill="#C3261C"/><rect x="22" y="460" width="8" height="60" fill="#3A1F1C"/>
+
+          {/* 입구 쪽: 칸막이 유리 · 키오스크 · 대기 의자 */}
+          <rect x="770" y="260" width="6" height="230" fill="#9FC3DD"/>
+          <rect x="900" y="268" width="34" height="56" fill="#1D1B18"/><rect x="905" y="274" width="24" height="32" fill="#7FB2D9"/>
+          {label(870, 340, '키오스크', true)}
+          <circle cx="905" cy="470" r="11" fill="#5A4636"/><circle cx="905" cy="500" r="11" fill="#5A4636"/>
+          <rect x="820" y={H-20} width="90" height="20" fill="#7C7C7C"/><rect x="826" y={H-16} width="78" height="4" fill="#B8B2A7"/>
+          {label(840, H-26, '입구', true)}
+
+          {/* 손님 테이블 (하얀 2인 테이블): 오늘 매출만큼 손님 — 앞자리부터 한 명씩, 다 차면 맞은편 */}
           {TABLES.map(([x,y],t) => {
-            const seated = [0,1].filter(s => t*2 + s < customers)
+            const top = t < customers, bottom = t + TABLES.length < customers
             return (
               <g key={t}>
-                {seated.map(s => (
-                  <g key={s} transform={`translate(${x - 52 + s*64},${y - 50})`}>
+                <rect x={x-20} y={y-34} width="18" height="12" fill="#C9CBCE"/><rect x={x+2} y={y-34} width="18" height="12" fill="#C9CBCE"/>
+                {top && (
+                  <g transform={`translate(${x-16},${y-60})`}>
                     {/* 움직임(av-bob)은 안쪽 g에: 바깥 g의 위치(transform)를 덮어쓰지 않게 */}
-                    <g className="av-bob"><Avatar look={CUSTOMER_LOOKS[(t*2+s) % CUSTOMER_LOOKS.length]} size={36} apron={false}/></g>
+                    <g className="av-bob"><Avatar look={CUSTOMER_LOOKS[t % CUSTOMER_LOOKS.length]} size={32} apron={false}/></g>
                   </g>
-                ))}
-                <rect x={x-50} y={y-8} width="100" height="40" fill="#B07D4F"/><rect x={x-50} y={y+28} width="100" height="6" fill="#8A5F3A"/>
-                {seated.map(s => <g key={'b'+s}><ellipse cx={x - 22 + s*44} cy={y+6} rx="11" ry="5" fill="#FFFFFF"/><ellipse cx={x - 22 + s*44} cy={y+5} rx="8" ry="3" fill="#C3261C"/></g>)}
+                )}
+                <rect x={x-30} y={y-20} width="60" height="34" fill="#F7F7F5"/><rect x={x-30} y={y+12} width="60" height="4" fill="#B8BAB8"/>
+                <rect x={x-20} y={y+20} width="18" height="12" fill="#C9CBCE"/><rect x={x+2} y={y+20} width="18" height="12" fill="#C9CBCE"/>
+                {top && <g><ellipse cx={x-8} cy={y-6} rx="9" ry="4" fill="#FFFFFF" stroke="#DDD"/><ellipse cx={x-8} cy={y-7} rx="6" ry="2.5" fill="#C3261C"/></g>}
+                {bottom && (
+                  <g transform={`translate(${x-2},${y-8})`}>
+                    <g className="av-bob"><Avatar look={CUSTOMER_LOOKS[(t+5) % CUSTOMER_LOOKS.length]} size={32} apron={false}/></g>
+                  </g>
+                )}
               </g>
             )
           })}
