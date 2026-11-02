@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { auth, db } from '../firebase'
-import { signInWithEmailAndPassword, createUserWithEmailAndPassword } from 'firebase/auth'
+import { signInWithEmailAndPassword, createUserWithEmailAndPassword, sendPasswordResetEmail } from 'firebase/auth'
 import { doc, setDoc } from 'firebase/firestore'
 
 export default function Login() {
@@ -11,6 +11,26 @@ export default function Login() {
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const [done, setDone] = useState(false)
+  const [resetMsg, setResetMsg] = useState('')
+
+  // 비밀번호 잊었을 때: 입력한 이메일로 재설정 메일 (Firebase가 보냄)
+  async function handleReset() {
+    setError(''); setResetMsg('')
+    const em = email.trim()
+    if(!em) return setError('위 이메일 칸에 가입한 이메일을 먼저 넣어주세요.')
+    setLoading(true)
+    try {
+      auth.languageCode = 'ko'
+      await sendPasswordResetEmail(auth, em)
+      setResetMsg(`${em} 로 비밀번호 재설정 메일을 보냈어요. 메일의 링크에서 새 비밀번호를 정한 뒤 로그인하세요. 안 보이면 스팸함도 확인해 주세요.`)
+    } catch(err) {
+      if(err.code === 'auth/invalid-email') setError('이메일 형식이 올바르지 않습니다.')
+      else if(err.code === 'auth/user-not-found') setError('이 이메일로 가입한 계정이 없어요. 사장님께 가입한 이메일을 물어보세요.')
+      else if(err.code === 'auth/too-many-requests') setError('요청이 너무 많아요. 잠시 뒤 다시 시도해 주세요.')
+      else setError('메일을 보내지 못했어요. 잠시 뒤 다시 시도해 주세요.')
+    }
+    setLoading(false)
+  }
 
   async function handleLogin(e) {
     e.preventDefault()
@@ -65,7 +85,7 @@ export default function Login() {
         {/* 탭 */}
         <div style={{display:'flex', border:'1px solid #DCD7CE', borderRadius:4, overflow:'hidden', marginBottom:24}}>
           {[['login','로그인'],['register','회원가입']].map(([m,label])=>(
-            <button key={m} onClick={()=>{setMode(m);setError('');setDone(false)}}
+            <button key={m} onClick={()=>{setMode(m);setError('');setResetMsg('');setDone(false)}}
               style={{flex:1, padding:'9px', fontSize:12, fontWeight:600, border:'none', cursor:'pointer', fontFamily:'inherit',
                 background: mode===m ? '#C3261C' : 'transparent',
                 color: mode===m ? '#FFFFFF' : '#6E6A63'}}>
@@ -109,16 +129,25 @@ export default function Login() {
             </div>
 
             {error && <div style={{fontSize:12, color:'#B42318', textAlign:'center'}}>{error}</div>}
+            {resetMsg && <div style={{fontSize:12, color:'#2E7D45', textAlign:'center', lineHeight:1.6}}>{resetMsg}</div>}
 
             <button type="submit" disabled={loading}
               style={{background:'#C3261C', color:'#FFFFFF', border:'none', borderRadius:4, padding:'11px', fontSize:13, fontWeight:700, cursor:'pointer', marginTop:6, fontFamily:'inherit'}}>
               {loading ? '처리 중...' : mode==='login' ? '로그인' : '가입 신청'}
             </button>
+            {mode==='login' && (
+              <button type="button" onClick={handleReset} disabled={loading}
+                style={{background:'none', border:'none', color:'#6E6A63', fontSize:12, cursor:'pointer', fontFamily:'inherit',
+                  textDecoration:'underline', padding:0, alignSelf:'center'}}>
+                비밀번호를 잊으셨나요?
+              </button>
+            )}
           </form>
         )}
 
         {mode==='login' && !done && (
           <div style={{fontSize:11, color:'#6E6A63', textAlign:'center', marginTop:20, lineHeight:1.8}}>
+            아이디(가입한 이메일)를 잊었으면 사장님께 물어보세요.<br/>
             계정이 없으신가요?<br/>
             <span style={{color:'#C3261C', cursor:'pointer'}} onClick={()=>setMode('register')}>회원가입 신청하기</span>
           </div>
