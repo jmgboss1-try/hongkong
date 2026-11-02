@@ -134,7 +134,7 @@ export default function OurStore() {
   // ── 직원별 지금 상태 ──
   const nowMs = now.getTime(), nowMin = now.getHours()*60 + now.getMinutes()
   const toMin = s => { const [h,m] = String(s).split(':').map(Number); return h*60 + (m||0) }
-  const people = [], waiting = [], gone = []
+  const people = [], waiting = []
   const used = {}
   const slotFor = key => { const list = SLOTS[key] || SLOTS.hall; const i = used[key] = (used[key] ?? -1) + 1; const [x,y] = list[i % list.length]; return [x + Math.floor(i / list.length) * 18, y] }
   const positionsOf = u => { const ps = (u.positions?.length ? u.positions : [u.position]).filter(p => POSITIONS.some(x => x.id === p)); return ps.length ? ps : ['hall'] }
@@ -156,8 +156,8 @@ export default function OurStore() {
     const ps = positionsOf(u), posKey = ps[0]
     const base = { uid:u.uid, label:u.name, look:lookOf(u), badges:{ flame, grade, star: ckDone }, posKey, ps, inD, outD, plan, late: rec?.in ? dayStatus(rec, plan).late : 0 }
     if (inD && outD) {
-      if (nowMs - outD.getTime() < 180000) people.push({ ...base, state:'leaving', pose:'walk', from: slotFor(posKey), to: DOOR })
-      else gone.push(base)
+      // 퇴근하면 1분 동안 문으로 걸어 나가고 화면에서 빠짐 (퇴근한 사람은 목록에도 안 보임)
+      if (nowMs - outD.getTime() < 60000) people.push({ ...base, state:'leaving', pose:'walk', from: slotFor(posKey), to: DOOR })
     } else if (inD) {
       const br = recBreak(rec)
       const resting = br && nowMin >= toMin(br.start) && nowMin < toMin(br.end)
@@ -328,7 +328,6 @@ export default function OurStore() {
             ['체크리스트', ckTotal ? `${Math.min(todayChecks, ckTotal)} / ${ckTotal}${ckDone ? ' 다 끝냄' : ''}` : '—'],
             ['오늘 매출', total ? `${total.toLocaleString('ko-KR')}원` : '아직 없음'],
             ...waiting.map(w => [w.label, w.overdue ? `${w.plan.start} 출근인데 아직 안 옴` : `${w.plan.start} 출근 예정`]),
-            ...gone.map(g => [g.label, `${hm(g.inD)}~${hm(g.outD)} 퇴근`]),
           ].map(([k,v],i) => (
             <div key={i} style={{display:'flex', gap:8, alignItems:'baseline', fontSize:14, padding:'5px 0', borderBottom:`1px solid ${T.soft}`}}>
               <span style={{color:T.sub, minWidth:72}}>{k}</span><span style={{flex:1}}/>
