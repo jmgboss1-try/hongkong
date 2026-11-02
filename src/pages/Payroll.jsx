@@ -107,6 +107,33 @@ function computeSalary(emp, wh, ex, empMemos, prevWh, prevEx, prevEmpMemos, curM
   return { basePay, weeklyHoliday: totalWeeklyHoliday, totalPay, netPay, deduction, totalHours, totalMins, wage }
 }
 
+// ── 초과 가불 넘기기 (급여관리) ──
+// month 의 넘긴 금액을 total 로: payroll/{month}[uid].carriedOut, advances/{다음 달}[uid] 의 'carry-<month>' 기록 (0이면 기록 삭제)
+async function setCarry(uid, month, total) {
+  const next = nextYm(month)
+  const as = await getDoc(doc(db,'advances',next))
+  const ad = as.exists() ? as.data() : {}
+  const list = (ad[uid]||[]).filter(r=>r.carryFrom!==month)
+  if(total > 0) list.push({ id:`carry-${month}`, date:`${next}-01`, amount:total, memo:`${+month.slice(5)}월 초과 가불 이월`, carryFrom:month })
+  list.sort((a,b)=>a.date>b.date?1:-1)
+  await setDoc(doc(db,'advances',next), { ...ad, [uid]: list })
+  const ps = await getDoc(doc(db,'payroll',month))
+  const pd = ps.exists() ? ps.data() : {}
+  await setDoc(doc(db,'payroll',month), { ...pd, [uid]: { ...(pd[uid]||{}), carriedOut: total, carriedTo: total > 0 ? next : null } })
+}
+// month 로 넘어온 가불이 delta 만큼 바뀌었을 때: month 가 이미 다음 달로 넘긴 게 있으면 그 금액도 같이 바꾸고 계속 이어감
+async function chainCarry(uid, month, delta) {
+  for(let i=0; i<24 && delta; i++) {
+    const ps = await getDoc(doc(db,'payroll',month))
+    const cur = (ps.exists() ? ps.data()[uid]?.carriedOut : 0) || 0
+    if(!cur) return
+    const total = Math.max(0, cur + delta)
+    await setCarry(uid, month, total)
+    delta = total - cur
+    month = nextYm(month)
+  }
+}
+
 const STATUS = {
   unconfirmed: { label:'미확정',   color:'#6E6A63', bg:'rgba(94,101,133,0.15)' },
   confirmed:   { label:'확인대기', color:'#C3261C', bg:'rgba(195,38,28,0.15)' },
@@ -627,51 +654,46 @@ if(!isActive && !isRetired) return
       : '이 가불 기록을 삭제하시겠습니까?')) return
     setSaving(true)
     try {
-      const newList = advanceListOf(uid).filter(r=>r.id!==id)
-      const newAdvances = { ...advances, [uid]: newList }
-      await saveAdvances(newAdvances)
-      // 넘어온 초과 가불을 지우면 원래 달의 '넘김' 표시도 지움
       if(rec?.carryFrom) {
-        const ps = await getDoc(doc(db,'payroll',rec.carryFrom))
-        const pd = ps.exists() ? ps.data() : {}
-        if(pd[uid]) await setDoc(doc(db,'payroll',rec.carryFrom), { ...pd, [uid]: { ...pd[uid], carriedOut:0, carriedTo:null } })
+        // 넘어온 초과 가불: 원래 달의 '넘김'을 0으로 (이 기록도 같이 지워짐), 이 달이 또 넘긴 게 있으면 그만큼 줄임
+        await setCarry(uid, rec.carryFrom, 0)
+        await chainCarry(uid, curMonth, -(rec.amount||0))
+        await load()
+      } else {
+        const newList = advanceListOf(uid).filter(r=>r.id!==id)
+        await saveAdvances({ ...advances, [uid]: newList })
       }
     } catch(e){ console.error(e) }
     setSaving(false)
   }
 
   // ── 가불이 급여보다 많을 때: 넘친 금액을 다음 달 가불로 넘김 ──
-  // 이번 달 payroll[uid].carriedOut 에 넘긴 금액, 다음 달 advances 에 { carryFrom } 표시된 가불 기록
-  async function carryOver(emp, amount) {
+  // 이번 달 payroll[uid].carriedOut 에 넘긴 금액, 다음 달 advances 에 { id:'carry-<이번 달>', carryFrom } 가불 기록
+  async function carryOver(emp, extra) {
     const next = nextYm(curMonth)
-    if(!window.confirm(`${emp.name}: 가불이 급여보다 ${amount.toLocaleString()}원 많아요.\n이 금액을 ${mLabel(next)} 가불로 넘겨서 ${mLabel(next)} 급여에서 빼고, ${mLabel(curMonth)} 급여는 0원으로 끝낼까요?`)) return
+    if(!window.confirm(`${emp.name}: 가불이 급여보다 ${extra.toLocaleString()}원 많아요.\n이 금액을 ${mLabel(next)} 가불로 넘겨서 ${mLabel(next)} 급여에서 빼고, ${mLabel(curMonth)} 급여는 0원으로 끝낼까요?`)) return
     setSaving(true)
     try {
-      const as = await getDoc(doc(db,'advances',next))
-      const ad = as.exists() ? as.data() : {}
-      const list = (ad[emp.uid]||[]).filter(r=>r.carryFrom!==curMonth)
-      list.push({ id:`carry-${curMonth}`, date:`${next}-01`, amount, memo:`${+curMonth.slice(5)}월 초과 가불 이월`, carryFrom:curMonth })
-      list.sort((a,b)=>a.date>b.date?1:-1)
-      await setDoc(doc(db,'advances',next), { ...ad, [emp.uid]: list })
-      // 저장 직전 다시 읽고 이 직원 것만 바꿈
       const ps = await getDoc(doc(db,'payroll',curMonth))
-      const pd = ps.exists() ? ps.data() : {}
-      const np = { ...pd, [emp.uid]: { ...(pd[emp.uid]||{}), carriedOut:amount, carriedTo:next } }
-      await savePayroll(np)
+      const cur = (ps.exists() ? ps.data()[emp.uid]?.carriedOut : 0) || 0
+      // 이미 넘긴 게 있으면 더해서 넘김 (예: 지난달 초과분이 뒤늦게 이 달로 넘어온 경우)
+      await setCarry(emp.uid, curMonth, cur + extra)
+      // 다음 달도 이미 그다음 달로 넘겼다면 늘어난 만큼 계속 넘김
+      await chainCarry(emp.uid, next, extra)
+      await load()
     } catch(e){ console.error(e); alert('저장 중 오류가 발생했어요. 다시 시도해 주세요.') }
     setSaving(false)
   }
   async function undoCarry(emp) {
-    const next = payroll[emp.uid]?.carriedTo || nextYm(curMonth)
+    const next = nextYm(curMonth)
     if(!window.confirm(`${mLabel(next)}로 넘긴 초과 가불을 되돌릴까요?`)) return
     setSaving(true)
     try {
-      const as = await getDoc(doc(db,'advances',next))
-      const ad = as.exists() ? as.data() : {}
-      await setDoc(doc(db,'advances',next), { ...ad, [emp.uid]: (ad[emp.uid]||[]).filter(r=>r.carryFrom!==curMonth) })
       const ps = await getDoc(doc(db,'payroll',curMonth))
-      const pd = ps.exists() ? ps.data() : {}
-      await savePayroll({ ...pd, [emp.uid]: { ...(pd[emp.uid]||{}), carriedOut:0, carriedTo:null } })
+      const cur = (ps.exists() ? ps.data()[emp.uid]?.carriedOut : 0) || 0
+      await setCarry(emp.uid, curMonth, 0)
+      await chainCarry(emp.uid, next, -cur)
+      await load()
     } catch(e){ console.error(e); alert('저장 중 오류가 발생했어요. 다시 시도해 주세요.') }
     setSaving(false)
   }
@@ -694,6 +716,7 @@ if(!isActive && !isRetired) return
     const remain = finalPay + carriedOut
     const paid = getStatus(emp.uid)==='paid'
     return { display, advTotal, advPaid, bonusTotal, deductionWithBonus, finalPay, carriedOut, remain, paid,
+      net: finalPay + advTotal, carryIn: advTotal - advPaid,
       paidOut: advPaid + (paid ? Math.max(remain,0) : 0),
       unpaid: paid ? 0 : Math.max(remain,0),
       over: Math.max(-remain,0) }
@@ -737,20 +760,14 @@ if(!isActive && !isRetired) return
 
   const inquiryCount = employees.filter(e=>getStatus(e.uid)==='inquiry').length
   const paidCount    = employees.filter(e=>getStatus(e.uid)==='paid').length
-  const checkedCount = employees.filter(e=>['checked','paid'].includes(getStatus(e.uid))).length
-  const grandTotal   = employees.reduce((a,emp)=>{
-    const p=payroll[emp.uid]
-    const computed = getComputed(emp)
-    const netPay = p?.netPay || computed.netPay
-    return a + netPay
-  },0)
   const pays = employees.map(payOf)
   const paidOutTotal = pays.reduce((a,x)=>a+x.paidOut,0)
   const unpaidTotal  = pays.reduce((a,x)=>a+x.unpaid,0)
   const overTotal    = pays.reduce((a,x)=>a+x.over,0)
   const carriedTotal = pays.reduce((a,x)=>a+x.carriedOut,0)
+  const netTotal     = pays.reduce((a,x)=>a+x.net,0)
+  const carryInTotal = pays.reduce((a,x)=>a+x.carryIn,0)
   const severanceTotal = Object.values(severance).reduce((a,s)=>a+s.net,0)
-  const advanceGrandTotal = Object.values(advances).reduce((a,list)=>a+(list||[]).reduce((b,r)=>b+(r.amount||0),0),0)
   const bonusGrandTotal = Object.values(bonuses).reduce((a,list)=>a+(list||[]).reduce((b,r)=>b+(r.amount||0),0),0)
 
   return (
@@ -788,29 +805,32 @@ if(!isActive && !isRetired) return
         </div>
       </div>
 
-      {/* 요약 카드 */}
-      <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(160px,1fr))',gap:12,marginBottom:20}}>
-        {[
-          {label:'이달 인건비 합계', val:`${grandTotal.toLocaleString()}원`,       color:'#C3261C'},
-          {label:'지급한 인건비',    val:`${paidOutTotal.toLocaleString()}원`, color:'#2B5C9E', sub:'가불 + 지급 완료'},
-          {label:'아직 줄 인건비',   val:`${unpaidTotal.toLocaleString()}원`,  color:'#B45309', sub:`${employees.filter((e,i)=>pays[i].unpaid>0).length}명 미지급`},
-          ...(overTotal>0 ? [{label:'급여보다 많이 준 가불', val:`${overTotal.toLocaleString()}원`, color:'#B42318', sub:'다음 달로 넘겨주세요'}] : []),
-          ...(carriedTotal>0 ? [{label:'다음 달로 넘긴 가불', val:`${carriedTotal.toLocaleString()}원`, color:'#6E6A63', sub:'다음 달 급여에서 뺌'}] : []),
-          {label:'직원 확인 완료',   val:`${checkedCount} / ${employees.length}명`, color:'#2E7D45'},
-          {label:'문의 건수',        val:`${inquiryCount}건`,                       color:'#B42318'},
-          {label:'지급 완료',        val:`${paidCount}명`,                          color:'#2B5C9E'},
-          ...(severanceTotal>0 ? [{label:'이달 퇴직금 지급액', val:`${severanceTotal.toLocaleString()}원`, color:'#B45309'}] : []),
-          ...(advanceGrandTotal>0 ? [{label:'이달 가불 총액', val:`${advanceGrandTotal.toLocaleString()}원`, color:'#B42318'}] : []),
-          ...(bonusGrandTotal>0 ? [{label:'이달 상여 총액', val:`${bonusGrandTotal.toLocaleString()}원`, color:'#6B4FA0'}] : []),
-        ].map(k=>(
-          <div key={k.label} style={{background:'#FFFFFF',border:'1px solid #DCD7CE',borderRadius:6,padding:'14px 16px',position:'relative',overflow:'hidden'}}>
-            <div style={{position:'absolute',top:0,left:0,right:0,height:2,background:k.color,opacity:.5}}/>
-            <div style={{fontSize:10,color:'#6E6A63',marginBottom:5}}>{k.label}</div>
-            <div style={{fontSize:16,fontWeight:700,color:k.color,fontFamily:'inherit',fontVariantNumeric:'tabular-nums'}}>{k.val}</div>
-            {k.sub && <div style={{fontSize:10,color:'#6E6A63',marginTop:3}}>{k.sub}</div>}
+      {/* 이달 인건비 요약 (장부 줄) */}
+      {(()=>{
+        const unpaidN = pays.filter(x=>x.unpaid>0).length
+        const rows = [
+          { label:'지급한 돈', note:`이달 가불 포함 · ${paidCount}명 지급 완료`, val:paidOutTotal, color:'#2B5C9E' },
+          { label:'아직 줄 돈', note: unpaidN ? `${unpaidN}명` : '없음', val:unpaidTotal, color: unpaidTotal ? '#B45309' : '#6E6A63' },
+          ...(carryInTotal>0 ? [{ label:'지난달에 미리 준 돈', note:'지난달 초과 가불', val:carryInTotal, color:'#6E6A63' }] : []),
+          ...(carriedTotal>0 ? [{ label:'다음 달로 넘긴 가불', note:'다음 달 급여에서 뺌', val:-carriedTotal, color:'#6E6A63' }] : []),
+          ...(overTotal>0 ? [{ label:'급여보다 많이 준 가불', note:'아래에서 다음 달로 넘겨주세요', val:-overTotal, color:'#B42318' }] : []),
+        ]
+        const line = (r, big) => (
+          <div key={r.label} style={{display:'flex',alignItems:'baseline',padding: big ? '6px 0' : '4px 0 4px 14px',fontSize: big ? 16 : 14,fontWeight: big ? 800 : 500}}>
+            <span style={{whiteSpace:'nowrap'}}>{r.label}</span>
+            {r.note && <span style={{fontSize:12,color:'#6E6A63',marginLeft:6,fontWeight:400,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{r.note}</span>}
+            <span aria-hidden="true" style={{flex:1,borderBottom:'1px dotted #A8A39A',margin:'0 8px',minWidth:12,transform:'translateY(-4px)'}}/>
+            <span style={{fontVariantNumeric:'tabular-nums',whiteSpace:'nowrap',color:r.color||'#1D1B18',fontWeight: big ? 800 : 700}}>{r.val.toLocaleString()}</span>
           </div>
-        ))}
-      </div>
+        )
+        return (
+          <div style={{maxWidth:560,borderTop:'3px double #1D1B18',paddingTop:4,marginBottom:22}}>
+            {line({ label:'이달 인건비', note: bonusGrandTotal>0 ? `세후, 상여 ${bonusGrandTotal.toLocaleString()} 포함` : '세후', val:netTotal, color:'#1D1B18' }, true)}
+            {rows.map(r=>line(r))}
+            {severanceTotal>0 && <div style={{borderTop:'1px solid #DCD7CE',marginTop:4}}>{line({ label:'퇴직금 지급', note:'인건비와 별도', val:severanceTotal, color:'#B45309' })}</div>}
+          </div>
+        )
+      })()}
 
       {loading ? (
         <div style={{textAlign:'center',color:'#6E6A63',padding:60}}>로딩 중...</div>
