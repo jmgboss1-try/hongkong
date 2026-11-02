@@ -14,6 +14,29 @@ const ymOfDate = d => `${d.getFullYear()}-${pad(d.getMonth()+1)}`
 const toMin = s => { const [h,m] = String(s).split(':').map(Number); return h*60 + (m||0) }
 const mondayOf = d => { const x = new Date(d.getFullYear(), d.getMonth(), d.getDate()); x.setDate(x.getDate() - ((x.getDay()+6)%7)); return x }
 
+// 시각 고르기: 폰(아이폰)에서 type="time" 칸이 표 칸보다 넓어져 잘리고 빈칸이면 회색으로만 보여서 시·분 두 개로 고름
+const HOURS = Array.from({length:19}, (_,i)=>String(i+6).padStart(2,'0'))     // 06 ~ 24
+const MINS = ['00','10','20','30','40','50']
+function TimePick({ value, onChange, label }) {
+  const [h, m] = (value || '').split(':')
+  const mins = m && !MINS.includes(m) ? [...MINS, m].sort() : MINS
+  const sel = { flex:1, minWidth:0, width:'100%', fontSize:13, padding:'4px 2px', border:'1px solid #CBC5BA', borderRadius:4,
+    background:'#FFFFFF', color:'#1D1B18', fontFamily:'inherit', fontVariantNumeric:'tabular-nums' }
+  return (
+    <div style={{display:'flex', alignItems:'center', gap:2}} aria-label={label}>
+      <select value={h || ''} onChange={e=>onChange(e.target.value ? `${e.target.value}:${m || '00'}` : '')} aria-label={`${label} 시`} style={sel}>
+        <option value="">시</option>
+        {HOURS.map(x=><option key={x} value={x}>{x}</option>)}
+      </select>
+      <span style={{color:'#6E6A63'}}>:</span>
+      <select value={h ? (m || '00') : ''} disabled={!h} onChange={e=>onChange(`${h}:${e.target.value}`)} aria-label={`${label} 분`} style={sel}>
+        {!h && <option value="">분</option>}
+        {mins.map(x=><option key={x} value={x}>{x}</option>)}
+      </select>
+    </div>
+  )
+}
+
 function PendingCard({ u, onApprove, onReject }) {
   const [selGrade, setSelGrade] = useState('3')
   const [joinDate, setJoinDate] = useState(u.createdAt?.slice(0,10)||'')
@@ -270,7 +293,6 @@ export default function Staff() {
       style={{background: on ? T.ink : 'none', color: on ? '#FFFFFF' : T.ink, border:`1px solid ${on ? T.ink : T.rule}`, borderRadius:4, padding:'6px 10px', cursor:'pointer', fontFamily:'inherit', fontSize:13}}>{label}</button>
   )
   const linkBtn = color => ({ background:'none', border:'none', borderBottom:`1px solid ${color}`, color, padding:0, fontSize:11, cursor:'pointer', fontFamily:'inherit' })
-  const timeStyle = { width:'100%', boxSizing:'border-box', fontSize:12, padding:'2px 4px', border:'1px solid #CBC5BA', borderRadius:4, fontFamily:'inherit' }
   const th = { padding:'8px 8px', fontSize:12, fontWeight:600, color:T.sub, borderBottom:`1px solid ${T.ink}`, textAlign:'center', whiteSpace:'nowrap' }
   const td = { padding:'7px 8px', borderBottom:`1px solid ${T.soft}`, textAlign:'center', verticalAlign:'top', whiteSpace:'nowrap', fontSize:12, ...num }
 
@@ -358,8 +380,7 @@ export default function Staff() {
                         const ds = dateStr(d), close = plans[ds.slice(0,7)]?.closeAt?.[ds.slice(8,10)]
                         if (closeEdit?.ds === ds) return (
                           <td key={ds} style={{...td, whiteSpace:'normal'}}>
-                            <input type="time" value={closeEdit.time} onChange={e=>setCloseEdit(c=>({...c,time:e.target.value}))} aria-label="마감 시각"
-                              style={{width:'100%', boxSizing:'border-box', fontSize:12, padding:'2px 4px', border:'1px solid #CBC5BA', borderRadius:4, fontFamily:'inherit'}}/>
+                            <TimePick value={closeEdit.time} onChange={v=>setCloseEdit(c=>({...c,time:v}))} label="마감 시각"/>
                             <div style={{display:'flex', gap:6, justifyContent:'center', marginTop:4}}>
                               <button type="button" disabled={busy || !closeEdit.time} onClick={()=>saveClose(closeEdit.time)} style={linkBtn(T.accent)}>저장</button>
                               {close && <button type="button" disabled={busy} onClick={()=>saveClose(null)} style={linkBtn(T.red)}>지우기</button>}
@@ -388,11 +409,13 @@ export default function Staff() {
                           cellEdit?.uid === u.uid && cellEdit?.ds === c.ds ? (
                           <td key={c.ds} style={{...td, whiteSpace:'normal', background:'#FFFFFF', outline:`2px solid ${T.accent}`}}>
                             <div style={{display:'flex', flexDirection:'column', gap:3}}>
-                              <input type="time" value={cellEdit.start} onChange={e=>setCellEdit(x=>({...x,start:e.target.value}))} aria-label="출근 예정" style={timeStyle}/>
-                              <input type="time" value={cellEdit.end} onChange={e=>setCellEdit(x=>({...x,end:e.target.value}))} aria-label="퇴근 예정" style={timeStyle}/>
+                              <span style={{fontSize:11, color:T.sub, textAlign:'left'}}>출근</span>
+                              <TimePick value={cellEdit.start} onChange={v=>setCellEdit(x=>({...x,start:v}))} label="출근 예정"/>
+                              <span style={{fontSize:11, color:T.sub, textAlign:'left'}}>퇴근</span>
+                              <TimePick value={cellEdit.end} onChange={v=>setCellEdit(x=>({...x,end:v}))} label="퇴근 예정"/>
                             </div>
                             <div style={{display:'flex', gap:6, justifyContent:'center', flexWrap:'wrap', marginTop:4}}>
-                              <button type="button" disabled={busy} onClick={()=>saveCell({ start:cellEdit.start, end:cellEdit.end })} style={linkBtn(T.accent)}>저장</button>
+                              <button type="button" disabled={busy} onClick={()=>{ if(!cellEdit.start || !cellEdit.end) return alert('출근·퇴근 시각을 골라주세요'); saveCell({ start:cellEdit.start, end:cellEdit.end }) }} style={linkBtn(T.accent)}>저장</button>
                               <button type="button" disabled={busy} onClick={()=>saveCell({ off:true })} style={linkBtn(T.sub)}>휴무</button>
                               {c.override && <button type="button" disabled={busy} onClick={()=>saveCell(null)} style={linkBtn(T.blue)}>기본으로</button>}
                               <button type="button" onClick={()=>setCellEdit(null)} style={linkBtn(T.sub)}>취소</button>
