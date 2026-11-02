@@ -37,6 +37,11 @@ export default function Notice() {
   const [editAlertId, setEditAlertId] = useState(null) // "notice_id" or "memo_id"
   const [alertForm, setAlertForm]     = useState({ start: todayStr(), end: plusDaysStr(7) })
 
+  // 글 내용 수정 ("notice_id" or "memo_id")
+  const [editTextId, setEditTextId] = useState(null)
+  const [editForm, setEditForm]     = useState({ content:'', images:[] })
+  const [editSaving, setEditSaving] = useState(false)
+
   async function load() {
     setLoading(true)
     try {
@@ -122,6 +127,42 @@ export default function Notice() {
     await deleteDoc(doc(db,'memos',id))
     await load()
   }
+
+  function startEditText(type, item) {
+    setEditTextId(type+'_'+item.id)
+    setEditForm({ content: item.content || '', images: item.images || [] })
+  }
+  async function saveText(type, id) {
+    if(!editForm.content.trim() && editForm.images.length===0) return alert('내용을 입력해주세요')
+    setEditSaving(true)
+    try {
+      await updateDoc(doc(db, type==='notice' ? 'notices' : 'memos', id), {
+        content: editForm.content.trim(), images: editForm.images, editedAt: new Date().toISOString(),
+      })
+      setEditTextId(null)
+      await load()
+    } catch(e) { console.error(e); alert('수정하지 못했어요. 다시 시도해 주세요.') }
+    setEditSaving(false)
+  }
+  // 수정 중일 때 본문 자리에 보여줄 입력칸
+  const textEditor = (type, id) => (
+    <div style={{marginBottom:10}}>
+      <textarea value={editForm.content} onChange={e=>setEditForm(f=>({...f, content:e.target.value}))} rows={4} autoFocus
+        style={{width:'100%',boxSizing:'border-box',background:'#F3F1EC',border:'1px solid #CBC5BA',borderRadius:4,
+          color:'#1D1B18',padding:'10px 12px',fontSize:13,outline:'none',resize:'vertical',fontFamily:'inherit',marginBottom:8,lineHeight:1.7}}/>
+      <PhotoPicker images={editForm.images} onChange={v=>setEditForm(f=>({...f, images:v}))}/>
+      <div style={{display:'flex',gap:8}}>
+        <button onClick={()=>saveText(type, id)} disabled={editSaving}
+          style={{background:'#C3261C',color:'#FFFFFF',border:'none',borderRadius:4,padding:'6px 16px',fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
+          {editSaving ? '저장 중...' : '수정 저장'}
+        </button>
+        <button onClick={()=>setEditTextId(null)}
+          style={{background:'transparent',border:'1px solid #DCD7CE',color:'#6E6A63',borderRadius:4,padding:'6px 14px',fontSize:12,cursor:'pointer',fontFamily:'inherit'}}>
+          취소
+        </button>
+      </div>
+    </div>
+  )
 
   function startEditAlert(type, item) {
     setEditAlertId(type+'_'+item.id)
@@ -261,7 +302,13 @@ export default function Notice() {
                       )}
                     </div>
                     <div style={{display:'flex',alignItems:'center',gap:8}}>
-                      <span style={{fontSize:10,color:'#6E6A63'}}>{timeAgo(n.createdAt)}</span>
+                      <span style={{fontSize:10,color:'#6E6A63'}}>{timeAgo(n.createdAt)}{n.editedAt && ' · 수정됨'}</span>
+                      {isOwner && editTextId!=='notice_'+n.id && (
+                        <button onClick={()=>startEditText('notice', n)}
+                          style={{background:'transparent',border:'none',color:'#2B5C9E',cursor:'pointer',fontSize:12,fontFamily:'inherit'}}>
+                            수정
+                          </button>
+                      )}
                       {isOwner && (
                         <button onClick={()=>deleteNotice(n.id)}
                           style={{background:'transparent',border:'none',color:'#B42318',cursor:'pointer',fontSize:12}}>
@@ -270,8 +317,10 @@ export default function Notice() {
                       )}
                     </div>
                   </div>
-                  <div style={{fontSize:13,color:'#1D1B18',lineHeight:1.8,whiteSpace:'pre-wrap',marginBottom:isOwner?10:0}}>{n.content}</div>
-                  <PhotoGrid images={n.images} label="공지 사진"/>
+                  {editTextId==='notice_'+n.id ? textEditor('notice', n.id) : <>
+                    <div style={{fontSize:13,color:'#1D1B18',lineHeight:1.8,whiteSpace:'pre-wrap',marginBottom:isOwner?10:0}}>{n.content}</div>
+                    <PhotoGrid images={n.images} label="공지 사진"/>
+                  </>}
 
                   {isOwner && (
                     editing ? (
@@ -363,7 +412,13 @@ export default function Notice() {
                       )}
                     </div>
                     <div style={{display:'flex',alignItems:'center',gap:8}}>
-                      <span style={{fontSize:10,color:'#6E6A63'}}>{timeAgo(m.createdAt)}</span>
+                      <span style={{fontSize:10,color:'#6E6A63'}}>{timeAgo(m.createdAt)}{m.editedAt && ' · 수정됨'}</span>
+                      {canManage && editTextId!=='memo_'+m.id && (
+                        <button onClick={()=>startEditText('memo', m)}
+                          style={{background:'transparent',border:'none',color:'#2B5C9E',cursor:'pointer',fontSize:12,fontFamily:'inherit'}}>
+                            수정
+                          </button>
+                      )}
                       {canManage && (
                         <button onClick={()=>deleteMemo(m.id)}
                           style={{background:'transparent',border:'none',color:'#B42318',cursor:'pointer',fontSize:12}}>
@@ -372,8 +427,10 @@ export default function Notice() {
                       )}
                     </div>
                   </div>
-                  <div style={{fontSize:13,color:'#1D1B18',lineHeight:1.8,whiteSpace:'pre-wrap',marginBottom:canManage?10:0}}>{m.content}</div>
-                  <PhotoGrid images={m.images} label="메모 사진"/>
+                  {editTextId==='memo_'+m.id ? textEditor('memo', m.id) : <>
+                    <div style={{fontSize:13,color:'#1D1B18',lineHeight:1.8,whiteSpace:'pre-wrap',marginBottom:canManage?10:0}}>{m.content}</div>
+                    <PhotoGrid images={m.images} label="메모 사진"/>
+                  </>}
 
                   {canManage && (
                     editing ? (
