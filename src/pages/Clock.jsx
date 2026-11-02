@@ -163,7 +163,7 @@ export default function Clock() {
 
       <div style={{borderTop:`1px solid ${T.rule}`}}>
         {[
-          ['예정', r.schedStart ? `${r.schedStart} ~ ${r.schedEnd}` : '오늘 예정 없음'],
+          ['예정', r.schedStart ? `${r.schedStart} 출근${r.schedEnd ? ` ~ ${r.schedEnd}` : ''}` : '오늘 예정 없음'],
           ...(r.breakStart && !r.noBreak ? [['브레이크', `${r.breakStart} ~ ${r.breakEnd} (근무시간에서 빠져요)`]] : []),
           ['출근', hm(inD)],
           ['퇴근', outD ? hm(outD) : '—'],

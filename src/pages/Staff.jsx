@@ -14,6 +14,10 @@ const ymOfDate = d => `${d.getFullYear()}-${pad(d.getMonth()+1)}`
 const toMin = s => { const [h,m] = String(s).split(':').map(Number); return h*60 + (m||0) }
 const mondayOf = d => { const x = new Date(d.getFullYear(), d.getMonth(), d.getDate()); x.setDate(x.getDate() - ((x.getDay()+6)%7)); return x }
 
+// 퇴근 예정이 없는 근무(출근만 정함)는 화면 계산용으로 매장 마감(22:00)까지로 봄
+const STORE_CLOSE = 22*60
+const endMinOf = s => { const a = toMin(s.start); if (!s.end) return Math.max(STORE_CLOSE, a + 60); const b = toMin(s.end); return b <= a ? 1440 : b }
+
 // 시각 고르기: 폰(아이폰)에서 type="time" 칸이 표 칸보다 넓어져 잘리고 빈칸이면 회색으로만 보여서 시·분 두 개로 고름
 const HOURS = Array.from({length:19}, (_,i)=>String(i+6).padStart(2,'0'))     // 06 ~ 24
 const MINS = ['00','10','20','30','40','50']
@@ -222,7 +226,8 @@ export default function Staff() {
   }
   async function saveCell(val) {
     const { uid, ds } = cellEdit
-    if (val && !val.off && (!val.start || !val.end)) return alert('시작과 끝 시각을 넣어 주세요')
+    if (val && !val.off && !val.start) return alert('출근 시각을 넣어 주세요')
+    if (val && !val.off && !val.end) val = { start: val.start }
     await writePlan([{ d: new Date(+ds.slice(0,4), +ds.slice(5,7)-1, +ds.slice(8,10)), uid, val }])
     setCellEdit(null)
   }
@@ -253,14 +258,14 @@ export default function Staff() {
       let state, color
       if (outD) { state = `퇴근 ${hm(outD)}`; color = T.sub }
       else if (inD) { state = `근무 중 · ${hm(inD)} 출근${c.st?.late ? ` (지각 ${c.st.late}분)` : ''}`; color = c.st?.late ? T.red : T.green }
-      else if (s && nowMin >= (toMin(s.end) <= toMin(s.start) ? 1440 : toMin(s.end))) { state = '안 왔어요 (결근)'; color = T.red }
+      else if (s && s.end && nowMin >= endMinOf(s)) { state = '안 왔어요 (결근)'; color = T.red }
       else if (s && nowMin > toMin(s.start)) { state = `아직 안 옴 · ${nowMin - toMin(s.start)}분 지남`; color = T.red }
       else if (s) { state = `${s.start} 출근 예정`; color = T.sub }
       else { state = '—'; color = T.sub }
       return { u, c, s, state, color, order: s ? toMin(s.start) : 9999 }
     }).sort((a,b) => a.order - b.order)
   const inNow = todayRows.filter(r => r.c.rec?.in && !r.c.rec?.out).length
-  const plannedNow = todayRows.filter(r => r.s && toMin(r.s.start) <= nowMin && nowMin < toMin(r.s.end)).length
+  const plannedNow = todayRows.filter(r => r.s && toMin(r.s.start) <= nowMin && nowMin < endMinOf(r.s)).length
 
   // ── 이번 주 근무표 ──
   const showSun = staff.some(u => week[6] && cellOf(u, week[6]).shifts.length)
@@ -270,12 +275,12 @@ export default function Staff() {
   // 시간대별 인원: 예정(대타 반영) 기준, 한 시간 칸에 걸쳐 있으면 1명
   let hFrom = 24, hTo = 0
   const shiftsByDay = days.map(d => rows.flatMap(u => cellOf(u, d).shifts))
-  shiftsByDay.flat().forEach(s => { hFrom = Math.min(hFrom, Math.floor(toMin(s.start)/60)); hTo = Math.max(hTo, Math.ceil((toMin(s.end) <= toMin(s.start) ? 1440 : toMin(s.end))/60)) })
+  shiftsByDay.flat().forEach(s => { hFrom = Math.min(hFrom, Math.floor(toMin(s.start)/60)); hTo = Math.max(hTo, Math.ceil(endMinOf(s)/60)) })
   const hours = hTo > hFrom ? Array.from({length:hTo-hFrom}, (_,i)=>hFrom+i) : []
   // 그 시간 칸에 근무하는 분이 있으면 1명 (브레이크로 그 시간 전체를 쉬면 빼고)
   const ov = (a0,a1,b0,b1) => Math.max(0, Math.min(a1,b1) - Math.max(a0,b0))
   const countAt = (list, h) => list.filter(s => {
-    const a = toMin(s.start), b = toMin(s.end) <= a ? 1440 : toMin(s.end), h0 = h*60, h1 = h0+60
+    const a = toMin(s.start), b = endMinOf(s), h0 = h*60, h1 = h0+60
     const work = ov(a, b, h0, h1), rest = s.brk ? ov(Math.max(a, toMin(s.brk.start)), Math.min(b, toMin(s.brk.end)), h0, h1) : 0
     return work - rest > 0
   }).length
@@ -325,7 +330,7 @@ export default function Staff() {
             todayRows.map(({u, s, state, color, c}) => (
               <div key={u.uid} style={{display:'flex', alignItems:'baseline', gap:10, padding:'8px 0', borderBottom:`1px solid ${T.soft}`, fontSize:14, flexWrap:'wrap'}}>
                 <b style={{minWidth:64}}>{u.name}</b>
-                <span style={{...num, color:T.sub, fontSize:13}}>{s ? `${s.start}~${s.end}` : '예정 없음'}{c.covering.length ? ` (${nameOf(c.covering[0].for)} 대타)` : ''}</span>
+                <span style={{...num, color:T.sub, fontSize:13}}>{s ? `${s.start}~${s.end||''}` : '예정 없음'}{c.covering.length ? ` (${nameOf(c.covering[0].for)} 대타)` : ''}</span>
                 <span style={{flex:1}}/>
                 <span style={{fontWeight:700, color, ...num}}>{state}</span>
               </div>
@@ -411,11 +416,11 @@ export default function Staff() {
                             <div style={{display:'flex', flexDirection:'column', gap:3}}>
                               <span style={{fontSize:11, color:T.sub, textAlign:'left'}}>출근</span>
                               <TimePick value={cellEdit.start} onChange={v=>setCellEdit(x=>({...x,start:v}))} label="출근 예정"/>
-                              <span style={{fontSize:11, color:T.sub, textAlign:'left'}}>퇴근</span>
+                              <span style={{fontSize:11, color:T.sub, textAlign:'left'}}>퇴근 (선택)</span>
                               <TimePick value={cellEdit.end} onChange={v=>setCellEdit(x=>({...x,end:v}))} label="퇴근 예정"/>
                             </div>
                             <div style={{display:'flex', gap:6, justifyContent:'center', flexWrap:'wrap', marginTop:4}}>
-                              <button type="button" disabled={busy} onClick={()=>{ if(!cellEdit.start || !cellEdit.end) return alert('출근·퇴근 시각을 골라주세요'); saveCell({ start:cellEdit.start, end:cellEdit.end }) }} style={linkBtn(T.accent)}>저장</button>
+                              <button type="button" disabled={busy} onClick={()=>{ if(!cellEdit.start) return alert('출근 시각을 골라주세요'); saveCell({ start:cellEdit.start, end:cellEdit.end || null }) }} style={linkBtn(T.accent)}>저장</button>
                               <button type="button" disabled={busy} onClick={()=>saveCell({ off:true })} style={linkBtn(T.sub)}>휴무</button>
                               {c.override && <button type="button" disabled={busy} onClick={()=>saveCell(null)} style={linkBtn(T.blue)}>기본으로</button>}
                               <button type="button" onClick={()=>setCellEdit(null)} style={linkBtn(T.sub)}>취소</button>
@@ -427,7 +432,7 @@ export default function Staff() {
                             style={{...td, cursor: isOwner && !c.closed ? 'pointer' : 'default', background: c.closed ? '#F3F1EC' : c.today ? '#C3261C08' : undefined}}>
                             {c.override?.off && !c.closed && !c.rec?.in && <div style={{color:T.faint}}>휴무</div>}
                             {c.planned && !c.closed && (
-                              <div style={{color: c.gaveAway ? T.faint : c.override && !c.rec?.in ? T.blue : T.ink, textDecoration: c.gaveAway ? 'line-through' : 'none', fontWeight:600}}>{c.planned.start}~{c.planned.end}{c.planned.cut ? ' (마감)' : ''}</div>
+                              <div style={{color: c.gaveAway ? T.faint : c.override && !c.rec?.in ? T.blue : T.ink, textDecoration: c.gaveAway ? 'line-through' : 'none', fontWeight:600}}>{c.planned.start}~{c.planned.end||''}{c.planned.cut ? ' (마감)' : ''}</div>
                             )}
                             {c.brk && c.planned && !c.gaveAway && !c.closed && <div style={{color:T.sub, fontSize:11}}>휴게 {c.brk.start}~{c.brk.end}</div>}
                             {c.gaveAway && <div style={{color:T.purple, fontSize:11}}>대타 {nameOf(c.gaveAway.confirmedUid)}</div>}
@@ -435,7 +440,7 @@ export default function Staff() {
                             {c.covering.map((v,i) => <div key={i} style={{color:T.purple, fontWeight:600}}>{v.start}~{v.end}<div style={{fontSize:11}}>{nameOf(v.for)} 대신</div></div>)}
                             {inD && (
                               <div style={{fontSize:11, color: c.st?.late || c.st?.leftEarly ? T.red : T.green, marginTop:2}}>
-                                {hm(inD)}~{outD ? hm(outD) : ''}{c.st?.late ? ` 지각${c.st.late}분` : ''}{c.st?.leftEarly ? ` 조퇴${c.st.leftEarly}분` : ''}
+                                {hm(inD)}~{outD ? hm(outD) : ''}{c.st?.late ? ` 지각${c.st.late}분` : ''}{c.st?.leftEarly ? ' 조퇴' : ''}
                               </div>
                             )}
                             {c.missing && <div style={{fontSize:11, color:T.red, fontWeight:700}}>{c.past ? '결근' : '아직 안 옴'}</div>}

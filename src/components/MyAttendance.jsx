@@ -57,10 +57,10 @@ export default function MyAttendance({ curMonth, uid }) {
             {d.rec?.in
               ? <span style={{...num, fontWeight:600}}>{hm(toDate(d.rec.in))} ~ {d.rec.out ? hm(toDate(d.rec.out)) : '—'}</span>
               : <span style={{color:T.sub}}>기록 없음</span>}
-            {d.sched && <span style={{fontSize:12, color:T.sub}}>예정 {d.sched.start}~{d.sched.end}</span>}
+            {d.sched && <span style={{fontSize:12, color:T.sub}}>예정 {d.sched.start}~{d.sched.end||''}</span>}
             <span style={{flex:1}}/>
             {d.late > 0 && <b style={{color:T.red}}>지각 {minsLabel(d.late)}</b>}
-            {d.leftEarly > 0 && <b style={{color:T.red}}>조퇴 {minsLabel(d.leftEarly)}</b>}
+            {d.leftEarly > 0 && <b style={{color:T.red}}>조퇴</b>}
             {d.absent && <b style={{color:T.red}}>결근</b>}
             {d.excused && <span style={{color:T.sub}}>사유 인정</span>}
             {d.noOut && <b style={{color:T.amber}}>퇴근 안 찍음</b>}

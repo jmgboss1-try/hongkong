@@ -689,7 +689,7 @@ export default function Members() {
 
           {/* 출퇴근 예정 시각 (NFC 출퇴근: 예정보다 10분 넘게 일찍 오거나 늦게 퇴근한 시간은 승인 대기) */}
           <div style={{padding:'0 18px 14px'}}>
-            <label style={{fontSize:10,color:'#6E6A63',fontWeight:600,display:'block',marginBottom:8}}>요일별 기본 근무 시간 (고정 근무자만 · 시간이 유동적이면 비워 두고 스케쥴 근무표에서 주마다 넣어요)</label>
+            <label style={{fontSize:10,color:'#6E6A63',fontWeight:600,display:'block',marginBottom:8}}>요일별 기본 출근 시간 (고정 근무자만 · 퇴근은 안 넣어도 돼요, 찍은 시각까지 인정 · 시간이 유동적이면 비워 두고 스케쥴 근무표에서 주마다 넣어요)</label>
             <div style={{display:'flex',flexDirection:'column',gap:6}}>
               {['월','화','수','목','금','토','일'].map((day,i)=>{
                 const idx = i+1===7 ? 0 : i+1
@@ -702,9 +702,9 @@ export default function Members() {
                     <span style={{width:18,fontWeight:700,color:idx===0?'#B42318':idx===6?'#2B5C9E':'#1D1B18'}}>{day}</span>
                     <input type="time" value={st.start||''} onChange={e=>setT('start',e.target.value)} aria-label={`${day} 출근`} style={tStyle}/>
                     <span style={{color:'#6E6A63'}}>~</span>
-                    <input type="time" value={st.end||''} onChange={e=>setT('end',e.target.value)} aria-label={`${day} 퇴근`} style={tStyle}/>
-                    {idx===[1,2,3,4,5,6,0].find(d=>(form.workDays||[1,2,3,4,5]).includes(d)) && st.start && st.end && (
-                      <button type="button" onClick={()=>setF('shiftTimes', Object.fromEntries((form.workDays||[1,2,3,4,5]).map(d=>[d,{start:st.start,end:st.end}])))}
+                    <input type="time" value={st.end||''} onChange={e=>setT('end',e.target.value)} aria-label={`${day} 퇴근 (안 넣어도 됨)`} title="퇴근은 안 넣어도 돼요. 찍은 시각까지 인정해요" style={tStyle}/>
+                    {idx===[1,2,3,4,5,6,0].find(d=>(form.workDays||[1,2,3,4,5]).includes(d)) && st.start && (
+                      <button type="button" onClick={()=>setF('shiftTimes', Object.fromEntries((form.workDays||[1,2,3,4,5]).map(d=>[d,{start:st.start,end:st.end||''}])))}
                         style={{background:'none',border:'none',color:'#2B5C9E',fontSize:12,cursor:'pointer',fontFamily:'inherit',padding:0,borderBottom:'1px solid #2B5C9E'}}>모든 근무일에 같게</button>
                     )}
                   </div>

@@ -112,8 +112,8 @@ export default function AttendancePanel({ curMonth, nameMap, onApplied }) {
       const orig = att[uid]?.[dd] || {}
       const brkChanged = edit.bStart !== (orig.breakStart||'') || edit.bEnd !== (orig.breakEnd||'') || !!edit.noBreak !== !!orig.noBreak
       const brk = edit.noBreak ? { noBreak:true } : edit.bStart ? { breakStart:edit.bStart, breakEnd:edit.bEnd, noBreak:false } : { breakStart:null, breakEnd:null, noBreak:false }
-      const rec = { ...(att[uid]?.[dd]||{}), in: Timestamp.fromDate(inD), ...(outD ? { out: Timestamp.fromDate(outD) } : {}), ...brk }
-      await setDoc(doc(db,'attendance',curMonth), { [uid]: { [dd]: { in: rec.in, out: outD ? rec.out : deleteField(), editedByOwner: true, ...(brkChanged ? { editedBreak: true } : {}), ...brk } } }, { merge:true })
+      const rec = { ...(att[uid]?.[dd]||{}), in: Timestamp.fromDate(inD), ...(outD ? { out: Timestamp.fromDate(outD) } : {}), ...brk, earlyLeave: !!edit.earlyLeave }
+      await setDoc(doc(db,'attendance',curMonth), { [uid]: { [dd]: { in: rec.in, out: outD ? rec.out : deleteField(), editedByOwner: true, earlyLeave: !!edit.earlyLeave, ...(brkChanged ? { editedBreak: true } : {}), ...brk } } }, { merge:true })
       if (outD) await applyRecord(curMonth, uid, dd, rec)
       setEdit(null); await load(false); onApplied?.()
     } catch(e) { console.error(e); alert('저장하지 못했어요. 다시 시도해 주세요.') }
@@ -232,19 +232,23 @@ export default function AttendancePanel({ curMonth, nameMap, onApplied }) {
             <label style={{display:'flex', alignItems:'center', gap:4, color:T.sub}}>
               <input type="checkbox" checked={!!edit.noBreak} onChange={e=>setEdit(x=>({...x,noBreak:e.target.checked}))}/> 못 쉼
             </label>
+            <label style={{display:'flex', alignItems:'center', gap:4, color:T.red}} title="퇴근 예정을 안 정하므로 조퇴는 사장님이 직접 표시해요 (개근에서 빠져요)">
+              <input type="checkbox" checked={!!edit.earlyLeave} onChange={e=>setEdit(x=>({...x,earlyLeave:e.target.checked}))}/> 조퇴
+            </label>
             <Btn kind="primary" onClick={saveEdit} disabled={busy}>저장</Btn>
             <Btn onClick={()=>setEdit(null)}>취소</Btn>
           </>
         ) : (
           <>
             <span style={{...num}}>{hm(inD)} ~ {outD ? hm(outD) : <span style={{color:T.red}}>퇴근 안 찍음</span>}</span>
-            <span style={{color:T.sub, fontSize:12}}>{r.rec.schedStart ? `예정 ${r.rec.schedStart}~${r.rec.schedEnd}` : '예정 없음'}</span>
+            <span style={{color:T.sub, fontSize:12}}>{r.rec.schedStart ? `예정 ${r.rec.schedStart}~${r.rec.schedEnd||''}` : '예정 없음'}</span>
+            {r.rec.earlyLeave && <b style={{color:T.red, fontSize:12}}>조퇴</b>}
             {recBreak(r.rec) && <span style={{color:T.sub, fontSize:12}}>브레이크 {r.rec.breakStart}~{r.rec.breakEnd}</span>}
             {r.rec.noBreak && <span style={{color:T.amber, fontSize:12}}>브레이크 못 쉼</span>}
             <span style={{flex:1}}/>
             {r.c && <span style={{...num, fontWeight:600}}>{minsLabel(r.c.total)}</span>}
             {r.c?.pending && <span style={{color:T.amber, fontSize:12, fontWeight:700}}>승인 대기</span>}
-            <button type="button" onClick={()=>setEdit({ uid:r.uid, dd:r.dd, in:hm(inD), out: outD ? hm(outD) : '', bStart:r.rec.breakStart||'', bEnd:r.rec.breakEnd||'', noBreak:!!r.rec.noBreak })}
+            <button type="button" onClick={()=>setEdit({ uid:r.uid, dd:r.dd, in:hm(inD), out: outD ? hm(outD) : '', bStart:r.rec.breakStart||'', bEnd:r.rec.breakEnd||'', noBreak:!!r.rec.noBreak, earlyLeave:!!r.rec.earlyLeave })}
               style={{background:'none', border:'none', color:T.sub, fontSize:12, cursor:'pointer', padding:0, fontFamily:'inherit'}}>수정</button>
             <button type="button" onClick={()=>remove(r)}
               style={{background:'none', border:'none', color:T.red, fontSize:12, cursor:'pointer', padding:0, fontFamily:'inherit'}}>삭제</button>
@@ -329,7 +333,6 @@ export default function AttendancePanel({ curMonth, nameMap, onApplied }) {
         const inD = toDate(r.rec.in), outD = toDate(r.rec.out)
         const items = [
           r.c.early && r.rec.earlyOk == null && ['earlyOk', `예정 ${r.rec.schedStart}보다 ${minsLabel(r.c.early)} 일찍 출근 (${hm(inD)})`],
-          r.c.late && r.rec.lateOk == null && ['lateOk', `예정 ${r.rec.schedEnd}보다 ${minsLabel(r.c.late)} 늦게 퇴근 (${hm(outD)})`],
           r.c.unsched && r.rec.unschedOk == null && ['unschedOk', `예정 없는 날 근무 ${hm(inD)}~${hm(outD)} (${minsLabel(r.c.unsched)})`],
         ].filter(Boolean)
         return (
@@ -396,7 +399,7 @@ export default function AttendancePanel({ curMonth, nameMap, onApplied }) {
                   <b style={{minWidth:56}}>{u.name}</b>
                   <span style={{...num, color:T.sub}}>출근 {c.worked}일</span>
                   <span style={{...num, color: c.late ? T.red : T.sub}}>지각 {c.late}회{c.late ? ` (${minsLabel(c.lateMins)})` : ''}</span>
-                  <span style={{...num, color: c.leftEarly ? T.red : T.sub}}>조퇴 {c.leftEarly}회{c.leftEarly ? ` (${minsLabel(c.leftEarlyMins)})` : ''}</span>
+                  <span style={{...num, color: c.leftEarly ? T.red : T.sub}}>조퇴 {c.leftEarly}회</span>
                   <span style={{...num, color: c.absent ? T.red : T.sub}}>결근 {c.absent}일</span>
                   {c.noOut > 0 && <span style={{color:T.amber}}>퇴근 미기록 {c.noOut}</span>}
                   <span style={{flex:1}}/>
@@ -408,10 +411,10 @@ export default function AttendancePanel({ curMonth, nameMap, onApplied }) {
                     {st.days.filter(d=>d.late || d.leftEarly || d.absent || d.excused || d.noOut).map(d => (
                       <div key={d.dd} style={{display:'flex', alignItems:'center', gap:10, fontSize:12, padding:'3px 0', flexWrap:'wrap'}}>
                         <span style={{...num, color:T.sub, minWidth:62}}>{+d.dd}일 ({dow(d.dd)})</span>
-                        {d.sched && <span style={{color:T.sub}}>예정 {d.sched.start}~{d.sched.end}</span>}
+                        {d.sched && <span style={{color:T.sub}}>예정 {d.sched.start}~{d.sched.end||''}</span>}
                         {d.rec?.in && <span style={{...num}}>{hm(toDate(d.rec.in))} ~ {d.rec.out ? hm(toDate(d.rec.out)) : '—'}</span>}
                         {d.late > 0 && <b style={{color:T.red}}>지각 {minsLabel(d.late)}</b>}
-                        {d.leftEarly > 0 && <b style={{color:T.red}}>조퇴 {minsLabel(d.leftEarly)}</b>}
+                        {d.leftEarly > 0 && <b style={{color:T.red}}>조퇴</b>}
                         {d.noOut && <b style={{color:T.amber}}>퇴근 미기록</b>}
                         {d.absent && <><b style={{color:T.red}}>결근</b><Btn onClick={()=>setExcused(u.uid, d.dd, true)} disabled={busy}>결근 아님</Btn></>}
                         {d.excused && <><span style={{color:T.sub}}>결근 아님(사유 있음)</span><Btn onClick={()=>setExcused(u.uid, d.dd, false)} disabled={busy}>결근으로 되돌리기</Btn></>}

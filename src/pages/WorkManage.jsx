@@ -291,7 +291,7 @@ function getEmpStats(emp) {
                       <span style={{fontWeight:700}}>{hm(toDate(rec.in))} ~ {rec.out ? hm(toDate(rec.out)) : ''}</span>
                       {!rec.out && <span style={{color:'#2B5C9E',marginLeft:4}}>근무 중</span>}
                       {st.late > 0 && <span style={{color:'#B42318',fontWeight:700,marginLeft:6}}>지각 {st.late}분</span>}
-                      {st.leftEarly > 0 && <span style={{color:'#B42318',fontWeight:700,marginLeft:6}}>조퇴 {st.leftEarly}분</span>}
+                      {st.leftEarly > 0 && <span style={{color:'#B42318',fontWeight:700,marginLeft:6}}>조퇴</span>}
                     </div>
                   )
                 })()}
