@@ -54,12 +54,17 @@ export default function Clock() {
       const ym = ymOf(now), dd = ddOf(now)
       let rec = await readRec(ym, dd)
       let tYm = ym, tDd = dd
+      let forgotYesterday = null
       if (!rec?.in) {
-        // 자정 넘어 퇴근: 어제 출근만 있고 16시간 안이면 어제 기록에 퇴근
+        // 자정 넘어 퇴근: 어제 출근만 있고 지금이 새벽(6시 전)이면 어제 기록에 퇴근
+        // (아침에 출근 태그를 했는데 어제 퇴근을 안 찍었으면 어제 기록은 그대로 두고 오늘 출근으로 — 어제 퇴근 시각은 사장님이 근무관리에서 넣음)
         const y = new Date(now); y.setDate(y.getDate()-1)
         const yRec = await readRec(ymOf(y), ddOf(y))
         const yIn = toDate(yRec?.in)
-        if (yRec?.in && !yRec.out && now - yIn < 16*3600*1000) { rec = yRec; tYm = ymOf(y); tDd = ddOf(y) }
+        if (yRec?.in && !yRec.out) {
+          if (now.getHours() < 6 && now - yIn < 16*3600*1000) { rec = yRec; tYm = ymOf(y); tDd = ddOf(y) }
+          else forgotYesterday = yIn
+        }
       }
 
       if (!rec?.in) {
@@ -70,7 +75,7 @@ export default function Clock() {
         const br = breakForShift(cfg, now, sh) // 풀타임이면 그날 매장 브레이크를 기록에 붙임 (근무시간에서 빠짐)
         await write(tYm, tDd, { in: serverTimestamp(), inDist: dist, name: me?.name || '', schedStart: sh?.start || null, schedEnd: sh?.end || null,
           ...(br ? { breakStart: br.start, breakEnd: br.end } : {}) })
-        setResult({ kind:'in', rec: await readRec(tYm, tDd), ym:tYm, dd:tDd })
+        setResult({ kind:'in', rec: await readRec(tYm, tDd), ym:tYm, dd:tDd, forgotYesterday })
       } else if (!rec.out) {
         if (!force && now - toDate(rec.in) < 2*60*1000) {
           setResult({ kind:'soon', rec, ym:tYm, dd:tDd })
@@ -175,6 +180,11 @@ export default function Clock() {
         ))}
       </div>
 
+      {result.forgotYesterday && (
+        <div style={{marginTop:14, fontSize:14, color:T.red, lineHeight:1.6, fontWeight:600}}>
+          어제({hm(result.forgotYesterday)} 출근) 퇴근을 안 찍었어요. 어제 근무시간이 아직 안 들어갔으니 사장님께 퇴근한 시각을 알려 주세요.
+        </div>
+      )}
       {(result.kind === 'in' || result.kind === 'soon') && earlyIn && (
         <div style={{marginTop:14, fontSize:14, color:T.amber, lineHeight:1.6}}>
           예정({r.schedStart})보다 {GRACE_MIN}분 넘게 일찍 왔어요. 일찍 온 시간은 사장님이 승인하면 급여에 들어가요.
@@ -185,7 +195,7 @@ export default function Clock() {
       )}
       {c?.pending && (
         <div style={{marginTop:14, fontSize:14, color:T.amber, lineHeight:1.6}}>
-          {[c.early && r.earlyOk == null && `일찍 온 ${minsLabel(c.early)}`, c.late && r.lateOk == null && `늦게 퇴근한 ${minsLabel(c.late)}`, c.unsched && r.unschedOk == null && `예정 없는 날 근무 ${minsLabel(c.unsched)}`].filter(Boolean).join(', ')}은 사장님 승인 후 급여에 들어가요.
+          {[c.early && r.earlyOk == null && `일찍 온 ${minsLabel(c.early)}`, c.unsched && r.unschedOk == null && `예정 없는 날 근무 ${minsLabel(c.unsched)}`].filter(Boolean).join(', ')}은 사장님 승인 후 급여에 들어가요.
         </div>
       )}
 
