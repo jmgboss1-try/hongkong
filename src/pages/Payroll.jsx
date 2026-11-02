@@ -407,7 +407,24 @@ export default function Payroll() {
   async function load() {
     setLoading(true)
     try {
-      const usersSnap = await getDocs(collection(db,'users'))
+      const [cy,cm] = curMonth.split('-').map(Number)
+      const prev = cm===1?`${cy-1}-12`:`${cy}-${pad(cm-1)}`
+      // 한 번에 같이 받기 (예전엔 직원 목록 → 이번 달 자료 → 대타 순서로 세 번 기다렸음)
+      const [usersSnap,wh,ex,me,pwh,pex,pme,pr,ownerSnap,sevSnap,advSnap,bonusSnap,subs] = await Promise.all([
+        getDocs(collection(db,'users')),
+        getDoc(doc(db,'workhours',curMonth)),
+        getDoc(doc(db,'workextra',curMonth)),
+        getDoc(doc(db,'workmemos',curMonth)),
+        getDoc(doc(db,'workhours',prev)),
+        getDoc(doc(db,'workextra',prev)),
+        getDoc(doc(db,'workmemos',prev)),
+        getDoc(doc(db,'payroll',curMonth)),
+        getDocs(collection(db,'payrollOwner')),
+        getDoc(doc(db,'severance', curMonth)),
+        getDoc(doc(db,'advances', curMonth)),
+        getDoc(doc(db,'bonuses', curMonth)),
+        loadSubs(),
+      ])
       const emps = []
       const ssnData = {}
       const nameData = {}
@@ -433,26 +450,9 @@ if(!isActive && !isRetired) return
       setSsnMap(ssnData)
       setNameMap(nameData)
 
-      const [cy,cm] = curMonth.split('-').map(Number)
-      const prev = cm===1?`${cy-1}-12`:`${cy}-${pad(cm-1)}`
-
-      const [wh,ex,me,pwh,pex,pme,pr,ownerSnap,sevSnap,advSnap,bonusSnap] = await Promise.all([
-  getDoc(doc(db,'workhours',curMonth)),
-  getDoc(doc(db,'workextra',curMonth)),
-  getDoc(doc(db,'workmemos',curMonth)),
-  getDoc(doc(db,'workhours',prev)),
-  getDoc(doc(db,'workextra',prev)),
-  getDoc(doc(db,'workmemos',prev)),
-  getDoc(doc(db,'payroll',curMonth)),
-  getDocs(collection(db,'payrollOwner')),
-  getDoc(doc(db,'severance', curMonth)),
-  getDoc(doc(db,'advances', curMonth)),
-  getDoc(doc(db,'bonuses', curMonth)),      
-])
       setWorkHours(wh.exists()?wh.data():{})
       setWorkExtra(ex.exists()?ex.data():{})
       // 대타 게시판에서 확정된 날은 비고 없이도 주휴 계산에서 대타로 인정
-      const subs = await loadSubs()
       setMemos(withSubMemos(me.exists()?me.data():{}, subs, curMonth))
       setPrevWorkHours(pwh.exists()?pwh.data():{})
       setPrevWorkExtra(pex.exists()?pex.data():{})
