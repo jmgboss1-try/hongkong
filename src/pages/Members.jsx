@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { avgHoursFromPattern } from '../lib/attendance'
 import { POSITIONS } from '../lib/avatar'
-import { db } from '../firebase'
+import { db, auth } from '../firebase'
 import { collection, getDocs, getDoc, doc, setDoc } from 'firebase/firestore'
 import { GradeBadge } from '../AuthContext'
 
@@ -43,6 +43,58 @@ function RoleBadge({ role }) {
       color:r.color,border:`1px solid ${r.color}55`,background:`${r.color}1a`}}>
       {r.label}
     </span>
+  )
+}
+
+// 직원 비밀번호 새로 정해주기 (직원이 비밀번호·이메일 비밀번호를 다 잊었을 때) — 서버 함수 /api/set-password
+function SetPasswordBox({ m }) {
+  const [open, setOpen] = useState(false)
+  const [pw, setPw] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [msg, setMsg] = useState(null) // { ok, text }
+  async function submit() {
+    if (pw.length < 6) return setMsg({ ok:false, text:'비밀번호는 6자 이상으로 정해주세요' })
+    if (!window.confirm(`${m.name} 직원의 비밀번호를 '${pw}'(으)로 바꿀까요?\n직원에게 이 비밀번호를 알려주고, 로그인한 뒤엔 기억하기 쉬운 걸로 바꾸라고 해주세요.`)) return
+    setBusy(true); setMsg(null)
+    try {
+      const token = await auth.currentUser.getIdToken()
+      const r = await fetch('/api/set-password', { method:'POST',
+        headers:{ 'Content-Type':'application/json', Authorization:`Bearer ${token}` },
+        body: JSON.stringify({ uid:m.uid, password:pw }) })
+      const j = await r.json().catch(()=>({}))
+      if (!r.ok) throw new Error(j.error || '비밀번호를 바꾸지 못했어요')
+      setMsg({ ok:true, text:`바꿨어요. 아이디 ${m.email||'(이메일)'} / 비밀번호 ${pw} 로 로그인하면 돼요.` })
+      setPw('')
+    } catch(e) { setMsg({ ok:false, text:e.message }) }
+    setBusy(false)
+  }
+  if (m.role === 'owner') return null
+  return (
+    <div style={{background:'#FFFFFF',borderRadius:4,padding:'10px 12px'}}>
+      {!open ? (
+        <button type="button" onClick={()=>setOpen(true)}
+          style={{background:'none',border:'none',color:'#2B5C9E',fontSize:12,cursor:'pointer',fontFamily:'inherit',padding:0,textDecoration:'underline'}}>
+          비밀번호 새로 정해주기
+        </button>
+      ) : (
+        <div style={{display:'flex',flexDirection:'column',gap:6}}>
+          <div style={{fontSize:11,color:'#6E6A63'}}>직원이 비밀번호를 잊었을 때 새 비밀번호를 정해줘요. 아이디(이메일)는 그대로예요.</div>
+          <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>
+            <input value={pw} onChange={e=>setPw(e.target.value.trim())} placeholder="새 비밀번호 (6자 이상)" autoComplete="off"
+              style={{flex:1,minWidth:140,background:'#F3F1EC',border:'1px solid #DCD7CE',borderRadius:4,color:'#1D1B18',padding:'7px 10px',fontSize:12,outline:'none',fontFamily:'inherit'}}/>
+            <button type="button" onClick={submit} disabled={busy}
+              style={{background:'#C3261C',color:'#FFFFFF',border:'none',borderRadius:4,padding:'7px 14px',fontSize:11,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
+              {busy ? '바꾸는 중...' : '바꾸기'}
+            </button>
+            <button type="button" onClick={()=>{ setOpen(false); setPw(''); setMsg(null) }}
+              style={{background:'transparent',border:'1px solid #DCD7CE',color:'#6E6A63',borderRadius:4,padding:'7px 12px',fontSize:11,cursor:'pointer',fontFamily:'inherit'}}>
+              닫기
+            </button>
+          </div>
+          {msg && <div style={{fontSize:12,color: msg.ok ? '#2E7D45' : '#B42318'}}>{msg.text}</div>}
+        </div>
+      )}
+    </div>
   )
 }
 
@@ -100,6 +152,7 @@ function MemberCard({ m, onEdit, onRetire }) {
               근속 {tenure}<br/>시급 {(m.wage||10030).toLocaleString()}원
             </div>
           </div>
+          <SetPasswordBox m={m}/>
           <div style={{display:'flex',gap:8}}>
             <button onClick={()=>onEdit(m)}
               style={{background:'#C3261C',color:'#FFFFFF',border:'none',borderRadius:4,padding:'8px 16px',fontSize:11,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
