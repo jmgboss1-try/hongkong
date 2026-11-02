@@ -7,6 +7,7 @@ const pad = n => String(n).padStart(2,'0')
 const daysIn = ym => { const[y,m]=ym.split('-').map(Number); return new Date(y,m,0).getDate() }
 const mLabel = ym => { const[y,m]=ym.split('-'); return `${y}년 ${+m}월` }
 const wonFmt = n => (n||0).toLocaleString('ko-KR')
+const nextYm = ym => { const[y,m]=ym.split('-').map(Number); return m===12 ? `${y+1}-01` : `${y}-${pad(m+1)}` }
 const todayStr = () => { const n=new Date(); return `${n.getFullYear()}-${pad(n.getMonth()+1)}-${pad(n.getDate())}` }
 
 function getWageForMonth(emp, month) {
@@ -620,14 +621,82 @@ if(!isActive && !isRetired) return
     setSaving(false)
   }
   async function deleteAdvance(uid, id) {
-    if(!window.confirm('이 가불 기록을 삭제하시겠습니까?')) return
+    const rec = advanceListOf(uid).find(r=>r.id===id)
+    if(!window.confirm(rec?.carryFrom
+      ? `${mLabel(rec.carryFrom)}에서 넘어온 초과 가불이에요. 삭제하면 ${mLabel(rec.carryFrom)} 급여가 다시 마이너스로 보여요. 삭제할까요?`
+      : '이 가불 기록을 삭제하시겠습니까?')) return
     setSaving(true)
     try {
       const newList = advanceListOf(uid).filter(r=>r.id!==id)
       const newAdvances = { ...advances, [uid]: newList }
       await saveAdvances(newAdvances)
+      // 넘어온 초과 가불을 지우면 원래 달의 '넘김' 표시도 지움
+      if(rec?.carryFrom) {
+        const ps = await getDoc(doc(db,'payroll',rec.carryFrom))
+        const pd = ps.exists() ? ps.data() : {}
+        if(pd[uid]) await setDoc(doc(db,'payroll',rec.carryFrom), { ...pd, [uid]: { ...pd[uid], carriedOut:0, carriedTo:null } })
+      }
     } catch(e){ console.error(e) }
     setSaving(false)
+  }
+
+  // ── 가불이 급여보다 많을 때: 넘친 금액을 다음 달 가불로 넘김 ──
+  // 이번 달 payroll[uid].carriedOut 에 넘긴 금액, 다음 달 advances 에 { carryFrom } 표시된 가불 기록
+  async function carryOver(emp, amount) {
+    const next = nextYm(curMonth)
+    if(!window.confirm(`${emp.name}: 가불이 급여보다 ${amount.toLocaleString()}원 많아요.\n이 금액을 ${mLabel(next)} 가불로 넘겨서 ${mLabel(next)} 급여에서 빼고, ${mLabel(curMonth)} 급여는 0원으로 끝낼까요?`)) return
+    setSaving(true)
+    try {
+      const as = await getDoc(doc(db,'advances',next))
+      const ad = as.exists() ? as.data() : {}
+      const list = (ad[emp.uid]||[]).filter(r=>r.carryFrom!==curMonth)
+      list.push({ id:`carry-${curMonth}`, date:`${next}-01`, amount, memo:`${+curMonth.slice(5)}월 초과 가불 이월`, carryFrom:curMonth })
+      list.sort((a,b)=>a.date>b.date?1:-1)
+      await setDoc(doc(db,'advances',next), { ...ad, [emp.uid]: list })
+      // 저장 직전 다시 읽고 이 직원 것만 바꿈
+      const ps = await getDoc(doc(db,'payroll',curMonth))
+      const pd = ps.exists() ? ps.data() : {}
+      const np = { ...pd, [emp.uid]: { ...(pd[emp.uid]||{}), carriedOut:amount, carriedTo:next } }
+      await savePayroll(np)
+    } catch(e){ console.error(e); alert('저장 중 오류가 발생했어요. 다시 시도해 주세요.') }
+    setSaving(false)
+  }
+  async function undoCarry(emp) {
+    const next = payroll[emp.uid]?.carriedTo || nextYm(curMonth)
+    if(!window.confirm(`${mLabel(next)}로 넘긴 초과 가불을 되돌릴까요?`)) return
+    setSaving(true)
+    try {
+      const as = await getDoc(doc(db,'advances',next))
+      const ad = as.exists() ? as.data() : {}
+      await setDoc(doc(db,'advances',next), { ...ad, [emp.uid]: (ad[emp.uid]||[]).filter(r=>r.carryFrom!==curMonth) })
+      const ps = await getDoc(doc(db,'payroll',curMonth))
+      const pd = ps.exists() ? ps.data() : {}
+      await savePayroll({ ...pd, [emp.uid]: { ...(pd[emp.uid]||{}), carriedOut:0, carriedTo:null } })
+    } catch(e){ console.error(e); alert('저장 중 오류가 발생했어요. 다시 시도해 주세요.') }
+    setSaving(false)
+  }
+
+  // 직원 한 명의 이달 돈 계산 (카드와 위 요약이 같은 값을 씀)
+  //   finalPay : 세후 급여(+상여) − 가불      carriedOut: 다음 달로 넘긴 초과 가불
+  //   remain   : 아직 줄 돈 (finalPay + carriedOut, 0 미만이면 아직 안 넘긴 초과 가불)
+  //   advPaid  : 이 달에 실제로 내보낸 가불 (지난달에서 넘어온 기록은 지난달에 이미 준 돈이라 뺌)
+  function payOf(emp) {
+    const p = payroll[emp.uid]
+    const display = p?.confirmedByOwner ? p : getComputed(emp)
+    const advTotal = advanceTotalOf(emp.uid)
+    const advPaid = advanceListOf(emp.uid).filter(r=>!r.carryFrom).reduce((a,r)=>a+(r.amount||0),0)
+    const bonusTotal = bonusTotalOf(emp.uid)
+    const grossWithBonus = (display.totalPay||0) + bonusTotal
+    const deductionWithBonus = bonusTotal>0 ? calcDeduction(grossWithBonus, emp.employType||'part') : display.deduction
+    const netWithBonus = grossWithBonus - (deductionWithBonus?.total||0)
+    const finalPay = (bonusTotal>0 ? netWithBonus : (display.netPay||display.totalPay||0)) - advTotal
+    const carriedOut = p?.carriedOut || 0
+    const remain = finalPay + carriedOut
+    const paid = getStatus(emp.uid)==='paid'
+    return { display, advTotal, advPaid, bonusTotal, deductionWithBonus, finalPay, carriedOut, remain, paid,
+      paidOut: advPaid + (paid ? Math.max(remain,0) : 0),
+      unpaid: paid ? 0 : Math.max(remain,0),
+      over: Math.max(-remain,0) }
   }
 
   // ── 상여/보너스 관리 (세금 부과 대상 — 세전 급여에 합산 후 원천징수 재계산) ──
@@ -675,6 +744,11 @@ if(!isActive && !isRetired) return
     const netPay = p?.netPay || computed.netPay
     return a + netPay
   },0)
+  const pays = employees.map(payOf)
+  const paidOutTotal = pays.reduce((a,x)=>a+x.paidOut,0)
+  const unpaidTotal  = pays.reduce((a,x)=>a+x.unpaid,0)
+  const overTotal    = pays.reduce((a,x)=>a+x.over,0)
+  const carriedTotal = pays.reduce((a,x)=>a+x.carriedOut,0)
   const severanceTotal = Object.values(severance).reduce((a,s)=>a+s.net,0)
   const advanceGrandTotal = Object.values(advances).reduce((a,list)=>a+(list||[]).reduce((b,r)=>b+(r.amount||0),0),0)
   const bonusGrandTotal = Object.values(bonuses).reduce((a,list)=>a+(list||[]).reduce((b,r)=>b+(r.amount||0),0),0)
@@ -718,6 +792,10 @@ if(!isActive && !isRetired) return
       <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(160px,1fr))',gap:12,marginBottom:20}}>
         {[
           {label:'이달 인건비 합계', val:`${grandTotal.toLocaleString()}원`,       color:'#C3261C'},
+          {label:'지급한 인건비',    val:`${paidOutTotal.toLocaleString()}원`, color:'#2B5C9E', sub:'가불 + 지급 완료'},
+          {label:'아직 줄 인건비',   val:`${unpaidTotal.toLocaleString()}원`,  color:'#B45309', sub:`${employees.filter((e,i)=>pays[i].unpaid>0).length}명 미지급`},
+          ...(overTotal>0 ? [{label:'급여보다 많이 준 가불', val:`${overTotal.toLocaleString()}원`, color:'#B42318', sub:'다음 달로 넘겨주세요'}] : []),
+          ...(carriedTotal>0 ? [{label:'다음 달로 넘긴 가불', val:`${carriedTotal.toLocaleString()}원`, color:'#6E6A63', sub:'다음 달 급여에서 뺌'}] : []),
           {label:'직원 확인 완료',   val:`${checkedCount} / ${employees.length}명`, color:'#2E7D45'},
           {label:'문의 건수',        val:`${inquiryCount}건`,                       color:'#B42318'},
           {label:'지급 완료',        val:`${paidCount}명`,                          color:'#2B5C9E'},
@@ -729,6 +807,7 @@ if(!isActive && !isRetired) return
             <div style={{position:'absolute',top:0,left:0,right:0,height:2,background:k.color,opacity:.5}}/>
             <div style={{fontSize:10,color:'#6E6A63',marginBottom:5}}>{k.label}</div>
             <div style={{fontSize:16,fontWeight:700,color:k.color,fontFamily:'inherit',fontVariantNumeric:'tabular-nums'}}>{k.val}</div>
+            {k.sub && <div style={{fontSize:10,color:'#6E6A63',marginTop:3}}>{k.sub}</div>}
           </div>
         ))}
       </div>
@@ -740,18 +819,12 @@ if(!isActive && !isRetired) return
           {employees.map(emp=>{
             const status  = getStatus(emp.uid)
             const p       = payroll[emp.uid]
-            const computed = getComputed(emp)
-            const display = p?.confirmedByOwner ? p : computed
             const st      = STATUS[status]
             const hasInquiry = p?.inquiry && !p.inquiry.resolved
             const isOpen  = activeUid === emp.uid
-            const advTotal  = advanceTotalOf(emp.uid)
-            const bonusTotal = bonusTotalOf(emp.uid)
-            // 상여는 과세 대상 — 세전 급여에 합산 후 원천징수 재계산
-            const grossWithBonus = (display.totalPay||0) + bonusTotal
-            const deductionWithBonus = bonusTotal>0 ? calcDeduction(grossWithBonus, emp.employType||'part') : display.deduction
-            const netWithBonus = grossWithBonus - (deductionWithBonus?.total||0)
-            const finalPay  = (bonusTotal>0 ? netWithBonus : (display.netPay||display.totalPay||0)) - advTotal
+            // 상여는 과세 대상 — 세전 급여에 합산 후 원천징수 재계산 (payOf)
+            const { display, advTotal, bonusTotal, deductionWithBonus, carriedOut, remain } = payOf(emp)
+            const carryIn = advanceListOf(emp.uid).filter(r=>r.carryFrom).reduce((a,r)=>a+(r.amount||0),0)
             const isAdvanceOpen = advanceUid === emp.uid
             const isBonusOpen = bonusUid === emp.uid
 
@@ -830,11 +903,29 @@ if(!isActive && !isRetired) return
                       {advTotal>0 && (
                         <div style={{fontSize:11,color:'#B42318',marginBottom:2}}>
                           가불 차감 -{advTotal.toLocaleString()}원
+                          {carryIn>0 && <span style={{color:'#6E6A63'}}> (지난달에서 넘어온 {carryIn.toLocaleString()}원 포함)</span>}
                         </div>
                       )}
-                      <div style={{fontSize:16,fontWeight:700,color:'#2E7D45',fontFamily:'inherit',fontVariantNumeric:'tabular-nums'}}>
-                        {advTotal>0 || bonusTotal>0 ? '최종 지급' : '실수령'} {finalPay.toLocaleString()}원
+                      {carriedOut>0 && (
+                        <div style={{fontSize:11,color:'#6E6A63',marginBottom:2}}>
+                          초과 가불 {carriedOut.toLocaleString()}원 → {mLabel(p?.carriedTo||nextYm(curMonth))}로 넘김
+                          <button onClick={()=>undoCarry(emp)} disabled={saving}
+                            style={{background:'none',border:'none',color:'#2B5C9E',fontSize:11,cursor:'pointer',fontFamily:'inherit',padding:'0 0 0 6px',textDecoration:'underline'}}>되돌리기</button>
+                        </div>
+                      )}
+                      <div style={{fontSize:16,fontWeight:700,color: remain<0 ? '#B42318' : '#2E7D45',fontFamily:'inherit',fontVariantNumeric:'tabular-nums'}}>
+                        {advTotal>0 || bonusTotal>0 ? '최종 지급' : '실수령'} {remain.toLocaleString()}원
                       </div>
+                      {remain<0 && (
+                        <div style={{marginTop:4}}>
+                          <div style={{fontSize:11,color:'#B42318',marginBottom:4}}>가불이 급여보다 {(-remain).toLocaleString()}원 많아요</div>
+                          <button onClick={()=>carryOver(emp, -remain)} disabled={saving}
+                            style={{background:'#B42318',color:'#FFFFFF',border:'none',borderRadius:4,padding:'5px 10px',
+                              fontSize:11,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
+                            {mLabel(nextYm(curMonth)).slice(6)} 급여에서 빼기
+                          </button>
+                        </div>
+                      )}
                     </div>
                     {status==='unconfirmed' && (
                       <button onClick={()=>confirmOne(emp.uid)} disabled={saving}
@@ -896,7 +987,7 @@ if(!isActive && !isRetired) return
                             <span style={{fontSize:13,fontWeight:700,color:'#B42318',fontFamily:'inherit',fontVariantNumeric:'tabular-nums'}}>
                               {r.amount.toLocaleString()}원
                             </span>
-                            <span style={{flex:1,fontSize:11,color:'#6E6A63'}}>{r.memo||'—'}</span>
+                            <span style={{flex:1,fontSize:11,color:'#6E6A63'}}>{r.memo||'—'}{r.carryFrom && ' (지난달에 이미 준 돈)'}</span>
                             <button onClick={()=>deleteAdvance(emp.uid, r.id)}
                               style={{background:'transparent',border:'1px solid #E8C4BF',color:'#B42318',
                                 padding:'3px 8px',fontSize:10,borderRadius:4,cursor:'pointer',fontFamily:'inherit'}}>
