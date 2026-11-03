@@ -1,3 +1,4 @@
+import TimePick from './TimePick'
 import { useEffect, useState } from 'react'
 import { db } from '../firebase'
 import { doc, getDoc, getDocs, collection, setDoc, deleteField, Timestamp } from 'firebase/firestore'
@@ -213,10 +214,8 @@ export default function AttendancePanel({ curMonth, nameMap, onApplied }) {
   const link = (label, onClick) => (
     <button type="button" onClick={onClick} style={{background:'none', border:'none', borderBottom:`1px solid ${T.blue}`, color:T.blue, padding:0, fontSize:12, cursor:'pointer', fontFamily:'inherit'}}>{label}</button>
   )
-  const timeIn = (v, set, label) => (
-    <input type="time" value={v||''} onChange={e=>set(e.target.value)} aria-label={label}
-      style={{background:'#FFFFFF', border:'1px solid #CBC5BA', borderRadius:4, padding:'4px 6px', fontSize:13, fontFamily:'inherit', ...num}}/>
-  )
+  // 시각 고르기: 아이폰 시간 칸은 지우거나 고치기가 불편해서 시·분 선택 (찍은 시각을 고치므로 1분 단위, 0~23시)
+  const timeIn = (v, set, label) => <TimePick value={v||''} onChange={set} label={label} step={1} allHours width={128}/>
   const recLine = r => {
     const inD = toDate(r.rec.in), outD = toDate(r.rec.out)
     const isEdit = edit && edit.uid===r.uid && edit.dd===r.dd
