@@ -374,7 +374,14 @@ export default function AttendancePanel({ curMonth, nameMap, onApplied }) {
       {working.length > 0 && (
         <div style={{fontSize:13, marginTop:10}}>
           <span style={{color:T.sub}}>지금 근무 중 </span>
-          {working.map(r=><span key={r.uid} style={{marginRight:12}}><b>{name(r.uid)}</b> <span style={{...num, color:T.sub}}>{hm(toDate(r.rec.in))}~</span></span>)}
+          {working.map(r=>(
+            <span key={r.uid} style={{marginRight:14, whiteSpace:'nowrap'}}><b>{name(r.uid)}</b> <span style={{...num, color:T.sub}}>{hm(toDate(r.rec.in))}~</span>
+              <button type="button" onClick={()=>setEdit({ uid:r.uid, dd:r.dd, in:hm(toDate(r.rec.in)), out:'', bStart:r.rec.breakStart||'', bEnd:r.rec.breakEnd||'', noBreak:!!r.rec.noBreak, earlyLeave:!!r.rec.earlyLeave })}
+                style={{background:'none', border:'none', color:T.blue, fontSize:12, cursor:'pointer', padding:'0 0 0 4px', fontFamily:'inherit', textDecoration:'underline'}}>수정</button>
+            </span>
+          ))}
+          {/* 지금 근무 중인 사람의 출근 시각 고치기 (여기서 퇴근 시각을 넣으면 퇴근 처리) */}
+          {working.filter(r=>edit && edit.uid===r.uid && edit.dd===r.dd).map(recLine)}
         </div>
       )}
       {noOut.length > 0 && (
