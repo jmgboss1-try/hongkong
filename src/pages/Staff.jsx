@@ -4,6 +4,7 @@ import { doc, getDoc, setDoc, collection, query, where, getDocs } from 'firebase
 import { useAuth } from '../AuthContext'
 import { toDate, hm, dayStatus, breakForShift, recBreak, planFor, reapplyDay } from '../lib/attendance'
 import { deleteField } from 'firebase/firestore'
+import TimePick from '../components/TimePick'
 
 const pad = n => String(n).padStart(2,'0')
 const DAYS_KR = ['일','월','화','수','목','금','토']
@@ -17,29 +18,6 @@ const mondayOf = d => { const x = new Date(d.getFullYear(), d.getMonth(), d.getD
 // 퇴근 예정이 없는 근무(출근만 정함)는 화면 계산용으로 매장 마감(22:00)까지로 봄
 const STORE_CLOSE = 22*60
 const endMinOf = s => { const a = toMin(s.start); if (!s.end) return Math.max(STORE_CLOSE, a + 60); const b = toMin(s.end); return b <= a ? 1440 : b }
-
-// 시각 고르기: 폰(아이폰)에서 type="time" 칸이 표 칸보다 넓어져 잘리고 빈칸이면 회색으로만 보여서 시·분 두 개로 고름
-const HOURS = Array.from({length:19}, (_,i)=>String(i+6).padStart(2,'0'))     // 06 ~ 24
-const MINS = ['00','10','20','30','40','50']
-function TimePick({ value, onChange, label }) {
-  const [h, m] = (value || '').split(':')
-  const mins = m && !MINS.includes(m) ? [...MINS, m].sort() : MINS
-  const sel = { flex:1, minWidth:0, width:'100%', fontSize:13, padding:'4px 2px', border:'1px solid #CBC5BA', borderRadius:4,
-    background:'#FFFFFF', color:'#1D1B18', fontFamily:'inherit', fontVariantNumeric:'tabular-nums' }
-  return (
-    <div style={{display:'flex', alignItems:'center', gap:2}} aria-label={label}>
-      <select value={h || ''} onChange={e=>onChange(e.target.value ? `${e.target.value}:${m || '00'}` : '')} aria-label={`${label} 시`} style={sel}>
-        <option value="">시</option>
-        {HOURS.map(x=><option key={x} value={x}>{x}</option>)}
-      </select>
-      <span style={{color:'#6E6A63'}}>:</span>
-      <select value={h ? (m || '00') : ''} disabled={!h} onChange={e=>onChange(`${h}:${e.target.value}`)} aria-label={`${label} 분`} style={sel}>
-        {!h && <option value="">분</option>}
-        {mins.map(x=><option key={x} value={x}>{x}</option>)}
-      </select>
-    </div>
-  )
-}
 
 function PendingCard({ u, onApprove, onReject }) {
   const [selGrade, setSelGrade] = useState('3')

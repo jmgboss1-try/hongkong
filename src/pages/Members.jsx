@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { avgHoursFromPattern } from '../lib/attendance'
 import { POSITIONS } from '../lib/avatar'
+import TimePick from '../components/TimePick'
 import { db, auth } from '../firebase'
 import { collection, getDocs, getDoc, doc, setDoc } from 'firebase/firestore'
 import { GradeBadge } from '../AuthContext'
@@ -696,13 +697,12 @@ export default function Members() {
                 if(!(form.workDays || [1,2,3,4,5]).includes(idx)) return null
                 const st = form.shiftTimes?.[idx] || {}
                 const setT = (k,v) => setF('shiftTimes', { ...(form.shiftTimes||{}), [idx]: { ...st, [k]: v } })
-                const tStyle = {background:'#FFFFFF',border:'1px solid #CBC5BA',borderRadius:4,color:'#1D1B18',padding:'5px 8px',fontSize:13,fontFamily:'inherit',fontVariantNumeric:'tabular-nums'}
                 return (
-                  <div key={day} style={{display:'flex',alignItems:'center',gap:8,fontSize:13}}>
+                  <div key={day} style={{display:'flex',alignItems:'center',gap:8,fontSize:13,flexWrap:'wrap'}}>
                     <span style={{width:18,fontWeight:700,color:idx===0?'#B42318':idx===6?'#2B5C9E':'#1D1B18'}}>{day}</span>
-                    <input type="time" value={st.start||''} onChange={e=>setT('start',e.target.value)} aria-label={`${day} 출근`} style={tStyle}/>
+                    <TimePick value={st.start||''} onChange={v=>setT('start',v)} label={`${day} 출근`} clearable width={180}/>
                     <span style={{color:'#6E6A63'}}>~</span>
-                    <input type="time" value={st.end||''} onChange={e=>setT('end',e.target.value)} aria-label={`${day} 퇴근 (안 넣어도 됨)`} title="퇴근은 안 넣어도 돼요. 찍은 시각까지 인정해요" style={tStyle}/>
+                    <TimePick value={st.end||''} onChange={v=>setT('end',v)} label={`${day} 퇴근`} clearable width={180}/>
                     {idx===[1,2,3,4,5,6,0].find(d=>(form.workDays||[1,2,3,4,5]).includes(d)) && st.start && (
                       <button type="button" onClick={()=>setF('shiftTimes', Object.fromEntries((form.workDays||[1,2,3,4,5]).map(d=>[d,{start:st.start,end:st.end||''}])))}
                         style={{background:'none',border:'none',color:'#2B5C9E',fontSize:12,cursor:'pointer',fontFamily:'inherit',padding:0,borderBottom:'1px solid #2B5C9E'}}>모든 근무일에 같게</button>
