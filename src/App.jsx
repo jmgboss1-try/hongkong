@@ -40,6 +40,8 @@ const Prepaid = lazyPage(() => import('./pages/Prepaid'))
 const SalesAnalysis = lazyPage(() => import('./pages/SalesAnalysis'))
 const OurStore = lazyPage(() => import('./pages/OurStore'))
 const PhoneUpload = lazyPage(() => import('./pages/PhoneUpload'))
+const MenuOrder = lazyPage(() => import('./pages/MenuOrder'))
+const MenuManage = lazyPage(() => import('./pages/MenuManage'))
 
 // 화면 코드를 내려받는 동안 (보통 한순간)
 function PageLoading() {
@@ -103,6 +105,9 @@ function AppRoutes() {
     </Suspense>
   )
 
+  // 손님용 메뉴·주문 (명함 QR): 로그인 없이, 메뉴 없이
+  if (location.pathname === '/menu') return <Suspense fallback={<PageLoading/>}><MenuOrder /></Suspense>
+
   // NFC 출퇴근 페이지: 메뉴 없이 폰 화면 하나로. 로그인 안 돼 있으면 이 주소에서 바로 로그인
   if (location.pathname === '/clock') return user ? <Suspense fallback={<PageLoading/>}><Clock /></Suspense> : <Login />
 
@@ -142,6 +147,7 @@ function AppRoutes() {
         <Route path="/sales-analysis" element={<PrivateRoute storeOk storeOnly><SalesAnalysis /></PrivateRoute>} />
         {/* 우리 매장: 사장 + 매장계정 (포스에 띄워 두는 화면) */}
         <Route path="/our-store" element={<PrivateRoute storeOk storeOnly><OurStore /></PrivateRoute>} />
+        <Route path="/menu-manage" element={<PrivateRoute storeOk storeOnly><MenuManage /></PrivateRoute>} />
         <Route path="*" element={<Navigate to={homePath({ isOwner, isStore, isInvestor })} />} />
       </Routes>
       </Suspense>

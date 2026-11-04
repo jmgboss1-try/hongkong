@@ -44,6 +44,7 @@ export default function Layout({ children }) {
     { path:'/expenses',     icon:'', label:'지출' },
     { path:'/staff',        icon:'', label:'스케쥴' },
     { path:'/our-store',    icon:'', label:'우리 매장' },
+    { path:'/menu-manage',  icon:'', label:'메뉴·주문' },
     { path:'/work-manage',  icon:'',  label:'근무관리' },
     { path:'/members',      icon:'', label:'인원관리' },
     { path:'/substitute',   icon:'', label:'대타 구함' },
@@ -69,6 +70,7 @@ export default function Layout({ children }) {
 
   const storeMenus = [
   { path:'/revenue-input', icon:'', label:'매출입력' },
+  { path:'/menu-manage',   icon:'', label:'메뉴·주문' },
   { path:'/sales-analysis', icon:'', label:'매출분석' },
   { path:'/checklist',     icon:'', label:'체크리스트' },
   { path:'/our-store',     icon:'', label:'우리 매장' },

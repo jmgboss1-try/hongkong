@@ -10,7 +10,7 @@ export const NAV_GROUPS = {
 export const navGroupOf = path => {
   if (path === '/') return 'home'
   if (['/staff','/our-store','/work-manage','/members','/team','/substitute','/my-schedule'].includes(path)) return 'people'
-  if (['/checklist','/notice'].includes(path)) return 'store'
+  if (['/checklist','/notice','/menu-manage'].includes(path)) return 'store'
   return 'money'
 }
 

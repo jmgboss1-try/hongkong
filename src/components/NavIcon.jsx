@@ -44,6 +44,8 @@ const P = {
   '/notice': <><path d="M4 10v4h3l7 4.5v-13L7 10z"/><path d="M17.5 9a4 4 0 0 1 0 6M7 14l1.5 5.5h2.5L10 15"/></>,
   // 내 기록: 클립보드
   '/my-schedule': <><rect x="5" y="4.5" width="14" height="16.5" rx="1.5"/><path d="M9 4.5V3h6v1.5"/><path d="M8.5 10h7M8.5 13.5h7M8.5 17h4"/></>,
+  // 메뉴·주문: 그릇과 젓가락
+  '/menu-manage': <><path d="M3.5 12.5h17a8.5 7 0 0 1-17 0z"/><path d="M9 19.5h6"/><path d="M14 3.5l4 7M18.5 3l2 7.5"/></>,
   // 아래 버튼들
   '_file': <><rect x="7" y="2.5" width="10" height="19" rx="2"/><path d="M12 7.5v7M9 11.5l3 3 3-3"/></>,
   '_order': <><path d="M8 4v16M4.5 7.5L8 4l3.5 3.5"/><path d="M16 20V4M12.5 16.5L16 20l3.5-3.5"/></>,
