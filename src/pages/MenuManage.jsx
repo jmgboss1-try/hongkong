@@ -3,6 +3,7 @@ import { db } from '../firebase'
 import { doc, getDoc, setDoc, collection, query, orderBy, limit, onSnapshot, updateDoc, serverTimestamp } from 'firebase/firestore'
 import { MODES, CATS, DEFAULT_ITEMS, DEFAULT_SETTINGS, won } from '../lib/menuData'
 import { toDate, hm } from '../lib/attendance'
+import { EVENTS, PRESETS, loadSound, saveSound, unlockAudio, playEvent } from '../lib/orderSounds'
 
 // 사장님·매장 계정: QR 주문 받기 + 메뉴(가격·옵션·품절) 고치기
 // 주문은 orders 를 실시간으로 보고(onSnapshot) 새 주문이 오면 소리를 냄 — 포스에 이 화면을 띄워 두면 됨
@@ -21,18 +22,6 @@ function Btn({ children, onClick, kind = 'plain', disabled, small }) {
       {children}
     </button>
   )
-}
-
-// 새 주문 알림음 (브라우저는 한 번 눌러야 소리를 낼 수 있음)
-function beep(ctx) {
-  if (!ctx) return
-  const t0 = ctx.currentTime
-  ;[0, 0.35, 0.7].forEach((d, i) => {
-    const o = ctx.createOscillator(), g = ctx.createGain()
-    o.frequency.value = i === 2 ? 1320 : 990; o.type = 'sine'
-    g.gain.setValueAtTime(0.0001, t0 + d); g.gain.exponentialRampToValueAtTime(0.4, t0 + d + 0.02); g.gain.exponentialRampToValueAtTime(0.0001, t0 + d + 0.28)
-    o.connect(g); g.connect(ctx.destination); o.start(t0 + d); o.stop(t0 + d + 0.3)
-  })
 }
 
 export default function MenuManage() {
@@ -58,10 +47,15 @@ export default function MenuManage() {
 function Orders() {
   const [orders, setOrders] = useState(null)
   const [err, setErr] = useState('')
-  const [sound, setSound] = useState(false)
+  const [sound, setSound] = useState(false)          // 이 기기에서 소리 켰는지
+  const [snd, setSnd] = useState(loadSound)          // 소리 설정 (기기마다)
+  const [showSnd, setShowSnd] = useState(false)
   const [showOld, setShowOld] = useState(false)
-  const ctxRef = useRef(null)
+  const sndRef = useRef(snd)
   const seen = useRef(null)
+  const ordersRef = useRef([])
+  const lastRemind = useRef(0)
+  useEffect(() => { sndRef.current = snd; saveSound(snd) }, [snd])
 
   useEffect(() => {
     const q = query(collection(db,'orders'), orderBy('createdAt','desc'), limit(80))
@@ -70,10 +64,11 @@ function Orders() {
       // 처음 불러온 것 말고 새로 들어온 '새 주문'이 있으면 소리
       const ids = new Set(list.map(o=>o.id))
       if (seen.current && list.some(o => o.status === 'new' && !seen.current.has(o.id))) {
-        beep(ctxRef.current)
+        playEvent(sndRef.current, 'new')
         try { navigator.vibrate?.(400) } catch { /* 진동 없어도 됨 */ }
       }
       seen.current = ids
+      ordersRef.current = list
       setOrders(list)
     }, e => { console.error(e); setErr(e.code === 'permission-denied' ? '주문을 읽을 권한이 없어요. Firestore 규칙에 orders 를 추가해 주세요.' : '주문을 불러오지 못했어요.') })
   }, [])
@@ -82,17 +77,29 @@ function Orders() {
   const fresh = (orders||[]).filter(o => o.status === 'new').length
   useEffect(() => { document.title = fresh ? `(${fresh}) 새 주문 · 홍콩반점` : '홍콩반점 중앙대점' ; return () => { document.title = '홍콩반점 중앙대점' } }, [fresh])
 
+  // 접수 안 한 주문이 정한 시간(분) 넘게 남아 있으면 경고 소리를 몇 초마다
+  useEffect(() => {
+    if (!sound) return
+    const id = setInterval(() => {
+      const s = sndRef.current, now = Date.now()
+      const late = ordersRef.current.some(o => o.status === 'new' && toDate(o.createdAt) && now - toDate(o.createdAt).getTime() > s.remindMin * 60000)
+      if (late && now - lastRemind.current > s.remindEvery * 1000) { lastRemind.current = now; playEvent(s, 'remind') }
+    }, 5000)
+    return () => clearInterval(id)
+  }, [sound])
+
   function enableSound() {
     try {
-      const AC = window.AudioContext || window.webkitAudioContext
-      ctxRef.current = ctxRef.current || new AC()
-      ctxRef.current.resume(); beep(ctxRef.current); setSound(true)
+      if (!unlockAudio()) throw new Error('no audio')
+      setSound(true); setTimeout(() => playEvent(sndRef.current, 'new'), 50)
     } catch { alert('이 기기에서는 소리를 낼 수 없어요') }
   }
   async function setStatus(o, status) {
     if (status === 'canceled' && !window.confirm(`주문 ${o.code}을(를) 취소할까요? 손님께는 전화로 알려 주세요.`)) return
-    try { await updateDoc(doc(db,'orders',o.id), { status, [`${status}At`]: serverTimestamp() }) }
-    catch(e) { console.error(e); alert('바꾸지 못했어요. 다시 시도해 주세요.') }
+    try {
+      await updateDoc(doc(db,'orders',o.id), { status, [`${status}At`]: serverTimestamp() })
+      playEvent(sndRef.current, status === 'accepted' ? 'accept' : status === 'done' ? 'done' : status === 'canceled' ? 'cancel' : 'none')
+    } catch(e) { console.error(e); alert('바꾸지 못했어요. 다시 시도해 주세요.') }
   }
 
   if (err) return <div style={{color:T.red, fontSize:14}}>{err}</div>
@@ -103,9 +110,11 @@ function Orders() {
   return (
     <div>
       <div style={{display:'flex', alignItems:'center', gap:10, flexWrap:'wrap', fontSize:13, color:T.sub, marginBottom:10}}>
-        {!sound ? <Btn kind="primary" onClick={enableSound}>새 주문 소리 켜기</Btn> : <span style={{color:T.green, fontWeight:700}}>새 주문이 오면 소리가 나요</span>}
+        {!sound ? <Btn kind="primary" onClick={enableSound}>주문 소리 켜기</Btn> : <span style={{color:T.green, fontWeight:700}}>소리 켜짐</span>}
+        <Btn onClick={()=>setShowSnd(v=>!v)}>{showSnd ? '소리 설정 닫기' : '소리 설정'}</Btn>
         <span>이 화면을 포스에 띄워 두면 손님이 QR로 주문할 때 바로 떠요. 접수하고 배달은 기사님을 불러 주세요.</span>
       </div>
+      {showSnd && <SoundSettings snd={snd} setSnd={setSnd} ready={sound} onUnlock={enableSound}/>}
       {!active.length && <div style={{padding:'24px 0', color:T.sub, borderTop:`1px solid ${T.rule}`}}>지금 들어온 주문이 없어요</div>}
       {active.map(o => <OrderCard key={o.id} o={o} onStatus={setStatus}/>)}
       {old.length > 0 && (
@@ -116,6 +125,57 @@ function Orders() {
           {showOld && old.map(o => <OrderCard key={o.id} o={o} onStatus={setStatus}/>)}
         </div>
       )}
+    </div>
+  )
+}
+
+// 소리 설정: 음량, 상황마다 소리 고르기(들어보기), 경고 간격, 내 소리 파일
+function SoundSettings({ snd, setSnd, ready, onUnlock }) {
+  const set = p => setSnd(s => ({ ...s, ...p }))
+  const test = ev => { if (!ready) onUnlock(); setTimeout(() => playEvent(snd, ev), 80) }
+  function pickFile(ev, file) {
+    if (!file) return
+    if (file.size > 400 * 1024) return alert('소리 파일은 400KB 이하로 골라 주세요 (짧은 mp3·wav)')
+    const r = new FileReader()
+    r.onload = () => setSnd(s => ({ ...s, files:{ ...s.files, [ev]: r.result }, sounds:{ ...s.sounds, [ev]:'custom' } }))
+    r.readAsDataURL(file)
+  }
+  const sel = { padding:'6px 8px', border:`1px solid ${T.rule}`, borderRadius:4, fontFamily:'inherit', fontSize:13, background:'#FFFFFF' }
+  return (
+    <div style={{background:T.chip, borderRadius:6, padding:'12px 14px', marginBottom:12, fontSize:13}}>
+      <div style={{display:'flex', alignItems:'center', gap:10, flexWrap:'wrap'}}>
+        <b style={{minWidth:70}}>음량</b>
+        <input type="range" min="0" max="1" step="0.05" value={snd.volume} onChange={e=>set({ volume:+e.target.value })} aria-label="음량" style={{width:200}}/>
+        <span style={{...num, minWidth:40}}>{Math.round(snd.volume*100)}%</span>
+        <span style={{color:T.sub}}>그래도 작으면 포스 컴퓨터(스피커) 음량도 올려 주세요</span>
+      </div>
+      <div style={{borderTop:`1px solid ${T.rule}`, marginTop:10}}>
+        {EVENTS.map(ev => (
+          <div key={ev.id} style={{display:'flex', alignItems:'center', gap:8, flexWrap:'wrap', padding:'7px 0', borderBottom:`1px solid ${T.soft}`}}>
+            <span style={{minWidth:210}}>{ev.label}</span>
+            <select value={snd.sounds[ev.id]} onChange={e=>set({ sounds:{ ...snd.sounds, [ev.id]: e.target.value } })} aria-label={`${ev.label} 소리`} style={sel}>
+              {Object.entries(PRESETS).filter(([k]) => k !== 'custom' || snd.files?.[ev.id]).map(([k,p]) => <option key={k} value={k}>{p.label}</option>)}
+            </select>
+            <Btn small onClick={()=>test(ev.id)}>들어보기</Btn>
+            <label style={{color:T.blue, cursor:'pointer', fontSize:12}}>
+              내 소리 파일 고르기
+              <input type="file" accept="audio/*" style={{display:'none'}} onChange={e=>{ pickFile(ev.id, e.target.files?.[0]); e.target.value='' }}/>
+            </label>
+          </div>
+        ))}
+      </div>
+      <div style={{display:'flex', alignItems:'center', gap:8, flexWrap:'wrap', marginTop:10}}>
+        <span>접수 안 한 주문이</span>
+        <select value={snd.remindMin} onChange={e=>set({ remindMin:+e.target.value })} aria-label="경고까지 시간" style={sel}>
+          {[1,2,3,5,10].map(m => <option key={m} value={m}>{m}분</option>)}
+        </select>
+        <span>넘게 남아 있으면</span>
+        <select value={snd.remindEvery} onChange={e=>set({ remindEvery:+e.target.value })} aria-label="경고 간격" style={sel}>
+          {[15,30,60,120].map(s => <option key={s} value={s}>{s < 60 ? `${s}초` : `${s/60}분`}</option>)}
+        </select>
+        <span>마다 경고 소리</span>
+      </div>
+      <div style={{color:T.sub, fontSize:12, marginTop:8}}>소리 설정은 이 기기에만 저장돼요 (포스와 사장님 폰을 따로 정할 수 있어요). 화면을 새로 열면 '주문 소리 켜기'를 한 번 눌러 주세요.</div>
     </div>
   )
 }
