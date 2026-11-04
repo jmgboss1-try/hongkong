@@ -6,6 +6,7 @@ import { useAuth, GradeBadge } from '../AuthContext'
 import { useState } from 'react'
 import { PhoneFileReceiveModal } from './PhoneFileTransfer'
 import NavIcon from './NavIcon'
+import OrderAlert from './OrderAlert'
 import { NAV_GROUPS, navGroupOf } from '../lib/nav'
 
 // 저장된 순서대로 메뉴 정렬 — 저장 후 새로 생긴 메뉴는 기본 순서대로 뒤에 붙음
@@ -277,6 +278,8 @@ export default function Layout({ children }) {
           {tip.label}
         </div>
       )}
+
+      {(isOwner || isStore) && <OrderAlert/>}
 
       {fileOpen && <PhoneFileReceiveModal onClose={()=>setFileOpen(false)}/>}
 

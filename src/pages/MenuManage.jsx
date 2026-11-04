@@ -3,7 +3,7 @@ import { db } from '../firebase'
 import { doc, getDoc, setDoc, collection, query, orderBy, limit, onSnapshot, updateDoc, serverTimestamp } from 'firebase/firestore'
 import { MODES, CATS, DEFAULT_ITEMS, DEFAULT_SETTINGS, won } from '../lib/menuData'
 import { toDate, hm } from '../lib/attendance'
-import { EVENTS, PRESETS, loadSound, saveSound, unlockAudio, playEvent } from '../lib/orderSounds'
+import { EVENTS, PRESETS, loadSound, saveSound, unlockAudio, audioReady, playEvent } from '../lib/orderSounds'
 
 // 사장님·매장 계정: QR 주문 받기 + 메뉴(가격·옵션·품절) 고치기
 // 주문은 orders 를 실시간으로 보고(onSnapshot) 새 주문이 오면 소리를 냄 — 포스에 이 화면을 띄워 두면 됨
@@ -47,7 +47,7 @@ export default function MenuManage() {
 function Orders() {
   const [orders, setOrders] = useState(null)
   const [err, setErr] = useState('')
-  const [sound, setSound] = useState(false)          // 이 기기에서 소리 켰는지
+  const [sound, setSound] = useState(audioReady)     // 이 기기에서 소리 켰는지 (다른 화면에서 이미 눌렀으면 켜져 있음)
   const [snd, setSnd] = useState(loadSound)          // 소리 설정 (기기마다)
   const [showSnd, setShowSnd] = useState(false)
   const [showOld, setShowOld] = useState(false)
