@@ -19,6 +19,48 @@ export const DEFAULT_SETTINGS = {
   deliveryFee: 1900,
   open: true,             // 주문 받기 (끄면 메뉴만 보이고 전화 주문 안내)
   notice: '',
+  cats: CATS,             // 메뉴 분류 (순서대로 손님 화면에 나옴, 메뉴 고치기에서 추가·이름 바꾸기·순서·삭제)
+  hoursOn: false,         // 켜면 아래 영업시간·브레이크에만 주문을 받음
+  lastOrder: 30,          // 마감 몇 분 전까지 주문 받기
+  // 요일별 (0=일 ~ 6=토) 영업시간과 브레이크. closed 면 그날 쉼
+  hours: {
+    0: { closed:true, open:'10:30', close:'21:30', bStart:'', bEnd:'' },
+    1: { open:'10:30', close:'21:30', bStart:'', bEnd:'' },
+    2: { open:'10:30', close:'21:30', bStart:'', bEnd:'' },
+    3: { open:'10:30', close:'21:30', bStart:'', bEnd:'' },
+    4: { open:'10:30', close:'21:30', bStart:'', bEnd:'' },
+    5: { open:'10:30', close:'21:30', bStart:'', bEnd:'' },
+    6: { open:'10:30', close:'21:30', bStart:'14:30', bEnd:'16:30' },
+  },
+}
+
+export const DAYS = ['일','월','화','수','목','금','토']
+const toMin = t => { if (!t) return null; const [h,m] = String(t).split(':').map(Number); return h*60 + (m||0) }
+const pad2 = n => String(n).padStart(2,'0')
+const fromMin = m => `${pad2(Math.floor(m/60) % 24)}:${pad2(m % 60)}`
+
+// 분류 순서: 설정에 있는 순서 + 설정에 없는데 메뉴가 쓰는 분류는 뒤에
+export function catsOf(settings, items) {
+  const base = settings?.cats?.length ? settings.cats : CATS
+  return [...base, ...[...new Set((items||[]).map(i=>i.cat))].filter(c => c && !base.includes(c))]
+}
+
+// 지금 주문을 받을 수 있는지 (영업시간·브레이크·주문 마감)
+//  → { ok, text: 손님에게 보여줄 말, today: '오늘 10:30~21:30 · 브레이크 14:30~16:30' }
+export function openState(settings, now = new Date()) {
+  const s = { ...DEFAULT_SETTINGS, ...(settings||{}) }
+  const day = { ...(DEFAULT_SETTINGS.hours[now.getDay()]||{}), ...(s.hours?.[now.getDay()]||{}) }
+  const O = toMin(day.open), C = toMin(day.close), B0 = toMin(day.bStart), B1 = toMin(day.bEnd)
+  const today = day.closed ? '오늘은 쉬는 날' : `오늘 ${day.open}~${day.close}${B0 != null && B1 != null ? ` · 브레이크 ${day.bStart}~${day.bEnd}` : ''}`
+  if (s.open === false) return { ok:false, text:'지금은 QR 주문을 받지 않아요. 전화로 주문해 주세요', today }
+  if (!s.hoursOn) return { ok:true, text:'', today: '' }
+  const n = now.getHours()*60 + now.getMinutes()
+  const last = C != null ? C - (+s.lastOrder || 0) : null
+  if (day.closed) return { ok:false, text:'오늘은 쉬는 날이에요', today }
+  if (O != null && n < O) return { ok:false, text:`아직 영업 전이에요 · ${day.open}부터 주문할 수 있어요`, today }
+  if (last != null && n >= last) return { ok:false, text:`오늘 주문은 마감됐어요${+s.lastOrder ? ` (마감 ${s.lastOrder}분 전까지 받아요)` : ''}`, today }
+  if (B0 != null && B1 != null && n >= B0 && n < B1) return { ok:false, text:`지금은 브레이크 시간이에요 · ${day.bEnd}부터 다시 주문할 수 있어요`, today }
+  return { ok:true, text:'', today, until: last != null ? fromMin(last) : null }
 }
 
 // [이름, 가격, 분류] — 포스 화면 사진대로 (2026-11)

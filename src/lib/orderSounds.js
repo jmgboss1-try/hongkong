@@ -53,6 +53,24 @@ export function unlockAudio() {
 }
 export const audioReady = () => !!ctx && ctx.state === 'running'
 
+// 메뉴·주문 화면의 'QR 주문' 목록이 보이는지 (보이면 위쪽 알림 띠는 안 띄움)
+let ordersVisible = false
+export const isOrdersVisible = () => ordersVisible
+export function setOrdersVisible(v) { ordersVisible = v; try { window.dispatchEvent(new Event('ordersview')) } catch { /* 없어도 됨 */ } }
+
+// 윈도우·폰 알림 (브라우저 탭을 안 보고 있을 때도 알 수 있게). 처음 누를 때 허락을 받음
+export function askNotify() {
+  try { if ('Notification' in window && Notification.permission === 'default') Notification.requestPermission() } catch { /* 지원 안 하면 됨 */ }
+}
+export function notify(title, body) {
+  try {
+    if (!('Notification' in window) || Notification.permission !== 'granted') return false
+    const n = new Notification(title, { body, tag:'qr-order', renotify:true, requireInteraction:true })
+    n.onclick = () => { window.focus(); n.close() }
+    return true
+  } catch { return false }
+}
+
 // 이벤트 소리 내기 (설정에 따라)
 export function playEvent(settings, event) {
   const s = settings || DEFAULT_SOUND
@@ -69,6 +87,7 @@ export function playEvent(settings, event) {
 export function playPreset(key, volume = 0.8) {
   const p = PRESETS[key]
   if (!p || !p.notes.length || !ctx) return
+  if (ctx.state !== 'running') { try { ctx.resume() } catch { /* 다음에 다시 */ } }
   const t0 = ctx.currentTime + 0.02
   // 모든 소리를 같은 크기로: 강하게 눌러 주는 압축기(리미터) 뒤에서 음량만큼 키움
   // (부드러운 sine·triangle 소리는 네모파를 살짝 섞어 작게 들리지 않게)

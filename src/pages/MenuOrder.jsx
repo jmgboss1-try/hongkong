@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { db } from '../firebase'
 import { doc, getDoc, collection, addDoc, serverTimestamp, onSnapshot } from 'firebase/firestore'
-import { MODES, CATS, DEFAULT_ITEMS, DEFAULT_SETTINGS, won, unitPrice, totals } from '../lib/menuData'
+import { MODES, DEFAULT_ITEMS, DEFAULT_SETTINGS, won, unitPrice, totals, catsOf, openState } from '../lib/menuData'
 
 // 손님용 메뉴·주문 화면 (명함 QR → /menu, 로그인 없음)
 // 1) 포장 / 배달 고르기 → 2) 메뉴 담기 (옵션) → 3) 연락처·주소 넣고 주문 → 매장 포스(메뉴·주문)에 바로 뜸
@@ -41,6 +41,8 @@ export default function MenuOrder() {
   const [sending, setSending] = useState(false)
   const [done, setDone] = useState(null)       // { id, code, total, pay, mode, at }
   const [mine] = useState(loadMine)             // 예전에 넣은 주문 (진행 중이면 위에 띠로)
+  const [now, setNow] = useState(() => new Date())  // 영업시간 판단 (1분마다 다시)
+  useEffect(() => { const id = setInterval(() => setNow(new Date()), 60000); return () => clearInterval(id) }, [])
 
   useEffect(() => {
     getDoc(doc(db,'menu','public'))
@@ -53,7 +55,8 @@ export default function MenuOrder() {
   }, [])
 
   const list = useMemo(() => (items||[]).filter(i => i.mode === mode && !i.hidden), [items, mode])
-  const cats = CATS.filter(c => list.some(i => i.cat === c))
+  const cats = catsOf(settings, items).filter(c => list.some(i => i.cat === c))
+  const st = openState(settings, now)
   const t = totals(cart, mode, settings)
   const count = cart.reduce((a,l)=>a+l.qty,0)
 
@@ -80,6 +83,8 @@ export default function MenuOrder() {
 
   async function submit() {
     const phone = form.phone.replace(/[^0-9]/g,'')
+    const live = openState(settings, new Date())
+    if (!live.ok) return alert(live.text)
     if (phone.length < 10) return alert('연락받을 휴대폰 번호를 넣어 주세요')
     if (mode === 'delivery' && form.address.trim().length < 5) return alert('배달 받을 주소를 자세히 넣어 주세요')
     if (t.short > 0) return alert(`배달은 ${won(settings.minDelivery)} 이상부터 돼요. ${won(t.short)} 더 담아 주세요`)
@@ -133,6 +138,10 @@ export default function MenuOrder() {
             내 주문 {mine.code} 진행 상황 보기 <span style={{color:T.red}}>›</span>
           </button>
         )}
+        {!st.ok && <div style={{padding:'11px 16px', fontSize:15, fontWeight:700, background:'#C3261C14', color:T.red, borderBottom:`1px solid ${T.rule}`}}>
+          {st.text}{st.today && <span style={{display:'block', fontSize:13, fontWeight:500, color:T.sub, marginTop:2}}>{st.today}</span>}
+        </div>}
+        {st.ok && st.today && <div style={{padding:'8px 16px', fontSize:13, color:T.sub, borderBottom:`1px solid ${T.rule}`}}>{st.today}{st.until ? ` · 주문은 ${st.until}까지` : ''}</div>}
         {settings.notice && <div style={{padding:'10px 16px', fontSize:14, background:'#FFF4E5', color:T.amber, borderBottom:`1px solid ${T.rule}`}}>{settings.notice}</div>}
         {children}
       </div>
@@ -162,7 +171,7 @@ export default function MenuOrder() {
     <OrderStatus info={done} settings={settings} onBack={()=>{ setStep('menu'); setDone(null) }}/>
   )
 
-  const canOrder = settings.open !== false
+  const canOrder = st.ok
 
   // 2-2) 주문서
   if (step === 'checkout') return page(
@@ -227,7 +236,7 @@ export default function MenuOrder() {
       <div style={{marginTop:18}}>
         {canOrder
           ? <Btn kind="primary" full onClick={submit} disabled={sending || !cart.length || t.short > 0}>{sending ? '보내는 중...' : `${won(t.total)} 주문하기`}</Btn>
-          : <a href={telHref(settings.phone)} style={{display:'block', textAlign:'center', background:T.red, color:'#FFFFFF', borderRadius:6, padding:14, fontWeight:800, textDecoration:'none'}}>지금은 전화로 주문해 주세요 {settings.phone}</a>}
+          : <a href={telHref(settings.phone)} style={{display:'block', textAlign:'center', background:T.red, color:'#FFFFFF', borderRadius:6, padding:14, fontWeight:800, textDecoration:'none'}}>{st.text ? `${st.text.split(' · ')[0]} · 전화 ${settings.phone}` : `지금은 전화로 주문해 주세요 ${settings.phone}`}</a>}
       </div>
     </div>
   )

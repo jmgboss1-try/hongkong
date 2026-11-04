@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
 import { db } from '../firebase'
 import { doc, getDoc, setDoc, collection, query, orderBy, limit, onSnapshot, updateDoc, serverTimestamp } from 'firebase/firestore'
-import { MODES, CATS, DEFAULT_ITEMS, DEFAULT_SETTINGS, won } from '../lib/menuData'
+import { MODES, DEFAULT_ITEMS, DEFAULT_SETTINGS, DAYS, won, catsOf, openState } from '../lib/menuData'
+import TimePick from '../components/TimePick'
 import { toDate, hm } from '../lib/attendance'
-import { EVENTS, PRESETS, loadSound, saveSound, unlockAudio, audioReady, playEvent } from '../lib/orderSounds'
+import { EVENTS, PRESETS, loadSound, saveSound, unlockAudio, audioReady, playEvent, setOrdersVisible, askNotify } from '../lib/orderSounds'
 
 // 사장님·매장 계정: QR 주문 받기 + 메뉴(가격·옵션·품절) 고치기
 // 주문은 orders 를 실시간으로 보고(onSnapshot) 새 주문이 오면 소리를 냄 — 포스에 이 화면을 띄워 두면 됨
@@ -52,45 +53,25 @@ function Orders() {
   const [showSnd, setShowSnd] = useState(false)
   const [showOld, setShowOld] = useState(false)
   const sndRef = useRef(snd)
-  const seen = useRef(null)
-  const ordersRef = useRef([])
-  const lastRemind = useRef(0)
   useEffect(() => { sndRef.current = snd; saveSound(snd) }, [snd])
 
   useEffect(() => {
     const q = query(collection(db,'orders'), orderBy('createdAt','desc'), limit(80))
     return onSnapshot(q, s => {
       const list = s.docs.map(d => ({ id:d.id, ...d.data() }))
-      // 처음 불러온 것 말고 새로 들어온 '새 주문'이 있으면 소리
-      const ids = new Set(list.map(o=>o.id))
-      if (seen.current && list.some(o => o.status === 'new' && !seen.current.has(o.id))) {
-        playEvent(sndRef.current, 'new')
-        try { navigator.vibrate?.(400) } catch { /* 진동 없어도 됨 */ }
-      }
-      seen.current = ids
-      ordersRef.current = list
+      // 새 주문·경고 소리는 앱 전체에서 OrderAlert 가 냄 (이 화면이 아닌 탭·메뉴에 있어도 빠지지 않게)
       setOrders(list)
     }, e => { console.error(e); setErr(e.code === 'permission-denied' ? '주문을 읽을 권한이 없어요. Firestore 규칙에 orders 를 추가해 주세요.' : '주문을 불러오지 못했어요.') })
   }, [])
 
-  // 새 주문이 있으면 탭 제목에 표시
-  const fresh = (orders||[]).filter(o => o.status === 'new').length
-  useEffect(() => { document.title = fresh ? `(${fresh}) 새 주문 · 홍콩반점` : '홍콩반점 중앙대점' ; return () => { document.title = '홍콩반점 중앙대점' } }, [fresh])
 
-  // 접수 안 한 주문이 정한 시간(분) 넘게 남아 있으면 경고 소리를 몇 초마다
-  useEffect(() => {
-    if (!sound) return
-    const id = setInterval(() => {
-      const s = sndRef.current, now = Date.now()
-      const late = ordersRef.current.some(o => o.status === 'new' && toDate(o.createdAt) && now - toDate(o.createdAt).getTime() > s.remindMin * 60000)
-      if (late && now - lastRemind.current > s.remindEvery * 1000) { lastRemind.current = now; playEvent(s, 'remind') }
-    }, 5000)
-    return () => clearInterval(id)
-  }, [sound])
+  // 이 목록이 보이는 동안은 위쪽 알림 띠를 안 띄움
+  useEffect(() => { setOrdersVisible(true); return () => setOrdersVisible(false) }, [])
 
   function enableSound() {
     try {
       if (!unlockAudio()) throw new Error('no audio')
+      askNotify()
       setSound(true); setTimeout(() => playEvent(sndRef.current, 'new'), 50)
     } catch { alert('이 기기에서는 소리를 낼 수 없어요') }
   }
@@ -299,12 +280,13 @@ function MenuEditor({ tab }) {
       </label>
     )
     return (
-      <div style={{maxWidth:560}}>
+      <div style={{maxWidth:860}}>
         {saveBar}
         <label style={{display:'flex', alignItems:'center', gap:10, fontSize:14, padding:'8px 0', borderBottom:`1px solid ${T.soft}`}}>
           <input type="checkbox" checked={settings.open !== false} onChange={e=>set('open', e.target.checked)}/>
           <span><b>QR 주문 받기</b> <span style={{color:T.sub}}>(끄면 손님 화면에 메뉴만 보이고 전화 주문 안내가 나와요)</span></span>
         </label>
+        <Hours settings={settings} set={set}/>
         {money('minDelivery','배달 최소 주문 금액')}
         {money('freeDelivery','무료배달 기준 금액')}
         {money('deliveryFee','배달비 (기준 미만일 때)')}
@@ -321,10 +303,53 @@ function MenuEditor({ tab }) {
   }
 
   const list = items.filter(i => i.mode === mode)
-  const cats = [...CATS, ...[...new Set(list.map(i=>i.cat))].filter(c => !CATS.includes(c))]
+  const allCats = catsOf(settings, items)
+  const cats = allCats
+  // 분류 고치기: 순서는 settings.cats, 이름을 바꾸면 그 분류 메뉴들도 같이 바뀜
+  const setCats = next => { setSettings(s => ({ ...s, cats: next })); setSaved(false) }
+  function addCat() {
+    const n = window.prompt('새 분류 이름 (예: 세트, 계절 메뉴)')?.trim()
+    if (!n) return
+    if (allCats.includes(n)) return alert('이미 있는 분류예요')
+    setCats([...allCats, n])
+  }
+  function renameCat(c) {
+    const n = window.prompt(`'${c}' 분류의 새 이름`, c)?.trim()
+    if (!n || n === c) return
+    if (allCats.includes(n)) return alert('이미 있는 분류예요. 합치려면 메뉴의 분류를 하나씩 바꿔 주세요')
+    setCats(allCats.map(x => x === c ? n : x))
+    change(items.map(i => i.cat === c ? { ...i, cat:n } : i))
+  }
+  function removeCat(c) {
+    const used = items.filter(i => i.cat === c).length
+    if (used) return alert(`'${c}' 분류에 메뉴가 ${used}개 있어요. 메뉴를 다른 분류로 옮기거나 지운 뒤에 분류를 지워 주세요`)
+    if (!window.confirm(`'${c}' 분류를 지울까요?`)) return
+    setCats(allCats.filter(x => x !== c))
+  }
+  const moveCat = (c, d) => { const a = [...allCats], i = a.indexOf(c), j = i + d; if (j < 0 || j >= a.length) return; [a[i], a[j]] = [a[j], a[i]]; setCats(a) }
   return (
     <div>
       {saveBar}
+      <div style={{background:T.chip, borderRadius:6, padding:'10px 12px', marginBottom:12}}>
+        <div style={{display:'flex', alignItems:'baseline', gap:8, flexWrap:'wrap', marginBottom:6}}>
+          <b style={{fontSize:14}}>분류</b>
+          <span style={{fontSize:12, color:T.sub}}>손님 화면에 이 순서로 나와요 (포장·배달 같이 씀). 이름 바꾸기·순서·삭제 후 '저장'</span>
+          <span style={{flex:1}}/>
+          <Btn small kind="blue" onClick={addCat}>+ 분류 추가</Btn>
+        </div>
+        <div style={{display:'flex', flexWrap:'wrap', gap:6}}>
+          {allCats.map((c, i) => (
+            <span key={c} style={{display:'inline-flex', alignItems:'center', gap:2, background:'#FFFFFF', border:`1px solid ${T.rule}`, borderRadius:4, padding:'2px 4px 2px 8px', fontSize:13}}>
+              <b style={{marginRight:4}}>{c}</b>
+              <span style={{fontSize:11, color:T.sub, marginRight:4}}>{items.filter(x=>x.cat===c).length}</span>
+              <button type="button" onClick={()=>moveCat(c,-1)} disabled={i===0} aria-label={`${c} 앞으로`} style={catBtn}>◀</button>
+              <button type="button" onClick={()=>moveCat(c,1)} disabled={i===allCats.length-1} aria-label={`${c} 뒤로`} style={catBtn}>▶</button>
+              <button type="button" onClick={()=>renameCat(c)} style={{...catBtn, color:T.blue}}>이름</button>
+              <button type="button" onClick={()=>removeCat(c)} style={{...catBtn, color:T.red}}>삭제</button>
+            </span>
+          ))}
+        </div>
+      </div>
       <div style={{display:'flex', gap:8, alignItems:'center', flexWrap:'wrap', marginBottom:6}}>
         {Object.entries(MODES).map(([k,l]) => (
           <button key={k} type="button" onClick={()=>{ setMode(k); setEdit(null) }}
@@ -332,13 +357,13 @@ function MenuEditor({ tab }) {
               border:`1px solid ${mode===k ? T.ink : T.rule}`, background: mode===k ? T.ink : '#FFFFFF', color: mode===k ? '#FFFFFF' : T.ink}}>{l} 메뉴 ({items.filter(i=>i.mode===k).length})</button>
         ))}
         <span style={{flex:1}}/>
-        <Btn kind="blue" onClick={()=>setEdit({ id:`${mode[0]}${Date.now().toString(36)}`, mode, cat:'짬뽕', name:'', price:0, best:false, soldOut:false, hidden:false, desc:'', options:[] })}>+ {MODES[mode]} 메뉴 추가</Btn>
+        <Btn kind="blue" onClick={()=>setEdit({ id:`${mode[0]}${Date.now().toString(36)}`, mode, cat:allCats[0]||'기타', name:'', price:0, best:false, soldOut:false, hidden:false, desc:'', options:[] })}>+ {MODES[mode]} 메뉴 추가</Btn>
       </div>
-      {edit && !items.some(i=>i.id===edit.id) && <ItemForm edit={edit} setEdit={setEdit} onSave={saveEdit}/>}
+      {edit && !items.some(i=>i.id===edit.id) && <ItemForm edit={edit} setEdit={setEdit} onSave={saveEdit} cats={allCats}/>}
       {cats.filter(c => list.some(i=>i.cat===c)).map(c => (
         <section key={c} style={{marginTop:14}}>
           <h2 style={{fontSize:15, fontWeight:800, margin:0, paddingBottom:4, borderBottom:`2px solid ${T.ink}`, fontFamily:'inherit'}}>{c}</h2>
-          {list.filter(i=>i.cat===c).map(i => edit?.id === i.id ? <ItemForm key={i.id} edit={edit} setEdit={setEdit} onSave={saveEdit}/> : (
+          {list.filter(i=>i.cat===c).map(i => edit?.id === i.id ? <ItemForm key={i.id} edit={edit} setEdit={setEdit} onSave={saveEdit} cats={allCats}/> : (
             <div key={i.id} style={{display:'flex', alignItems:'center', gap:10, padding:'8px 0', borderBottom:`1px solid ${T.soft}`, fontSize:14, flexWrap:'wrap', opacity: i.hidden ? 0.5 : 1}}>
               <span style={{flex:1, minWidth:160}}>
                 <b>{i.name}</b>
@@ -362,7 +387,54 @@ function MenuEditor({ tab }) {
 }
 
 // 메뉴 하나 고치기: 이름·가격·분류·설명·추천·숨김 + 옵션 묶음
-function ItemForm({ edit, setEdit, onSave }) {
+// 영업시간·브레이크: 켜면 그 시간에만 손님 주문을 받음 (요일마다)
+function Hours({ settings, set }) {
+  const st = openState(settings)
+  const day = (w, p) => set('hours', { ...settings.hours, [w]: { ...(settings.hours?.[w]||{}), ...p } })
+  return (
+    <div style={{padding:'10px 0', borderBottom:`1px solid ${T.soft}`}}>
+      <label style={{display:'flex', alignItems:'center', gap:10, fontSize:14}}>
+        <input type="checkbox" checked={!!settings.hoursOn} onChange={e=>set('hoursOn', e.target.checked)}/>
+        <span><b>영업시간에만 주문 받기</b> <span style={{color:T.sub}}>(쉬는 날·영업 전·브레이크·마감 뒤에는 손님 화면에 안내가 나오고 주문 버튼이 막혀요)</span></span>
+      </label>
+      <div style={{fontSize:13, margin:'6px 0 4px 24px', color: st.ok ? T.green : T.red, fontWeight:700}}>지금: {st.ok ? '주문 받는 중' : st.text}</div>
+      {settings.hoursOn && (
+        <div style={{marginLeft:24}}>
+          <div style={{display:'flex', alignItems:'center', gap:8, fontSize:13, margin:'6px 0'}}>
+            마감
+            <select value={settings.lastOrder ?? 30} onChange={e=>set('lastOrder', +e.target.value)} aria-label="주문 마감" style={{padding:'4px 6px', border:`1px solid ${T.rule}`, borderRadius:4, fontFamily:'inherit'}}>
+              {[0,10,20,30,40,60].map(m => <option key={m} value={m}>{m}분 전</option>)}
+            </select>
+            까지 주문 받기
+          </div>
+          {[1,2,3,4,5,6,0].map(w => {
+            const d = { ...(DEFAULT_SETTINGS.hours[w]||{}), ...(settings.hours?.[w]||{}) }
+            return (
+              <div key={w} style={{display:'flex', alignItems:'center', gap:8, flexWrap:'wrap', padding:'5px 0', fontSize:13, borderTop:`1px solid ${T.soft}`}}>
+                <b style={{width:18, color: w===0 ? T.red : w===6 ? T.blue : T.ink}}>{DAYS[w]}</b>
+                <label style={{display:'flex', alignItems:'center', gap:4, width:56}}><input type="checkbox" checked={!!d.closed} onChange={e=>day(w,{ closed:e.target.checked })}/> 쉼</label>
+                {!d.closed && <>
+                  <TimePick value={d.open} onChange={v=>day(w,{ open:v })} label={`${DAYS[w]} 영업 시작`} width={120}/>
+                  <span>~</span>
+                  <TimePick value={d.close} onChange={v=>day(w,{ close:v })} label={`${DAYS[w]} 영업 끝`} width={120}/>
+                  <span style={{color:T.sub, marginLeft:6}}>브레이크</span>
+                  <TimePick value={d.bStart} onChange={v=>day(w,{ bStart:v })} label={`${DAYS[w]} 브레이크 시작`} width={150} clearable/>
+                  <span>~</span>
+                  <TimePick value={d.bEnd} onChange={v=>day(w,{ bEnd:v })} label={`${DAYS[w]} 브레이크 끝`} width={150} clearable/>
+                </>}
+              </div>
+            )
+          })}
+          <div style={{fontSize:12, color:T.sub, marginTop:4}}>브레이크가 없는 날은 비워 두세요. 갑자기 쉬는 날은 위의 'QR 주문 받기'를 끄면 돼요.</div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+const catBtn = { background:'none', border:'none', cursor:'pointer', fontSize:11, padding:'2px 3px', fontFamily:'inherit', color:'#6E6A63' }
+
+function ItemForm({ edit, setEdit, onSave, cats }) {
   const set = (k, v) => setEdit(e => ({ ...e, [k]: v }))
   const setGroup = (gi, p) => setEdit(e => ({ ...e, options: e.options.map((g,i) => i===gi ? { ...g, ...p } : g) }))
   const inp = { padding:'6px 8px', border:`1px solid ${T.rule}`, borderRadius:4, fontFamily:'inherit', fontSize:14, background:'#FFFFFF' }
@@ -373,7 +445,7 @@ function ItemForm({ edit, setEdit, onSave }) {
         <input inputMode="numeric" value={(+edit.price||0).toLocaleString('ko-KR')} onChange={e=>set('price', +e.target.value.replace(/[^0-9]/g,'')||0)} aria-label="가격" style={{...inp, width:110, textAlign:'right', ...num}}/>
         <span style={{color:T.sub, fontSize:13}}>원</span>
         <select value={edit.cat} onChange={e=>set('cat', e.target.value)} aria-label="분류" style={inp}>
-          {CATS.map(c => <option key={c} value={c}>{c}</option>)}
+          {(cats.includes(edit.cat) ? cats : [...cats, edit.cat]).map(c => <option key={c} value={c}>{c}</option>)}
         </select>
         <label style={{fontSize:13, display:'flex', gap:4, alignItems:'center'}}><input type="checkbox" checked={!!edit.best} onChange={e=>set('best', e.target.checked)}/> 추천</label>
         <label style={{fontSize:13, display:'flex', gap:4, alignItems:'center'}}><input type="checkbox" checked={!!edit.hidden} onChange={e=>set('hidden', e.target.checked)}/> 손님 화면에서 숨김</label>
