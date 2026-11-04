@@ -1,12 +1,19 @@
 import { useEffect, useMemo, useState } from 'react'
 import { db } from '../firebase'
-import { doc, getDoc, collection, addDoc, serverTimestamp } from 'firebase/firestore'
+import { doc, getDoc, collection, addDoc, serverTimestamp, onSnapshot } from 'firebase/firestore'
 import { MODES, CATS, DEFAULT_ITEMS, DEFAULT_SETTINGS, won, unitPrice, totals } from '../lib/menuData'
 
 // 손님용 메뉴·주문 화면 (명함 QR → /menu, 로그인 없음)
 // 1) 포장 / 배달 고르기 → 2) 메뉴 담기 (옵션) → 3) 연락처·주소 넣고 주문 → 매장 포스(메뉴·주문)에 바로 뜸
 const T = { ink:'#1D1B18', sub:'#6E6A63', faint:'#A8A39A', rule:'#DCD7CE', soft:'#ECE8E1', paper:'#FAF9F6', chip:'#F3F1EC', red:'#C3261C', deep:'#990000', green:'#2E7D45', amber:'#B45309' }
 const num = { fontVariantNumeric:'tabular-nums' }
+// 이 폰에서 넣은 마지막 주문 (다시 열어도 진행 상황을 볼 수 있게, 3시간 동안)
+const MY_KEY = 'myOrder'
+const loadMine = () => { try { const o = JSON.parse(localStorage.getItem(MY_KEY) || 'null'); return o && Date.now() - o.at < 3*3600*1000 ? o : null } catch { return null } }
+const saveMine = o => { const v = { ...o, at: Date.now() }; try { localStorage.setItem(MY_KEY, JSON.stringify(v)) } catch { /* 저장 못 해도 됨 */ } return v }
+const hhmm = d => `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`
+const tsDate = t => !t ? null : t.toDate ? t.toDate() : new Date(t)
+
 // 주문번호 4자리 (손님이 매장에 말하기 쉽게)
 const newCode = () => String(Math.floor(1000 + Math.random()*9000))
 const telHref = p => `tel:${String(p).replace(/[^0-9]/g,'')}`
@@ -32,7 +39,8 @@ export default function MenuOrder() {
   const [step, setStep] = useState('menu')        // 'menu' | 'checkout' | 'done'
   const [form, setForm] = useState({ phone:'', address:'', request:'', pay:'card', pickupIn:'20' })
   const [sending, setSending] = useState(false)
-  const [done, setDone] = useState(null)
+  const [done, setDone] = useState(null)       // { id, code, total, pay, mode, at }
+  const [mine] = useState(loadMine)             // 예전에 넣은 주문 (진행 중이면 위에 띠로)
 
   useEffect(() => {
     getDoc(doc(db,'menu','public'))
@@ -79,14 +87,15 @@ export default function MenuOrder() {
     setSending(true)
     try {
       const code = newCode()
-      await addDoc(collection(db,'orders'), {
+      const ref = await addDoc(collection(db,'orders'), {
         createdAt: serverTimestamp(), mode, code, status:'new',
         items: cart.map(({ id, name, price, qty, options, total }) => ({ id, name, price, qty, options, total })),
         subtotal: t.subtotal, deliveryFee: t.deliveryFee, total: t.total,
         phone, address: mode === 'delivery' ? form.address.trim() : '', request: form.request.trim().slice(0,200),
         pay: form.pay, pickupIn: mode === 'pickup' ? +form.pickupIn : null,
       })
-      setDone({ code, total:t.total }); setCart([]); setStep('done'); window.scrollTo(0,0)
+      const info = saveMine({ id: ref.id, code, total: t.total, pay: form.pay, mode })
+      setDone(info); setCart([]); setStep('done'); window.scrollTo(0,0)
     } catch(e) {
       console.error(e)
       alert('주문을 보내지 못했어요. 전화로 주문해 주세요.')
@@ -117,6 +126,13 @@ export default function MenuOrder() {
             </div>
           )}
         </header>
+        {mine && step !== 'done' && (
+          <button type="button" onClick={()=>{ setDone(mine); setMode(m => m || mine.mode); setStep('done'); window.scrollTo(0,0) }}
+            style={{display:'block', width:'100%', textAlign:'left', padding:'11px 16px', fontSize:15, fontWeight:700, background:'#FFFFFF', color:T.ink,
+              border:'none', borderBottom:`1px solid ${T.rule}`, cursor:'pointer', fontFamily:'inherit'}}>
+            내 주문 {mine.code} 진행 상황 보기 <span style={{color:T.red}}>›</span>
+          </button>
+        )}
         {settings.notice && <div style={{padding:'10px 16px', fontSize:14, background:'#FFF4E5', color:T.amber, borderBottom:`1px solid ${T.rule}`}}>{settings.notice}</div>}
         {children}
       </div>
@@ -141,23 +157,9 @@ export default function MenuOrder() {
     </div>
   )
 
-  // 3) 주문 완료
-  if (step === 'done') return page(
-    <div style={{padding:'34px 16px', textAlign:'center'}}>
-      <div style={{fontSize:15, color:T.sub}}>주문번호</div>
-      <div style={{fontSize:48, fontWeight:900, color:T.red, ...num}}>{done?.code}</div>
-      <div style={{fontSize:19, fontWeight:800, marginTop:10}}>주문이 매장으로 들어갔어요</div>
-      <div style={{fontSize:14, color:T.sub, lineHeight:1.7, marginTop:8}}>
-        결제 금액 {won(done?.total)} · 받으실 때 {form.pay === 'card' ? '카드' : '현금'}로 결제해 주세요.<br/>
-        확인이 필요하면 매장에서 전화드릴 수 있어요.
-      </div>
-      <div style={{display:'flex', flexDirection:'column', gap:10, marginTop:24}}>
-        <a href={telHref(settings.phone)} style={{display:'block', background:'#FFFFFF', border:`1px solid ${T.rule}`, borderRadius:6, padding:14, color:T.ink, fontWeight:700, textDecoration:'none'}}>
-          매장에 전화하기 {settings.phone}
-        </a>
-        <Btn onClick={()=>{ setStep('menu'); setDone(null) }} full>메뉴로 돌아가기</Btn>
-      </div>
-    </div>
+  // 3) 주문 완료 → 진행 상황 (매장이 접수·완료하면 바로 바뀜)
+  if (step === 'done' && done) return page(
+    <OrderStatus info={done} settings={settings} onBack={()=>{ setStep('menu'); setDone(null) }}/>
   )
 
   const canOrder = settings.open !== false
@@ -327,6 +329,62 @@ function OptionSheet({ item, onClose, onAdd }) {
             {missing.length ? `${missing[0].name} 골라 주세요` : `${won(unitPrice(item, picked) * qty)} 담기`}
           </Btn>
         </div>
+      </div>
+    </div>
+  )
+}
+
+// 손님: 내 주문 진행 상황 (orders/{id} 를 실시간으로 봄 — Firestore 규칙에서 id로 한 건 읽기 허용 필요)
+function OrderStatus({ info, settings, onBack }) {
+  const [o, setO] = useState(null)
+  const [err, setErr] = useState(false)
+  useEffect(() => onSnapshot(doc(db,'orders',info.id), s => { setO(s.exists() ? s.data() : null); setErr(false) }, () => setErr(true)), [info.id])
+  const status = o?.status || 'new'
+  const delivery = (o?.mode || info.mode) === 'delivery'
+  const acc = tsDate(o?.acceptedAt)
+  const eta = o?.eta && acc ? hhmm(new Date(acc.getTime() + o.eta*60000)) : null
+  const steps = [
+    ['new', '주문 들어감', '매장에서 확인하고 있어요'],
+    ['accepted', '접수됨', o?.eta ? `${delivery ? '도착' : '준비 완료'} 예정 ${o.eta}분 뒤${eta ? ` (${eta}쯤)` : ''}` : (delivery ? '음식을 만들고 있어요' : '음식을 만들고 있어요')],
+    ['done', delivery ? '배달 출발' : '준비 완료', delivery ? '기사님이 가고 있어요' : '매장에 오셔서 주문번호를 말씀해 주세요'],
+  ]
+  const idx = status === 'canceled' ? -1 : ['new','accepted','done'].indexOf(status)
+  return (
+    <div style={{padding:'26px 16px'}}>
+      <div style={{textAlign:'center'}}>
+        <div style={{fontSize:15, color:T.sub}}>주문번호</div>
+        <div style={{fontSize:48, fontWeight:900, color:T.red, ...num}}>{info.code}</div>
+        <div style={{fontSize:14, color:T.sub, marginTop:4}}>결제 금액 {won(info.total)} · 받으실 때 {info.pay === 'cash' ? '현금' : '카드'}로 결제</div>
+      </div>
+      {status === 'canceled' ? (
+        <div style={{marginTop:22, borderLeft:`5px solid ${T.red}`, background:'#C3261C0D', padding:'14px 16px', borderRadius:'0 6px 6px 0'}}>
+          <div style={{fontSize:18, fontWeight:900, color:T.red}}>주문이 취소됐어요</div>
+          <div style={{fontSize:14, color:T.sub, marginTop:4}}>자세한 내용은 매장에 전화해 주세요</div>
+        </div>
+      ) : (
+        <ol style={{listStyle:'none', margin:'22px 0 0', padding:0}}>
+          {steps.map(([k, label, sub], i) => {
+            const on = i <= idx, now = i === idx
+            return (
+              <li key={k} style={{display:'flex', gap:12, padding:'0 0 18px', position:'relative'}}>
+                <span style={{flexShrink:0, width:26, height:26, borderRadius:13, display:'grid', placeItems:'center', fontSize:13, fontWeight:900,
+                  background: on ? T.red : '#FFFFFF', color: on ? '#FFFFFF' : T.faint, border:`2px solid ${on ? T.red : T.rule}`}}>{i+1}</span>
+                <span>
+                  <span style={{display:'block', fontSize:17, fontWeight: now ? 900 : 700, color: on ? T.ink : T.faint}}>{label}</span>
+                  {(now || (on && k === 'accepted')) && <span style={{display:'block', fontSize:14, color:T.sub, marginTop:2}}>{sub}</span>}
+                </span>
+              </li>
+            )
+          })}
+        </ol>
+      )}
+      {err && <div style={{fontSize:13, color:T.amber, marginBottom:10}}>진행 상황을 불러오지 못했어요. 접수되면 매장에서 연락드릴 수 있어요.</div>}
+      {status === 'new' && !err && <div style={{fontSize:13, color:T.sub, marginBottom:10}}>이 화면을 열어 두면 접수되는 대로 바로 바뀌어요</div>}
+      <div style={{display:'flex', flexDirection:'column', gap:10, marginTop:8}}>
+        <a href={telHref(settings.phone)} style={{display:'block', textAlign:'center', background:'#FFFFFF', border:`1px solid ${T.rule}`, borderRadius:6, padding:14, color:T.ink, fontWeight:700, textDecoration:'none'}}>
+          매장에 전화하기 {settings.phone}
+        </a>
+        <Btn onClick={onBack} full>메뉴로 돌아가기</Btn>
       </div>
     </div>
   )

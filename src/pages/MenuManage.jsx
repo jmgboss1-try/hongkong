@@ -94,10 +94,10 @@ function Orders() {
       setSound(true); setTimeout(() => playEvent(sndRef.current, 'new'), 50)
     } catch { alert('이 기기에서는 소리를 낼 수 없어요') }
   }
-  async function setStatus(o, status) {
+  async function setStatus(o, status, eta) {
     if (status === 'canceled' && !window.confirm(`주문 ${o.code}을(를) 취소할까요? 손님께는 전화로 알려 주세요.`)) return
     try {
-      await updateDoc(doc(db,'orders',o.id), { status, [`${status}At`]: serverTimestamp() })
+      await updateDoc(doc(db,'orders',o.id), { status, [`${status}At`]: serverTimestamp(), ...(eta ? { eta } : {}) })
       playEvent(sndRef.current, status === 'accepted' ? 'accept' : status === 'done' ? 'done' : status === 'canceled' ? 'cancel' : 'none')
     } catch(e) { console.error(e); alert('바꾸지 못했어요. 다시 시도해 주세요.') }
   }
@@ -193,6 +193,7 @@ function OrderCard({ o, onStatus }) {
         <b style={{fontSize:15}}>{MODES[o.mode]}</b>
         <span style={{fontSize:13, color, fontWeight:700}}>{label}</span>
         <span style={{fontSize:13, color:T.sub, ...num}}>{at ? `${at.getMonth()+1}/${at.getDate()} ${hm(at)}` : ''}</span>
+        {o.eta && o.status !== 'new' && <span style={{fontSize:13, color:T.blue, fontWeight:700}}>손님께 {o.eta}분 안내함</span>}
         {o.mode === 'pickup' && o.pickupIn && <span style={{fontSize:13, color:T.amber, fontWeight:700}}>{o.pickupIn}분 뒤 방문{at ? ` (${hm(new Date(at.getTime() + o.pickupIn*60000))})` : ''}</span>}
         <span style={{flex:1}}/>
         <b style={{fontSize:17, ...num}}>{won(o.total)}</b>
@@ -213,7 +214,10 @@ function OrderCard({ o, onStatus }) {
         {o.request && <div><span style={{color:T.sub}}>요청 </span>{o.request}</div>}
       </div>
       <div style={{display:'flex', gap:8, marginTop:10, flexWrap:'wrap'}}>
-        {o.status === 'new' && <Btn kind="primary" onClick={()=>onStatus(o,'accepted')}>접수</Btn>}
+        {o.status === 'new' && <>
+          <span style={{fontSize:13, color:T.sub, alignSelf:'center'}}>접수 ({o.mode === 'delivery' ? '도착' : '준비'}까지)</span>
+          {(o.mode === 'delivery' ? [30,40,50,60] : [10,15,20,30]).map(m => <Btn key={m} kind="primary" onClick={()=>onStatus(o,'accepted',m)}>{m}분</Btn>)}
+        </>}
         {(o.status === 'new' || o.status === 'accepted') && <Btn kind="ok" onClick={()=>onStatus(o,'done')}>{o.mode === 'delivery' ? '배달 보냄 (완료)' : '전달함 (완료)'}</Btn>}
         {(o.status === 'new' || o.status === 'accepted') && <Btn kind="danger" onClick={()=>onStatus(o,'canceled')}>취소</Btn>}
         {(o.status === 'done' || o.status === 'canceled') && <Btn small onClick={()=>onStatus(o,'accepted')}>다시 진행 중으로</Btn>}
