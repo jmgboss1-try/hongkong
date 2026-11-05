@@ -261,9 +261,11 @@ export default function MenuOrder() {
                 {i.best && <span style={{marginLeft:6, fontSize:11, fontWeight:800, color:T.red, border:`1px solid ${T.red}`, borderRadius:3, padding:'0 4px', verticalAlign:2}}>추천</span>}
                 {i.soldOut && <span style={{marginLeft:6, fontSize:12, fontWeight:700}}>품절</span>}
                 {i.desc && <span style={{display:'block', fontSize:13, color:T.sub, marginTop:2}}>{i.desc}</span>}
-                {i.options?.length > 0 && <span style={{display:'block', fontSize:12, color:T.sub, marginTop:2}}>옵션 선택</span>}
+                {i.options?.[0]?.required && i.options[0].choices.length > 1
+                  ? <span style={{display:'block', fontSize:12, color:T.sub, marginTop:2}}>{i.options[0].choices.map(c => c.name).join(' · ')}</span>
+                  : i.options?.length > 0 && <span style={{display:'block', fontSize:12, color:T.sub, marginTop:2}}>옵션 선택</span>}
               </span>
-              <span style={{fontSize:16, fontWeight:700, ...num}}>{won(i.price)}</span>
+              <span style={{fontSize:16, fontWeight:700, ...num}}>{won(i.price)}{(i.options||[]).some(g => g.required && g.choices.some(c => +c.price > 0)) ? '~' : ''}</span>
             </button>
           ))}
         </section>
@@ -311,7 +313,7 @@ function OptionSheet({ item, onClose, onAdd }) {
         {item.desc && <div style={{fontSize:14, color:'#6E6A63', marginTop:4}}>{item.desc}</div>}
         {groups.map(g => (
           <div key={g.id} style={{marginTop:16}}>
-            <div style={{fontSize:15, fontWeight:800}}>{g.name} <span style={{fontSize:12, fontWeight:500, color: g.required ? '#C3261C' : '#6E6A63'}}>{g.required ? '꼭 골라 주세요' : g.multi ? '여러 개 고를 수 있어요' : '선택'}</span></div>
+            <div style={{fontSize:15, fontWeight:800}}>{g.name} <span style={{fontSize:12, fontWeight:500, color: g.required ? '#C3261C' : '#6E6A63'}}>{g.required ? '꼭 골라 주세요' : g.multi && g.choices.length > 1 ? '여러 개 고를 수 있어요' : '원하면 골라 주세요'}</span></div>
             {g.choices.map((c,i) => {
               const on = (sel[g.id]||[]).includes(i)
               return (

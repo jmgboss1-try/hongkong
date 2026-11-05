@@ -398,6 +398,8 @@ function MenuEditor({ tab }) {
   const [edit, setEdit] = useState(null)   // 고치는 메뉴 (사본)
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState('')
+  const [picking, setPicking] = useState(null)   // 메뉴 묶기: 고른 메뉴 id 들
+  const [both, setBoth] = useState(true)          // 포장·배달 둘 다 묶기
   const dnd = useDragSort()
 
   // 미리 받아 둔 메뉴가 있으면 바로 보여 주고, 받는 중이면 그걸 기다림
@@ -438,7 +440,39 @@ function MenuEditor({ tab }) {
     if (items.some(x => x.mode === other && x.name === i.name)) return alert(`${MODES[other]} 메뉴에 '${i.name}'이(가) 이미 있어요`)
     change([...items, { ...i, id:`${other[0]}${Date.now().toString(36)}`, mode:other }])
     setMsg(`${MODES[other]} 메뉴에 복사했어요. 가격을 확인하고 저장해 주세요`)
+  }  // 고른 메뉴들을 한 메뉴로 (같은 이름의 메뉴가 다른 쪽(포장/배달)에도 있으면 같이)
+  function doGroup() {
+    const sel = items.filter(i => picking.includes(i.id))
+    if (sel.length < 2) return alert('묶을 메뉴를 두 개 이상 골라 주세요')
+    const def = [...sel].map(i => i.name).filter(n => !/곱빼기\s*$/.test(n)).sort((a,b) => a.length - b.length)[0] || sel[0].name
+    const name = window.prompt('묶은 메뉴 이름 (손님 화면에 이 이름 하나만 보여요)', def)?.trim()
+    if (!name) return
+    const stamp = Date.now().toString(36)
+    let next = items
+    const apply = (group, m) => {
+      if (group.length < 2) return 0
+      const at = next.indexOf(group[0])
+      const made = groupItems(group, name, `${m[0]}${stamp}g`)
+      next = next.filter(i => !group.includes(i))
+      next = [...next.slice(0, at), made, ...next.slice(at)]
+      return group.length
+    }
+    apply(sel, mode)
+    const other = mode === 'pickup' ? 'delivery' : 'pickup'
+    const names = new Set(sel.map(i => i.name))
+    const otherN = both ? apply(next.filter(i => i.mode === other && names.has(i.name)), other) : 0
+    change(next); setPicking(null)
+    setMsg(`${sel.length}개를 '${name}' 하나로 묶었어요${otherN ? ` (${MODES[other]}도 ${otherN}개)` : ''}. 확인하고 저장해 주세요`)
   }
+  function doUngroup(i) {
+    if (!window.confirm(`'${i.name}'을(를) 종류별 메뉴로 다시 나눌까요? (저장해야 반영돼요)`)) return
+    const stamp = Date.now().toString(36)
+    const parts = ungroupItem(i, n => `${i.mode[0]}${stamp}u${n}`)
+    const at = items.findIndex(x => x.id === i.id)
+    change([...items.slice(0, at), ...parts, ...items.slice(at + 1)])
+    setMsg(`'${i.name}'을(를) ${parts.length}개 메뉴로 나눴어요. 저장해 주세요`)
+  }
+
 
   if (!items) return <div style={{color:T.sub}}>메뉴를 불러오고 있어요...</div>
 
@@ -554,8 +588,20 @@ function MenuEditor({ tab }) {
         ))}
         <span style={{fontSize:12, color:T.sub}}>왼쪽 점(⠿)을 끌어 순서를 바꾸고, 다른 분류에 놓으면 분류가 바뀌어요. 가격은 눌러서 바로 고쳐요</span>
         <span style={{flex:1}}/>
+        <Btn onClick={()=>{ setPicking(p => p ? null : []); setEdit(null) }}>{picking ? '묶기 그만' : '메뉴 묶기'}</Btn>
         <Btn kind="blue" onClick={()=>setEdit({ id:`${mode[0]}${Date.now().toString(36)}`, mode, cat:allCats[0]||'기타', name:'', price:0, best:false, soldOut:false, hidden:false, desc:'', options:[] })}>+ {MODES[mode]} 메뉴 추가</Btn>
       </div>
+      {picking && (
+        <div style={{position:'sticky', top:0, zIndex:5, background:'#FFFFFF', border:`1px solid ${T.blue}`, borderRadius:6, padding:'10px 12px', margin:'6px 0', fontSize:13, display:'flex', gap:10, alignItems:'center', flexWrap:'wrap'}}>
+          <span style={{flex:'1 1 260px', lineHeight:1.6}}>
+            <b>한 메뉴로 묶을 것들을 고르세요.</b> 예: 짬뽕 · 고추짬뽕 · 고기짬뽕과 각 곱빼기.
+            손님은 메뉴를 고른 뒤 <b>종류</b>를 꼭 고르고, <b>곱빼기</b>는 원하면 골라요 (곱빼기 값이 모두 같을 때).
+          </span>
+          <label style={{display:'flex', gap:4, alignItems:'center'}}><input type="checkbox" checked={both} onChange={e=>setBoth(e.target.checked)}/> {mode === 'pickup' ? '배달' : '포장'} 메뉴도 같은 이름끼리 같이</label>
+          <Btn kind="blue" onClick={doGroup} disabled={picking.length < 2}>{picking.length}개 한 메뉴로 묶기</Btn>
+          <Btn onClick={()=>setPicking(null)}>취소</Btn>
+        </div>
+      )}
       {edit && !items.some(i=>i.id===edit.id) && <ItemForm edit={edit} setEdit={setEdit} onSave={saveEdit} cats={allCats}/>}
       {cats.filter(c => list.some(i=>i.cat===c)).map(c => (
         <section key={c} style={{marginTop:14}}>
@@ -563,12 +609,16 @@ function MenuEditor({ tab }) {
           {list.filter(i=>i.cat===c).map(i => edit?.id === i.id ? <ItemForm key={i.id} edit={edit} setEdit={setEdit} onSave={saveEdit} cats={allCats}/> : (
             <div key={i.id} data-drag-group="item" data-drag-key={i.id}
               style={{display:'flex', alignItems:'center', gap:10, padding:'6px 0', borderBottom:`1px solid ${T.soft}`, fontSize:14, flexWrap:'wrap', opacity: i.hidden ? 0.5 : 1, ...dnd.mark(i.id,'item')}}>
-              <span {...dnd.handle(i.id, 'item', dropItem)} style={{...dnd.handle(i.id,'item',dropItem).style, padding:'6px 4px'}}><Grip/></span>
+              {picking
+                ? <input type="checkbox" aria-label={`${i.name} 고르기`} checked={picking.includes(i.id)} onChange={e=>setPicking(p => e.target.checked ? [...p, i.id] : p.filter(x => x !== i.id))} style={{width:18, height:18, margin:'6px 2px'}}/>
+                : <span {...dnd.handle(i.id, 'item', dropItem)} style={{...dnd.handle(i.id,'item',dropItem).style, padding:'6px 4px'}}><Grip/></span>}
               <span style={{flex:1, minWidth:160}}>
                 <b>{i.name}</b>
                 {i.best && <span style={{marginLeft:6, fontSize:11, color:T.red, fontWeight:800}}>추천</span>}
                 {i.hidden && <span style={{marginLeft:6, fontSize:11, color:T.sub}}>숨김</span>}
-                {i.options?.length > 0 && <span style={{marginLeft:6, fontSize:12, color:T.sub}}>옵션 {i.options.map(g=>g.name).join(', ')}</span>}
+                {isGrouped(i)
+                  ? <span style={{display:'block', fontSize:12, color:T.sub}}>종류 {i.options[0].choices.map(c => `${c.name}${+c.price ? ` +${(+c.price).toLocaleString('ko-KR')}` : ''}`).join(' · ')}{i.options.length > 1 ? ` / ${i.options.slice(1).map(g=>g.name).join(', ')}` : ''}</span>
+                  : i.options?.length > 0 && <span style={{marginLeft:6, fontSize:12, color:T.sub}}>옵션 {i.options.map(g=>g.name).join(', ')}</span>}
               </span>
               <PriceInput value={i.price} onChange={n=>patch(i.id,{ price:n })}/>
               <span style={{fontSize:13, color:T.sub, marginLeft:-6}}>원</span>
@@ -576,6 +626,7 @@ function MenuEditor({ tab }) {
                 <input type="checkbox" checked={!!i.soldOut} onChange={e=>patch(i.id,{ soldOut:e.target.checked })}/> 품절
               </label>
               <Btn small onClick={()=>setEdit(JSON.parse(JSON.stringify(i)))}>수정</Btn>
+              {isGrouped(i) && <Btn small onClick={()=>doUngroup(i)}>풀기</Btn>}
               <Btn small onClick={()=>copyToOther(i)}>{i.mode==='pickup' ? '배달에 복사' : '포장에 복사'}</Btn>
               <Btn small kind="danger" onClick={()=>remove(i)}>삭제</Btn>
             </div>
@@ -632,6 +683,40 @@ function Hours({ settings, set }) {
   )
 }
 
+// ── 메뉴 묶기 / 풀기 ──
+// 같은 계열 메뉴(짬뽕·고추짬뽕·고기짬뽕 + 각 곱빼기)를 한 메뉴로: '종류'(꼭 고름) + '곱빼기'(고르면 추가) 옵션
+const KIND = '종류', BIG = '곱빼기'
+const bigBase = n => n.replace(/\s*곱빼기\s*$/, '').trim()
+function groupItems(sel, name, id) {
+  const bigs = sel.filter(i => /곱빼기\s*$/.test(i.name) && sel.some(b => b !== i && b.name === bigBase(i.name)))
+  let kinds = sel.filter(i => !bigs.includes(i))
+  const diffs = bigs.map(b => b.price - kinds.find(k => k.name === bigBase(b.name)).price)
+  // 모든 종류에 곱빼기가 있고 추가 금액이 같을 때만 '곱빼기' 옵션으로, 아니면 곱빼기도 종류 중 하나로
+  const bigOpt = bigs.length && bigs.length === kinds.length && diffs.every(d => d === diffs[0]) ? diffs[0] : null
+  if (bigOpt == null) kinds = sel
+  kinds = [...kinds].sort((a, b) => a.price - b.price)
+  const base = kinds[0]
+  const options = [{ id:'g0', name:KIND, required:true, multi:false,
+    choices: kinds.map(k => ({ name: k.name === name ? `기본 ${k.name}` : k.name, price: k.price - base.price })) }]
+  if (bigOpt != null) options.push({ id:'g1', name:BIG, required:false, multi:true, choices:[{ name:BIG, price:bigOpt }] })
+  for (const g of base.options || []) if (!options.some(o => o.name === g.name)) options.push({ ...g, id:`g${options.length}` })
+  return { ...base, id, name, price: base.price, best: sel.some(i => i.best), soldOut:false, hidden:false, options }
+}
+const isGrouped = i => i.options?.[0]?.name === KIND && i.options[0].required
+function ungroupItem(i, newId) {
+  const [kind, ...rest] = i.options
+  const big = rest.find(g => g.name === BIG && g.choices.length === 1)
+  const others = rest.filter(g => g !== big)
+  const out = []
+  kind.choices.forEach((c, n) => {
+    const nm = c.name.replace(/^기본\s+/, '')
+    const one = { ...i, id: newId(n * 2), name: nm, price: i.price + (+c.price || 0), best: false, options: others }
+    out.push(one)
+    if (big) out.push({ ...one, id: newId(n * 2 + 1), name: `${nm}${BIG}`, price: one.price + (+big.choices[0].price || 0) })
+  })
+  return out
+}
+
 const catBtn = { background:'none', border:'none', cursor:'pointer', fontSize:11, padding:'2px 3px', fontFamily:'inherit', color:'#6E6A63' }
 
 function ItemForm({ edit, setEdit, onSave, cats }) {
@@ -652,7 +737,7 @@ function ItemForm({ edit, setEdit, onSave, cats }) {
       </div>
       <input value={edit.desc||''} onChange={e=>set('desc', e.target.value)} placeholder="설명 (선택) 예: 불맛 가득한 매콤한 짬뽕" style={{...inp, width:'100%', boxSizing:'border-box', marginTop:8}}/>
 
-      <div style={{marginTop:12, fontSize:13, fontWeight:800}}>옵션 <span style={{fontWeight:400, color:T.sub}}>예: 맵기 선택(꼭 고르기) / 추가 토핑(여러 개)</span></div>
+      <div style={{marginTop:12, fontSize:13, fontWeight:800}}>옵션 <span style={{fontWeight:400, color:T.sub}}>위에서부터 손님에게 차례로 보여요</span></div>
       {(edit.options||[]).map((g, gi) => (
         <div key={g.id} style={{background:'#FFFFFF', border:`1px solid ${T.rule}`, borderRadius:6, padding:'8px 10px', marginTop:6}}>
           <div style={{display:'flex', gap:8, flexWrap:'wrap', alignItems:'center'}}>
@@ -675,8 +760,18 @@ function ItemForm({ edit, setEdit, onSave, cats }) {
             style={{background:'none', border:'none', color:T.blue, cursor:'pointer', fontSize:12, fontFamily:'inherit', marginTop:6, paddingLeft:12}}>+ 고를 것 추가</button>
         </div>
       ))}
-      <button type="button" onClick={()=>setEdit(e => { const n = 1 + Math.max(-1, ...(e.options||[]).map(g => +String(g.id).replace(/[^0-9]/g,'') || 0)); return { ...e, options:[...(e.options||[]), { id:`g${n}`, name:'', required:false, multi:false, choices:[{ name:'', price:'' }] }] } })}
-        style={{background:'none', border:'none', color:T.blue, cursor:'pointer', fontSize:13, fontFamily:'inherit', marginTop:6, padding:0}}>+ 옵션 추가</button>
+      <div style={{display:'flex', gap:14, flexWrap:'wrap', marginTop:6}}>
+        {[
+          ['+ 종류 고르기 (꼭 고름)', { name:KIND, required:true, multi:false, choices:[{ name:'', price:'' },{ name:'', price:'' }] }, true],
+          ['+ 곱빼기', { name:BIG, required:false, multi:true, choices:[{ name:BIG, price:'1500' }] }],
+          ['+ 토핑 (여러 개)', { name:'토핑 추가', required:false, multi:true, choices:[{ name:'', price:'' }] }],
+          ['+ 다른 옵션', { name:'', required:false, multi:false, choices:[{ name:'', price:'' }] }],
+        ].filter(([, g]) => !g.name || !(edit.options||[]).some(x => x.name === g.name)).map(([t, g, first]) => (
+          <button key={t} type="button" onClick={()=>setEdit(e => { const n = 1 + Math.max(-1, ...(e.options||[]).map(x => +String(x.id).replace(/[^0-9]/g,'') || 0)); const ng = { ...g, id:`g${n}` }; return { ...e, options: first ? [ng, ...(e.options||[])] : [...(e.options||[]), ng] } })}
+            style={{background:'none', border:'none', color:T.blue, cursor:'pointer', fontSize:13, fontFamily:'inherit', padding:0}}>{t}</button>
+        ))}
+      </div>
+      <div style={{fontSize:12, color:T.sub, marginTop:4}}>종류 고르기: 메뉴 가격은 가장 싼 종류 값으로, 나머지 종류는 차이만 '+금액'에 적어요 (예: 짬뽕 9,000 · 고기짬뽕 +2,000)</div>
 
       <div style={{display:'flex', gap:8, marginTop:12}}>
         <Btn kind="primary" onClick={onSave}>확인</Btn>
