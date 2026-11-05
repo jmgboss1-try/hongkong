@@ -208,6 +208,58 @@ function OrderCard({ o, onStatus }) {
 }
 
 // ── 메뉴 고치기 / 배달 설정 ──
+// ── 끌어서 순서 바꾸기 (마우스·손가락 모두) ──
+// 손잡이를 누른 채 움직이면 그 아래 줄([data-drag-key])을 찾아 표시하고, 놓으면 onDrop(옮길 것, 놓은 곳, 뒤에 놓는지)
+function useDragSort() {
+  const [drag, setDrag] = useState(null)   // { key, group, over, after, onDrop }
+  const handle = (key, group, onDrop, horizontal) => ({
+    onPointerDown: e => { e.preventDefault(); e.currentTarget.setPointerCapture?.(e.pointerId); setDrag({ key, group, over:key, after:false, onDrop, horizontal }) },
+    onPointerMove: e => {
+      if (!drag || drag.key !== key) return
+      // 화면 끝에 가까우면 저절로 스크롤
+      if (!horizontal) { if (e.clientY < 70) window.scrollBy(0, -14); else if (e.clientY > window.innerHeight - 70) window.scrollBy(0, 14) }
+      const el = document.elementFromPoint(e.clientX, e.clientY)?.closest(`[data-drag-group="${group}"]`)
+      if (!el) return
+      const r = el.getBoundingClientRect()
+      const after = horizontal ? e.clientX > r.left + r.width/2 : e.clientY > r.top + r.height/2
+      if (el.dataset.dragKey !== drag.over || after !== drag.after) setDrag(d => ({ ...d, over: el.dataset.dragKey, after }))
+    },
+    onPointerUp: () => { if (drag && drag.key === key) { if (drag.over !== key) drag.onDrop(key, drag.over, drag.after); setDrag(null) } },
+    onPointerCancel: () => setDrag(null),
+    style: { cursor: drag?.key === key ? 'grabbing' : 'grab', touchAction:'none', userSelect:'none' },
+    'aria-label': '끌어서 순서 바꾸기', role:'button', tabIndex:-1,
+  })
+  // 줄에 붙일 표시: 끌고 있는 줄은 흐리게, 놓을 자리에는 빨간 선
+  const mark = (key, group, horizontal) => {
+    if (!drag || drag.group !== group) return {}
+    if (drag.key === key) return { opacity:0.35 }
+    if (drag.over === key) return horizontal
+      ? { boxShadow: `${drag.after ? '3px' : '-3px'} 0 0 ${T.red}` }
+      : { boxShadow: `inset 0 ${drag.after ? '-3px' : '3px'} 0 ${T.red}` }
+    return {}
+  }
+  return { drag, handle, mark }
+}
+const Grip = () => (
+  <svg width="14" height="18" viewBox="0 0 14 18" aria-hidden="true" style={{display:'block'}}>
+    {[3,9,15].flatMap(y => [4,10].map(x => <circle key={x+'-'+y} cx={x} cy={y} r="1.6" fill="#A8A39A"/>))}
+  </svg>
+)
+// 가격 바로 고치기 (칸을 눌러 숫자를 바꾸고 엔터 또는 다른 곳 누르면 반영)
+function PriceInput({ value, onChange }) {
+  const [v, setV] = useState(null)
+  const shown = v ?? (value||0).toLocaleString('ko-KR')
+  const commit = () => { if (v == null) return; const n = +String(v).replace(/[^0-9]/g,'') || 0; setV(null); if (n !== value) onChange(n) }
+  return (
+    <input inputMode="numeric" value={shown} aria-label="가격" title="눌러서 가격 바로 고치기"
+      onFocus={e=>{ setV(String(value||0)); setTimeout(()=>e.target.select(), 0) }} onChange={e=>setV(e.target.value)}
+      onBlur={commit} onKeyDown={e=>{ if (e.key === 'Enter') e.currentTarget.blur(); if (e.key === 'Escape') { setV(null); e.currentTarget.blur() } }}
+      style={{width:92, textAlign:'right', fontWeight:700, fontSize:14, fontFamily:'inherit', padding:'4px 6px', border:'1px solid transparent', borderRadius:4,
+        background:'transparent', color:'#1D1B18', fontVariantNumeric:'tabular-nums'}}
+      onMouseEnter={e=>{ e.currentTarget.style.borderColor = '#DCD7CE' }} onMouseLeave={e=>{ if (document.activeElement !== e.currentTarget) e.currentTarget.style.borderColor = 'transparent' }}/>
+  )
+}
+
 function MenuEditor({ tab }) {
   const [items, setItems] = useState(null)
   const [settings, setSettings] = useState(DEFAULT_SETTINGS)
@@ -217,6 +269,7 @@ function MenuEditor({ tab }) {
   const [edit, setEdit] = useState(null)   // 고치는 메뉴 (사본)
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState('')
+  const dnd = useDragSort()
 
   useEffect(() => {
     getDoc(doc(db,'menu','public')).then(s => {
@@ -326,6 +379,20 @@ function MenuEditor({ tab }) {
     if (!window.confirm(`'${c}' 분류를 지울까요?`)) return
     setCats(allCats.filter(x => x !== c))
   }
+  // 메뉴 끌어 놓기: 놓은 메뉴 앞(뒤)으로, 다른 분류에 놓으면 그 분류로 옮김
+  const dropItem = (fromId, toId, after) => {
+    const from = items.find(i => i.id === fromId), to = items.find(i => i.id === toId)
+    if (!from || !to) return
+    const rest = items.filter(i => i.id !== fromId)
+    const at = rest.findIndex(i => i.id === toId) + (after ? 1 : 0)
+    change([...rest.slice(0, at), { ...from, cat: to.cat }, ...rest.slice(at)])
+    if (from.cat !== to.cat) setMsg(`'${from.name}'을(를) ${to.cat}(으)로 옮겼어요. 저장해 주세요`)
+  }
+  const dropCat = (from, to, after) => {
+    const rest = allCats.filter(c => c !== from)
+    const at = rest.indexOf(to) + (after ? 1 : 0)
+    setCats([...rest.slice(0, at), from, ...rest.slice(at)])
+  }
   const moveCat = (c, d) => { const a = [...allCats], i = a.indexOf(c), j = i + d; if (j < 0 || j >= a.length) return; [a[i], a[j]] = [a[j], a[i]]; setCats(a) }
   return (
     <div>
@@ -339,7 +406,9 @@ function MenuEditor({ tab }) {
         </div>
         <div style={{display:'flex', flexWrap:'wrap', gap:6}}>
           {allCats.map((c, i) => (
-            <span key={c} style={{display:'inline-flex', alignItems:'center', gap:2, background:'#FFFFFF', border:`1px solid ${T.rule}`, borderRadius:4, padding:'2px 4px 2px 8px', fontSize:13}}>
+            <span key={c} data-drag-group="cat" data-drag-key={c}
+              style={{display:'inline-flex', alignItems:'center', gap:2, background:'#FFFFFF', border:`1px solid ${T.rule}`, borderRadius:4, padding:'2px 4px 2px 4px', fontSize:13, ...dnd.mark(c,'cat',true)}}>
+              <span {...dnd.handle(c, 'cat', dropCat, true)} style={{...dnd.handle(c,'cat',dropCat,true).style, padding:'2px 2px'}}><Grip/></span>
               <b style={{marginRight:4}}>{c}</b>
               <span style={{fontSize:11, color:T.sub, marginRight:4}}>{items.filter(x=>x.cat===c).length}</span>
               <button type="button" onClick={()=>moveCat(c,-1)} disabled={i===0} aria-label={`${c} 앞으로`} style={catBtn}>◀</button>
@@ -356,6 +425,7 @@ function MenuEditor({ tab }) {
             style={{fontFamily:'inherit', fontSize:14, fontWeight:800, padding:'7px 18px', borderRadius:4, cursor:'pointer',
               border:`1px solid ${mode===k ? T.ink : T.rule}`, background: mode===k ? T.ink : '#FFFFFF', color: mode===k ? '#FFFFFF' : T.ink}}>{l} 메뉴 ({items.filter(i=>i.mode===k).length})</button>
         ))}
+        <span style={{fontSize:12, color:T.sub}}>왼쪽 점(⠿)을 끌어 순서를 바꾸고, 다른 분류에 놓으면 분류가 바뀌어요. 가격은 눌러서 바로 고쳐요</span>
         <span style={{flex:1}}/>
         <Btn kind="blue" onClick={()=>setEdit({ id:`${mode[0]}${Date.now().toString(36)}`, mode, cat:allCats[0]||'기타', name:'', price:0, best:false, soldOut:false, hidden:false, desc:'', options:[] })}>+ {MODES[mode]} 메뉴 추가</Btn>
       </div>
@@ -364,14 +434,17 @@ function MenuEditor({ tab }) {
         <section key={c} style={{marginTop:14}}>
           <h2 style={{fontSize:15, fontWeight:800, margin:0, paddingBottom:4, borderBottom:`2px solid ${T.ink}`, fontFamily:'inherit'}}>{c}</h2>
           {list.filter(i=>i.cat===c).map(i => edit?.id === i.id ? <ItemForm key={i.id} edit={edit} setEdit={setEdit} onSave={saveEdit} cats={allCats}/> : (
-            <div key={i.id} style={{display:'flex', alignItems:'center', gap:10, padding:'8px 0', borderBottom:`1px solid ${T.soft}`, fontSize:14, flexWrap:'wrap', opacity: i.hidden ? 0.5 : 1}}>
+            <div key={i.id} data-drag-group="item" data-drag-key={i.id}
+              style={{display:'flex', alignItems:'center', gap:10, padding:'6px 0', borderBottom:`1px solid ${T.soft}`, fontSize:14, flexWrap:'wrap', opacity: i.hidden ? 0.5 : 1, ...dnd.mark(i.id,'item')}}>
+              <span {...dnd.handle(i.id, 'item', dropItem)} style={{...dnd.handle(i.id,'item',dropItem).style, padding:'6px 4px'}}><Grip/></span>
               <span style={{flex:1, minWidth:160}}>
                 <b>{i.name}</b>
                 {i.best && <span style={{marginLeft:6, fontSize:11, color:T.red, fontWeight:800}}>추천</span>}
                 {i.hidden && <span style={{marginLeft:6, fontSize:11, color:T.sub}}>숨김</span>}
                 {i.options?.length > 0 && <span style={{marginLeft:6, fontSize:12, color:T.sub}}>옵션 {i.options.map(g=>g.name).join(', ')}</span>}
               </span>
-              <span style={{minWidth:80, textAlign:'right', fontWeight:700, ...num}}>{won(i.price)}</span>
+              <PriceInput value={i.price} onChange={n=>patch(i.id,{ price:n })}/>
+              <span style={{fontSize:13, color:T.sub, marginLeft:-6}}>원</span>
               <label style={{display:'flex', alignItems:'center', gap:4, fontSize:12, color: i.soldOut ? T.red : T.sub}}>
                 <input type="checkbox" checked={!!i.soldOut} onChange={e=>patch(i.id,{ soldOut:e.target.checked })}/> 품절
               </label>
