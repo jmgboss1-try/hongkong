@@ -25,21 +25,39 @@ function Btn({ children, onClick, kind = 'plain', disabled, small }) {
   )
 }
 
+// 메뉴 문서는 화면을 열 때 미리 받아 두고(탭을 누를 때 기다리지 않게), 저장하면 같이 고쳐 둠
+let menuCache = null   // { items, settings, fromDefault }
+let menuReq = null
+function fetchMenu() {
+  menuCache = null
+  menuReq = getDoc(doc(db,'menu','public')).then(s => {
+    const d = s.exists() ? s.data() : null
+    menuCache = { items: d?.items?.length ? d.items : DEFAULT_ITEMS, settings: { ...DEFAULT_SETTINGS, ...(d?.settings||{}) }, fromDefault: !d?.items?.length }
+    return menuCache
+  }).catch(e => { console.error(e); return menuCache || { items: DEFAULT_ITEMS, settings: DEFAULT_SETTINGS, fromDefault: true } })
+  return menuReq
+}
+
 export default function MenuManage() {
   const [tab, setTab] = useState('orders')
+  const [menuOpened, setMenuOpened] = useState(false)
+  useEffect(() => { fetchMenu() }, [])
+  const pick = k => { setTab(k); if (k !== 'orders') setMenuOpened(true) }
   return (
     <div style={{maxWidth:980}}>
       <div style={{display:'flex', alignItems:'baseline', justifyContent:'space-between', gap:12, flexWrap:'wrap', borderBottom:`3px double ${T.ink}`, paddingBottom:8, marginBottom:14}}>
         <h1 style={{fontSize:22, fontWeight:800, margin:0, fontFamily:'inherit'}}>메뉴 · 주문</h1>
         <div style={{display:'flex', gap:16}}>
           {[['orders','QR 주문'],['menu','메뉴 고치기'],['settings','배달 설정']].map(([k,l]) => (
-            <button key={k} type="button" onClick={()=>setTab(k)}
+            <button key={k} type="button" onClick={()=>pick(k)}
               style={{background:'none', border:'none', padding:'4px 0', cursor:'pointer', fontFamily:'inherit', fontSize:15,
                 fontWeight: tab===k ? 800 : 500, color: tab===k ? T.ink : T.sub, borderBottom:`2px solid ${tab===k ? T.red : 'transparent'}`}}>{l}</button>
           ))}
         </div>
       </div>
-      {tab === 'orders' ? <Orders/> : <MenuEditor tab={tab}/>}
+      {tab === 'orders' && <Orders/>}
+      {/* 한 번 연 메뉴 화면은 주문 탭에 갔다 와도 그대로 (다시 불러오지 않고, 저장 안 한 고침도 남음) */}
+      {menuOpened && <div style={{display: tab === 'orders' ? 'none' : 'block'}}><MenuEditor tab={tab === 'orders' ? 'menu' : tab}/></div>}
     </div>
   )
 }
@@ -372,29 +390,30 @@ function PriceInput({ value, onChange }) {
 }
 
 function MenuEditor({ tab }) {
-  const [items, setItems] = useState(null)
-  const [settings, setSettings] = useState(DEFAULT_SETTINGS)
+  const [items, setItems] = useState(() => menuCache?.items ?? null)
+  const [settings, setSettings] = useState(() => menuCache?.settings ?? DEFAULT_SETTINGS)
   const [saved, setSaved] = useState(true)
-  const [fromDefault, setFromDefault] = useState(false)
+  const [fromDefault, setFromDefault] = useState(() => !!menuCache?.fromDefault)
   const [mode, setMode] = useState('pickup')
   const [edit, setEdit] = useState(null)   // 고치는 메뉴 (사본)
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState('')
   const dnd = useDragSort()
 
+  // 미리 받아 둔 메뉴가 있으면 바로 보여 주고, 받는 중이면 그걸 기다림
+  const fromCache = useRef(!!menuCache)
   useEffect(() => {
-    getDoc(doc(db,'menu','public')).then(s => {
-      const d = s.exists() ? s.data() : null
-      setItems(d?.items?.length ? d.items : DEFAULT_ITEMS)
-      setFromDefault(!d?.items?.length)
-      setSettings({ ...DEFAULT_SETTINGS, ...(d?.settings||{}) })
-    }).catch(e => { console.error(e); setItems(DEFAULT_ITEMS); setFromDefault(true) })
+    if (fromCache.current) return
+    let live = true
+    ;(menuReq || fetchMenu()).then(c => { if (live) { setItems(c.items); setSettings(c.settings); setFromDefault(c.fromDefault) } })
+    return () => { live = false }
   }, [])
 
   async function save(nextItems = items, nextSettings = settings) {
     setBusy(true); setMsg('')
     try {
       await setDoc(doc(db,'menu','public'), { items: nextItems, settings: nextSettings, updatedAt: new Date().toISOString() })
+      menuCache = { items: nextItems, settings: nextSettings, fromDefault: false }
       setSaved(true); setFromDefault(false); setMsg('저장했어요. 손님 메뉴 화면에 바로 나와요')
     } catch(e) { console.error(e); setMsg(e.code === 'permission-denied' ? '저장할 권한이 없어요. Firestore 규칙에 menu 를 추가해 주세요.' : '저장하지 못했어요. 다시 시도해 주세요.') }
     setBusy(false)
