@@ -24,7 +24,7 @@ const CUSTOMER_LOOKS = Array.from({length:12}, (_,i) => ({ ...defaultLook(`손�
 
 // 통로를 따라 걷기: at(통로 점 이름)이 바뀌면 지금 있는 점에서 거기까지 가장 짧은 길로 한 칸씩 걸어감.
 // 처음 나타날 때는 start 에서 출발 (출근하면 출입문). 걷는 동안은 children(true)
-function Walker({ at, start, off = [0, 0], children }) {
+function Walker({ at, start, off = [0, 0], speed = SPEED, children }) {
   const cur = useRef(start || at)
   const busyUntil = useRef(0)
   const [st, setSt] = useState({ node: start || at, dur: 0 })
@@ -37,7 +37,7 @@ function Walker({ at, start, off = [0, 0], children }) {
       if (!alive) return
       if (i >= path.length) { setMoving(false); return }
       const from = cur.current, next = path[i++]
-      const dur = from === next ? 0 : Math.max(250, Math.round(nodeDist(from, next) / SPEED * 1000))
+      const dur = from === next ? 0 : Math.max(250, Math.round(nodeDist(from, next) / speed * 1000))
       cur.current = next; busyUntil.current = Date.now() + dur
       setMoving(true); setSt({ node: next, dur })
       t = setTimeout(step, dur)
@@ -46,7 +46,7 @@ function Walker({ at, start, off = [0, 0], children }) {
     const wait = Math.max(0, busyUntil.current - Date.now())
     t = setTimeout(() => requestAnimationFrame(() => requestAnimationFrame(step)), wait)
     return () => { alive = false; clearTimeout(t) }
-  }, [at])
+  }, [at, speed])
   const [x, y] = NODES[st.node] || NODES.door
   return (
     <g style={{transform:`translate(${x + off[0]}px, ${y + off[1]}px)`, transition:`transform ${st.dur}ms linear`}}>
@@ -66,28 +66,52 @@ function Badges({ flame, grade, star }) {
   return <g transform={`translate(${-wsum/2},-${SIZE*1.25 + 16})`}>{items.map((it,i) => <g key={i} transform={`translate(${i*14},0)`}>{it}</g>)}</g>
 }
 
+// 말풍선 (머리 오른쪽). lines: [[글, 색], ...]
+function Bubble({ lines, pop }) {
+  const w = Math.max(...lines.map(([t]) => t.length)) * 12 + 16, h = lines.length * 16 + 8
+  return (
+    <g transform={`translate(${SIZE/2 - 2},${-SIZE*1.25 - 4})`} style={{pointerEvents:'none'}}>
+      <g className={pop ? 'av-pop' : undefined}>
+        <rect x="6" y="0" width={w} height={h} rx="6" fill="#FFFFFF" stroke={T.ink} strokeWidth="1.5"/>
+        <polygon points={`6,${h-14} -2,${h-6} 12,${h-10}`} fill="#FFFFFF" stroke={T.ink} strokeWidth="1.5" strokeLinejoin="round"/>
+        <rect x="7" y={h-15} width="7" height="6" fill="#FFFFFF"/>
+        {lines.map(([t, c], i) => <text key={i} x={6 + w/2} y={17 + i*16} textAnchor="middle" fontSize="12" fontWeight="800" fill={c || T.ink}>{t}</text>)}
+      </g>
+    </g>
+  )
+}
+
 function Person({ p, moving }) {
   const { look, label, badges, boss } = p
   const pose = moving ? 'walk' : p.pose
   return (
     <>
-      <g transform={`translate(${-SIZE/2},${-SIZE*1.25})`}><Avatar look={look} size={SIZE} pose={pose} title={label}/></g>
+      <g transform={`translate(${-SIZE/2},${-SIZE*1.25})`}><Avatar look={look} size={SIZE} pose={pose} title={label} role={p.role}/></g>
       <Badges {...badges}/>
+      {/* 개근 중이면 반짝반짝 */}
+      {badges.flame && [[-SIZE/2 - 4, -SIZE*0.9, 0], [SIZE/2 + 2, -SIZE*0.5, 0.6]].map(([x, y, d], i) => (
+        <polygon key={i} className="av-twinkle" style={{animationDelay:`${d}s`}} transform={`translate(${x},${y})`} points="0,-4 1.2,-1.2 4,0 1.2,1.2 0,4 -1.2,1.2 -4,0 -1.2,-1.2" fill="#F6C343"/>
+      ))}
+      {/* 바쁜 시간: 땀 */}
+      {p.busy && pose !== 'rest' && <path className="av-drip" d={`M${-SIZE/2 + 2},${-SIZE*1.05} q-2,4 0,5 q2,-1 0,-5z`} fill="#7FB2D9"/>}
       {pose === 'rest' && <text className="av-float" x="14" y={-SIZE*1.1} fontSize="14" fontWeight="800" fill={T.blue}>z</text>}
-      {p.state === 'leaving' && (
-        // 퇴근 인사 말풍선 (머리 오른쪽)
-        <g transform={`translate(${SIZE/2 - 2},${-SIZE*1.25 - 4})`} style={{pointerEvents:'none'}}>
-          <rect x="6" y="0" width="112" height="40" rx="6" fill="#FFFFFF" stroke={T.ink} strokeWidth="1.5"/>
-          <polygon points="6,26 -2,34 12,30" fill="#FFFFFF" stroke={T.ink} strokeWidth="1.5" strokeLinejoin="round"/>
-          <rect x="7" y="25" width="7" height="6" fill="#FFFFFF"/>
-          <text x="62" y="17" textAnchor="middle" fontSize="12" fontWeight="800" fill={T.ink}>퇴근하겠습니다.</text>
-          <text x="62" y="33" textAnchor="middle" fontSize="12" fontWeight="800" fill={T.accent}>수고하셨습니다!</text>
-        </g>
-      )}
+      {p.state === 'leaving'
+        ? <Bubble lines={[['퇴근하겠습니다.'], ['수고하셨습니다!', T.accent]]}/>
+        : p.say && <Bubble key={p.say.map(l => l[0]).join()} lines={p.say} pop={p.sayPop}/>}
       <text x="0" y="16" textAnchor="middle" fontSize="13" fontWeight="800" fill={boss ? T.accent : T.ink} stroke="#FFFFFF" strokeWidth="4" paintOrder="stroke">{label}</text>
     </>
   )
 }
+
+// 가끔 하는 한마디 (지금 있는 자리 따라)
+const LINES = {
+  wok: ['짬뽕 나갑니다!', '불 올립니다!'], kitchen: ['면 삶을게요!', '재료 채워 둘게요!'], hall: ['맛있게 드세요!', '어서 오세요!'],
+  counter: ['주문 들어왔어요!', '포장 나왔어요!'], delivery: ['배달 출발!', '포장 다 됐어요!'], boss: ['다들 화이팅!', '오늘도 수고 많아요!'],
+}
+// 점심·저녁 바쁜 시간 (땀 흘리고 빨리 걸음)
+const BUSY = [[11*60+30, 13*60+30], [17*60+30, 19*60+30]]
+// 통로 점 → 그 자리의 일 (손에 드는 것·한마디)
+const roleAt = (node, fallback) => Object.keys(SLOTS).find(k => k !== 'hall' && k !== 'rest' && SLOTS[k].includes(node)) || (HALL_POINTS.includes(node) ? 'hall' : fallback)
 
 export default function OurStore() {
   const { user, userData, isOwner } = useAuth()
@@ -192,7 +216,9 @@ export default function OurStore() {
       const resting = br && nowMin >= toMin(br.start) && nowMin < toMin(br.end)
       const to = resting ? slotFor('rest') : pick(u.uid, stationsOf(ps))
       const arriving = !!seen['in:' + u.uid] && nowMs - seen['in:' + u.uid] < 120000
-      people.push({ ...base, state: resting ? 'rest' : 'work', pose: resting ? 'rest' : 'work', from: arriving ? 'door' : to, to, brEnd: resting ? br.end : null })
+      // 출근해서 들어오는 동안 인사 (지각이면 '헉')
+      const say = arriving ? (base.late ? [['헉! 늦었다', T.red], ['죄송합니다!']] : [['안녕하세요!']]) : null
+      people.push({ ...base, state: resting ? 'rest' : 'work', pose: resting ? 'rest' : 'work', from: arriving ? 'door' : to, to, brEnd: resting ? br.end : null, say })
     } else if (plan) {
       waiting.push({ ...base, overdue: nowMin > toMin(plan.start) })
     }
@@ -201,6 +227,14 @@ export default function OurStore() {
   if (owner) {
     const to = pick(owner.uid, stationsOf(['kitchen','hall'], { kitchen: 14 }))
     people.push({ uid:owner.uid, label:'사장님', boss:true, look:lookOf(owner), badges:{}, posKey:'kitchen', ps:['kitchen','hall'], state:'work', pose:'work', from:to, to })
+  }
+  // 자리 따라 드는 것, 가끔 한마디 (50초마다 5초, 사람마다 다른 때), 바쁜 시간
+  const busy = BUSY.some(([a, b]) => nowMin >= a && nowMin < b)
+  for (const p of people) {
+    p.role = roleAt(p.to, p.posKey); p.busy = busy
+    if (p.say || p.state !== 'work') continue
+    const h = hashOf(p.uid), t = (beat + h % 50) % 50
+    if (t < 5) { const list = LINES[p.boss ? 'boss' : p.role] || LINES.hall; p.say = [[list[Math.floor((beat + h) / 50) % list.length]]]; p.sayPop = true }
   }
   // 같은 자리에 두 사람이 오면 옆으로 살짝 비켜 섬
   const taken = {}
@@ -311,7 +345,7 @@ export default function OurStore() {
 
           {/* 직원 */}
           {[...people].sort((a,b) => String(a.uid).localeCompare(String(b.uid))).map(p => (
-            <Walker key={p.uid} at={p.to} start={p.from} off={p.off}>{moving => <g opacity={p.state === 'leaving' ? 0.85 : 1}><Person p={p} moving={moving}/></g>}</Walker>
+            <Walker key={p.uid} at={p.to} start={p.from} off={p.off} speed={p.busy ? SPEED * 1.5 : SPEED}>{moving => <g opacity={p.state === 'leaving' ? 0.85 : 1}><Person p={p} moving={moving}/></g>}</Walker>
           ))}
         </svg>
       </div>
