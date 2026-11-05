@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { db } from '../firebase'
 import { doc, getDoc, setDoc, deleteField, serverTimestamp } from 'firebase/firestore'
 import { useAuth } from '../AuthContext'
-import { DEFAULT_RADIUS, GRACE_MIN, ymOf, ddOf, hm, toDate, planFor, breakForShift, calcRecord, applyRecord, distanceM, getPosition, minsLabel } from '../lib/attendance'
+import { DEFAULT_RADIUS, ymOf, ddOf, hm, toDate, planFor, breakForShift, calcRecord, applyRecord, distanceM, getPosition, minsLabel } from '../lib/attendance'
 
 const DAYS_KR = ['일','월','화','수','목','금','토']
 const T = { ink:'#1D1B18', sub:'#6E6A63', rule:'#DCD7CE', accent:'#C3261C', red:'#B42318', green:'#2E7D45', blue:'#2B5C9E', amber:'#B45309' }
@@ -159,10 +159,7 @@ export default function Clock() {
       <div style={{fontSize:56, fontWeight:800, lineHeight:1.1, fontVariantNumeric:'tabular-nums', color}}>{time}</div>
     </div>
   )
-  const inM = inD ? inD.getHours()*60 + inD.getMinutes() : null
-  const earlyBy = inD && r.schedStart ? (+r.schedStart.slice(0,2)*60 + +r.schedStart.slice(3)) - inM : 0   // 예정보다 몇 분 일찍
-  const auto = +r.earlyAuto || 0
-  const earlyIn = earlyBy > Math.max(auto, GRACE_MIN)
+  // 일찍 온 시간 인정 여부는 직원 화면에 안 보여 줌 (사장님이 근무관리에서 정함)
 
   return wrap(
     <>
@@ -188,11 +185,6 @@ export default function Clock() {
       {result.forgotYesterday && (
         <div style={{marginTop:14, fontSize:14, color:T.red, lineHeight:1.6, fontWeight:600}}>
           어제({hm(result.forgotYesterday)} 출근) 퇴근을 안 찍었어요. 어제 근무시간이 아직 안 들어갔으니 사장님께 퇴근한 시각을 알려 주세요.
-        </div>
-      )}
-      {(result.kind === 'in' || result.kind === 'soon') && earlyIn && (
-        <div style={{marginTop:14, fontSize:14, color:T.amber, lineHeight:1.6}}>
-          예정({r.schedStart})보다 {earlyBy}분 일찍 왔어요. {auto > 0 ? `${auto}분까지는 바로 인정되고, 그보다 일찍 온 시간은` : '일찍 온 시간은'} 사장님이 승인하면 급여에 들어가요.
         </div>
       )}
       {(result.kind === 'in' || result.kind === 'soon') && !r.schedStart && (
