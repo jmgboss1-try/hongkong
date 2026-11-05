@@ -2,7 +2,7 @@
 // 움직임은 CSS 클래스(av-*)로 줌. 화면에 lib/avatar.js 의 AVATAR_CSS 를 한 번 넣어야 움직임
 // look: lib/avatar.js 의 LOOK_BASE 항목들 (얼굴·머리·모자·옷·앞치마·바지·신발·드는 것·소품·꾸밈)
 // role: 포지션 (hold 가 'auto' 일 때 드는 물건을 정함). try: 사장님이 입어 보는 특별 아이템 [goldApron, crown, sparkle]
-import { HOLD_BY_POSITION, LOOK_BASE } from '../lib/avatar'
+import { HOLD_BY_POSITION, LOOK_BASE, accsOf } from '../lib/avatar'
 
 const INK = '#1D1B18'
 const GOLD = '#D9A441'
@@ -12,10 +12,12 @@ export default function Avatar({ look: rawLook, pose = 'idle', size = 48, x = 0,
   const px = (cx, cy, w, h, fill, key) => <rect key={key} x={cx*u} y={cy*u} width={w*u} height={h*u} fill={fill}/>
   const look = { ...LOOK_BASE, ...rawLook }
   const { hair, hairColor: hc, skin, shirt, acc, eyes, brows, mouth, mark, top, pants, shoes, tip } = look
-  const deco = new Set([...(look.deco || []), ...(acc === 'blush' ? ['blush'] : [])])
-  const hat = tryOn.includes('crown') ? 'crown' : look.hat
-  const apronColor = tryOn.includes('goldApron') ? GOLD : look.apron
-  const hold = look.hold === 'auto' ? (HOLD_BY_POSITION[role] || 'none') : look.hold
+  const accs = new Set(accsOf(acc))
+  const deco = new Set([...(look.deco || []), ...(accs.has('blush') ? ['blush'] : [])])
+  const sp = new Set([...(look.special || []), ...tryOn])   // 특별 아이템
+  const hat = sp.has('crown') ? 'crown' : look.hat
+  const apronColor = sp.has('goldApron') ? GOLD : look.apron
+  const hold = sp.has('goldWok') ? 'goldWok' : look.hold === 'auto' ? (HOLD_BY_POSITION[role] || 'none') : look.hold
   const body = top === 'chef' ? '#F4F4F2' : shirt
   const shaved = hc + '66'
 
@@ -36,7 +38,8 @@ export default function Avatar({ look: rawLook, pose = 'idle', size = 48, x = 0,
   if (hair === 'spiky') { cap('s1',4,2,8,2,hc); cap('s2',4,1,1,1,hc); cap('s3',6,0,1,2,hc); cap('s4',8,1,1,1,hc); cap('s5',10,0,1,2,hc); cap('s6',3,3,1,2,hc); cap('s7',12,3,1,2,hc) }
   if (hair === 'mohawk') { cap('m1',4,2.4,8,1.2,shaved); cap('m2',7,-0.6,2,3.6,hc) }
   if (hair === 'cap') { cap('k1',4,1,8,3,shirt); cap('k2',3,3,11,1,shirt); cap('k3',3,4,1,1,hc); cap('k4',12,4,1,1,hc) }
-  if (tip && hair !== 'bald' && hair !== 'cap') cap('tip',9,1.8,2,2.2,tip)   // 브릿지
+  if (sp.has('rainbow') && hair !== 'bald' && hair !== 'cap') ['#B42318','#D9A441','#2E7D45','#2B5C9E'].forEach((c,i) => cap('rb'+i,8.6+i*0.6,1.8,0.6,2.2,c))
+  else if (tip && hair !== 'bald' && hair !== 'cap') cap('tip',9,1.8,2,2.2,tip)   // 브릿지
 
   // ── 모자 ──
   const HT = []
@@ -71,6 +74,7 @@ export default function Avatar({ look: rawLook, pose = 'idle', size = 48, x = 0,
   const HOLD = {
     ladle: [px(12.3,11.4,0.45,3.6,'#9AA0A6','o1'), px(11.7,15,1.6,1,'#9AA0A6','o2')],
     wok:   [px(12.4,13.6,3.6,1.4,'#2F2B28','o1'), px(12.4,13.6,3.6,0.4,'#5E6268','o2'), px(16,14,1.6,0.5,'#5A4636','o3')],
+    goldWok: [px(12.4,13.6,3.6,1.4,GOLD,'o1'), px(12.4,13.6,3.6,0.4,'#F6C343','o2'), px(16,14,1.6,0.5,'#8A6A2A','o3'), <rect key="o4" className="av-twinkle" x={13.4*u} y={13.9*u} width={0.7*u} height={0.7*u} fill="#FFFFFF"/>],
     tray:  [px(11.4,13.4,4.4,0.6,'#9AA0A6','o1'), px(12.4,12.2,2.2,1.2,'#FFFFFF','o2'), px(12.7,12.3,1.6,0.5,'#C3261C','o3')],
     towel: [px(12,14.4,1.4,2.6,'#FFFFFF','o1'), px(12,15.2,1.4,0.4,'#2B5C9E','o2')],
     bag:   [px(12.2,14.6,3,3,'#FFFFFF','o1'), px(12.2,15.4,3,0.6,'#C3261C','o2'), px(12.8,14,1.8,0.6,'#B8B2A7','o3')],
@@ -109,18 +113,18 @@ export default function Avatar({ look: rawLook, pose = 'idle', size = 48, x = 0,
         {px(4,3,8,7,skin,'face')}
         {px(4,9,8,1,skin,'chin')}
         {F}
-        {acc === 'glasses' && <><rect x={5*u} y={5*u} width={2*u} height={2*u} fill="none" stroke={INK} strokeWidth={u*0.5}/><rect x={9*u} y={5*u} width={2*u} height={2*u} fill="none" stroke={INK} strokeWidth={u*0.5}/>{px(7,5.5,2,0.5,INK,'g3')}</>}
-        {acc === 'sunglasses' && <>{px(4.8,4.9,2.4,1.7,INK,'sg1')}{px(8.8,4.9,2.4,1.7,INK,'sg2')}{px(7.2,5.3,1.6,0.4,INK,'sg3')}{px(5.2,5.1,0.7,0.4,'#FFFFFF88','sg4')}{px(9.2,5.1,0.7,0.4,'#FFFFFF88','sg5')}</>}
-        {acc === 'mask' && px(5,7,6,2,'#FFFFFF','mk')}
+        {accs.has('glasses') && <><rect x={5*u} y={5*u} width={2*u} height={2*u} fill="none" stroke={INK} strokeWidth={u*0.5}/><rect x={9*u} y={5*u} width={2*u} height={2*u} fill="none" stroke={INK} strokeWidth={u*0.5}/>{px(7,5.5,2,0.5,INK,'g3')}</>}
+        {accs.has('sunglasses') && <>{px(4.8,4.9,2.4,1.7,INK,'sg1')}{px(8.8,4.9,2.4,1.7,INK,'sg2')}{px(7.2,5.3,1.6,0.4,INK,'sg3')}{px(5.2,5.1,0.7,0.4,'#FFFFFF88','sg4')}{px(9.2,5.1,0.7,0.4,'#FFFFFF88','sg5')}</>}
+        {accs.has('mask') && px(5,7,6,2,'#FFFFFF','mk')}
         {H}
-        {acc === 'band' && px(4,3,8,1,'#C3261C','bd')}
+        {accs.has('band') && px(4,3,8,1,'#C3261C','bd')}
         {HT}
         {deco.has('hairpin') && <>{px(9.8,2.4,1.6,0.7,'#E8899A','hp1')}{px(10.3,2.1,0.6,1.3,'#E8899A','hp2')}</>}
         {deco.has('earring') && <>{px(3.3,7,0.6,0.9,GOLD,'er1')}{px(12.1,7,0.6,0.9,GOLD,'er2')}</>}
-        {acc === 'headset' && <>{px(3.6,1.4,8.8,0.6,INK,'hs1')}{px(3.1,1.8,0.6,4.4,INK,'hs2')}{px(12.3,1.8,0.6,4.4,INK,'hs3')}{px(2.7,5.2,1.3,1.8,INK,'hs4')}{px(12,5.2,1.3,1.8,INK,'hs5')}{px(3.6,7.8,2.8,0.4,INK,'hs6')}{px(6.2,7.6,0.7,0.8,'#5E6268','hs7')}</>}
+        {accs.has('headset') && <>{px(3.6,1.4,8.8,0.6,INK,'hs1')}{px(3.1,1.8,0.6,4.4,INK,'hs2')}{px(12.3,1.8,0.6,4.4,INK,'hs3')}{px(2.7,5.2,1.3,1.8,INK,'hs4')}{px(12,5.2,1.3,1.8,INK,'hs5')}{px(3.6,7.8,2.8,0.4,INK,'hs6')}{px(6.2,7.6,0.7,0.8,'#5E6268','hs7')}</>}
         {apronColor === GOLD && withApron && <rect className="av-twinkle" x={6.5*u} y={12.5*u} width={0.8*u} height={0.8*u} fill="#FFFFFF"/>}
       </g>
-      {tryOn.includes('sparkle') && [[0,2,0],[14.5,4,0.5],[1,13,0.9],[15,15,0.3]].map(([a,b,d],i) => (
+      {sp.has('sparkle') && [[0,2,0],[14.5,4,0.5],[1,13,0.9],[15,15,0.3]].map(([a,b,d],i) => (
         <g key={'sp'+i} transform={`translate(${a*u},${b*u})`}>
           <polygon className="av-twinkle" style={{animationDelay:`${d}s`}} points={`0,${-u} ${u*0.3},${-u*0.3} ${u},0 ${u*0.3},${u*0.3} 0,${u} ${-u*0.3},${u*0.3} ${-u},0 ${-u*0.3},${-u*0.3}`} fill={GOLD}/>
         </g>

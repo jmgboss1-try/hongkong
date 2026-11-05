@@ -5,23 +5,31 @@ import Avatar from './Avatar'
 import { useAuth } from '../AuthContext'
 import {
   HAIRS, HAIR_COLORS, TIP_COLORS, SKINS, SHIRTS, EYES, BROWS, MOUTHS, MARKS, HATS, TOPS, APRONS, PANTS, SHOES, HOLDS, ACCS, DECOS, LOCKED,
-  POSITIONS, HOLD_BY_POSITION, lookOf, randomLook, AVATAR_CSS,
+  POSITIONS, HOLD_BY_POSITION, lookOf, accsOf, randomLook, AVATAR_CSS,
 } from '../lib/avatar'
 
 const T = { ink:'#1D1B18', sub:'#6E6A63', rule:'#DCD7CE', soft:'#ECE8E1', accent:'#C3261C', green:'#2E7D45', blue:'#2B5C9E', amber:'#B45309' }
 const TABS = [['face','얼굴'], ['hair','머리'], ['clothes','옷'], ['items','소품']]
 
 // 우리 매장 화면에 나오는 캐릭터 꾸미기 (users/{uid}.avatar). 내 기록(직원)과 우리 매장(사장님)에서 씀
-// 특별 아이템(LOCKED)은 사장님에게만 보이고 입어 보기만 됨 (저장 안 됨, 직원에게 줄 방법은 정하는 중)
+// 특별 아이템(LOCKED): 사장님은 전부, 직원은 사장님이 준 것(users.unlocks)만 보이고 입을 수 있음
 export default function AvatarEditor({ uid, userData, title = '내 캐릭터', hint = '출근하면 매장 화면에서 이 캐릭터가 일해요', onSaved }) {
   const { isOwner } = useAuth()
-  const [saved, setSaved] = useState(() => lookOf({ uid, avatar: userData?.avatar }))
+  const [saved, setSaved] = useState(() => lookOf({ uid, ...userData }))
   const [look, setLook] = useState(saved)
   const [open, setOpen] = useState(false)
   const [tab, setTab] = useState('face')
-  const [tryOn, setTryOn] = useState([])
   const [msg, setMsg] = useState('')
   const set = (k, v) => { setLook(l => ({ ...l, [k]: v })); setMsg('') }
+  // 얼굴 소품은 여러 개 같이 (안경과 선글라스만 둘 중 하나)
+  const toggleAcc = id => { setLook(l => {
+    if (id === 'none') return { ...l, acc:[] }
+    const a = new Set(accsOf(l.acc).filter(x => x !== 'blush'))
+    if (a.has(id)) a.delete(id); else { a.add(id); if (id === 'glasses') a.delete('sunglasses'); if (id === 'sunglasses') a.delete('glasses') }
+    return { ...l, acc:[...a] }
+  }); setMsg('') }
+  const toggleSpecial = id => { setLook(l => { const a = new Set(l.special || []); a.has(id) ? a.delete(id) : a.add(id); return { ...l, special:[...a] } }); setMsg('') }
+  const mySpecials = isOwner && userData?.role !== 'staff' ? LOCKED : LOCKED.filter(it => (userData?.unlocks || []).includes(it.id))
   const toggleDeco = id => { setLook(l => { const d = new Set(l.deco || []); d.has(id) ? d.delete(id) : d.add(id); return { ...l, deco:[...d] } }); setMsg('') }
   const changed = JSON.stringify(look) !== JSON.stringify(saved)
   const role = (userData?.positions?.[0]) || userData?.position || (isOwner && !userData?.positions ? 'kitchen' : 'hall')
@@ -80,7 +88,7 @@ export default function AvatarEditor({ uid, userData, title = '내 캐릭터', h
           {/* 크게 미리보기 (바꾸는 중이면 지금 모습과 나란히) */}
           <div style={{display:'flex', gap:10, alignItems:'flex-start', flexWrap:'wrap'}}>
             {changed && big(saved, [], '지금 모습')}
-            {big(look, tryOn, changed ? '바꾼 뒤' : '미리보기')}
+            {big(look, [], changed ? '바꾼 뒤' : '미리보기')}
           </div>
           <div style={{flex:1, minWidth:280}}>
             <div style={{display:'flex', gap:14, borderBottom:`1px solid ${T.rule}`, marginBottom:4}}>
@@ -118,17 +126,18 @@ export default function AvatarEditor({ uid, userData, title = '내 캐릭터', h
               {look.hold === 'auto' && <div style={{fontSize:12, color:T.sub, padding:'4px 0 2px 74px'}}>
                 포지션 따라: {POSITIONS.map(p => `${p.label.split(' ')[0]} ${HOLDS.find(h => h.id === HOLD_BY_POSITION[p.id])?.label}`).join(' · ')}
               </div>}
-              {row('얼굴에', picks(ACCS, 'acc'))}
+              {row('얼굴에', ACCS.map(a => chip(a.id === 'none' ? !accsOf(look.acc).filter(x => x !== 'blush').length : accsOf(look.acc).includes(a.id), a.label, () => toggleAcc(a.id), a.id)))}
+              <div style={{fontSize:12, color:T.sub, padding:'2px 0 0 74px'}}>여러 개 같이 할 수 있어요 (예: 안경 + 마스크)</div>
               {row('귀걸이', [chip((look.deco||[]).includes('earring'), (look.deco||[]).includes('earring') ? '했음' : '안 함', () => toggleDeco('earring'), 'er')])}
             </>}
 
-            {/* 특별 아이템: 사장님만 보임, 입어 보기만 */}
-            {isOwner && (
+            {/* 특별 아이템 (포상): 사장님은 전부, 직원은 받은 것만 */}
+            {mySpecials.length > 0 && (
               <div style={{marginTop:12, padding:'10px 12px', border:`1px dashed ${T.amber}`, borderRadius:6, background:'#FFF8EC'}}>
-                <div style={{fontSize:13, fontWeight:800, color:T.amber}}>특별 아이템 · 사장님만 보여요</div>
-                <div style={{fontSize:12, color:T.sub, margin:'2px 0 8px', lineHeight:1.6}}>직원 화면에는 안 나와요. 입어 보기만 되고 저장되지 않아요. 어떻게 열어 줄지(개근·근속 등)는 같이 정해요.</div>
-                <div style={{display:'flex', gap:6, flexWrap:'wrap'}}>
-                  {LOCKED.map(it => chip(tryOn.includes(it.id), `${it.label} · ${it.idea}`, () => setTryOn(t => t.includes(it.id) ? t.filter(x => x !== it.id) : [...t, it.id]), it.id))}
+                <div style={{fontSize:13, fontWeight:800, color:T.amber}}>특별 아이템{isOwner ? ' · 사장님은 전부 쓸 수 있어요' : ' · 포상으로 받았어요'}</div>
+                {isOwner && <div style={{fontSize:12, color:T.sub, margin:'2px 0 0', lineHeight:1.6}}>직원에게는 우리 매장 맨 아래 '특별 아이템 주기'에서 준 것만 보여요.</div>}
+                <div style={{display:'flex', gap:6, flexWrap:'wrap', marginTop:8}}>
+                  {mySpecials.map(it => chip((look.special || []).includes(it.id), it.label, () => toggleSpecial(it.id), it.id))}
                 </div>
               </div>
             )}

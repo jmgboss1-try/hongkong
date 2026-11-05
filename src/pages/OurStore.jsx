@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
 import { db } from '../firebase'
-import { collection, doc, getDoc, getDocs, onSnapshot } from 'firebase/firestore'
+import { collection, doc, getDoc, getDocs, onSnapshot, setDoc } from 'firebase/firestore'
 import { calcGrade, useAuth } from '../AuthContext'
 import Avatar from '../components/Avatar'
 import AvatarEditor from '../components/AvatarEditor'
-import { lookOf, defaultLook, AVATAR_CSS, POSITIONS } from '../lib/avatar'
+import { lookOf, defaultLook, AVATAR_CSS, POSITIONS, LOCKED } from '../lib/avatar'
 import { toDate, hm, recBreak, planFor, dayStatus, monthStatus, loadMonthContext, pad } from '../lib/attendance'
 import { MAP_W, MAP_H, NODES, route, nodeDist, SLOTS, HALL_POINTS, TABLES, SEAT_ORDER } from '../lib/storeMap'
 
@@ -127,6 +127,15 @@ export default function OurStore() {
   const [checks, setChecks] = useState({})
   const [ckCfg, setCkCfg] = useState(null)
   const [ctx, setCtx] = useState(null)
+  const [giveMsg, setGiveMsg] = useState('')
+  // 특별 아이템 주기·거두기 (users/{uid}.unlocks)
+  async function giveItem(uid, id, on) {
+    const u = staff.find(x => x.uid === uid); if (!u) return
+    const next = on ? [...new Set([...(u.unlocks || []), id])] : (u.unlocks || []).filter(x => x !== id)
+    setStaff(list => list.map(x => x.uid === uid ? { ...x, unlocks: next } : x))
+    try { await setDoc(doc(db,'users',uid), { unlocks: next }, { merge:true }); setGiveMsg(`${u.name}에게 ${LOCKED.find(x => x.id === id)?.label}을(를) ${on ? '줬어요' : '거뒀어요'}`) }
+    catch(e) { console.error(e); setStaff(list => list.map(x => x.uid === uid ? { ...x, unlocks: u.unlocks } : x)); setGiveMsg('저장하지 못했어요. 다시 시도해 주세요') }
+  }
   const ym = `${now.getFullYear()}-${pad(now.getMonth()+1)}`, dd = pad(now.getDate())
   const todayStr = `${ym}-${dd}`
 
@@ -380,6 +389,37 @@ export default function OurStore() {
           ))}
         </section>
       </div>
+      {/* 특별 아이템 주기 (포상, 사장님만) */}
+      {isOwner && staff.length > 0 && (
+        <section style={{marginTop:22}}>
+          <h2 style={{fontSize:15, fontWeight:800, margin:'0 0 2px', fontFamily:'inherit', borderBottom:`2px solid ${T.ink}`, paddingBottom:4}}>특별 아이템 주기 <span style={{fontSize:12, fontWeight:500, color:T.sub}}>포상으로 준 직원만 꾸미기에서 보이고 입을 수 있어요</span></h2>
+          <div style={{overflowX:'auto'}}>
+            <table style={{borderCollapse:'collapse', fontSize:13, minWidth:420}}>
+              <thead><tr>
+                <th style={{textAlign:'left', padding:'6px 10px 6px 0', color:T.sub, fontWeight:600}}>직원</th>
+                {LOCKED.map(it => <th key={it.id} style={{padding:'6px 8px', color:T.sub, fontWeight:600, whiteSpace:'nowrap'}}>{it.label}</th>)}
+              </tr></thead>
+              <tbody>
+                {staff.map(u => (
+                  <tr key={u.uid} style={{borderTop:`1px solid ${T.soft}`}}>
+                    <td style={{padding:'6px 10px 6px 0', fontWeight:700, whiteSpace:'nowrap'}}>{u.name}</td>
+                    {LOCKED.map(it => {
+                      const on = (u.unlocks || []).includes(it.id)
+                      return (
+                        <td key={it.id} style={{textAlign:'center', padding:'4px 8px'}}>
+                          <input type="checkbox" checked={on} aria-label={`${u.name} ${it.label}`} style={{width:18, height:18}}
+                            onChange={e => giveItem(u.uid, it.id, e.target.checked)}/>
+                        </td>
+                      )
+                    })}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          {giveMsg && <div style={{fontSize:13, color: giveMsg.includes('못') ? T.red : T.green, marginTop:6}}>{giveMsg}</div>}
+        </section>
+      )}
       {/* 사장님 캐릭터 꾸미기 (사장님 계정에서만) */}
       {isOwner && user && (
         <div style={{marginTop:22}}>
