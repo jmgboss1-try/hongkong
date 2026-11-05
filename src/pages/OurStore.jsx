@@ -74,6 +74,16 @@ function Person({ p, moving }) {
       <g transform={`translate(${-SIZE/2},${-SIZE*1.25})`}><Avatar look={look} size={SIZE} pose={pose} title={label}/></g>
       <Badges {...badges}/>
       {pose === 'rest' && <text className="av-float" x="14" y={-SIZE*1.1} fontSize="14" fontWeight="800" fill={T.blue}>z</text>}
+      {p.state === 'leaving' && (
+        // 퇴근 인사 말풍선 (머리 오른쪽)
+        <g transform={`translate(${SIZE/2 - 2},${-SIZE*1.25 - 4})`} style={{pointerEvents:'none'}}>
+          <rect x="6" y="0" width="112" height="40" rx="6" fill="#FFFFFF" stroke={T.ink} strokeWidth="1.5"/>
+          <polygon points="6,26 -2,34 12,30" fill="#FFFFFF" stroke={T.ink} strokeWidth="1.5" strokeLinejoin="round"/>
+          <rect x="7" y="25" width="7" height="6" fill="#FFFFFF"/>
+          <text x="62" y="17" textAnchor="middle" fontSize="12" fontWeight="800" fill={T.ink}>퇴근하겠습니다.</text>
+          <text x="62" y="33" textAnchor="middle" fontSize="12" fontWeight="800" fill={T.accent}>수고하셨습니다!</text>
+        </g>
+      )}
       <text x="0" y="16" textAnchor="middle" fontSize="13" fontWeight="800" fill={boss ? T.accent : T.ink} stroke="#FFFFFF" strokeWidth="4" paintOrder="stroke">{label}</text>
     </>
   )
@@ -86,6 +96,9 @@ export default function OurStore() {
   const [staff, setStaff] = useState([])
   const [owner, setOwner] = useState(null) // 사장님: 출퇴근 없이 늘 매장에 있음
   const [att, setAtt] = useState({})
+  // 이 화면에서 출근·퇴근을 본 때 (이 컴퓨터 시계 기준). 포스 시계가 서버와 달라도 들어오고 나가는 모습이 1~2분 뒤 끝나게
+  const [seen, setSeen] = useState({})
+  const prevAtt = useRef(null)
   const [rev, setRev] = useState({})
   const [checks, setChecks] = useState({})
   const [ckCfg, setCkCfg] = useState(null)
@@ -93,11 +106,12 @@ export default function OurStore() {
   const ym = `${now.getFullYear()}-${pad(now.getMonth()+1)}`, dd = pad(now.getDate())
   const todayStr = `${ym}-${dd}`
 
-  useEffect(() => { const t = setInterval(() => setNow(new Date()), 15000); return () => clearInterval(t) }, [])
+  useEffect(() => { const t = setInterval(() => setNow(new Date()), 5000); return () => clearInterval(t) }, [])
   useEffect(() => { const t = setInterval(() => setBeat(Math.floor(Date.now() / 1000)), 2000); return () => clearInterval(t) }, [])
 
   useEffect(() => {
     let off = false
+    prevAtt.current = null
     Promise.all([
       getDocs(collection(db,'users')),
       getDoc(doc(db,'checklist','config')).then(s => s.exists() ? s.data() : null).catch(() => null),
@@ -111,7 +125,21 @@ export default function OurStore() {
       setStaff(list); setCkCfg(cfg); setCtx(c)
     }).catch(e => console.error(e))
     const subs = [
-      onSnapshot(doc(db,'attendance',ym), s => setAtt(s.exists() ? s.data() : {}), () => {}),
+      onSnapshot(doc(db,'attendance',ym), s => {
+        const data = s.exists() ? s.data() : {}
+        const nowL = Date.now(), day = pad(new Date().getDate()), prev = prevAtt.current
+        // 처음 열 때는 서버 시각으로 막 찍은 것만, 그 뒤로는 새로 찍힌 것을 '지금 봤음'으로
+        const fresh = (r, p, k, ms) => r?.[k] && (prev ? !p?.[k] : (d => d >= -5000 && d < ms)(nowL - (toDate(r[k])?.getTime() ?? 0)))
+        const add = {}
+        for (const [uid, days] of Object.entries(data)) {
+          const r = days?.[day], p = prev?.[uid]?.[day]
+          if (fresh(r, p, 'out', 60000)) add['out:' + uid] = nowL
+          if (fresh(r, p, 'in', 120000)) add['in:' + uid] = nowL
+        }
+        prevAtt.current = data
+        if (Object.keys(add).length) setSeen(x => ({ ...x, ...add }))
+        setAtt(data)
+      }, () => {}),
       onSnapshot(doc(db,'revenue',ym), s => setRev(s.exists() ? s.data() : {}), () => {}),
       onSnapshot(doc(db,'checklist','records'), s => setChecks(s.exists() ? (s.data().byDate || {}) : {}), () => {}),
     ]
@@ -158,12 +186,12 @@ export default function OurStore() {
     const base = { uid:u.uid, label:u.name, look:lookOf(u), badges:{ flame, grade, star: ckDone }, posKey, ps, inD, outD, plan, late: rec?.in ? dayStatus(rec, plan).late : 0 }
     if (inD && outD) {
       // 퇴근하면 1분 동안 문으로 걸어 나가고 화면에서 빠짐 (퇴근한 사람은 목록에도 안 보임)
-      if (nowMs - outD.getTime() < 60000) people.push({ ...base, state:'leaving', pose:'walk', from: slotFor(posKey), to: 'door' })
+      if (seen['out:' + u.uid] && nowMs - seen['out:' + u.uid] < 60000) people.push({ ...base, state:'leaving', pose:'walk', from: slotFor(posKey), to: 'door' })
     } else if (inD) {
       const br = recBreak(rec)
       const resting = br && nowMin >= toMin(br.start) && nowMin < toMin(br.end)
       const to = resting ? slotFor('rest') : pick(u.uid, stationsOf(ps))
-      const arriving = nowMs - inD.getTime() < 120000
+      const arriving = !!seen['in:' + u.uid] && nowMs - seen['in:' + u.uid] < 120000
       people.push({ ...base, state: resting ? 'rest' : 'work', pose: resting ? 'rest' : 'work', from: arriving ? 'door' : to, to, brEnd: resting ? br.end : null })
     } else if (plan) {
       waiting.push({ ...base, overdue: nowMin > toMin(plan.start) })
