@@ -321,6 +321,8 @@ export default function Members() {
         shiftTimes: form.shiftTimes || {},
         positions: form.positions?.length ? form.positions : [form.position || 'hall'],
         position: (form.positions?.length ? form.positions : [form.position || 'hall'])[0],
+        // 일찍 출근 자동 인정 분 (null = 매장 기본 따름, 근무관리 → NFC 출퇴근 → 설정)
+        earlyAuto: form.earlyAuto === '' || form.earlyAuto == null ? null : +form.earlyAuto,
       }, {merge:true})
 
       await load()
@@ -666,6 +668,18 @@ export default function Members() {
             <div style={{fontSize:10,color:'#6E6A63',marginTop:6}}>
               주 {Array.isArray(form.workDays)?form.workDays.length:5}일 소정근로
             </div>
+          </div>
+
+          {/* 일찍 출근 인정 (직원별) */}
+          <div style={{padding:'0 18px 14px'}}>
+            <label style={{fontSize:10,color:'#6E6A63',fontWeight:600,display:'block',marginBottom:6}}>일찍 출근 자동 인정 (예정보다 일찍 온 시간을 이만큼까지는 승인 없이 급여에 넣어요)</label>
+            <select value={form.earlyAuto ?? ''} onChange={e=>setF('earlyAuto', e.target.value)} aria-label="일찍 출근 자동 인정"
+              style={{fontFamily:'inherit',fontSize:13,padding:'6px 8px',border:'1px solid #DCD7CE',borderRadius:4,background:'#FFFFFF',color:'#1D1B18'}}>
+              <option value="">매장 기본 따름</option>
+              <option value={0}>안 함 (사장님이 승인)</option>
+              {[5,10,15,20,30,40,60].map(m => <option key={m} value={m}>{m}분까지 바로 인정</option>)}
+            </select>
+            <span style={{fontSize:11,color:'#6E6A63',marginLeft:8}}>더 일찍 온 시간은 근무관리에서 승인 대기로 떠요 · 다음 출근부터 적용</span>
           </div>
 
           {/* 우리 매장 화면에서 일하는 자리 */}

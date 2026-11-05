@@ -3,7 +3,8 @@ import { doc, getDoc, setDoc } from 'firebase/firestore'
 
 // NFC 출퇴근
 // attendance/{YYYY-MM} → { [uid]: { [dd]: { in, out (Timestamp), schedStart, schedEnd ('HH:MM'|null),
-//   name, inDist, outDist, earlyOk, lateOk, unschedOk (true|false|undefined = 아직 안 정함), appliedMins } } }
+//   name, inDist, outDist, earlyOk, lateOk, unschedOk (true|false|undefined = 아직 안 정함), appliedMins,
+//   earlyAuto (출근 때 붙인 '일찍 출근 자동 인정' 분), earlyAllow (사장님이 정한 일찍 출근 인정 분) } } }
 // attendance/_config → { lat, lng, radius, since }  매장 위치 (사장님이 매장에서 저장), 지각·결근 집계 시작일
 // 결근인데 사유가 있으면 기록에 { excused:true, excuseNote } (출근 기록 없이)
 // 찍힌 시간은 workhours(시간)·workextra(분)에 그날 근무시간으로 들어감
@@ -54,7 +55,9 @@ export const recBreak = rec => !rec?.noBreak && rec?.breakStart && rec?.breakEnd
 const overlap = (a0, a1, b0, b1) => Math.max(0, Math.min(a1, b1) - Math.max(a0, b0))
 
 // 기록 하나 → 인정 시간 계산 (분)
-//  - 예정 출근보다 GRACE_MIN 넘게 일찍 오면 그 시간은 earlyMins (승인해야 인정), 10분 이내면 예정 시각부터
+//  - 예정 출근보다 일찍 온 시간(early): 인정하는 분 = 사장님이 정한 earlyAllow 분 > 전부 인정(earlyOk)
+//    > 인정 안 함(earlyOk:false, 자동 인정만 셈) > 자동 인정(earlyAuto, 출근 때 직원·매장 설정에서 붙임). 자동 인정이 0이면 10분(GRACE_MIN) 이내는 예정 시각부터
+//    자동 인정보다 더 일찍 왔으면 남은 시간은 사장님이 정할 때까지 승인 대기
 //  - 퇴근은 찍은 시각까지 모두 인정 (2026-11 변경: 홀·주방 퇴근이 그날그날 달라서 퇴근 예정으로 자르지 않음).
 //    예전에 사장님이 '늦은 퇴근 인정 안 함'(lateOk:false)으로 정한 기록만 예정 퇴근에서 자름
 //  - 브레이크는 그 시간 전체를 매장에 있었을 때만 뺌
@@ -74,7 +77,7 @@ export function calcRecord(rec) {
   if (br && !(inM <= toMin(br.start) && outM >= toMin(br.end))) br = null
   const B0 = br ? toMin(br.start) : 0, B1 = br ? toMin(br.end) : 0
   const minus = (a, b) => br ? overlap(a, b, B0, B1) : 0 // 이 구간 중 브레이크와 겹친 분
-  let base = 0, early = 0, late = 0, unsched = 0, brk = 0
+  let base = 0, early = 0, earlyCounted = 0, earlyPending = false, late = 0, unsched = 0, brk = 0
   if (S == null) {
     unsched = Math.max(0, outM - inM - minus(inM, outM))
     if (rec.unschedOk) brk += minus(inM, outM)
@@ -83,11 +86,19 @@ export function calcRecord(rec) {
     const a = Math.max(inM, S), b = capE ? Math.min(outM, E) : outM
     base = Math.max(0, b - a - (b > a ? minus(a, b) : 0))
     brk += b > a ? minus(a, b) : 0
-    if (inM < S - GRACE_MIN) { early = S - inM - minus(inM, S); if (rec.earlyOk) brk += minus(inM, S) }
+    const auto = Math.max(0, +rec.earlyAuto || 0)
+    if (inM < S && (auto > 0 || inM < S - GRACE_MIN)) {
+      early = S - inM - minus(inM, S)
+      const allow = typeof rec.earlyAllow === 'number' ? rec.earlyAllow : rec.earlyOk === true ? Infinity : auto   // '인정 안 함'은 자동 인정 넘는 시간만 안 셈
+      const from = Math.max(inM, S - allow)
+      earlyCounted = S - from - minus(from, S)
+      brk += minus(from, S)
+      earlyPending = early > earlyCounted && rec.earlyOk == null && typeof rec.earlyAllow !== 'number' && inM < S - GRACE_MIN
+    }
   }
-  const total = base + (rec.earlyOk ? early : 0) + (rec.lateOk ? late : 0) + (rec.unschedOk ? unsched : 0)
-  const pending = (early && rec.earlyOk == null) || (late && rec.lateOk == null) || (unsched && rec.unschedOk == null)
-  return { base, early, late, unsched, total, breakMins: brk, pending: !!pending }
+  const total = base + earlyCounted + (rec.lateOk ? late : 0) + (rec.unschedOk ? unsched : 0)
+  const pending = earlyPending || (late && rec.lateOk == null) || (unsched && rec.unschedOk == null)
+  return { base, early, earlyCounted, late, unsched, total, breakMins: brk, pending: !!pending }
 }
 
 // 인정 시간을 근무관리(workhours 시간 + workextra 분)에 넣고, 넣은 값을 기록에 남김

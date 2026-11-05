@@ -6,6 +6,9 @@ import { DEFAULT_RADIUS, DEFAULT_SINCE, GRACE_MIN, pad, hm, toDate, calcRecord, 
 import RewardGame from './RewardGame'
 import RewardPrompt from './RewardPrompt'
 
+// 기록의 '일찍 온 시간 인정' 상태 → 수정 칸 값
+const earlyChoice = rec => typeof rec?.earlyAllow === 'number' ? String(rec.earlyAllow) : rec?.earlyOk === true ? 'all' : rec?.earlyOk === false ? 'no' : ''
+
 const DAYS_KR = ['일','월','화','수','목','금','토']
 const T = { ink:'#1D1B18', sub:'#6E6A63', faint:'#A8A39A', rule:'#DCD7CE', soft:'#ECE8E1', accent:'#C3261C', red:'#B42318', green:'#2E7D45', blue:'#2B5C9E', amber:'#B45309' }
 const num = { fontVariantNumeric:'tabular-nums' }
@@ -101,6 +104,22 @@ export default function AttendancePanel({ curMonth, nameMap, onApplied }) {
     setBusy(false)
   }
 
+  // 일찍 출근 일부만 인정 (분)
+  async function decideEarly(r, mins) {
+    setBusy(true)
+    try {
+      await setDoc(doc(db,'attendance',curMonth), { [r.uid]: { [r.dd]: { earlyAllow: mins } } }, { merge:true })
+      await applyRecord(curMonth, r.uid, r.dd, { ...r.rec, earlyAllow: mins })
+      await load(false); onApplied?.()
+    } catch(e) { console.error(e); alert('저장하지 못했어요. 다시 시도해 주세요.') }
+    setBusy(false)
+  }
+  // 매장 기본 '일찍 출근 자동 인정' 분
+  async function saveEarlyAuto(v) {
+    const c = { ...(cfg||{}), earlyAuto: v }
+    await setDoc(doc(db,'attendance','_config'), c); setCfg(c); setNote(v ? `예정보다 ${v}분까지 일찍 온 시간은 바로 인정해요 (앞으로 찍는 출근부터, 직원별 설정이 있으면 그게 먼저)` : '일찍 온 시간은 사장님이 승인해야 인정돼요')
+  }
+
   async function saveEdit() {
     const { uid, dd } = edit
     if (!edit.in) return alert('출근 시각을 넣어 주세요')
@@ -113,8 +132,12 @@ export default function AttendancePanel({ curMonth, nameMap, onApplied }) {
       const orig = att[uid]?.[dd] || {}
       const brkChanged = edit.bStart !== (orig.breakStart||'') || edit.bEnd !== (orig.breakEnd||'') || !!edit.noBreak !== !!orig.noBreak
       const brk = edit.noBreak ? { noBreak:true } : edit.bStart ? { breakStart:edit.bStart, breakEnd:edit.bEnd, noBreak:false } : { breakStart:null, breakEnd:null, noBreak:false }
-      const rec = { ...(att[uid]?.[dd]||{}), in: Timestamp.fromDate(inD), ...(outD ? { out: Timestamp.fromDate(outD) } : {}), ...brk, earlyLeave: !!edit.earlyLeave }
-      await setDoc(doc(db,'attendance',curMonth), { [uid]: { [dd]: { in: rec.in, out: outD ? rec.out : deleteField(), editedByOwner: true, earlyLeave: !!edit.earlyLeave, ...(brkChanged ? { editedBreak: true } : {}), ...brk } } }, { merge:true })
+      // 일찍 온 시간 인정: '' = 자동(그날 자동 인정 분만, 넘는 건 승인 대기) / 'all' = 전부 / 'no' = 자동만 / 숫자 = 그 분만큼
+      const ea = edit.earlyAllow ?? ''
+      const earlyFields = ea === 'all' ? { earlyOk:true, earlyAllow:null } : ea === 'no' ? { earlyOk:false, earlyAllow:null } : ea === '' ? { earlyOk:null, earlyAllow:null } : { earlyOk:null, earlyAllow:+ea }
+      const rec = { ...(att[uid]?.[dd]||{}), in: Timestamp.fromDate(inD), ...(outD ? { out: Timestamp.fromDate(outD) } : {}), ...brk, earlyLeave: !!edit.earlyLeave, ...earlyFields }
+      const earlyWrite = Object.fromEntries(Object.entries(earlyFields).map(([k, v]) => [k, v == null ? deleteField() : v]))
+      await setDoc(doc(db,'attendance',curMonth), { [uid]: { [dd]: { in: rec.in, out: outD ? rec.out : deleteField(), editedByOwner: true, earlyLeave: !!edit.earlyLeave, ...(brkChanged ? { editedBreak: true } : {}), ...brk, ...earlyWrite } } }, { merge:true })
       if (outD) await applyRecord(curMonth, uid, dd, rec)
       setEdit(null); await load(false); onApplied?.()
     } catch(e) { console.error(e); alert('저장하지 못했어요. 다시 시도해 주세요.') }
@@ -231,6 +254,17 @@ export default function AttendancePanel({ curMonth, nameMap, onApplied }) {
             <label style={{display:'flex', alignItems:'center', gap:4, color:T.sub}}>
               <input type="checkbox" checked={!!edit.noBreak} onChange={e=>setEdit(x=>({...x,noBreak:e.target.checked}))}/> 못 쉼
             </label>
+            {r.rec.schedStart && (
+              <label style={{display:'flex', alignItems:'center', gap:4, color:T.sub}}>일찍 온 시간
+                <select value={edit.earlyAllow ?? ''} onChange={e=>setEdit(x=>({...x, earlyAllow:e.target.value}))} aria-label="일찍 온 시간 인정"
+                  style={{fontFamily:'inherit', fontSize:12, padding:'3px 4px', border:'1px solid #CBC5BA', borderRadius:4, background:'#FFFFFF'}}>
+                  <option value="">자동{r.rec.earlyAuto ? ` (${r.rec.earlyAuto}분까지)` : ''}</option>
+                  <option value="all">전부 인정</option>
+                  {[10,15,20,30,40,60].map(m => <option key={m} value={m}>{m}분만 인정</option>)}
+                  <option value="no">인정 안 함{r.rec.earlyAuto ? ' (자동분만)' : ''}</option>
+                </select>
+              </label>
+            )}
             <label style={{display:'flex', alignItems:'center', gap:4, color:T.red}} title="퇴근 예정을 안 정하므로 조퇴는 사장님이 직접 표시해요 (개근에서 빠져요)">
               <input type="checkbox" checked={!!edit.earlyLeave} onChange={e=>setEdit(x=>({...x,earlyLeave:e.target.checked}))}/> 조퇴
             </label>
@@ -242,12 +276,13 @@ export default function AttendancePanel({ curMonth, nameMap, onApplied }) {
             <span style={{...num}}>{hm(inD)} ~ {outD ? hm(outD) : <span style={{color:T.red}}>퇴근 안 찍음</span>}</span>
             <span style={{color:T.sub, fontSize:12}}>{r.rec.schedStart ? `예정 ${r.rec.schedStart}~${r.rec.schedEnd||''}` : '예정 없음'}</span>
             {r.rec.earlyLeave && <b style={{color:T.red, fontSize:12}}>조퇴</b>}
+            {r.c?.early > 0 && <span style={{color:T.blue, fontSize:12}}>일찍 {r.c.early}분 중 {r.c.earlyCounted}분 인정</span>}
             {recBreak(r.rec) && <span style={{color:T.sub, fontSize:12}}>브레이크 {r.rec.breakStart}~{r.rec.breakEnd}</span>}
             {r.rec.noBreak && <span style={{color:T.amber, fontSize:12}}>브레이크 못 쉼</span>}
             <span style={{flex:1}}/>
             {r.c && <span style={{...num, fontWeight:600}}>{minsLabel(r.c.total)}</span>}
             {r.c?.pending && <span style={{color:T.amber, fontSize:12, fontWeight:700}}>승인 대기</span>}
-            <button type="button" onClick={()=>setEdit({ uid:r.uid, dd:r.dd, in:hm(inD), out: outD ? hm(outD) : '', bStart:r.rec.breakStart||'', bEnd:r.rec.breakEnd||'', noBreak:!!r.rec.noBreak, earlyLeave:!!r.rec.earlyLeave })}
+            <button type="button" onClick={()=>setEdit({ uid:r.uid, dd:r.dd, in:hm(inD), out: outD ? hm(outD) : '', bStart:r.rec.breakStart||'', bEnd:r.rec.breakEnd||'', noBreak:!!r.rec.noBreak, earlyLeave:!!r.rec.earlyLeave, earlyAllow: earlyChoice(r.rec) })}
               style={{background:'none', border:'none', color:T.sub, fontSize:12, cursor:'pointer', padding:0, fontFamily:'inherit'}}>수정</button>
             <button type="button" onClick={()=>remove(r)}
               style={{background:'none', border:'none', color:T.red, fontSize:12, cursor:'pointer', padding:0, fontFamily:'inherit'}}>삭제</button>
@@ -306,6 +341,15 @@ export default function AttendancePanel({ curMonth, nameMap, onApplied }) {
             {since && <Btn onClick={saveSince}>저장</Btn>}
             <span style={{color:T.sub}}>이 날 전에는 기록이 없어도 결근으로 보지 않아요</span>
           </div>
+          <div style={{fontWeight:700}}>일찍 출근 자동 인정 (매장 기본)</div>
+          <div style={{display:'flex', gap:8, alignItems:'center', flexWrap:'wrap', margin:'4px 0 12px'}}>
+            <select value={cfg?.earlyAuto || 0} onChange={e=>saveEarlyAuto(+e.target.value)} aria-label="일찍 출근 자동 인정"
+              style={{background:'#FFFFFF', border:'1px solid #CBC5BA', borderRadius:4, padding:'4px 6px', fontSize:13, fontFamily:'inherit'}}>
+              <option value={0}>안 함 (사장님이 승인)</option>
+              {[5,10,15,20,30,40,60].map(m => <option key={m} value={m}>{m}분까지 바로 인정</option>)}
+            </select>
+            <span style={{color:T.sub}}>예정보다 이만큼까지 일찍 온 시간은 승인 없이 급여에 들어가요. 더 일찍 온 시간은 승인 대기. 직원별로 다르게 하려면 인원관리에서</span>
+          </div>
           <div style={{fontWeight:700}}>2. NFC 태그에 넣을 주소</div>
           <div style={{display:'flex', gap:8, alignItems:'center', flexWrap:'wrap', margin:'4px 0'}}>
             <code style={{background:'#FFFFFF', border:`1px solid ${T.rule}`, borderRadius:4, padding:'3px 8px', fontSize:13}}>{clockUrl}</code>
@@ -331,7 +375,7 @@ export default function AttendancePanel({ curMonth, nameMap, onApplied }) {
       {pending.map(r=>{
         const inD = toDate(r.rec.in), outD = toDate(r.rec.out)
         const items = [
-          r.c.early && r.rec.earlyOk == null && ['earlyOk', `예정 ${r.rec.schedStart}보다 ${minsLabel(r.c.early)} 일찍 출근 (${hm(inD)})`],
+          r.c.early > r.c.earlyCounted && r.rec.earlyOk == null && r.rec.earlyAllow == null && ['earlyOk', `예정 ${r.rec.schedStart}보다 ${minsLabel(r.c.early)} 일찍 출근 (${hm(inD)})${r.c.earlyCounted ? ` · ${r.c.earlyCounted}분은 자동 인정됨` : ''}`],
           r.c.unsched && r.rec.unschedOk == null && ['unschedOk', `예정 없는 날 근무 ${hm(inD)}~${hm(outD)} (${minsLabel(r.c.unsched)})`],
         ].filter(Boolean)
         return (
@@ -340,8 +384,11 @@ export default function AttendancePanel({ curMonth, nameMap, onApplied }) {
             {items.map(([field, text])=>(
               <div key={field} style={{display:'flex', alignItems:'center', gap:8, flexWrap:'wrap', marginTop:4, fontSize:13}}>
                 <span style={{flex:1, minWidth:200}}>{text}</span>
-                <Btn kind="ok" onClick={()=>decide(r, field, true)} disabled={busy}>인정</Btn>
-                <Btn kind="danger" onClick={()=>decide(r, field, false)} disabled={busy}>인정 안 함</Btn>
+                <Btn kind="ok" onClick={()=>decide(r, field, true)} disabled={busy}>{field === 'earlyOk' ? `전부 인정 (${minsLabel(r.c.early)})` : '인정'}</Btn>
+                {field === 'earlyOk' && [10,15,20,30,40,60].filter(m => m < r.c.early && m > (r.c.earlyCounted || 0)).map(m => (
+                  <Btn key={m} onClick={()=>decideEarly(r, m)} disabled={busy}>{m}분만</Btn>
+                ))}
+                <Btn kind="danger" onClick={()=>decide(r, field, false)} disabled={busy}>{field === 'earlyOk' && r.c.earlyCounted ? `자동 ${r.c.earlyCounted}분만` : '인정 안 함'}</Btn>
               </div>
             ))}
           </div>
@@ -376,7 +423,7 @@ export default function AttendancePanel({ curMonth, nameMap, onApplied }) {
           <span style={{color:T.sub}}>지금 근무 중 </span>
           {working.map(r=>(
             <span key={r.uid} style={{marginRight:14, whiteSpace:'nowrap'}}><b>{name(r.uid)}</b> <span style={{...num, color:T.sub}}>{hm(toDate(r.rec.in))}~</span>
-              <button type="button" onClick={()=>setEdit({ uid:r.uid, dd:r.dd, in:hm(toDate(r.rec.in)), out:'', bStart:r.rec.breakStart||'', bEnd:r.rec.breakEnd||'', noBreak:!!r.rec.noBreak, earlyLeave:!!r.rec.earlyLeave })}
+              <button type="button" onClick={()=>setEdit({ uid:r.uid, dd:r.dd, in:hm(toDate(r.rec.in)), out:'', bStart:r.rec.breakStart||'', bEnd:r.rec.breakEnd||'', noBreak:!!r.rec.noBreak, earlyLeave:!!r.rec.earlyLeave, earlyAllow: earlyChoice(r.rec) })}
                 style={{background:'none', border:'none', color:T.blue, fontSize:12, cursor:'pointer', padding:'0 0 0 4px', fontFamily:'inherit', textDecoration:'underline'}}>수정</button>
             </span>
           ))}

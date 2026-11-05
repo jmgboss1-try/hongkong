@@ -73,7 +73,9 @@ export default function Clock() {
         const cover = subs.find(r => r.confirmedUid === user.uid && r.date === todayStr)
         const sh = planFor(me, now, plan, user.uid) || (cover ? { start:`${cover.startH}:${cover.startM}`, end:`${cover.endH}:${cover.endM}` } : null)
         const br = breakForShift(cfg, now, sh) // 풀타임이면 그날 매장 브레이크를 기록에 붙임 (근무시간에서 빠짐)
-        await write(tYm, tDd, { in: serverTimestamp(), inDist: dist, name: me?.name || '', schedStart: sh?.start || null, schedEnd: sh?.end || null,
+        // 일찍 출근 자동 인정 분: 직원 설정 > 매장 기본 (근무관리 설정). 기록에 붙여 둬서 나중에 설정이 바뀌어도 그날 기준 그대로
+        const earlyAuto = Math.max(0, +(me?.earlyAuto ?? cfg?.earlyAuto ?? 0) || 0)
+        await write(tYm, tDd, { in: serverTimestamp(), inDist: dist, name: me?.name || '', schedStart: sh?.start || null, schedEnd: sh?.end || null, earlyAuto,
           ...(br ? { breakStart: br.start, breakEnd: br.end } : {}) })
         setResult({ kind:'in', rec: await readRec(tYm, tDd), ym:tYm, dd:tDd, forgotYesterday })
       } else if (!rec.out) {
@@ -157,7 +159,10 @@ export default function Clock() {
       <div style={{fontSize:56, fontWeight:800, lineHeight:1.1, fontVariantNumeric:'tabular-nums', color}}>{time}</div>
     </div>
   )
-  const earlyIn = inD && r.schedStart && (inD.getHours()*60+inD.getMinutes()) < (+r.schedStart.slice(0,2)*60 + +r.schedStart.slice(3)) - GRACE_MIN
+  const inM = inD ? inD.getHours()*60 + inD.getMinutes() : null
+  const earlyBy = inD && r.schedStart ? (+r.schedStart.slice(0,2)*60 + +r.schedStart.slice(3)) - inM : 0   // 예정보다 몇 분 일찍
+  const auto = +r.earlyAuto || 0
+  const earlyIn = earlyBy > Math.max(auto, GRACE_MIN)
 
   return wrap(
     <>
@@ -187,7 +192,7 @@ export default function Clock() {
       )}
       {(result.kind === 'in' || result.kind === 'soon') && earlyIn && (
         <div style={{marginTop:14, fontSize:14, color:T.amber, lineHeight:1.6}}>
-          예정({r.schedStart})보다 {GRACE_MIN}분 넘게 일찍 왔어요. 일찍 온 시간은 사장님이 승인하면 급여에 들어가요.
+          예정({r.schedStart})보다 {earlyBy}분 일찍 왔어요. {auto > 0 ? `${auto}분까지는 바로 인정되고, 그보다 일찍 온 시간은` : '일찍 온 시간은'} 사장님이 승인하면 급여에 들어가요.
         </div>
       )}
       {(result.kind === 'in' || result.kind === 'soon') && !r.schedStart && (
