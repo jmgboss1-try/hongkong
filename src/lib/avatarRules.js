@@ -2,6 +2,7 @@
 //  rewards/avatar = { tiers: { '<그룹>:<값>': 'base'|'p1'|'p2'|'p3'|'t1'|'t2'|'t3'|'t6'|'t12'|'manual' }, showLocked }
 //  - base: 모두 / pN: 연속 개근 N개월 이상 (지난 달까지, 끝난 달만 셈) / tN: 근속 N개월 이상 (입사일 기준) / manual: 사장님이 직접 줄 때만
 //  - 직접 준 것: users/{uid}.unlocks = ['<그룹>:<값>', ...] (조건과 상관없이 열림). 사장님은 전부 쓸 수 있음
+//  - 대사: lines = [{ id, text ('/'로 두 줄), when, pos, tier }], lineEvery = 일하면서 한마디 간격(초, 0이면 안 함). 대사 키는 'line:<id>'
 // rewards 컬렉션에 두는 까닭: 직원이 이미 읽을 수 있는 곳이라 Firestore 규칙을 바꾸지 않아도 됨
 import { db } from '../firebase'
 import { doc, getDoc } from 'firebase/firestore'
@@ -43,7 +44,44 @@ export const ITEM_GROUPS = [
 ]
 export const itemKey = (group, id) => `${group}:${id}`
 export const defaultTier = key => key.startsWith('special:') ? 'manual' : 'base'
-export const tierOf = (rules, key) => rules?.tiers?.[key] || defaultTier(key)
+export const tierOf = (rules, key) => key.startsWith('line:')
+  ? (linesOf(rules).find(l => 'line:' + l.id === key)?.tier || 'base')
+  : rules?.tiers?.[key] || defaultTier(key)
+
+// ── 대사 ──
+export const WHENS = [
+  { id:'arrive', label:'출근할 때' }, { id:'late', label:'지각했을 때' }, { id:'leave', label:'퇴근할 때' },
+  { id:'work', label:'일하면서' }, { id:'busy', label:'바쁜 시간 (점심·저녁)' }, { id:'rest', label:'브레이크 중' },
+]
+export const LINE_POS = [
+  { id:'any', label:'누구나' }, { id:'wok', label:'웍' }, { id:'kitchen', label:'주방' }, { id:'hall', label:'홀' },
+  { id:'counter', label:'카운터' }, { id:'delivery', label:'배달·포장' }, { id:'boss', label:'사장님' },
+]
+export const DEFAULT_LINES = [
+  { id:'a1', when:'arrive', pos:'any', tier:'base', text:'안녕하세요!' },
+  { id:'l1', when:'late', pos:'any', tier:'base', text:'헉! 늦었다 / 죄송합니다!' },
+  { id:'o1', when:'leave', pos:'any', tier:'base', text:'퇴근하겠습니다. / 수고하셨습니다!' },
+  { id:'w1', when:'work', pos:'wok', tier:'base', text:'짬뽕 나갑니다!' }, { id:'w2', when:'work', pos:'wok', tier:'base', text:'불 올립니다!' },
+  { id:'w3', when:'work', pos:'kitchen', tier:'base', text:'면 삶을게요!' }, { id:'w4', when:'work', pos:'kitchen', tier:'base', text:'재료 채워 둘게요!' },
+  { id:'w5', when:'work', pos:'hall', tier:'base', text:'맛있게 드세요!' }, { id:'w6', when:'work', pos:'hall', tier:'base', text:'어서 오세요!' },
+  { id:'w7', when:'work', pos:'counter', tier:'base', text:'주문 들어왔어요!' }, { id:'w8', when:'work', pos:'counter', tier:'base', text:'포장 나왔어요!' },
+  { id:'w9', when:'work', pos:'delivery', tier:'base', text:'배달 출발!' }, { id:'w10', when:'work', pos:'delivery', tier:'base', text:'포장 다 됐어요!' },
+  { id:'w11', when:'work', pos:'boss', tier:'base', text:'다들 화이팅!' }, { id:'w12', when:'work', pos:'boss', tier:'base', text:'오늘도 수고 많아요!' },
+  { id:'w13', when:'work', pos:'any', tier:'p1', text:'이번 달도 개근 간다!' },
+  { id:'w14', when:'work', pos:'any', tier:'t12', text:'이 가게는 내가 지킨다' },
+  { id:'b1', when:'busy', pos:'any', tier:'base', text:'주문 밀려요! 힘내요!' },
+  { id:'r1', when:'rest', pos:'any', tier:'base', text:'잠깐 쉴게요~' },
+]
+export const linesOf = rules => rules?.lines || DEFAULT_LINES
+export const lineEveryOf = rules => rules?.lineEvery ?? 50
+// 이 사람이 지금 할 수 있는 대사들 (상황·자리·지급 기준)
+export function linesFor(rules, when, role, who) {
+  const pos = l => l.pos || 'any'
+  return linesOf(rules).filter(l => l.when === when && l.text?.trim() && (who.owner
+    // 사장님: '사장님' 대사, 일하면서가 아닐 때(바쁜 시간 등)는 '누구나' 대사도
+    ? pos(l) === 'boss' || (when !== 'work' && pos(l) === 'any')
+    : pos(l) !== 'boss' && (pos(l) === 'any' || pos(l) === role) && canUse('line:' + l.id, who)))
+}
 
 export async function loadAvatarRules() {
   try { const s = await getDoc(doc(db, 'rewards', 'avatar')); return s.exists() ? { showLocked: true, tiers: {}, ...s.data() } : { showLocked: true, tiers: {} } }

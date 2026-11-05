@@ -5,7 +5,7 @@ import { calcGrade, useAuth } from '../AuthContext'
 import Avatar from '../components/Avatar'
 import AvatarEditor from '../components/AvatarEditor'
 import { lookOf, defaultLook, AVATAR_CSS, POSITIONS } from '../lib/avatar'
-import { loadAvatarRules, perfectStreaks, tenureMonths, canUse, allowedLook } from '../lib/avatarRules'
+import { loadAvatarRules, perfectStreaks, tenureMonths, canUse, allowedLook, linesFor, lineEveryOf } from '../lib/avatarRules'
 import { toDate, hm, recBreak, planFor, dayStatus, monthStatus, loadMonthContext, pad } from '../lib/attendance'
 import { MAP_W, MAP_H, NODES, route, nodeDist, SLOTS, HALL_POINTS, TABLES, SEAT_ORDER } from '../lib/storeMap'
 
@@ -96,18 +96,16 @@ function Person({ p, moving }) {
       {/* 바쁜 시간: 땀 */}
       {p.busy && pose !== 'rest' && <path className="av-drip" d={`M${-SIZE/2 + 2},${-SIZE*1.05} q-2,4 0,5 q2,-1 0,-5z`} fill="#7FB2D9"/>}
       {pose === 'rest' && <text className="av-float" x="14" y={-SIZE*1.1} fontSize="14" fontWeight="800" fill={T.blue}>z</text>}
-      {p.state === 'leaving'
-        ? <Bubble lines={[['퇴근하겠습니다.'], ['수고하셨습니다!', T.accent]]}/>
-        : p.say && <Bubble key={p.say.map(l => l[0]).join()} lines={p.say} pop={p.sayPop}/>}
+      {p.say && <Bubble key={p.say.map(l => l[0]).join()} lines={p.say} pop={p.sayPop}/>}
       <text x="0" y="16" textAnchor="middle" fontSize="13" fontWeight="800" fill={boss ? T.accent : T.ink} stroke="#FFFFFF" strokeWidth="4" paintOrder="stroke">{label}</text>
     </>
   )
 }
 
-// 가끔 하는 한마디 (지금 있는 자리 따라)
-const LINES = {
-  wok: ['짬뽕 나갑니다!', '불 올립니다!'], kitchen: ['면 삶을게요!', '재료 채워 둘게요!'], hall: ['맛있게 드세요!', '어서 오세요!'],
-  counter: ['주문 들어왔어요!', '포장 나왔어요!'], delivery: ['배달 출발!', '포장 다 됐어요!'], boss: ['다들 화이팅!', '오늘도 수고 많아요!'],
+// 대사 글 → 말풍선 줄 ('/'로 두 줄). 지각은 첫 줄 빨강, 퇴근은 마지막 줄 강조
+const toBubble = (text, when) => {
+  const parts = String(text).split('/').map(x => x.trim()).filter(Boolean)
+  return parts.map((t, i) => [t, when === 'late' && i === 0 ? T.red : when === 'leave' && i === parts.length - 1 && parts.length > 1 ? T.accent : undefined])
 }
 // 점심·저녁 바쁜 시간 (땀 흘리고 빨리 걸음)
 const BUSY = [[11*60+30, 13*60+30], [17*60+30, 19*60+30]]
@@ -214,7 +212,7 @@ export default function OurStore() {
     const flame = ctx ? monthStatus({ ym, uid:u.uid, user:u, recs:att[u.uid], holidays:ctx.holidays, subs:ctx.subs, plan:ctx.plan, since:ctx.since }).perfect : false
     const ps = positionsOf(u), posKey = ps[0]
     const look = allowedLook(lookOf(u), key => canUse(key, { rules:avRules, user:u, streak:streaks[u.uid] || 0, tenure:tenureMonths(u.joinDate) }), defaultLook(u.uid))
-    const base = { uid:u.uid, label:u.name, look, badges:{ flame, grade, star: ckDone }, posKey, ps, inD, outD, plan, late: rec?.in ? dayStatus(rec, plan).late : 0 }
+    const base = { uid:u.uid, user:u, label:u.name, look, badges:{ flame, grade, star: ckDone }, posKey, ps, inD, outD, plan, late: rec?.in ? dayStatus(rec, plan).late : 0 }
     if (inD && outD) {
       // 퇴근하면 1분 동안 문으로 걸어 나가고 화면에서 빠짐 (퇴근한 사람은 목록에도 안 보임)
       if (seen['out:' + u.uid] && nowMs - seen['out:' + u.uid] < 60000) people.push({ ...base, state:'leaving', pose:'walk', from: slotFor(posKey), to: 'door' })
@@ -224,7 +222,7 @@ export default function OurStore() {
       const to = resting ? slotFor('rest') : pick(u.uid, stationsOf(ps))
       const arriving = !!seen['in:' + u.uid] && nowMs - seen['in:' + u.uid] < 120000
       // 출근해서 들어오는 동안 인사 (지각이면 '헉')
-      const say = arriving ? (base.late ? [['헉! 늦었다', T.red], ['죄송합니다!']] : [['안녕하세요!']]) : null
+      const say = arriving ? 'arrive' : null
       people.push({ ...base, state: resting ? 'rest' : 'work', pose: resting ? 'rest' : 'work', from: arriving ? 'door' : to, to, brEnd: resting ? br.end : null, say })
     } else if (plan) {
       waiting.push({ ...base, overdue: nowMin > toMin(plan.start) })
@@ -235,13 +233,21 @@ export default function OurStore() {
     const to = pick(owner.uid, stationsOf(['kitchen','hall'], { kitchen: 14 }))
     people.push({ uid:owner.uid, label:'사장님', boss:true, look:lookOf(owner), badges:{}, posKey:'kitchen', ps:['kitchen','hall'], state:'work', pose:'work', from:to, to })
   }
-  // 자리 따라 드는 것, 가끔 한마디 (50초마다 5초, 사람마다 다른 때), 바쁜 시간
+  // 자리 따라 드는 것, 대사 (아바타 탭에서 정한 대사·지급 기준), 바쁜 시간
   const busy = BUSY.some(([a, b]) => nowMin >= a && nowMin < b)
+  const every = lineEveryOf(avRules)
   for (const p of people) {
     p.role = roleAt(p.to, p.posKey); p.busy = busy
-    if (p.say || p.state !== 'work') continue
-    const h = hashOf(p.uid), t = (beat + h % 50) % 50
-    if (t < 5) { const list = LINES[p.boss ? 'boss' : p.role] || LINES.hall; p.say = [[list[Math.floor((beat + h) / 50) % list.length]]]; p.sayPop = true }
+    const h = hashOf(p.uid)
+    const who = { rules:avRules, user:p.user, streak:streaks[p.uid] || 0, tenure:tenureMonths(p.user?.joinDate), owner:!!p.boss }
+    const pickLine = (whens, n) => { const list = whens.flatMap(w => linesFor(avRules, w, p.role, who).map(l => [l, w])); if (!list.length) return null; const [l, w] = list[n % list.length]; return toBubble(l.text, w) }
+    if (p.state === 'leaving') p.say = pickLine(['leave'], h)
+    else if (p.say === 'arrive') p.say = (p.late && pickLine(['late'], h)) || pickLine(['arrive'], h)
+    else if (every > 0 && (beat + h % every) % every < 5) {
+      const n = h + Math.floor((beat + h % every) / every)
+      p.say = p.state === 'rest' ? pickLine(['rest'], n) : p.state === 'work' ? pickLine(busy ? ['busy', 'work'] : ['work'], n) : null
+      p.sayPop = true
+    }
   }
   // 같은 자리에 두 사람이 오면 옆으로 살짝 비켜 섬
   const taken = {}
