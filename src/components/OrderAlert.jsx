@@ -73,7 +73,7 @@ export default function OrderAlert() {
   if (err === 'permission-denied') return null
   if (!fresh.length || listVisible) return null
   return (
-    <button type="button" onClick={()=>navigate('/menu-manage')}
+    <button type="button" onClick={()=>{ navigate('/menu-manage'); try { window.dispatchEvent(new Event('showorders')) } catch { /* 없어도 됨 */ } }}
       style={{position:'fixed', top:12, left:'50%', transform:'translateX(-50%)', zIndex:50, display:'flex', alignItems:'center', gap:10,
         background:'#C3261C', color:'#FFFFFF', border:'none', borderRadius:6, padding:'12px 18px', fontSize:16, fontWeight:800,
         fontFamily:'inherit', cursor:'pointer', boxShadow:'0 4px 16px rgba(29,27,24,0.25)', maxWidth:'calc(100vw - 24px)'}}>

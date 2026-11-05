@@ -291,11 +291,15 @@ const inp = { fontFamily:'inherit', fontSize:16, padding:'11px 12px', border:'1p
 const chip = on => ({ fontFamily:'inherit', fontSize:15, fontWeight:700, padding:'9px 14px', borderRadius:6, cursor:'pointer',
   border:`1px solid ${on ? '#C3261C' : '#DCD7CE'}`, background: on ? '#C3261C14' : '#FFFFFF', color: on ? '#C3261C' : '#1D1B18' })
 
-// 메뉴 하나: 옵션 고르고 수량 정해서 담기
+// 메뉴 하나: (종류가 있으면 먼저 종류만 크게 골라서) 옵션 고르고 수량 정해서 담기
 function OptionSheet({ item, onClose, onAdd }) {
   const [sel, setSel] = useState({})   // groupId → [choice index]
   const [qty, setQty] = useState(1)
   const groups = item.options || []
+  // 첫 옵션이 '꼭 하나 고르기'이고 고를 게 둘 이상이면: 그것만 따로 먼저 보여 줌 (예: 짬뽕 · 고추짬뽕 · 고기짬뽕)
+  const kind = groups[0]?.required && !groups[0].multi && groups[0].choices.length > 1 ? groups[0] : null
+  const kindPick = kind ? (sel[kind.id] || [])[0] : undefined
+  const rest = kind ? groups.slice(1) : groups
   const picked = groups.flatMap(g => (sel[g.id]||[]).map(i => ({ group:g.name, name:g.choices[i].name, price:+g.choices[i].price||0 })))
   const missing = groups.filter(g => g.required && !(sel[g.id]||[]).length)
   const toggle = (g, i) => setSel(s => {
@@ -303,29 +307,71 @@ function OptionSheet({ item, onClose, onAdd }) {
     if (!g.multi) return { ...s, [g.id]: cur[0] === i && !g.required ? [] : [i] }
     return { ...s, [g.id]: cur.includes(i) ? cur.filter(x=>x!==i) : [...cur, i] }
   })
-  return (
+  const shell = children => (
     <div onClick={onClose} style={{position:'fixed', inset:0, zIndex:20, background:'rgba(29,27,24,0.45)', display:'flex', alignItems:'flex-end', justifyContent:'center'}}>
-      <div onClick={e=>e.stopPropagation()} style={{background:'#FFFFFF', width:'100%', maxWidth:560, maxHeight:'85vh', overflowY:'auto', borderRadius:'10px 10px 0 0', padding:'18px 16px 16px'}}>
-        <div style={{display:'flex', justifyContent:'space-between', alignItems:'baseline', gap:10}}>
-          <div style={{fontSize:20, fontWeight:900}}>{item.name}</div>
-          <div style={{fontSize:17, fontWeight:700, ...num}}>{won(item.price)}</div>
-        </div>
-        {item.desc && <div style={{fontSize:14, color:'#6E6A63', marginTop:4}}>{item.desc}</div>}
-        {groups.map(g => (
-          <div key={g.id} style={{marginTop:16}}>
-            <div style={{fontSize:15, fontWeight:800}}>{g.name} <span style={{fontSize:12, fontWeight:500, color: g.required ? '#C3261C' : '#6E6A63'}}>{g.required ? '꼭 골라 주세요' : g.multi && g.choices.length > 1 ? '여러 개 고를 수 있어요' : '원하면 골라 주세요'}</span></div>
-            {g.choices.map((c,i) => {
-              const on = (sel[g.id]||[]).includes(i)
-              return (
-                <button key={i} type="button" onClick={()=>toggle(g,i)}
-                  style={{display:'flex', width:'100%', justifyContent:'space-between', padding:'12px 10px', marginTop:6, borderRadius:6, cursor:'pointer', fontFamily:'inherit', fontSize:15,
-                    border:`1px solid ${on ? '#C3261C' : '#DCD7CE'}`, background: on ? '#C3261C0F' : '#FFFFFF', color:'#1D1B18', fontWeight: on ? 700 : 400}}>
-                  <span>{on ? '● ' : '○ '}{c.name}</span><span style={num}>{+c.price ? `+${won(+c.price)}` : ''}</span>
-                </button>
-              )
-            })}
-          </div>
+      <div onClick={e=>e.stopPropagation()} style={{background:'#FFFFFF', width:'100%', maxWidth:560, maxHeight:'88vh', overflowY:'auto', borderRadius:'10px 10px 0 0', padding:'18px 16px 16px'}}>
+        {children}
+      </div>
+    </div>
+  )
+
+  // 1단계: 종류만 따로 (식사를 하나 확실히 고르는 화면)
+  if (kind && kindPick === undefined) return shell(
+    <>
+      <div style={{fontSize:13, fontWeight:800, color:T.red}}>{item.name}</div>
+      <div style={{fontSize:22, fontWeight:900, marginTop:2}}>어떤 걸로 드릴까요?</div>
+      {item.desc && <div style={{fontSize:14, color:T.sub, marginTop:4}}>{item.desc}</div>}
+      <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(min(100%, 220px), 1fr))', gap:10, marginTop:16}}>
+        {kind.choices.map((c, i) => (
+          <button key={i} type="button" onClick={()=>toggle(kind, i)}
+            style={{display:'flex', flexDirection:'column', alignItems:'flex-start', gap:6, padding:'18px 16px', borderRadius:8, cursor:'pointer', fontFamily:'inherit', textAlign:'left',
+              border:`1.5px solid ${T.rule}`, background:'#FFFFFF', color:T.ink, minHeight:88}}>
+            <span style={{fontSize:19, fontWeight:900}}>{c.name}</span>
+            <span style={{fontSize:16, fontWeight:700, color:T.sub, ...num}}>{won(item.price + (+c.price || 0))}</span>
+          </button>
         ))}
+      </div>
+      <div style={{marginTop:14}}><Btn onClick={onClose} full>닫기</Btn></div>
+    </>
+  )
+
+  // 2단계: 고른 종류 + 나머지 옵션
+  return shell(
+    <>
+      {kind ? (
+        <div style={{display:'flex', alignItems:'center', gap:10, padding:'12px 14px', background:T.chip, borderRadius:8}}>
+          <div style={{flex:1, minWidth:0}}>
+            <div style={{fontSize:12, color:T.sub, fontWeight:700}}>{item.name}</div>
+            <div style={{fontSize:20, fontWeight:900}}>{kind.choices[kindPick].name}</div>
+          </div>
+          <div style={{fontSize:17, fontWeight:800, ...num}}>{won(item.price + (+kind.choices[kindPick].price || 0))}</div>
+          <button type="button" onClick={()=>setSel(s => ({ ...s, [kind.id]: [] }))}
+            style={{border:`1px solid ${T.rule}`, borderRadius:6, padding:'6px 10px', fontFamily:'inherit', fontSize:13, cursor:'pointer', color:T.ink, background:'#FFFFFF'}}>종류 바꾸기</button>
+        </div>
+      ) : (
+        <>
+          <div style={{display:'flex', justifyContent:'space-between', alignItems:'baseline', gap:10}}>
+            <div style={{fontSize:20, fontWeight:900}}>{item.name}</div>
+            <div style={{fontSize:17, fontWeight:700, ...num}}>{won(item.price)}</div>
+          </div>
+          {item.desc && <div style={{fontSize:14, color:'#6E6A63', marginTop:4}}>{item.desc}</div>}
+        </>
+      )}
+      {rest.map(g => (
+        <div key={g.id} style={{marginTop:16}}>
+          <div style={{fontSize:15, fontWeight:800}}>{g.name} <span style={{fontSize:12, fontWeight:500, color: g.required ? '#C3261C' : '#6E6A63'}}>{g.required ? '꼭 골라 주세요' : g.multi && g.choices.length > 1 ? '여러 개 고를 수 있어요' : '원하면 골라 주세요'}</span></div>
+          {g.choices.map((c,i) => {
+            const on = (sel[g.id]||[]).includes(i)
+            return (
+              <button key={i} type="button" onClick={()=>toggle(g,i)}
+                style={{display:'flex', width:'100%', justifyContent:'space-between', padding:'12px 10px', marginTop:6, borderRadius:6, cursor:'pointer', fontFamily:'inherit', fontSize:15,
+                  border:`1px solid ${on ? '#C3261C' : '#DCD7CE'}`, background: on ? '#C3261C0F' : '#FFFFFF', color:'#1D1B18', fontWeight: on ? 700 : 400}}>
+                <span>{on ? '● ' : '○ '}{c.name}</span><span style={num}>{+c.price ? `+${won(+c.price)}` : ''}</span>
+              </button>
+            )
+          })}
+        </div>
+      ))}
         <div style={{display:'flex', alignItems:'center', justifyContent:'space-between', marginTop:18}}>
           <span style={{fontSize:15, fontWeight:700}}>수량</span>
           <div style={{display:'flex', alignItems:'center', border:'1px solid #DCD7CE', borderRadius:6}}>
@@ -340,8 +386,7 @@ function OptionSheet({ item, onClose, onAdd }) {
             {missing.length ? `${missing[0].name} 골라 주세요` : `${won(unitPrice(item, picked) * qty)} 담기`}
           </Btn>
         </div>
-      </div>
-    </div>
+    </>
   )
 }
 

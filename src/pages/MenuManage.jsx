@@ -43,6 +43,12 @@ export default function MenuManage() {
   const [menuOpened, setMenuOpened] = useState(false)
   useEffect(() => { fetchMenu() }, [])
   const pick = k => { setTab(k); if (k !== 'orders') setMenuOpened(true) }
+  // 위쪽 'QR 새 주문' 띠를 누르면 (이미 이 화면이어도) QR 주문 탭으로
+  useEffect(() => {
+    const f = () => setTab('orders')
+    window.addEventListener('showorders', f)
+    return () => window.removeEventListener('showorders', f)
+  }, [])
   return (
     <div style={{maxWidth:980}}>
       <div style={{display:'flex', alignItems:'baseline', justifyContent:'space-between', gap:12, flexWrap:'wrap', borderBottom:`3px double ${T.ink}`, paddingBottom:8, marginBottom:14}}>
