@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { db } from '../firebase'
 import { doc, getDoc, setDoc, collection, query, orderBy, limit, onSnapshot, updateDoc, serverTimestamp } from 'firebase/firestore'
 import { MODES, DEFAULT_ITEMS, DEFAULT_SETTINGS, DAYS, won, catsOf, openState } from '../lib/menuData'
@@ -208,37 +208,148 @@ function OrderCard({ o, onStatus }) {
 }
 
 // ── 메뉴 고치기 / 배달 설정 ──
-// ── 끌어서 순서 바꾸기 (마우스·손가락 모두) ──
-// 손잡이를 누른 채 움직이면 그 아래 줄([data-drag-key])을 찾아 표시하고, 놓으면 onDrop(옮길 것, 놓은 곳, 뒤에 놓는지)
+// ── 끌어서 순서 바꾸기 (마우스·손가락 모두, 아이폰 아이콘 옮기듯) ──
+// 손잡이를 누르면 그 줄이 떠올라 손가락을 따라오고, 나머지 줄은 빈자리를 만들며 부드럽게 비켜남.
+// 끄는 동안 drag.over/after 로 미리 바뀐 순서를 그리고(부모가 미리보기 계산), 놓으면 onDrop(옮길 것, 놓은 곳, 뒤에 놓는지)
+// 줄: [data-drag-group][data-drag-key], 분류 제목: [data-drag-group][data-drag-head] (위·아래 반쪽으로 앞 분류 끝/이 분류 처음)
+const dragEls = g => [...document.querySelectorAll(`[data-drag-group="${g}"]`)]
+const dragKeyOf = el => el.dataset.dragKey ?? ('head:' + el.dataset.dragHead)
+const dragFind = (g, k) => dragEls(g).find(el => el.dataset.dragKey === k)
+// 지금 화면에 보이는 위치(움직이는 중이면 그 위치) 기록 → 다음 그림에서 거기서부터 미끄러지게
+function dragSnap(g, skip) {
+  const rects = new Map()
+  for (const el of dragEls(g)) { const k = dragKeyOf(el); if (k !== skip) { const r = el.getBoundingClientRect(); rects.set(k, { x:r.left, y:r.top }) } }
+  return { group:g, rects }
+}
+// 끄는 줄을 손가락 위치로 (원래 자리 기준 이동량을 transform 으로)
+function dragPlace(d) {
+  const el = d && dragFind(d.group, d.key)
+  if (!el) return
+  const [ox, oy] = el._dragT || [0, 0]
+  const r = el.getBoundingClientRect()
+  const natX = r.left - ox + window.scrollX, natY = r.top - oy + window.scrollY
+  const tx = d.nx0 + (d.cx + window.scrollX - d.px0) - natX
+  const ty = d.ny0 + (d.cy + window.scrollY - d.py0) - natY
+  el._dragT = [tx, ty]
+  el.style.transform = `translate(${tx}px, ${ty}px)`
+  el.style.transition = 'none'
+}
 function useDragSort() {
-  const [drag, setDrag] = useState(null)   // { key, group, over, after, onDrop }
+  const [drag, setDrag] = useState(null)   // { key, group, over, after }
+  const cur = useRef(null)                 // 끄는 중 정보 (손가락 위치 등)
+  const snap = useRef(null)
+  const active = drag ? `${drag.group}|${drag.key}` : ''
+
+  // 그린 뒤: 자리가 바뀐 줄은 예전 자리에서 새 자리로 미끄러지게, 끄는 줄은 손가락 위치에
+  useLayoutEffect(() => {
+    const d = cur.current
+    const sn = snap.current
+    if (sn) {
+      snap.current = null
+      for (const el of dragEls(sn.group)) {
+        const k = dragKeyOf(el)
+        if (d && k === d.key) continue
+        const p = sn.rects.get(k)
+        if (!p) continue
+        el.getAnimations?.().forEach(a => a.cancel())
+        const r = el.getBoundingClientRect()
+        const dx = p.x - r.left, dy = p.y - r.top
+        if (Math.abs(dx) > 0.5 || Math.abs(dy) > 0.5)
+          el.animate?.([{ transform:`translate(${dx}px, ${dy}px)` }, { transform:'none' }], { duration:220, easing:'cubic-bezier(.2,.8,.2,1)' })
+      }
+    }
+    dragPlace(d)
+  })
+
+  useEffect(() => {
+    if (!active) return
+    const target = e => {
+      const d = cur.current
+      const hit = document.elementsFromPoint(e.clientX, e.clientY)
+        .map(x => x.closest?.(`[data-drag-group="${d.group}"]`)).find(x => x && dragKeyOf(x) !== d.key)
+      if (!hit) return
+      const r = hit.getBoundingClientRect()
+      let after = d.horizontal ? e.clientX > r.left + r.width/2 : e.clientY > r.top + r.height/2
+      let over = hit.dataset.dragKey
+      if (over == null) {   // 분류 제목 위: 아래쪽 반이면 이 분류 맨 앞, 위쪽 반이면 앞 분류 맨 끝
+        const list = dragEls(d.group).filter(x => dragKeyOf(x) !== d.key)
+        const i = list.indexOf(hit)
+        const nb = after ? list[i+1] : list[i-1]
+        if (!nb || nb.dataset.dragKey == null) return
+        over = nb.dataset.dragKey; after = !after
+      }
+      if (over === d.over && after === d.after) return
+      d.over = over; d.after = after
+      snap.current = dragSnap(d.group, d.key)
+      setDrag(x => x && { ...x, over, after })
+    }
+    const move = e => {
+      const d = cur.current
+      if (!d) return
+      d.cx = e.clientX; d.cy = e.clientY
+      if (!d.horizontal) { if (e.clientY < 70) window.scrollBy(0, -12); else if (e.clientY > window.innerHeight - 70) window.scrollBy(0, 12) }
+      dragPlace(d)
+      target(e)
+    }
+    const end = drop => () => {
+      const d = cur.current
+      if (!d) return
+      // 지금 떠 있는 위치에서 제자리로 내려앉게
+      snap.current = dragSnap(d.group, null)
+      const el = dragFind(d.group, d.key)
+      if (el) { el.style.transform = ''; el.style.transition = ''; el._dragT = null }
+      cur.current = null
+      setDrag(null)
+      if (drop && d.over && d.over !== d.key) d.onDrop(d.key, d.over, d.after)
+    }
+    const up = end(true), cancel = end(false)
+    const scroll = () => dragPlace(cur.current)
+    window.addEventListener('pointermove', move)
+    window.addEventListener('pointerup', up)
+    window.addEventListener('pointercancel', cancel)
+    window.addEventListener('scroll', scroll, { passive:true })
+    return () => {
+      window.removeEventListener('pointermove', move)
+      window.removeEventListener('pointerup', up)
+      window.removeEventListener('pointercancel', cancel)
+      window.removeEventListener('scroll', scroll)
+    }
+  }, [active])
+
   const handle = (key, group, onDrop, horizontal) => ({
-    onPointerDown: e => { e.preventDefault(); e.currentTarget.setPointerCapture?.(e.pointerId); setDrag({ key, group, over:key, after:false, onDrop, horizontal }) },
-    onPointerMove: e => {
-      if (!drag || drag.key !== key) return
-      // 화면 끝에 가까우면 저절로 스크롤
-      if (!horizontal) { if (e.clientY < 70) window.scrollBy(0, -14); else if (e.clientY > window.innerHeight - 70) window.scrollBy(0, 14) }
-      const el = document.elementFromPoint(e.clientX, e.clientY)?.closest(`[data-drag-group="${group}"]`)
+    onPointerDown: e => {
+      if (e.button > 0 || cur.current) return
+      e.preventDefault()
+      const el = dragFind(group, key)
       if (!el) return
+      el.getAnimations?.().forEach(a => a.cancel())
       const r = el.getBoundingClientRect()
-      const after = horizontal ? e.clientX > r.left + r.width/2 : e.clientY > r.top + r.height/2
-      if (el.dataset.dragKey !== drag.over || after !== drag.after) setDrag(d => ({ ...d, over: el.dataset.dragKey, after }))
+      cur.current = { key, group, onDrop, horizontal, over:null, after:false,
+        px0: e.clientX + window.scrollX, py0: e.clientY + window.scrollY, nx0: r.left + window.scrollX, ny0: r.top + window.scrollY, cx: e.clientX, cy: e.clientY }
+      setDrag({ key, group, over:null, after:false })
     },
-    onPointerUp: () => { if (drag && drag.key === key) { if (drag.over !== key) drag.onDrop(key, drag.over, drag.after); setDrag(null) } },
-    onPointerCancel: () => setDrag(null),
-    style: { cursor: drag?.key === key ? 'grabbing' : 'grab', touchAction:'none', userSelect:'none' },
+    style: { cursor: drag?.key === key ? 'grabbing' : 'grab', touchAction:'none', userSelect:'none', WebkitUserSelect:'none' },
     'aria-label': '끌어서 순서 바꾸기', role:'button', tabIndex:-1,
   })
-  // 줄에 붙일 표시: 끌고 있는 줄은 흐리게, 놓을 자리에는 빨간 선
-  const mark = (key, group, horizontal) => {
-    if (!drag || drag.group !== group) return {}
-    if (drag.key === key) return { opacity:0.35 }
-    if (drag.over === key) return horizontal
-      ? { boxShadow: `${drag.after ? '3px' : '-3px'} 0 0 ${T.red}` }
-      : { boxShadow: `inset 0 ${drag.after ? '-3px' : '3px'} 0 ${T.red}` }
-    return {}
-  }
+  // 끄는 줄: 살짝 투명하게 떠오른 모습
+  const mark = (key, group) => (drag && drag.group === group && drag.key === key)
+    ? { position:'relative', zIndex:30, opacity:0.88, background:'#FFFFFF', boxShadow:'0 12px 28px rgba(29,27,24,0.22)', borderRadius:4, pointerEvents:'none' }
+    : {}
   return { drag, handle, mark }
+}
+// 끌어 놓기 결과 (미리보기와 실제 놓기에 같이 씀)
+function moveItemTo(items, fromId, toId, after) {
+  const from = items.find(i => i.id === fromId), to = items.find(i => i.id === toId)
+  if (!from || !to || fromId === toId) return items
+  const rest = items.filter(i => i.id !== fromId)
+  const at = rest.findIndex(i => i.id === toId) + (after ? 1 : 0)
+  return [...rest.slice(0, at), { ...from, cat: to.cat }, ...rest.slice(at)]
+}
+function moveKeyTo(arr, from, to, after) {
+  if (from === to || !arr.includes(to)) return arr
+  const rest = arr.filter(c => c !== from)
+  const at = rest.indexOf(to) + (after ? 1 : 0)
+  return [...rest.slice(0, at), from, ...rest.slice(at)]
 }
 const Grip = () => (
   <svg width="14" height="18" viewBox="0 0 14 18" aria-hidden="true" style={{display:'block'}}>
@@ -355,9 +466,12 @@ function MenuEditor({ tab }) {
     )
   }
 
-  const list = items.filter(i => i.mode === mode)
+  // 끄는 동안에는 놓으면 될 순서를 미리 보여 줌
+  const dg = dnd.drag
+  const shownItems = dg?.group === 'item' && dg.over ? moveItemTo(items, dg.key, dg.over, dg.after) : items
+  const list = shownItems.filter(i => i.mode === mode)
   const allCats = catsOf(settings, items)
-  const cats = allCats
+  const cats = dg?.group === 'cat' && dg.over ? moveKeyTo(allCats, dg.key, dg.over, dg.after) : allCats
   // 분류 고치기: 순서는 settings.cats, 이름을 바꾸면 그 분류 메뉴들도 같이 바뀜
   const setCats = next => { setSettings(s => ({ ...s, cats: next })); setSaved(false) }
   function addCat() {
@@ -383,16 +497,10 @@ function MenuEditor({ tab }) {
   const dropItem = (fromId, toId, after) => {
     const from = items.find(i => i.id === fromId), to = items.find(i => i.id === toId)
     if (!from || !to) return
-    const rest = items.filter(i => i.id !== fromId)
-    const at = rest.findIndex(i => i.id === toId) + (after ? 1 : 0)
-    change([...rest.slice(0, at), { ...from, cat: to.cat }, ...rest.slice(at)])
+    change(moveItemTo(items, fromId, toId, after))
     if (from.cat !== to.cat) setMsg(`'${from.name}'을(를) ${to.cat}(으)로 옮겼어요. 저장해 주세요`)
   }
-  const dropCat = (from, to, after) => {
-    const rest = allCats.filter(c => c !== from)
-    const at = rest.indexOf(to) + (after ? 1 : 0)
-    setCats([...rest.slice(0, at), from, ...rest.slice(at)])
-  }
+  const dropCat = (from, to, after) => setCats(moveKeyTo(allCats, from, to, after))
   const moveCat = (c, d) => { const a = [...allCats], i = a.indexOf(c), j = i + d; if (j < 0 || j >= a.length) return; [a[i], a[j]] = [a[j], a[i]]; setCats(a) }
   return (
     <div>
@@ -405,7 +513,7 @@ function MenuEditor({ tab }) {
           <Btn small kind="blue" onClick={addCat}>+ 분류 추가</Btn>
         </div>
         <div style={{display:'flex', flexWrap:'wrap', gap:6}}>
-          {allCats.map((c, i) => (
+          {cats.map((c, i) => (
             <span key={c} data-drag-group="cat" data-drag-key={c}
               style={{display:'inline-flex', alignItems:'center', gap:2, background:'#FFFFFF', border:`1px solid ${T.rule}`, borderRadius:4, padding:'2px 4px 2px 4px', fontSize:13, ...dnd.mark(c,'cat',true)}}>
               <span {...dnd.handle(c, 'cat', dropCat, true)} style={{...dnd.handle(c,'cat',dropCat,true).style, padding:'2px 2px'}}><Grip/></span>
@@ -432,7 +540,7 @@ function MenuEditor({ tab }) {
       {edit && !items.some(i=>i.id===edit.id) && <ItemForm edit={edit} setEdit={setEdit} onSave={saveEdit} cats={allCats}/>}
       {cats.filter(c => list.some(i=>i.cat===c)).map(c => (
         <section key={c} style={{marginTop:14}}>
-          <h2 style={{fontSize:15, fontWeight:800, margin:0, paddingBottom:4, borderBottom:`2px solid ${T.ink}`, fontFamily:'inherit'}}>{c}</h2>
+          <h2 data-drag-group="item" data-drag-head={c} style={{fontSize:15, fontWeight:800, margin:0, paddingBottom:4, borderBottom:`2px solid ${T.ink}`, fontFamily:'inherit'}}>{c}</h2>
           {list.filter(i=>i.cat===c).map(i => edit?.id === i.id ? <ItemForm key={i.id} edit={edit} setEdit={setEdit} onSave={saveEdit} cats={allCats}/> : (
             <div key={i.id} data-drag-group="item" data-drag-key={i.id}
               style={{display:'flex', alignItems:'center', gap:10, padding:'6px 0', borderBottom:`1px solid ${T.soft}`, fontSize:14, flexWrap:'wrap', opacity: i.hidden ? 0.5 : 1, ...dnd.mark(i.id,'item')}}>
