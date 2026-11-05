@@ -45,6 +45,7 @@ export default function Layout({ children }) {
     { path:'/expenses',     icon:'', label:'지출' },
     { path:'/staff',        icon:'', label:'스케쥴' },
     { path:'/our-store',    icon:'', label:'우리 매장' },
+    { path:'/avatar-manage', icon:'', label:'아바타' },
     { path:'/menu-manage',  icon:'', label:'메뉴·주문' },
     { path:'/work-manage',  icon:'',  label:'근무관리' },
     { path:'/members',      icon:'', label:'인원관리' },

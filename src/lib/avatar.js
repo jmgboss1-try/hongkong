@@ -36,8 +36,7 @@ export const ACCS = [
   { id:'band', label:'두건' }, { id:'headset', label:'헤드셋' },
 ]
 export const DECOS = [{ id:'blush', label:'볼터치' }, { id:'earring', label:'귀걸이' }, { id:'hairpin', label:'머리핀' }, { id:'nametag', label:'명찰' }]
-// 특별 아이템 (포상): 사장님이 우리 매장 아래 '특별 아이템 주기'에서 직원별로 줌 (users/{uid}.unlocks).
-// 받은 직원만 꾸미기에서 보이고 입을 수 있음 (look.special). 사장님은 다 입어 볼 수 있음
+// 특별 아이템: 기본은 '직접 줄 때만'. 지급 기준은 사장님 '아바타' 탭 (lib/avatarRules.js)
 export const LOCKED = [
   { id:'goldApron', label:'금색 앞치마' }, { id:'crown', label:'왕관' }, { id:'sparkle', label:'반짝이' },
   { id:'goldWok', label:'황금 웍' }, { id:'rainbow', label:'무지개 브릿지' },
@@ -61,12 +60,7 @@ export const LOOK_BASE = { eyes:'dot', brows:'none', mouth:'smile', mark:'none',
   pants:'#3B3A38', shoes:'black', hold:'auto', deco:[], special:[] }
 // 얼굴 소품은 여러 개 (예전엔 하나만 저장: 'glasses' 같은 글자)
 export const accsOf = acc => Array.isArray(acc) ? acc : acc && acc !== 'none' ? [acc] : []
-// 받지 않은(또는 거둬들인) 특별 아이템은 빼고 보여 줌. 사장님은 다 됨
-export const lookOf = user => {
-  const l = { ...defaultLook(user?.uid), ...(user?.avatar || {}) }
-  const ok = user?.role === 'owner' ? null : new Set(user?.unlocks || [])
-  return { ...l, special: (l.special || []).filter(id => !ok || ok.has(id)) }
-}
+export const lookOf = user => ({ ...defaultLook(user?.uid), ...(user?.avatar || {}) })
 // 아무렇게나 섞기 (꾸미기 화면의 '랜덤')
 export function randomLook() {
   const r = list => list[Math.floor(Math.random() * list.length)]

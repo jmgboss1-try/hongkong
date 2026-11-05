@@ -39,6 +39,7 @@ const Checklist = lazyPage(() => import('./pages/Checklist'))
 const Prepaid = lazyPage(() => import('./pages/Prepaid'))
 const SalesAnalysis = lazyPage(() => import('./pages/SalesAnalysis'))
 const OurStore = lazyPage(() => import('./pages/OurStore'))
+const AvatarManage = lazyPage(() => import('./pages/AvatarManage'))
 const PhoneUpload = lazyPage(() => import('./pages/PhoneUpload'))
 const MenuOrder = lazyPage(() => import('./pages/MenuOrder'))
 const MenuManage = lazyPage(() => import('./pages/MenuManage'))
@@ -147,6 +148,7 @@ function AppRoutes() {
         <Route path="/sales-analysis" element={<PrivateRoute storeOk storeOnly><SalesAnalysis /></PrivateRoute>} />
         {/* 우리 매장: 사장 + 매장계정 (포스에 띄워 두는 화면) */}
         <Route path="/our-store" element={<PrivateRoute storeOk storeOnly><OurStore /></PrivateRoute>} />
+        <Route path="/avatar-manage" element={<PrivateRoute ownerOnly><AvatarManage /></PrivateRoute>} />
         <Route path="/menu-manage" element={<PrivateRoute storeOk storeOnly><MenuManage /></PrivateRoute>} />
         <Route path="*" element={<Navigate to={homePath({ isOwner, isStore, isInvestor })} />} />
       </Routes>
