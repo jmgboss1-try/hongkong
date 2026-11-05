@@ -75,7 +75,8 @@ export default function Clock() {
         const br = breakForShift(cfg, now, sh) // 풀타임이면 그날 매장 브레이크를 기록에 붙임 (근무시간에서 빠짐)
         // 일찍 출근 자동 인정 분: 직원 설정 > 매장 기본 (근무관리 설정). 기록에 붙여 둬서 나중에 설정이 바뀌어도 그날 기준 그대로
         const earlyAuto = Math.max(0, +(me?.earlyAuto ?? cfg?.earlyAuto ?? 0) || 0)
-        await write(tYm, tDd, { in: serverTimestamp(), inDist: dist, name: me?.name || '', schedStart: sh?.start || null, schedEnd: sh?.end || null, earlyAuto,
+        const earlyGrace = cfg?.earlyGrace != null ? Math.max(0, +cfg.earlyGrace || 0) : 10   // 이 분 이내로 일찍 오면 그냥 예정 시각부터
+        await write(tYm, tDd, { in: serverTimestamp(), inDist: dist, name: me?.name || '', schedStart: sh?.start || null, schedEnd: sh?.end || null, earlyAuto, earlyGrace,
           ...(br ? { breakStart: br.start, breakEnd: br.end } : {}) })
         setResult({ kind:'in', rec: await readRec(tYm, tDd), ym:tYm, dd:tDd, forgotYesterday })
       } else if (!rec.out) {

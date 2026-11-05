@@ -114,6 +114,11 @@ export default function AttendancePanel({ curMonth, nameMap, onApplied }) {
     } catch(e) { console.error(e); alert('저장하지 못했어요. 다시 시도해 주세요.') }
     setBusy(false)
   }
+  // 이 분 이내로 일찍 온 건 그냥 예정 시각부터 (승인 대기 없음)
+  async function saveEarlyGrace(v) {
+    const c = { ...(cfg||{}), earlyGrace: v }
+    await setDoc(doc(db,'attendance','_config'), c); setCfg(c); setNote(`예정보다 ${v}분 넘게 일찍 오면 승인 대기로 떠요 (앞으로 찍는 출근부터)`)
+  }
   // 매장 기본 '일찍 출근 자동 인정' 분
   async function saveEarlyAuto(v) {
     const c = { ...(cfg||{}), earlyAuto: v }
@@ -340,6 +345,19 @@ export default function AttendancePanel({ curMonth, nameMap, onApplied }) {
               style={{background:'#FFFFFF', border:'1px solid #CBC5BA', borderRadius:4, padding:'4px 6px', fontSize:13, fontFamily:'inherit'}}/>
             {since && <Btn onClick={saveSince}>저장</Btn>}
             <span style={{color:T.sub}}>이 날 전에는 기록이 없어도 결근으로 보지 않아요</span>
+          </div>
+          <div style={{fontWeight:700}}>일찍 출근 기준</div>
+          <div style={{display:'flex', gap:8, alignItems:'center', flexWrap:'wrap', margin:'4px 0 6px'}}>
+            <span>예정보다</span>
+            <select value={cfg?.earlyGrace ?? 10} onChange={e=>saveEarlyGrace(+e.target.value)} aria-label="그냥 예정 시각부터 세는 범위"
+              style={{background:'#FFFFFF', border:'1px solid #CBC5BA', borderRadius:4, padding:'4px 6px', fontSize:13, fontFamily:'inherit'}}>
+              {[0,5,10,15,20,30,60].map(m => <option key={m} value={m}>{m ? `${m}분` : '1분이라도'}</option>)}
+            </select>
+            <span>{(cfg?.earlyGrace ?? 10) ? '이내로 일찍 오면 그냥 예정 시각부터 세고, 그보다 일찍 오면 승인 대기' : '일찍 오면 승인 대기'}</span>
+          </div>
+          <div style={{color:T.sub, margin:'0 0 8px'}}>
+            {(() => { const g = cfg?.earlyGrace ?? 10; const t = m => { const x = 8*60+30 - m; return `${Math.floor(x/60)}:${String(x%60).padStart(2,'0')}` }
+              return g ? `예: 8:30 출근이면 ${t(g)}~8:30에 온 건 8:30부터, ${t(g+1)} 또는 더 일찍 온 건 승인 대기` : '예: 8:30 출근이면 8:29에 와도 승인 대기' })()}
           </div>
           <div style={{fontWeight:700}}>일찍 출근 자동 인정 (매장 기본)</div>
           <div style={{display:'flex', gap:8, alignItems:'center', flexWrap:'wrap', margin:'4px 0 12px'}}>
