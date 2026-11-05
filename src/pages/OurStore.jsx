@@ -6,6 +6,7 @@ import Avatar from '../components/Avatar'
 import AvatarEditor from '../components/AvatarEditor'
 import { lookOf, defaultLook, AVATAR_CSS, POSITIONS } from '../lib/avatar'
 import { toDate, hm, recBreak, planFor, dayStatus, monthStatus, loadMonthContext, pad } from '../lib/attendance'
+import { MAP_W, MAP_H, NODES, route, nodeDist, SLOTS, HALL_POINTS, TABLES, SEAT_ORDER } from '../lib/storeMap'
 
 // 우리 매장: 지금 출근한 직원들의 캐릭터가 위에서 내려다본 매장 그림 안에서 일하는 모습
 //  - NFC 출근하면 문에서 걸어 들어와 자기 포지션(인원관리)으로, 브레이크면 휴게 공간, 퇴근하면 문으로 나감
@@ -15,43 +16,43 @@ import { toDate, hm, recBreak, planFor, dayStatus, monthStatus, loadMonthContext
 
 const T = { ink:'#1D1B18', sub:'#6E6A63', faint:'#A8A39A', rule:'#DCD7CE', soft:'#ECE8E1', accent:'#C3261C', red:'#B42318', green:'#2E7D45', blue:'#2B5C9E', amber:'#B45309' }
 const num = { fontVariantNumeric:'tabular-nums' }
-const W = 960, H = 600, SIZE = 40           // 그림 크기, 캐릭터 크기
-// 배치는 실제 매장 사진대로: 위쪽 주방(웍 3개), 그 앞 주문·포장 카운터, 왼쪽 창고·화장실, 오른쪽 퇴식대·입구, 아래 창가
-const DOOR = [860, 592]
-// 포지션별로 서 있을 자리 (발 위치)
-const SLOTS = {
-  wok:      [[655,140],[745,140],[835,140],[700,160]],
-  kitchen:  [[510,140],[570,140],[450,140],[540,160]],
-  counter:  [[400,212],[470,212],[540,212]],
-  delivery: [[262,308],[300,300],[262,335]],
-  hall:     [[265,345],[395,345],[525,345],[265,445]],
-  rest:     [[55,290],[105,290],[80,320],[130,320]],
-}
-const WOKS = [[655,82],[745,82],[835,82]]
-// 2인 테이블 (가운데 좌표) 4줄 x 3칸
-const TABLES = [200,330,460,590].flatMap(x => [295,395,495].map(y => [x,y]))
-// 홀 직원·사장님이 돌아다니는 지점 (테이블 사이 통로, 셀프바, 카운터 앞, 퇴식대 앞, 창가)
-const HALL_POINTS = [[265,345],[395,345],[525,345],[265,445],[395,445],[525,445],[655,345],[690,305],[600,248],[870,265],[330,520],[520,520]]
+const W = MAP_W, H = MAP_H, SIZE = 36        // 그림 크기, 캐릭터 크기
+const SPEED = 120                              // 걷는 빠르기 (그림 점/초)
 // 같은 사람은 늘 같은 순서로 움직이게: uid로 만든 숫자
 const hashOf = str => { let h = 7; for (const ch of String(str)) h = (h * 31 + ch.charCodeAt(0)) >>> 0; return h }
 const CUSTOMER_LOOKS = Array.from({length:12}, (_,i) => ({ ...defaultLook(`손님${i*7}`), shirt: ['#2B5C9E','#6E6A63','#2E7D45','#B45309','#6B4FA0','#E8E4DC','#D9A441'][i % 7] }))
 
-// 자리를 옮길 때: 처음엔 from, 다음 그림에서 to로 (CSS transition으로 걸어감). 걷는 동안은 children(true)
-function Mover({ from, to, children }) {
-  const [pos, setPos] = useState(from)
+// 통로를 따라 걷기: at(통로 점 이름)이 바뀌면 지금 있는 점에서 거기까지 가장 짧은 길로 한 칸씩 걸어감.
+// 처음 나타날 때는 start 에서 출발 (출근하면 출입문). 걷는 동안은 children(true)
+function Walker({ at, start, off = [0, 0], children }) {
+  const cur = useRef(start || at)
+  const busyUntil = useRef(0)
+  const [st, setSt] = useState({ node: start || at, dur: 0 })
   const [moving, setMoving] = useState(false)
-  const posRef = useRef(from)
   useEffect(() => {
-    let t
-    const r = requestAnimationFrame(() => requestAnimationFrame(() => {
-      const p = posRef.current
-      if (p[0] === to[0] && p[1] === to[1]) return
-      posRef.current = to; setPos(to); setMoving(true)
-      t = setTimeout(() => setMoving(false), 2600)
-    }))
-    return () => { cancelAnimationFrame(r); clearTimeout(t) }
-  }, [to[0], to[1]]) // eslint-disable-line react-hooks/exhaustive-deps
-  return <g className="os-move" style={{transform:`translate(${pos[0]}px, ${pos[1]}px)`}}>{children(moving)}</g>
+    let t, alive = true
+    const path = route(cur.current, at)
+    let i = path[0] === cur.current ? 1 : 0
+    const step = () => {
+      if (!alive) return
+      if (i >= path.length) { setMoving(false); return }
+      const from = cur.current, next = path[i++]
+      const dur = from === next ? 0 : Math.max(250, Math.round(nodeDist(from, next) / SPEED * 1000))
+      cur.current = next; busyUntil.current = Date.now() + dur
+      setMoving(true); setSt({ node: next, dur })
+      t = setTimeout(step, dur)
+    }
+    // 걷던 중이면 지금 가던 점에 닿은 뒤 새 길로
+    const wait = Math.max(0, busyUntil.current - Date.now())
+    t = setTimeout(() => requestAnimationFrame(() => requestAnimationFrame(step)), wait)
+    return () => { alive = false; clearTimeout(t) }
+  }, [at])
+  const [x, y] = NODES[st.node] || NODES.door
+  return (
+    <g style={{transform:`translate(${x + off[0]}px, ${y + off[1]}px)`, transition:`transform ${st.dur}ms linear`}}>
+      {children(moving)}
+    </g>
+  )
 }
 
 function Badges({ flame, grade, star }) {
@@ -123,7 +124,7 @@ export default function OurStore() {
   const closeTotal = sum('kiosk','del','pos')
   const total = closeTotal || sum('morningKiosk','morningDel','morningPos','middleKiosk','middleDel','middlePos')
   const delTotal = r.del || sum('morningDel','middleDel')
-  const customers = Math.min(TABLES.length * 2, Math.round(total / 100000))
+  const customers = Math.min(SEAT_ORDER.length, Math.round(total / 100000))
   const bags = Math.min(6, Math.round(delTotal / 120000))
 
   // ── 오늘 체크리스트 ──
@@ -136,7 +137,7 @@ export default function OurStore() {
   const toMin = s => { const [h,m] = String(s).split(':').map(Number); return h*60 + (m||0) }
   const people = [], waiting = []
   const used = {}
-  const slotFor = key => { const list = SLOTS[key] || SLOTS.hall; const i = used[key] = (used[key] ?? -1) + 1; const [x,y] = list[i % list.length]; return [x + Math.floor(i / list.length) * 18, y] }
+  const slotFor = key => { const list = SLOTS[key] || SLOTS.hall; const i = used[key] = (used[key] ?? -1) + 1; return list[i % list.length] }
   const positionsOf = u => { const ps = (u.positions?.length ? u.positions : [u.position]).filter(p => POSITIONS.some(x => x.id === p)); return ps.length ? ps : ['hall'] }
   // 이 사람이 오가는 자리들: 홀이면 통로 여러 곳, 나머지 포지션은 자기 자리 하나씩. 여러 포지션이면 그 사이를 오감
   const stationsOf = (ps, weights) => ps.flatMap(p => p === 'hall' ? HALL_POINTS : Array(weights?.[p] || 1).fill(slotFor(p)))
@@ -157,13 +158,13 @@ export default function OurStore() {
     const base = { uid:u.uid, label:u.name, look:lookOf(u), badges:{ flame, grade, star: ckDone }, posKey, ps, inD, outD, plan, late: rec?.in ? dayStatus(rec, plan).late : 0 }
     if (inD && outD) {
       // 퇴근하면 1분 동안 문으로 걸어 나가고 화면에서 빠짐 (퇴근한 사람은 목록에도 안 보임)
-      if (nowMs - outD.getTime() < 60000) people.push({ ...base, state:'leaving', pose:'walk', from: slotFor(posKey), to: DOOR })
+      if (nowMs - outD.getTime() < 60000) people.push({ ...base, state:'leaving', pose:'walk', from: slotFor(posKey), to: 'door' })
     } else if (inD) {
       const br = recBreak(rec)
       const resting = br && nowMin >= toMin(br.start) && nowMin < toMin(br.end)
       const to = resting ? slotFor('rest') : pick(u.uid, stationsOf(ps))
       const arriving = nowMs - inD.getTime() < 120000
-      people.push({ ...base, state: resting ? 'rest' : 'work', pose: resting ? 'rest' : 'work', from: arriving ? DOOR : to, to, brEnd: resting ? br.end : null })
+      people.push({ ...base, state: resting ? 'rest' : 'work', pose: resting ? 'rest' : 'work', from: arriving ? 'door' : to, to, brEnd: resting ? br.end : null })
     } else if (plan) {
       waiting.push({ ...base, overdue: nowMin > toMin(plan.start) })
     }
@@ -175,18 +176,30 @@ export default function OurStore() {
   }
   // 같은 자리에 두 사람이 오면 옆으로 살짝 비켜 섬
   const taken = {}
-  for (const p of people) { const k = p.to.join(','); const n = taken[k] = (taken[k] || 0) + 1; if (n > 1) p.to = [p.to[0] + (n-1)*22, p.to[1] + (n-1)*6] }
+  for (const p of people) { const n = taken[p.to] = (taken[p.to] || 0) + 1; p.off = n > 1 ? [(n-1)*20, (n-1)*5] : [0, 0] }
   waiting.sort((a,b) => toMin(a.plan.start) - toMin(b.plan.start))
   // 웍 앞에 서 있는 사람 수만큼 불
-  const occupiedWoks = Math.min(3, people.filter(p => p.state==='work' && SLOTS.wok.some(([x,y]) => Math.abs(p.to[0]-x) < 30 && Math.abs(p.to[1]-y) < 30)).length)
+  const wokOn = SLOTS.wok.map(n => people.some(p => p.state === 'work' && p.to === n))
 
-  const tile = (x, y, w, h, a, b, id) => (
+  const tile = (x, y, w, h, a, b, id, size = 32) => (
     <>
-      <defs><pattern id={id} width="40" height="40" patternUnits="userSpaceOnUse"><rect width="40" height="40" fill={a}/><rect width="20" height="20" fill={b}/><rect x="20" y="20" width="20" height="20" fill={b}/></pattern></defs>
+      <defs><pattern id={id} width={size} height={size} patternUnits="userSpaceOnUse"><rect width={size} height={size} fill={a}/><rect width={size/2} height={size/2} fill={b}/><rect x={size/2} y={size/2} width={size/2} height={size/2} fill={b}/></pattern></defs>
       <rect x={x} y={y} width={w} height={h} fill={`url(#${id})`}/>
     </>
   )
-  const label = (x, y, t, dark) => <text x={x} y={y} fontSize="12" fill={dark ? '#E8E4DC' : T.sub} fontWeight="700">{t}</text>
+  const label = (x, y, t, dark, anchor = 'middle') => <text x={x} y={y} fontSize="11" textAnchor={anchor} fill={dark ? '#E8E4DC' : '#4A4744'} fontWeight="700" style={{pointerEvents:'none'}}>{t}</text>
+  // 스테인리스 기구 한 칸
+  const steel = (x, y, w, h, t, fill = '#B9BEC3') => (
+    <g><rect x={x} y={y} width={w} height={h} fill={fill} stroke="#7C8187"/><rect x={x} y={y} width={w} height="3" fill="#D5D9DD"/>{t && label(x + w/2, y + h/2 + 4, t)}</g>
+  )
+  // 손님: 오늘 매출만큼 SEAT_ORDER 순서로 앉음
+  const seated = new Set(SEAT_ORDER.slice(0, customers).map(o => o.seat))
+  const customer = ([x, y], i) => (
+    <g key={`c${x}-${y}`} transform={`translate(${x-14},${y-30})`}>
+      <g className="av-bob"><Avatar look={CUSTOMER_LOOKS[i % CUSTOMER_LOOKS.length]} size={28} apron={false}/></g>
+    </g>
+  )
+  const stool = ([x, y]) => <rect key={`s${x}-${y}`} x={x-8} y={y-7} width="16" height="14" fill="#C9CBCE" stroke="#8D9297"/>
 
   return (
     <div style={{maxWidth:1100}}>
@@ -198,110 +211,79 @@ export default function OurStore() {
 
       <div style={{background:'#2A211C', borderRadius:6, padding:8}}>
         <svg viewBox={`0 0 ${W} ${H}`} width="100%" role="img" aria-label="매장 안에서 일하는 직원들" style={{display:'block', shapeRendering:'crispEdges'}}>
-          {/* 바닥: 주방은 밝은 회색 타일, 매장은 진회색 타일 (실제 매장처럼) */}
-          {tile(20, 40, 940, 540, '#4E4E4E', '#474747', 'th')}
-          {tile(360, 40, 580, 150, '#D3D6D9', '#C7CBCF', 'tk2')}
-          {/* 벽: 아이보리 + 빨간 띠, 아래쪽은 창가 */}
-          <rect x="0" y="0" width={W} height="40" fill="#EDE6D6"/><rect x="0" y="30" width={W} height="10" fill="#B8282A"/>
-          <rect x="0" y="0" width="20" height={H} fill="#EDE6D6"/><rect x={W-20} y="0" width="20" height={H} fill="#EDE6D6"/>
-          <rect x="0" y={H-20} width="790" height="20" fill="#3B4A5A"/><rect x="20" y={H-18} width="770" height="6" fill="#9FC3DD"/>
-          <rect x="910" y={H-20} width="50" height="20" fill="#EDE6D6"/>
-          {label(30, H-26, '창가', true)}
-          {/* 창가 바 좌석 */}
-          <rect x="30" y="548" width="740" height="12" fill="#F2F2F2"/>
-          {[60,120,180,240,300,360,420,480,540,600,660,720].map(x => <rect key={x} x={x} y="532" width="14" height="12" fill="#3A3A3A"/>)}
+          {/* 바닥: 홀은 진회색 타일, 주방은 밝은 타일 */}
+          {tile(0, 0, W, H, '#4E4E4E', '#474747', 'th')}
+          {tile(48, 8, 529, 168, '#D3D6D9', '#C7CBCF', 'tk', 24)}
+          {/* 바깥 벽 (아래 가운데가 출입문) */}
+          <rect x="0" y="0" width={W} height="8" fill="#EDE6D6"/>
+          <rect x="0" y="0" width="8" height={H} fill="#EDE6D6"/><rect x={W-8} y="0" width="8" height={H} fill="#EDE6D6"/>
+          <rect x="0" y={H-8} width="448" height="8" fill="#EDE6D6"/><rect x="542" y={H-8} width={W-542} height="8" fill="#EDE6D6"/>
+          <rect x="448" y={H-8} width="94" height="8" fill="#7C7C7C"/><rect x="452" y={H-6} width="86" height="3" fill="#B8B2A7"/>
+          {label(495, H-14, '출입문', true)}
 
-          {/* 계단 밑 휴게 자리 · 화장실 */}
-          <rect x="20" y="40" width="190" height="160" fill="#E4DDCF"/>
-          {[0,1,2,3,4].map(i => <rect key={i} x={20 + i*38} y={40 + i*12} width="38" height={160 - i*12} fill="#00000008"/>)}
-          <rect x="130" y="40" width="60" height="70" fill="#D8D2C4" stroke="#8A8378"/><rect x="176" y="72" width="5" height="5" fill="#8A8378"/>
-          {label(136, 128, '화장실')}
-          <rect x="20" y="240" width="140" height="110" fill="#5A5A5A"/>
-          <rect x="45" y="262" width="80" height="34" fill="#F4F4F2"/>
-          <rect x="78" y="266" width="12" height="10" fill="#FFFFFF" stroke="#B8B2A7"/>
-          {label(28, 344, '휴게', true)}
-
-          {/* 창고 선반 · 홍콩반점 냉장고 · 하이트진로 상자 (카운터 왼쪽) */}
-          <rect x="210" y="40" width="150" height="150" fill="#5E5E5E"/>
-          <rect x="216" y="46" width="68" height="40" fill="#3A3A3A"/>{[0,1,2].map(i => <rect key={i} x={222 + i*20} y="52" width="16" height="28" fill="#F2EFEA"/>)}
-          <rect x="296" y="46" width="56" height="86" fill="#F4F4F2"/><rect x="300" y="58" width="48" height="66" fill="#6F8FE8"/><rect x="296" y="46" width="56" height="12" fill="#C3261C"/>
-          <text x="324" y="56" textAnchor="middle" fontSize="8" fontWeight="900" fill="#FFFFFF">홍콩반점</text>
-          {[0,1,2].map(i => <rect key={i} x="222" y={100 + i*20} width="30" height="18" fill="#2B5C9E" stroke="#1E4577"/>)}
-          {Array.from({length:bags}).map((_,i) => <g key={i}><rect x={260 + (i%3)*24} y={140 + Math.floor(i/3)*24} width="20" height="20" fill="#FFFFFF" stroke="#C3261C"/><rect x={265 + (i%3)*24} y={145 + Math.floor(i/3)*24} width="10" height="5" fill="#C3261C"/></g>)}
-          {label(216, 204, `포장·배달${bags ? ` ${bags}건 대기` : ''}`, true)}
-
-          {/* 주방: 냉장고 · 준비 냉장고 · 웍 3개 · 개수대 */}
-          <rect x="360" y="40" width="580" height="8" fill="#F4F4F2"/>
-          <rect x="368" y="50" width="70" height="56" fill="#B9BEC3" stroke="#8D9297"/><rect x="368" y="78" width="70" height="2" fill="#8D9297"/>
-          {label(372, 118, '냉장고')}
-          <rect x="450" y="56" width="140" height="44" fill="#B9BEC3"/><rect x="458" y="62" width="40" height="22" fill="#E8D3A8"/>
-          <rect x="506" y="64" width="14" height="14" fill="#2E7D45"/><rect x="524" y="64" width="14" height="14" fill="#C3261C"/><rect x="544" y="62" width="34" height="26" fill="#DADDE0" stroke="#8D9297"/>
-          {label(452, 112, '준비')}
-          <rect x="610" y="50" width="270" height="62" fill="#A9AEB4"/><rect x="610" y="104" width="270" height="8" fill="#7C8187"/>
-          {WOKS.map(([x,y],i) => (
+          {/* 주방: 면·싱크(윗벽), 웍 3 · 빈 칸 · 튀김 · 퇴식 / POS · 조리대 · 냉장 · 정수 · 쓰레기 */}
+          <rect x="330" y="10" width="104" height="36" fill="#B9BEC3" stroke="#7C8187"/>{label(352, 32, '면')}
+          <circle cx="405" cy="28" r="13" fill="#5E6268"/><circle cx="405" cy="28" r="9" fill="#E8E4DC"/>
+          {steel(524, 10, 52, 78, '')}<rect x="530" y="20" width="40" height="46" fill="#7FB2D9"/>{label(550, 80, '싱크')}
+          {[0,1,2].map(i => (
             <g key={i}>
-              {i < occupiedWoks && <rect className="av-flame" x={x-14} y={y+6} width="28" height="8" fill="#E8742A"/>}
-              <ellipse cx={x} cy={y} rx="26" ry="14" fill="#2F2B28"/><ellipse cx={x} cy={y-2} rx="18" ry="8" fill={i < occupiedWoks ? '#C3261C' : '#45403B'}/>
+              {steel(120 + i*66, 92, 66, 42, '', '#A9AEB4')}
+              {wokOn[i] && <rect className="av-flame" x={139 + i*66} y="118" width="28" height="8" fill="#E8742A"/>}
+              <ellipse cx={153 + i*66} cy="111" rx="22" ry="12" fill="#2F2B28"/><ellipse cx={153 + i*66} cy="109" rx="15" ry="7" fill={wokOn[i] ? '#C3261C' : '#45403B'}/>
             </g>
           ))}
-          <rect x="888" y="52" width="40" height="22" fill="#B9BEC3"/><rect x="888" y="80" width="40" height="22" fill="#B9BEC3"/>
-          <rect x="884" y="110" width="48" height="40" fill="#B9BEC3"/><rect x="890" y="116" width="36" height="26" fill="#7FB2D9"/>
-          {label(616, 64, '웍')}
-          {label(888, 162, '개수대')}
+          {steel(318, 92, 90, 42, '')}
+          {steel(408, 92, 114, 42, '')}<rect x="420" y="100" width="40" height="26" fill="#D9A441" stroke="#7C8187"/><rect x="468" y="100" width="40" height="26" fill="#D9A441" stroke="#7C8187"/>{label(465, 90, '튀김')}
+          {steel(522, 92, 55, 42, '퇴식', '#9A9EA3')}
+          {steel(120, 134, 65, 38, '')}<rect x="132" y="140" width="40" height="22" fill="#1D1B18"/><rect x="135" y="143" width="34" height="14" fill="#7FB2D9"/>{label(152, 170, 'POS')}
+          {steel(185, 134, 223, 38, '')}{label(330, 157, '조리대')}
+          {Array.from({length:bags}).map((_,i) => <g key={i}><rect x={192 + i*22} y="139" width="18" height="18" fill="#FFFFFF" stroke="#C3261C"/><rect x={196 + i*22} y="143" width="10" height="5" fill="#C3261C"/></g>)}
+          {steel(408, 134, 68, 38, '냉장')}
+          {steel(476, 134, 46, 38, '정수')}
+          <rect x="522" y="134" width="55" height="38" fill="#2A2A2A"/>{label(549, 157, '쓰레기', true)}
+          {label(60, 30, '주방', false, 'start')}
+          {/* 선반 · 냉장고 2 · 주방 출입(점선) */}
+          <rect x="8" y="124" width="40" height="164" fill="#8A7A66" stroke="#5A4E40"/>
+          {[0,1,2,3].map(i => <rect key={i} x="12" y={132 + i*38} width="32" height="4" fill="#5A4E40"/>)}
+          {label(28, 212, '선반', true)}
+          {steel(50, 224, 60, 64, '냉장')}{steel(112, 224, 60, 64, '냉장')}
+          <line x1="48" y1="150" x2="120" y2="150" stroke="#8D9297" strokeWidth="2" strokeDasharray="5 5"/>
+          {/* 오른쪽 칸막이 (주방과 5·6번 사이) */}
+          <rect x="577" y="8" width="8" height="258" fill="#EDE6D6"/>
 
-          {/* 주문·포장 카운터 (위에 홍콩반점 글씨, 포스·밥솥) */}
-          <rect x="360" y="178" width="400" height="26" fill="#3A3A3A"/><rect x="360" y="178" width="400" height="5" fill="#9A9EA3"/>
-          <rect x="380" y="168" width="22" height="12" fill="#1D1B18"/><rect x="383" y="170" width="16" height="7" fill="#7FB2D9"/>
-          <rect x="560" y="166" width="20" height="16" fill="#F2F2F2" stroke="#B8B2A7"/><rect x="590" y="166" width="20" height="16" fill="#F2F2F2" stroke="#B8B2A7"/>
-          <text x="560" y="172" textAnchor="middle" fontSize="15" fontWeight="900" fill="#C3261C" stroke="#FFFFFF" strokeWidth="3" paintOrder="stroke">홍콩반점</text>
-          {label(616, 220, '주문·포장 카운터', true)}
-          {/* 카운터 오른쪽: 음료 냉장고 · 정수기 · 퇴식대 · 쓰레기통 */}
-          <rect x="768" y="160" width="40" height="44" fill="#F4F4F2"/><rect x="772" y="170" width="32" height="30" fill="#BFD6EA"/><rect x="768" y="160" width="40" height="9" fill="#C3261C"/>
-          <rect x="814" y="170" width="22" height="34" fill="#F4F4F2" stroke="#B8B2A7"/>
-          <rect x="842" y="150" width="98" height="54" fill="#9A9EA3"/><rect x="850" y="160" width="82" height="22" fill="#5E6268"/>
-          {label(856, 216, '퇴식대', true)}
-          <rect x="846" y="226" width="22" height="22" fill="#2A2A2A"/><rect x="874" y="226" width="22" height="22" fill="#2A2A2A"/>
+          {/* 왼쪽 아래: 화장실 · 술 · 창고, 1번 칸막이 */}
+          <rect x="8" y="340" width="44" height="272" fill="#D8D2C4" stroke="#8A8378"/>{[0,1,2].map(i => <text key={i} x="30" y={440 + i*18} textAnchor="middle" fontSize="12" fontWeight="700" fill="#4A4744">{'화장실'[i]}</text>)}
+          <rect x="52" y="356" width="60" height="72" fill="#3B4A5A" stroke="#22303D"/>{[0,1,2].map(i => <rect key={i} x={58 + i*18} y="364" width="12" height="20" fill="#2E7D45"/>)}{label(82, 414, '술', true)}
+          <rect x="56" y="498" width="64" height="114" fill="#6A5A48" stroke="#4A3E30"/>{label(88, 560, '창고', true)}
+          <rect x="128" y="484" width="10" height="128" fill="#9FC3DD"/><rect x="348" y="484" width="10" height="128" fill="#9FC3DD"/><rect x="551" y="484" width="9" height="128" fill="#9FC3DD"/>
+          {/* 키오스크 · 셀프바 · 에어컨 · B 바 자리 */}
+          <rect x="378" y="566" width="58" height="40" fill="#1D1B18"/><rect x="384" y="571" width="46" height="22" fill="#7FB2D9"/>{label(407, 562, '키오스크', true)}
+          <rect x="582" y="272" width="126" height="58" fill="#C3261C"/><rect x="588" y="278" width="114" height="16" fill="#2A2A2A"/>{[0,1,2,3].map(i => <rect key={i} x={594 + i*28} y="281" width="20" height="10" fill="#E8E4DC"/>)}{label(645, 318, '셀프바', true)}
+          <rect x="862" y="10" width="88" height="46" fill="#F4F4F2" stroke="#B8B2A7"/>{[0,1,2].map(i => <rect key={i} x="870" y={20 + i*9} width="72" height="3" fill="#B8B2A7"/>)}{label(906, 66, '에어컨', true)}
 
-          {/* 셀프바 · 메뉴판 */}
-          <rect x="660" y="250" width="70" height="32" fill="#C3261C"/><rect x="664" y="252" width="62" height="8" fill="#2A2A2A"/>
-          {label(664, 296, '셀프바', true)}
-          <rect x="22" y="380" width="8" height="60" fill="#C3261C"/><rect x="22" y="460" width="8" height="60" fill="#3A1F1C"/>
-
-          {/* 입구 쪽: 칸막이 유리 · 키오스크 · 대기 의자 */}
-          <rect x="770" y="260" width="6" height="230" fill="#9FC3DD"/>
-          <rect x="900" y="268" width="34" height="56" fill="#1D1B18"/><rect x="905" y="274" width="24" height="32" fill="#7FB2D9"/>
-          {label(870, 340, '키오스크', true)}
-          <circle cx="905" cy="470" r="11" fill="#5A4636"/><circle cx="905" cy="500" r="11" fill="#5A4636"/>
-          <rect x="820" y={H-20} width="90" height="20" fill="#7C7C7C"/><rect x="826" y={H-16} width="78" height="4" fill="#B8B2A7"/>
-          {label(840, H-26, '입구', true)}
-
-          {/* 손님 테이블 (하얀 2인 테이블): 오늘 매출만큼 손님 — 앞자리부터 한 명씩, 다 차면 맞은편 */}
-          {TABLES.map(([x,y],t) => {
-            const top = t < customers, bottom = t + TABLES.length < customers
+          {/* 손님 테이블과 의자 (번호는 실제 테이블 번호). 오늘 매출만큼 손님이 앉아 있음 */}
+          {TABLES.map(t => {
+            const cy = t.y + t.h / 2
+            const back = t.seats.filter(([,y]) => y < cy), front = t.seats.filter(([,y]) => y >= cy)
             return (
-              <g key={t}>
-                <rect x={x-20} y={y-34} width="18" height="12" fill="#C9CBCE"/><rect x={x+2} y={y-34} width="18" height="12" fill="#C9CBCE"/>
-                {top && (
-                  <g transform={`translate(${x-16},${y-60})`}>
-                    {/* 움직임(av-bob)은 안쪽 g에: 바깥 g의 위치(transform)를 덮어쓰지 않게 */}
-                    <g className="av-bob"><Avatar look={CUSTOMER_LOOKS[t % CUSTOMER_LOOKS.length]} size={32} apron={false}/></g>
-                  </g>
-                )}
-                <rect x={x-30} y={y-20} width="60" height="34" fill="#F7F7F5"/><rect x={x-30} y={y+12} width="60" height="4" fill="#B8BAB8"/>
-                <rect x={x-20} y={y+20} width="18" height="12" fill="#C9CBCE"/><rect x={x+2} y={y+20} width="18" height="12" fill="#C9CBCE"/>
-                {top && <g><ellipse cx={x-8} cy={y-6} rx="9" ry="4" fill="#FFFFFF" stroke="#DDD"/><ellipse cx={x-8} cy={y-7} rx="6" ry="2.5" fill="#C3261C"/></g>}
-                {bottom && (
-                  <g transform={`translate(${x-2},${y-8})`}>
-                    <g className="av-bob"><Avatar look={CUSTOMER_LOOKS[(t+5) % CUSTOMER_LOOKS.length]} size={32} apron={false}/></g>
-                  </g>
-                )}
+              <g key={t.id}>
+                {t.seats.map(stool)}
+                {back.filter(s => seated.has(s)).map((s,i) => customer(s, i + t.id.charCodeAt(0)))}
+                <rect x={t.x} y={t.y} width={t.w} height={t.h} fill={t.bar ? '#C9B79A' : '#F7F7F5'} stroke={t.bar ? '#8A7A66' : '#B8BAB8'}/>
+                {!t.bar && <rect x={t.x} y={t.y + t.h - 4} width={t.w} height="4" fill="#B8BAB8"/>}
+                {t.seats.filter(s => seated.has(s)).map(([x,y]) => {
+                  const bx = t.bar ? t.x + 14 : Math.min(Math.max(x, t.x + 12), t.x + t.w - 12), by = t.bar ? y : (y < cy ? t.y + 12 : t.y + t.h - 14)
+                  return <g key={`b${x}-${y}`}><ellipse cx={bx} cy={by} rx="8" ry="4" fill="#FFFFFF" stroke="#DDD"/><ellipse cx={bx} cy={by - 1} rx="5" ry="2.5" fill="#C3261C"/></g>
+                })}
+                <text x={t.x + t.w/2} y={t.y + t.h/2 + 5} textAnchor="middle" fontSize="13" fontWeight="800" fill={t.bar ? '#5A4E40' : '#A8A39A'} style={{pointerEvents:'none'}}>{t.id}</text>
+                {front.filter(s => seated.has(s)).map((s,i) => customer(s, i + 3 + t.id.charCodeAt(0)))}
               </g>
             )
           })}
 
           {/* 직원 */}
           {[...people].sort((a,b) => String(a.uid).localeCompare(String(b.uid))).map(p => (
-            <Mover key={p.uid + p.state} from={p.from} to={p.to}>{moving => <g opacity={p.state === 'leaving' ? 0.85 : 1}><Person p={p} moving={moving || p.state === 'leaving'}/></g>}</Mover>
+            <Walker key={p.uid} at={p.to} start={p.from} off={p.off}>{moving => <g opacity={p.state === 'leaving' ? 0.85 : 1}><Person p={p} moving={moving}/></g>}</Walker>
           ))}
         </svg>
       </div>
