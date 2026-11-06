@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { db } from '../firebase'
 import { doc, getDoc, setDoc, deleteField, serverTimestamp } from 'firebase/firestore'
 import { useAuth } from '../AuthContext'
+import ClockAvatar from '../components/ClockAvatar'
 import { DEFAULT_RADIUS, ymOf, ddOf, hm, toDate, planFor, breakForShift, calcRecord, applyRecord, distanceM, getPosition } from '../lib/attendance'
 
 const DAYS_KR = ['일','월','화','수','목','금','토']
@@ -16,6 +17,7 @@ export default function Clock() {
   const [msg, setMsg] = useState('위치를 확인하고 있어요...')
   const [result, setResult] = useState(null)   // { kind:'in'|'out'|'already'|'soon', rec, ym, dd }
   const [busy, setBusy] = useState(false)
+  const [me, setMe] = useState(null)        // 내 users 문서 (아바타·대사용)
   const started = useRef(false)
 
   const staffOk = user && userData && !isStore && !isInvestor && (isOwner || !['pending','rejected','retired'].includes(userData.status))
@@ -40,6 +42,7 @@ export default function Clock() {
       ])
       const cfg = cfgSnap.exists() ? cfgSnap.data() : null
       const me = meSnap.exists() ? meSnap.data() : userData
+      setMe(me)
       let dist = null
       if (cfg?.lat != null) {
         dist = distanceM(pos, cfg)
@@ -168,6 +171,8 @@ export default function Clock() {
       {result.kind === 'soon' && big('방금 출근했어요', hm(inD), T.green)}
       {result.kind === 'out' && big('퇴근했어요', hm(outD), T.blue)}
       {result.kind === 'already' && big('오늘은 이미 퇴근했어요', hm(outD), T.sub)}
+
+      <ClockAvatar uid={user?.uid} me={me} kind={result.kind} rec={r}/>
 
       <div style={{borderTop:`1px solid ${T.rule}`}}>
         {[
