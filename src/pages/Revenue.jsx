@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { db } from '../firebase'
 import { doc, getDoc, setDoc } from 'firebase/firestore'
 import { useAuth } from '../AuthContext'
+import { monthLabels, monthScheme, mixedLabel, isAfterCut, chLabels, ETC_HINT } from '../lib/revenueChannels'
 
 const pad = n => String(n).padStart(2,'0')
 const daysIn = ym => { const[y,m]=ym.split('-').map(Number); return new Date(y,m,0).getDate() }
@@ -262,6 +263,14 @@ export default function Revenue() {
     return { kiosk:a.kiosk+t.kiosk, del:a.del+t.del, pos:a.pos+t.pos }
   }, {kiosk:0,del:0,pos:0})
   const grand = tot.kiosk+tot.del+tot.pos
+  // 매출 구분 이름 (11월 9일부터 홀·배달·기타). 섞인 달은 장부에서 바뀌기 전/후를 따로 보여 줌
+  const CH = monthLabels(curMonth), mixedMonth = monthScheme(curMonth) === 'mixed'
+  const totCut = Object.entries(data).reduce((a,[dd,r]) => {
+    if (!/^\d\d$/.test(dd)) return a
+    const t = getTotal(r), side = isAfterCut(curMonth, dd) ? 'after' : 'before'
+    a[side].kiosk += t.kiosk; a[side].pos += t.pos; return a
+  }, { before:{kiosk:0,pos:0}, after:{kiosk:0,pos:0} })
+  const inCH = chLabels(`${curMonth}-${String(editDay||day).padStart(2,'0')}`)
 
   const activeDays = Object.keys(data).filter(dd => {
     const r = data[dd]
@@ -378,10 +387,14 @@ export default function Revenue() {
         <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(min(100%, 380px), 1fr))', gap:'28px 40px', marginBottom:30}}>
           <section>
             {sectionTitle('채널별 매출')}
-            {line('키오스크', tot.kiosk, { note: grand ? `${Math.round(tot.kiosk/grand*100)}%` : undefined })}
+            {mixedMonth
+              ? <>{line(mixedLabel('kiosk', false), totCut.before.kiosk)}{line(mixedLabel('kiosk', true), totCut.after.kiosk)}</>
+              : line(CH.kiosk, tot.kiosk, { note: grand ? `${Math.round(tot.kiosk/grand*100)}%` : undefined })}
             {line('배달', tot.del, { note: grand ? `${Math.round(tot.del/grand*100)}%` : undefined })}
             {platTot.filter(p=>p.sum>0).map(p=>line(p.label, p.sum, { sub:true, key:p.key }))}
-            {line('포스', tot.pos, { note: grand ? `${Math.round(tot.pos/grand*100)}%` : undefined })}
+            {mixedMonth
+              ? <>{line(mixedLabel('pos', false), totCut.before.pos)}{line(mixedLabel('pos', true), totCut.after.pos)}</>
+              : line(CH.pos, tot.pos, { note: grand ? `${Math.round(tot.pos/grand*100)}%` : undefined })}
             <div style={{borderTop:`3px double ${T.ink}`, marginTop:6, paddingTop:2}}>{line('매출 합계', grand, { strong:true })}</div>
           </section>
           <section>
@@ -437,7 +450,7 @@ export default function Revenue() {
             )}
 
             <div style={{maxWidth:520}}>
-              {inputRow('키오스크', money(kiosk, setKiosk, '키오스크'))}
+              {inputRow(inCH.kiosk === '홀' ? '홀 (키오스크+포스)' : '키오스크', money(kiosk, setKiosk, inCH.kiosk))}
               {!showDelDetail
                 ? inputRow('배달', money(del, setDel, '배달'))
                 : <>
@@ -452,7 +465,7 @@ export default function Revenue() {
                 style={{background:'none', border:'none', borderBottom:`1px solid ${T.blue}`, color:T.blue, padding:0, fontSize:12, cursor:'pointer', fontFamily:'inherit', margin:'2px 0 4px'}}>
                 {showDelDetail ? '배달을 합계 하나로 입력' : '배달을 앱별로 입력'}
               </button>
-              {inputRow('포스·현장', money(pos, setPos, '포스'))}
+              {inputRow(inCH.pos === '기타' ? `기타 (${ETC_HINT})` : '포스·현장', money(pos, setPos, inCH.pos))}
               <div style={{borderTop:`3px double ${T.ink}`, marginTop:6, paddingTop:2}}>
                 {isMiddleActive
                   ? line('미들타임 매출 (저장될 값)', pureMiddlePreview, { strong:true, color:T.purple })
@@ -479,7 +492,7 @@ export default function Revenue() {
             <table style={{width:'100%', borderCollapse:'collapse', fontSize:13, ...num}}>
               <thead>
                 <tr>
-                  {['날짜', ...(isNewMonth ? ['구분'] : []), ...(showChannelDetail ? ['키오스크','배달','포스'] : []), '합계', ...(isOwner ? [''] : [])].map((h,i)=>(
+                  {['날짜', ...(isNewMonth ? ['구분'] : []), ...(showChannelDetail ? [CH.kiosk,'배달',CH.pos] : []), '합계', ...(isOwner ? [''] : [])].map((h,i)=>(
                     <th key={h+i} style={{padding:'8px 12px', fontSize:12, fontWeight:600, color:T.sub, borderBottom:`1px solid ${T.ink}`,
                       textAlign:['날짜','구분'].includes(h)?'left':'right', whiteSpace:'nowrap'}}>{h}</th>
                   ))}

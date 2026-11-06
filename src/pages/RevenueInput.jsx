@@ -3,6 +3,7 @@ import { db, auth } from '../firebase'
 import { compressImage, PhoneReceiveModal } from '../components/PhotoAttach'
 import { doc, getDoc, setDoc } from 'firebase/firestore'
 import { useAuth } from '../AuthContext'
+import { chLabels, isNewChannels, ETC_HINT } from '../lib/revenueChannels'
 
 const pad = n => String(n).padStart(2,'0')
 const DAYS_KR = ['일','월','화','수','목','금','토']
@@ -33,6 +34,8 @@ export default function RevenueInput() {
   const today = `${now.getFullYear()}-${pad(now.getMonth()+1)}`
   const todayDD = pad(now.getDate())
   const todayLabel = `${now.getMonth()+1}월 ${now.getDate()}일 (${DAYS_KR[now.getDay()]})`
+  // 11월 9일부터: 키오스크 → 홀(키오스크+포스 결제), 포스 → 기타(쿠폰·이체·서울페이·전화배달)
+  const CH = chLabels(`${today}-${todayDD}`), newCh = isNewChannels(`${today}-${todayDD}`)
 
   const [activeSession, setActiveSession] = useState('morning') // 'morning' | 'middle' | 'close'
   const [data, setData] = useState({})
@@ -334,8 +337,8 @@ export default function RevenueInput() {
               </div>
             )}
 
-            {row('키오스크',
-              money(kiosk, setKiosk, '키오스크 매출', {width:'min(170px, 46vw)'}))}
+            {row(newCh ? '홀 (키오스크+포스)' : '키오스크',
+              money(kiosk, setKiosk, `${CH.kiosk} 매출`, {width:'min(170px, 46vw)'}))}
 
             <div style={{marginTop:6}}>
               <div style={{display:'flex', alignItems:'baseline', justifyContent:'space-between', padding:'8px 0 2px'}}>
@@ -369,8 +372,9 @@ export default function RevenueInput() {
               ))}
             </div>
 
-            {row('포스 (현장)',
-              money(pos, setPos, '포스 매출', {width:'min(170px, 46vw)'}))}
+            {row(newCh ? '기타' : '포스 (현장)',
+              money(pos, setPos, `${CH.pos} 매출`, {width:'min(170px, 46vw)'}))}
+            {newCh && <div style={{fontSize:12, color:T.sub, margin:'-4px 0 4px'}}>기타: {ETC_HINT}</div>}
 
             <div style={{marginTop:10, paddingTop:12, borderTop: T.leader ? `3px double ${T.strong}` : `1px solid ${T.strong}`}}>
               <div style={{display:'flex', justifyContent:'space-between', alignItems:'baseline'}}>
@@ -401,7 +405,7 @@ export default function RevenueInput() {
               <table style={{width:'100%', borderCollapse:'collapse', fontSize:13, minWidth:480}}>
                 <thead>
                   <tr style={{borderTop:`2px solid ${T.strong}`}}>
-                    {['구분','키오스크','배달','포스','합계','입력'].map(h => (
+                    {['구분',CH.kiosk,'배달',CH.pos,'합계','입력'].map(h => (
                       <th key={h} style={{padding:'8px 12px', fontSize:12, fontWeight:600, color:T.sub, borderBottom:`1px solid ${T.rule}`,
                         textAlign:['구분','입력'].includes(h) ? 'left' : 'right'}}>{h}</th>
                     ))}

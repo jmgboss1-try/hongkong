@@ -6,6 +6,7 @@ import { withSubMemos, loadSubs } from '../lib/attendance'
 import { bankSummary } from '../lib/bankRecon'
 import { ComposedChart, Bar, Line, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts'
 import { loadPrivateMap } from '../lib/privateInfo'
+import { monthLabels, monthScheme, mixedLabel, isAfterCut } from '../lib/revenueChannels'
 
 const pad = n => String(n).padStart(2,'0')
 const mLabel = ym => { const[y,m]=ym.split('-'); return `${y}년 ${+m}월` }
@@ -130,14 +131,16 @@ export default function Dashboard() {
       if(revSnap.exists()) {
         const d = revSnap.data()
         let k=0,dl=0,p=0
-        Object.values(d).forEach(r=>{
+        const cut = { before:{kiosk:0,pos:0}, after:{kiosk:0,pos:0} }
+        Object.entries(d).forEach(([day, r])=>{
           if(typeof r!=='object'||r===null) return
           const kk=(r.close?.kiosk||0)>0?r.close.kiosk:(r.kiosk||0)
           const dd=(r.close?.del||0)>0?r.close.del:(r.del||0)
           const pp=(r.close?.pos||0)>0?r.close.pos:(r.pos||0)
           k+=kk;dl+=dd;p+=pp
+          if (/^\d\d$/.test(day)) { const side = isAfterCut(curMonth, day) ? 'after' : 'before'; cut[side].kiosk += kk; cut[side].pos += pp }
         })
-        setRev({kiosk:k,del:dl,pos:p,total:k+dl+p})
+        setRev({kiosk:k,del:dl,pos:p,total:k+dl+p,cut})
       } else setRev({kiosk:0,del:0,pos:0,total:0})
 
       const emps = []
@@ -330,7 +333,9 @@ export default function Dashboard() {
   const monthOpts=[]
   for(let y=2022;y<=Math.max(2026,new Date().getFullYear());y++){const sm=y===2022?10:1;for(let m=sm;m<=12;m++){monthOpts.push(`${y}-${pad(m)}`)}}
 
-  const ch = CHANNELS.find(c=>c.key===chartChannel)
+  // 매출 추이의 키오스크·포스는 그 달 이름으로 (11월 9일부터 홀·기타)
+  const channels = CHANNELS.map(c => c.key === 'kiosk' || c.key === 'pos' ? { ...c, label: monthLabels(curMonth)[c.key] } : c)
+  const ch = channels.find(c=>c.key===chartChannel)
   const won = n => (n||0).toLocaleString('ko-KR')
   const num = { fontVariantNumeric:'tabular-nums' }
   const T = { ink:'#1D1B18', sub:'#6E6A63', faint:'#A8A39A', rule:'#DCD7CE', accent:'#C3261C', red:'#B42318', green:'#2E7D45', field:'#FFFFFF' }
@@ -389,9 +394,13 @@ export default function Dashboard() {
             <section>
               {sectionTitle('이 달 손익')}
               {line('매출', rev.total)}
-              {line('키오스크', rev.kiosk, { sub:true, note:`${pct(rev.kiosk,rev.total)}%` })}
+              {monthScheme(curMonth) === 'mixed' && rev.cut
+                ? <>{line(mixedLabel('kiosk', false), rev.cut.before.kiosk, { sub:true })}{line(mixedLabel('kiosk', true), rev.cut.after.kiosk, { sub:true })}</>
+                : line(monthLabels(curMonth).kiosk, rev.kiosk, { sub:true, note:`${pct(rev.kiosk,rev.total)}%` })}
               {line('배달', rev.del, { sub:true, note:`${pct(rev.del,rev.total)}%` })}
-              {line('포스', rev.pos, { sub:true, note:`${pct(rev.pos,rev.total)}%` })}
+              {monthScheme(curMonth) === 'mixed' && rev.cut
+                ? <>{line(mixedLabel('pos', false), rev.cut.before.pos, { sub:true })}{line(mixedLabel('pos', true), rev.cut.after.pos, { sub:true })}</>
+                : line(monthLabels(curMonth).pos, rev.pos, { sub:true, note:`${pct(rev.pos,rev.total)}%` })}
               {line('지출', exp.total, { minus:true, note: rev.total>0 ? `매출의 ${pct(exp.total,rev.total)}%` : undefined })}
               {SECS.filter(sec => (exp.bySec?.[sec]||0) > 0).map(sec => line(sec, exp.bySec[sec], { sub:true, minus:true, note: rev.total>0 ? `${pct(exp.bySec[sec],rev.total)}%` : undefined }))}
               <div style={{borderTop:`3px double ${T.ink}`, marginTop:8, paddingTop:4}}>
@@ -438,7 +447,7 @@ export default function Dashboard() {
             <div style={{display:'flex', gap:10, alignItems:'center', flexWrap:'wrap', margin:'10px 0 12px'}}>
               <select value={chartChannel} onChange={e=>setChartChannel(e.target.value)} aria-label="매출 구분"
                 style={{background:T.field, border:`1px solid ${T.rule}`, borderRadius:4, color:T.ink, padding:'6px 10px', fontSize:13, fontFamily:'inherit', outline:'none'}}>
-                {CHANNELS.map(c => <option key={c.key} value={c.key}>{c.label}</option>)}
+                {channels.map(c => <option key={c.key} value={c.key}>{c.label}</option>)}
               </select>
               <label style={{display:'flex', alignItems:'center', gap:6, fontSize:13, color:T.ink, cursor:'pointer'}}>
                 <input type="checkbox" checked={showCompare} onChange={e=>setShowCompare(e.target.checked)} style={{accentColor:T.accent}}/>
