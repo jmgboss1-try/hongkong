@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
 import { db } from '../firebase'
 import { doc, getDoc, setDoc } from 'firebase/firestore'
-import { prevYmOf, monthNum, loadEligible, rewardResults, addRewardBonuses } from '../lib/rewards'
+import { prevYmOf, monthNum, loadEligible, rewardResults, addRewardBonuses, addRewardPoints, rewardIsPoints } from '../lib/rewards'
+import { loadPointConfig } from '../lib/points'
 import RewardGame from './RewardGame'
 
 const T = { ink:'#1D1B18', sub:'#6E6A63', rule:'#DCD7CE', soft:'#ECE8E1', accent:'#C3261C', red:'#B42318', green:'#2E7D45', blue:'#2B5C9E', amber:'#B45309' }
@@ -19,14 +20,14 @@ function Btn({ children, onClick, kind = 'plain', disabled }) {
   )
 }
 
-// 사장님: 지난달 개근 포상을 할지 묻고(직원이 각자 룰렛 / 지금 사다리 / 안 함), 진행 상황과 상여 넣기
+// 사장님: 지난달 개근 포상을 할지 묻고(직원이 각자 룰렛 / 지금 사다리 / 안 함), 진행 상황과 포인트 지급 (예전 현금 상품 달은 상여)
 // 대시보드와 근무관리 맨 위에 같은 카드로 나옴. 할 일이 없으면(개근 없음, 끝났고 다 지급) 아무것도 안 보임
 export default function RewardPrompt() {
   const ym = prevYmOf()
   const m = monthNum(ym)
   const [rw, setRw] = useState(undefined)   // rewards/{ym} (undefined = 불러오는 중, null = 아직 안 정함)
   const [eligible, setEligible] = useState([])
-  const [prizeText, setPrizeText] = useState('3만원, 2만원, 1만원, 꽝')
+  const [prizeText, setPrizeText] = useState('30포인트, 20포인트, 10포인트, 꽝')
   const [ladder, setLadder] = useState(false)
   const [busy, setBusy] = useState(false)
   const [reload, setReload] = useState(0)
@@ -37,8 +38,8 @@ export default function RewardPrompt() {
       try {
         const s = await getDoc(doc(db,'rewards',ym))
         const r = s.exists() ? s.data() : null
-        const el = r?.eligible || await loadEligible(ym)
-        if (!off) { setRw(r); setEligible(el) }
+        const [el, cfg] = await Promise.all([r?.eligible || loadEligible(ym), loadPointConfig()])
+        if (!off) { setRw(r); setEligible(el); if (cfg.prizes) setPrizeText(cfg.prizes) }
       } catch(e) { console.error(e); if (!off) setRw(null) }
     })()
     return () => { off = true }
@@ -49,15 +50,19 @@ export default function RewardPrompt() {
     if (status === 'open' && !prizes.length) return alert('룰렛에 들어갈 상품을 적어 주세요')
     setBusy(true)
     try {
-      await setDoc(doc(db,'rewards',ym), { status, eligible, ...(status==='open' ? { game:'roulette', prizes, openedAt:new Date().toISOString() } : { decidedAt:new Date().toISOString() }) }, { merge:true })
+      await setDoc(doc(db,'rewards',ym), { status, eligible, unit:'point', ...(status==='open' ? { game:'roulette', prizes, openedAt:new Date().toISOString() } : { decidedAt:new Date().toISOString() }) }, { merge:true })
       setReload(k=>k+1)
     } catch(e) { console.error(e); alert('저장하지 못했어요.') }
     setBusy(false)
   }
+  const isPts = rewardIsPoints(rw)
   async function payAll(rows) {
-    if (!window.confirm(`${rows.map(r=>`${r.name} ${won(r.amount)}원`).join(', ')}을 ${m}월 급여 상여에 넣을까요?`)) return
+    const label = rw?.game==='ladder' ? '사다리' : '룰렛'
+    if (isPts) {
+      if (!window.confirm(`${rows.map(r=>`${r.name} ${r.amount}P`).join(', ')}를 포인트로 줄까요?`)) return
+    } else if (!window.confirm(`${rows.map(r=>`${r.name} ${won(r.amount)}원`).join(', ')}을 ${m}월 급여 상여에 넣을까요?`)) return
     setBusy(true)
-    try { await addRewardBonuses(ym, rows, rw?.game==='ladder' ? '사다리' : '룰렛'); setReload(k=>k+1) }
+    try { if (isPts) await addRewardPoints(ym, rows, label); else await addRewardBonuses(ym, rows, label); setReload(k=>k+1) }
     catch(e) { console.error(e); alert('저장하지 못했어요.') }
     setBusy(false)
   }
@@ -99,14 +104,14 @@ export default function RewardPrompt() {
                 <div key={e.uid} style={{display:'flex', gap:10, alignItems:'baseline', fontSize:14, padding:'4px 0', borderBottom:`1px solid ${T.soft}`}}>
                   <b style={{minWidth:64}}>{e.name}</b>
                   <span style={{flex:1, color: r ? T.ink : T.sub}}>{r ? r.prize : '아직 안 돌림'}</span>
-                  {r && <span style={{fontVariantNumeric:'tabular-nums'}}>{won(r.amount)}원</span>}
-                  {r?.paid && <span style={{fontSize:12, color:T.green, fontWeight:700}}>상여 지급</span>}
+                  {r && <span style={{fontVariantNumeric:'tabular-nums'}}>{isPts ? `${r.amount}P` : `${won(r.amount)}원`}</span>}
+                  {r?.paid && <span style={{fontSize:12, color:T.green, fontWeight:700}}>{isPts ? '포인트 지급' : '상여 지급'}</span>}
                 </div>
               )
             })}
           </div>
           <div style={{display:'flex', gap:8, flexWrap:'wrap'}}>
-            {unpaid.length > 0 && <Btn kind="ok" onClick={()=>payAll(unpaid)} disabled={busy}>{unpaid.length}명 {m}월 급여 상여에 넣기</Btn>}
+            {unpaid.length > 0 && <Btn kind="ok" onClick={()=>payAll(unpaid)} disabled={busy}>{isPts ? `${unpaid.length}명 포인트 지급` : `${unpaid.length}명 ${m}월 급여 상여에 넣기`}</Btn>}
             {rw.status === 'open' && <Btn onClick={close} disabled={busy}>룰렛 마감</Btn>}
           </div>
         </>

@@ -9,7 +9,7 @@ export const NAV_GROUPS = {
 // 메뉴 경로 → 묶음
 export const navGroupOf = path => {
   if (path === '/') return 'home'
-  if (['/staff','/our-store','/avatar-manage','/work-manage','/members','/team','/substitute','/my-schedule'].includes(path)) return 'people'
+  if (['/staff','/our-store','/avatar-manage','/points','/work-manage','/members','/team','/substitute','/my-schedule'].includes(path)) return 'people'
   if (['/checklist','/notice','/menu-manage'].includes(path)) return 'store'
   return 'money'
 }

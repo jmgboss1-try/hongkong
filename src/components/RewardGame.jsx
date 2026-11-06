@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react'
 import { db } from '../firebase'
 import { doc, setDoc } from 'firebase/firestore'
-import { parseAmount, addRewardBonuses } from '../lib/rewards'
+import { parseAmount, addRewardPoints, isPointPrize } from '../lib/rewards'
 
 // 개근 포상 게임: 개근한 직원끼리 룰렛 또는 사다리로 상품을 정함
 // 결과는 rewards/{YYYY-MM} = { list:[{uid,name,prize,amount,paid}], game, playedAt } 에 저장
-// '상여에 넣기'는 bonuses/{YYYY-MM}[uid] 에 {id,date,amount,memo} 를 더함 (급여관리 상여와 같은 자리)
+// '포인트 지급'은 points/{uid}.games 에 더함 (2026-12부터 개근 포상은 포인트)
 
 const T = { ink:'#1D1B18', sub:'#6E6A63', rule:'#DCD7CE', accent:'#C3261C', red:'#B42318', green:'#2E7D45', blue:'#2B5C9E' }
 const SEG = ['#C3261C','#F3F1EC','#2B5C9E','#FFFFFF','#2E7D45','#F3F1EC','#B45309','#FFFFFF','#6B4FA0','#F3F1EC']
@@ -214,7 +214,7 @@ function Ladder({ people, prizes, onResult }) {
 // practice: 연습 (저장 안 됨, 아무 직원으로 해볼 수 있음)
 export default function RewardGame({ ym, people, onClose, onSaved, practice }) {
   const [game, setGame] = useState('roulette')
-  const [prizeText, setPrizeText] = useState('3만원, 2만원, 1만원, 꽝')
+  const [prizeText, setPrizeText] = useState('30포인트, 20포인트, 10포인트, 꽝')
   const [started, setStarted] = useState(false)
   const [results, setResults] = useState({}) // uid → prize
   const [amounts, setAmounts] = useState({}) // uid → 금액(고칠 수 있음)
@@ -234,7 +234,7 @@ export default function RewardGame({ ym, people, onClose, onSaved, practice }) {
     try {
       const list = people.map(p => ({ uid:p.uid, name:p.name, prize:results[p.uid], amount:+amounts[p.uid]||0, paid:!!withBonus && (+amounts[p.uid]||0) > 0 }))
       await setDoc(doc(db,'rewards',ym), { list, game, prizes, eligible: people, status:'done', playedAt:new Date().toISOString() }, { merge:true })
-      if (withBonus) await addRewardBonuses(ym, list, game==='roulette' ? '룰렛' : '사다리')
+      if (withBonus) await addRewardPoints(ym, list, game==='roulette' ? '룰렛' : '사다리')
       setSaved(withBonus ? 'bonus' : 'only'); onSaved?.()
     } catch(e) { console.error(e); alert('저장하지 못했어요. 다시 시도해 주세요.') }
     setSaving(false)
@@ -265,7 +265,7 @@ export default function RewardGame({ ym, people, onClose, onSaved, practice }) {
             <textarea value={prizeText} onChange={e=>setPrizeText(e.target.value)} rows={2} aria-label="상품"
               style={{width:'100%', boxSizing:'border-box', background:'#FFFFFF', border:'1px solid #CBC5BA', borderRadius:4, padding:'8px 10px', fontSize:15, fontFamily:'inherit'}}/>
             <div style={{fontSize:12, color:T.sub, margin:'4px 0 14px'}}>
-              금액으로 읽힌 상품: {prizes.map(p => `${p}${parseAmount(p) ? `(${won(parseAmount(p))}원)` : ''}`).join(' · ') || '없음'}
+              포인트로 읽힌 상품: {prizes.map(p => `${p}${parseAmount(p) ? `(${parseAmount(p)}${isPointPrize(p) ? 'P' : '원'})` : ''}`).join(' · ') || '없음'}
             </div>
             <div style={{display:'flex', gap:8}}>
               <Btn kind="primary" onClick={()=>setStarted(true)} disabled={!prizes.length || !people.length}>게임 시작</Btn>
@@ -289,7 +289,7 @@ export default function RewardGame({ ym, people, onClose, onSaved, practice }) {
                     <input type="text" inputMode="numeric" value={amounts[p.uid] ? won(amounts[p.uid]) : ''} placeholder="0" aria-label={`${p.name} 금액`}
                       onChange={e=>setAmounts(a=>({ ...a, [p.uid]: +e.target.value.replace(/[^0-9]/g,'') || 0 }))} disabled={!!saved}
                       style={{width:110, textAlign:'right', background:'#FFFFFF', border:'1px solid #CBC5BA', borderRadius:4, padding:'5px 8px', fontSize:14, fontFamily:'inherit', fontVariantNumeric:'tabular-nums'}}/>
-                    <span style={{fontSize:13, color:T.sub}}>원</span>
+                    <span style={{fontSize:13, color:T.sub}}>P</span>
                   </div>
                 ))}
               </div>
@@ -298,10 +298,10 @@ export default function RewardGame({ ym, people, onClose, onSaved, practice }) {
             <div style={{display:'flex', gap:8, flexWrap:'wrap', marginTop:14, alignItems:'center'}}>
               {saved ? (
                 <span style={{fontSize:14, fontWeight:700, color:T.green}}>
-                  {saved==='bonus' ? `저장했고 ${+m}월 급여 상여에 넣었어요` : '결과만 저장했어요'}
+                  {saved==='bonus' ? '저장했고 포인트로 줬어요' : '결과만 저장했어요'}
                 </span>
               ) : done && !practice && <>
-                <Btn kind="ok" onClick={()=>save(true)} disabled={saving}>결과 저장 + {+m}월 급여 상여에 넣기</Btn>
+                <Btn kind="ok" onClick={()=>save(true)} disabled={saving}>결과 저장 + 포인트 지급</Btn>
                 <Btn onClick={()=>save(false)} disabled={saving}>결과만 저장</Btn>
               </>}
               {practice && done && <span style={{fontSize:13, color:T.sub}}>연습이 끝났어요. 실제 게임은 달이 끝난 뒤 개근한 직원끼리 해요.</span>}

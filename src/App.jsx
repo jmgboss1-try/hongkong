@@ -40,6 +40,7 @@ const Prepaid = lazyPage(() => import('./pages/Prepaid'))
 const SalesAnalysis = lazyPage(() => import('./pages/SalesAnalysis'))
 const OurStore = lazyPage(() => import('./pages/OurStore'))
 const AvatarManage = lazyPage(() => import('./pages/AvatarManage'))
+const Points = lazyPage(() => import('./pages/Points'))
 const PhoneUpload = lazyPage(() => import('./pages/PhoneUpload'))
 const MenuOrder = lazyPage(() => import('./pages/MenuOrder'))
 const MenuManage = lazyPage(() => import('./pages/MenuManage'))
@@ -134,6 +135,7 @@ function AppRoutes() {
         {/* 투자관리: 사장 + 투자자 접근 가능 */}
         <Route path="/investment" element={<PrivateRoute investorOk><Investment /></PrivateRoute>} />
         <Route path="/my-payroll" element={<PrivateRoute><MyPayroll /></PrivateRoute>} />
+        <Route path="/points" element={<PrivateRoute><Points /></PrivateRoute>} />
         <Route path="/my-schedule" element={<PrivateRoute><MySchedule /></PrivateRoute>} />
         <Route path="/team" element={<PrivateRoute><Team /></PrivateRoute>} />
         <Route path="/cash" element={<PrivateRoute storeOk><Cash /></PrivateRoute>} />

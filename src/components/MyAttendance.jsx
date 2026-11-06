@@ -46,7 +46,7 @@ export default function MyAttendance({ curMonth, uid }) {
       </div>
       {mine && (
         <div style={{borderLeft:`4px solid ${T.green}`, background:'#2E7D4510', borderRadius:'0 4px 4px 0', padding:'7px 12px', fontSize:14, marginBottom:8}}>
-          {m}월 개근 포상: <b>{mine.prize}</b>{mine.paid ? ` · 급여 상여로 ${mine.amount.toLocaleString('ko-KR')}원` : ''}
+          {m}월 개근 포상: <b>{mine.prize}</b>{mine.paid ? (/포인트|\dP/i.test(mine.prize) ? ` · ${mine.amount}포인트 받음` : ` · 급여 상여로 ${mine.amount.toLocaleString('ko-KR')}원`) : ''}
         </div>
       )}
       {[...st.days].reverse().map(d => {

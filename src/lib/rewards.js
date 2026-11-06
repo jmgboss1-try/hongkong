@@ -1,5 +1,5 @@
 import { db } from '../firebase'
-import { collection, doc, getDoc, getDocs, setDoc } from 'firebase/firestore'
+import { collection, doc, getDoc, getDocs, setDoc, arrayUnion } from 'firebase/firestore'
 import { loadMonthContext, monthStatus, pad } from './attendance'
 
 // 개근 포상
@@ -11,8 +11,11 @@ import { loadMonthContext, monthStatus, pad } from './attendance'
 //   paid: { uid: true }                    ← 급여 상여에 넣은 사람
 // }
 
-// '1만원' '1만 5천원' '5,000원' '3천원' → 원 (꽝 등 숫자 없으면 0)
+// 2026-12부터 개근 게임 상품은 포인트: '30포인트' '30P' → 30
+// (예전 현금 상품) '1만원' '1만 5천원' '5,000원' '3천원' → 원 (꽝 등 숫자 없으면 0)
+export const isPointPrize = text => /포인트|\d\s*p\b/i.test(String(text||''))
 export function parseAmount(text) {
+  if (isPointPrize(text)) { const m = String(text).replace(/,/g,'').match(/(\d+)/); return m ? +m[1] : 0 }
   const s = String(text||'').replace(/[,\s원]/g,'')
   let total = 0, m
   if ((m = s.match(/(\d+(?:\.\d+)?)만/))) total += Math.round(parseFloat(m[1])*10000)
@@ -59,3 +62,15 @@ export async function addRewardBonuses(ym, rows, gameLabel) {
   await setDoc(doc(db,'bonuses',ym), b)
   await setDoc(doc(db,'rewards',ym), { paid: Object.fromEntries(rows.filter(r=>r.amount>0).map(r => [r.uid, true])) }, { merge:true })
 }
+
+// 개근 게임 결과를 포인트로 지급 (points/{uid}.games 에 덧붙임, 본인·사장님만 읽음)
+export async function addRewardPoints(ym, rows, gameLabel) {
+  const now = new Date(), date = `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}`
+  const m = +ym.slice(5, 7)
+  let n = Date.now()
+  for (const r of rows) if (r.amount > 0)
+    await setDoc(doc(db,'points',r.uid), { games: arrayUnion({ id:`${ym}-${r.uid}-${n++}`, date, amount:r.amount, note:`${m}월 개근 게임 (${gameLabel}: ${r.prize})` }) }, { merge:true })
+  await setDoc(doc(db,'rewards',ym), { paid: Object.fromEntries(rows.filter(r=>r.amount>0).map(r => [r.uid, true])), unit:'point' }, { merge:true })
+}
+// 이 달 포상이 포인트인지 (상품 글에 포인트가 있으면)
+export const rewardIsPoints = rw => rw?.unit === 'point' || (rw?.prizes || []).some(isPointPrize) || (rw?.list || []).some(r => isPointPrize(r.prize))
