@@ -8,11 +8,14 @@ import { lookOf, defaultLook, AVATAR_CSS, POSITIONS } from '../lib/avatar'
 import { loadAvatarRules, perfectStreaks, tenureMonths, canUse, allowedLook, linesFor, lineEveryOf } from '../lib/avatarRules'
 import { toDate, hm, recBreak, planFor, dayStatus, monthStatus, loadMonthContext, pad } from '../lib/attendance'
 import { MAP_W, MAP_H, NODES, route, nodeDist, SLOTS, HALL_POINTS, TABLES, SEAT_ORDER } from '../lib/storeMap'
+import { storeLife, activeTables } from '../lib/storeLife'
 
 // 우리 매장: 지금 출근한 직원들의 캐릭터가 위에서 내려다본 매장 그림 안에서 일하는 모습
 //  - NFC 출근하면 문에서 걸어 들어와 자기 포지션(인원관리)으로, 브레이크면 휴게 공간, 퇴근하면 문으로 나감
 //  - 개근 중인 직원은 옆이 반짝임 (머리 위 작은 그림은 없앰)
-//  - 오늘 매출만큼 손님이 앉아 있고, 배달이 많으면 배달 봉투가 쌓임
+//  - 손님은 들어와서 주문하고, 홀 직원이 음식을 날라 주고, 다 먹으면 나가고 직원이 치움 (src/lib/storeLife.js)
+//    가끔 입구에서 미끄러지거나, 손님끼리 수다, 직원을 불러 단무지를 더 달라고 함
+//  - 손님 수는 오늘 매출과 시간대(점심·저녁 바쁜 시간)로 정함. 배달이 많으면 배달 봉투가 쌓임
 // attendance·revenue·checklist는 실시간(onSnapshot)으로 받아서 포스에 띄워 두면 저절로 바뀜
 
 const T = { ink:'#1D1B18', sub:'#6E6A63', faint:'#A8A39A', rule:'#DCD7CE', soft:'#ECE8E1', accent:'#C3261C', red:'#B42318', green:'#2E7D45', blue:'#2B5C9E', amber:'#B45309' }
@@ -65,14 +68,15 @@ function Walker({ at, start, off = [0, 0], speed = SPEED, ghost, children }) {
 
 
 // 말풍선 (머리 오른쪽). lines: [[글, 색], ...]
-function Bubble({ lines, pop }) {
+// below: 그림 맨 위쪽에 있는 사람은 말풍선이 잘리지 않게 발 아래로
+function Bubble({ lines, pop, below }) {
   const w = Math.max(...lines.map(([t]) => t.length)) * 12 + 16, h = lines.length * 16 + 8
   return (
-    <g transform={`translate(${SIZE/2 - 2},${-SIZE*1.25 - 4})`} style={{pointerEvents:'none'}}>
+    <g transform={`translate(${SIZE/2 - 2},${below ? 4 : -SIZE*1.25 - 4})`} style={{pointerEvents:'none'}}>
       <g className={pop ? 'av-pop' : undefined}>
         <rect x="6" y="0" width={w} height={h} rx="6" fill="#FFFFFF" stroke={T.ink} strokeWidth="1.5"/>
-        <polygon points={`6,${h-14} -2,${h-6} 12,${h-10}`} fill="#FFFFFF" stroke={T.ink} strokeWidth="1.5" strokeLinejoin="round"/>
-        <rect x="7" y={h-15} width="7" height="6" fill="#FFFFFF"/>
+        <polygon points={below ? '6,14 -2,6 12,10' : `6,${h-14} -2,${h-6} 12,${h-10}`} fill="#FFFFFF" stroke={T.ink} strokeWidth="1.5" strokeLinejoin="round"/>
+        <rect x="7" y={below ? 9 : h-15} width="7" height="6" fill="#FFFFFF"/>
         {lines.map(([t, c], i) => <text key={i} x={6 + w/2} y={17 + i*16} textAnchor="middle" fontSize="12" fontWeight="800" fill={c || T.ink}>{t}</text>)}
       </g>
     </g>
@@ -96,7 +100,7 @@ function Person({ p, moving }) {
       {/* 바쁜 시간: 땀 */}
       {p.busy && pose !== 'rest' && <path className="av-drip" d={`M${-SIZE/2 + 2},${-SIZE*1.05} q-2,4 0,5 q2,-1 0,-5z`} fill="#7FB2D9"/>}
       {pose === 'rest' && <text className="av-float" x="14" y={-SIZE*1.1} fontSize="14" fontWeight="800" fill={T.blue}>z</text>}
-      {p.say && <Bubble key={p.say.map(l => l[0]).join()} lines={p.say} pop={p.sayPop}/>}
+      {p.say && <Bubble key={p.say.map(l => l[0]).join()} lines={p.say} pop={p.sayPop} below={(NODES[p.to]?.[1] ?? 999) < 90}/>}
       <text x="0" y="16" textAnchor="middle" fontSize="13" fontWeight="800" fill={boss ? T.accent : T.ink} stroke="#FFFFFF" strokeWidth="4" paintOrder="stroke">{label}</text>
     </>
   )
@@ -235,12 +239,26 @@ export default function OurStore() {
   }
   // 자리 따라 드는 것, 대사 (아바타 탭에서 정한 대사·지급 기준), 바쁜 시간
   const busy = BUSY.some(([a, b]) => nowMin >= a && nowMin < b)
+  // ── 손님 이야기: 영업 중이면 시간대만큼은 손님이 있음 (매출이 더 많으면 그만큼) ──
+  const open = nowMin >= 11*60 && nowMin < 21*60 + 30
+  const guests = Math.max(customers, busy ? 12 : open ? 5 : 0)
+  const working = people.filter(p => p.state === 'work' && !p.boss)
+  const byPos = k => working.filter(p => (p.ps || []).includes(k)).map(p => p.uid).sort()
+  const servers = byPos('hall').length ? byPos('hall') : byPos('counter').length ? byPos('counter') : working.length ? [working[0].uid] : owner ? [owner.uid] : []
+  const life = storeLife(beat, activeTables(guests), servers)
+  for (const p of people) {
+    const task = life.tasks[p.uid]
+    if (!task || p.state !== 'work') continue
+    p.to = task.to; p.task = task
+    if (task.hold) p.look = { ...p.look, hold: task.hold }
+  }
   const every = lineEveryOf(avRules)
   for (const p of people) {
     p.role = roleAt(p.to, p.posKey); p.busy = busy
     const h = hashOf(p.uid)
     const who = { rules:avRules, user:p.user, streak:streaks[p.uid] || 0, tenure:tenureMonths(p.user?.joinDate), owner:!!p.boss }
     const pickLine = (whens, n) => { const list = whens.flatMap(w => linesFor(avRules, w, p.role, who).map(l => [l, w])); if (!list.length) return null; const [l, w] = list[n % list.length]; return toBubble(l.text, w) }
+    if (p.task) { p.say = p.task.say ? toBubble(p.task.say) : null; p.sayPop = true; continue }
     if (p.state === 'leaving') p.say = pickLine(['leave'], h)
     else if (p.say === 'arrive') p.say = (p.late && pickLine(['late'], h)) || pickLine(['arrive'], h)
     else if (every > 0 && (beat + h % every) % every < 5) {
@@ -248,6 +266,11 @@ export default function OurStore() {
       p.say = p.state === 'rest' ? pickLine(['rest'], n) : p.state === 'work' ? pickLine(busy ? ['busy', 'work'] : ['work'], n) : null
       p.sayPop = true
     }
+  }
+  // 주문이 들어가면 웍 앞 사람(없으면 사장님)이 대답
+  if (life.kitchenSay) {
+    const cook = people.find(p => p.state === 'work' && !p.task && SLOTS.wok.includes(p.to)) || people.find(p => p.boss && !p.task)
+    if (cook) { cook.say = toBubble(life.kitchenSay); cook.sayPop = true }
   }
   // 같은 자리에 두 사람이 오면 옆으로 살짝 비켜 섬
   const taken = {}
@@ -267,13 +290,38 @@ export default function OurStore() {
   const steel = (x, y, w, h, t, fill = '#B9BEC3') => (
     <g><rect x={x} y={y} width={w} height={h} fill={fill} stroke="#7C8187"/><rect x={x} y={y} width={w} height="3" fill="#D5D9DD"/>{t && label(x + w/2, y + h/2 + 4, t)}</g>
   )
-  // 손님: 오늘 매출만큼 SEAT_ORDER 순서로 앉음
-  const seated = new Set(SEAT_ORDER.slice(0, customers).map(o => o.seat))
-  const customer = ([x, y], i) => (
-    <g key={`c${x}-${y}`} transform={`translate(${x-14},${y-30})`}>
-      <g className="av-bob"><Avatar look={CUSTOMER_LOOKS[i % CUSTOMER_LOOKS.length]} size={28} apron={false}/></g>
+  // 손님: 앉아 있는 사람은 의자 위에 (테이블 앞뒤 순서 맞춰 그림), 걷는 사람은 아래에서 통로를 따라
+  const seatedAt = {}
+  for (const c of life.customers) if (c.mode === 'sit') (seatedAt[c.tableId] ||= {})[c.seat] = c
+  const custLook = c => CUSTOMER_LOOKS[c.look % CUSTOMER_LOOKS.length]
+  const customer = (c, [x, y]) => (
+    <g key={c.key} transform={`translate(${x-14},${y-30})`}>
+      <g className="av-bob"><Avatar look={custLook(c)} size={28} apron={false}/></g>
     </g>
   )
+  // 테이블 위: 물컵 → 음식(짬뽕 빨강·짜장 갈색, 가운데 탕수육) → 빈 그릇
+  const DISH_COLOR = { jjamppong:'#C3261C', jjajang:'#3B2A1E' }
+  const tableTop = (t, cy) => {
+    const f = life.food[t.id]
+    if (!f) return null
+    return (
+      <g style={{pointerEvents:'none'}}>
+        {t.seats.map(([x, y], i) => {
+          if (!seatedAt[t.id]?.[i] && f.state !== 'empty') return null
+          if (f.state === 'empty' && i >= f.dishes.length) return null
+          const bx = t.bar ? t.x + 14 : Math.min(Math.max(x, t.x + 12), t.x + t.w - 12), by = t.bar ? y : (y < cy ? t.y + 12 : t.y + t.h - 14)
+          if (f.state === 'water') return <g key={i}><rect x={bx-3} y={by-4} width="6" height="8" fill="#DDEBF5" stroke="#9FC3DD"/></g>
+          return <g key={i}><ellipse cx={bx} cy={by} rx="8" ry="4" fill="#FFFFFF" stroke="#D5D0C6"/>{f.state === 'food'
+            ? <><ellipse cx={bx} cy={by - 1} rx="5.5" ry="2.6" fill={DISH_COLOR[f.dishes[i]] || '#C3261C'}/><rect x={bx-2} y={by-2} width="1.6" height="1.2" fill={f.dishes[i] === 'jjajang' ? '#F6C343' : '#2E7D45'}/></>
+            : <ellipse cx={bx} cy={by - 1} rx="5" ry="2.2" fill="#EFE9DF"/>}</g>
+        })}
+        {f.shared && f.state !== 'water' && (() => { const cx = t.x + t.w/2, py = t.y + t.h/2 - (t.h > 60 ? 18 : 0); return (
+          <g><ellipse cx={cx} cy={py} rx="13" ry="6" fill="#FFFFFF" stroke="#D5D0C6"/>
+            {f.state === 'food' && [[-6,-1,'#D9A441'],[0,-2,'#C98A2E'],[6,-1,'#D9A441'],[-2,1,'#E8742A']].map(([dx,dy,c],k) => <rect key={k} x={cx+dx-2.5} y={py+dy-1.5} width="5" height="3.5" fill={c}/>)}</g>
+        ) })()}
+      </g>
+    )
+  }
   const stool = ([x, y]) => <rect key={`s${x}-${y}`} x={x-8} y={y-7} width="16" height="14" fill="#C9CBCE" stroke="#8D9297"/>
 
   return (
@@ -339,21 +387,35 @@ export default function OurStore() {
           {/* 손님 테이블과 의자 (번호는 실제 테이블 번호). 오늘 매출만큼 손님이 앉아 있음 */}
           {TABLES.map(t => {
             const cy = t.y + t.h / 2
-            const back = t.seats.filter(([,y]) => y < cy), front = t.seats.filter(([,y]) => y >= cy)
             return (
               <g key={t.id}>
                 {t.seats.map(stool)}
-                {back.filter(s => seated.has(s)).map((s,i) => customer(s, i + t.id.charCodeAt(0)))}
+                {t.seats.map((s, i) => s[1] < cy && seatedAt[t.id]?.[i] ? customer(seatedAt[t.id][i], s) : null)}
                 <rect x={t.x} y={t.y} width={t.w} height={t.h} fill={t.bar ? '#C9B79A' : '#F7F7F5'} stroke={t.bar ? '#8A7A66' : '#B8BAB8'}/>
                 {!t.bar && <rect x={t.x} y={t.y + t.h - 4} width={t.w} height="4" fill="#B8BAB8"/>}
-                {t.seats.filter(s => seated.has(s)).map(([x,y]) => {
-                  const bx = t.bar ? t.x + 14 : Math.min(Math.max(x, t.x + 12), t.x + t.w - 12), by = t.bar ? y : (y < cy ? t.y + 12 : t.y + t.h - 14)
-                  return <g key={`b${x}-${y}`}><ellipse cx={bx} cy={by} rx="8" ry="4" fill="#FFFFFF" stroke="#DDD"/><ellipse cx={bx} cy={by - 1} rx="5" ry="2.5" fill="#C3261C"/></g>
-                })}
+                {tableTop(t, cy)}
                 <text x={t.x + t.w/2} y={t.y + t.h/2 + 5} textAnchor="middle" fontSize="13" fontWeight="800" fill={t.bar ? '#5A4E40' : '#A8A39A'} style={{pointerEvents:'none'}}>{t.id}</text>
-                {front.filter(s => seated.has(s)).map((s,i) => customer(s, i + 3 + t.id.charCodeAt(0)))}
+                {t.seats.map((s, i) => s[1] >= cy && seatedAt[t.id]?.[i] ? customer(seatedAt[t.id][i], s) : null)}
               </g>
             )
+          })}
+
+          {/* 걸어 들어오고 나가는 손님 (입구에서 미끄러지기도) */}
+          {life.customers.filter(c => c.mode === 'walk').map(c => (
+            <Walker key={c.key + c.start} at={c.to} start={c.start} speed={SPEED * 0.8}>{moving => (
+              <g>
+                {c.fallen
+                  ? <g transform="rotate(-80)"><g transform="translate(-14,-30)"><Avatar look={custLook(c)} size={28} apron={false}/></g></g>
+                  : <g transform="translate(-14,-30)"><Avatar look={custLook(c)} size={28} apron={false} pose={moving ? 'walk' : 'idle'}/></g>}
+                {c.fallen && [[-30,-14],[-22,-22],[-12,-16]].map(([x,y],i) => <g key={i} transform={`translate(${x},${y})`}><polygon className="av-twinkle" style={{animationDelay:`${i*0.2}s`}} points="0,-4 1.2,-1.2 4,0 1.2,1.2 0,4 -1.2,1.2 -4,0 -1.2,-1.2" fill="#F6C343"/></g>)}
+                {c.say && <Bubble key={c.say} lines={toBubble(c.say)} pop/>}
+              </g>
+            )}</Walker>
+          ))}
+          {/* 앉아 있는 손님의 말풍선 (테이블 위에 가려지지 않게 나중에 그림) */}
+          {life.customers.filter(c => c.mode === 'sit' && c.say).map(c => {
+            const [x, y] = NODES[c.node]
+            return <g key={'say' + c.key} transform={`translate(${x},${y + 6})`}><Bubble key={c.say} lines={toBubble(c.say)} pop below={y < 90}/></g>
           })}
 
           {/* 직원 */}
@@ -403,7 +465,7 @@ export default function OurStore() {
       )}
 
       <div style={{fontSize:12, color:T.sub, marginTop:12, lineHeight:1.7}}>
-        캐릭터는 직원이 내 기록에서 꾸미고, 자리는 인원관리의 포지션으로 정해져요. 이번 달 개근 중인 직원은 옆이 반짝여요.
+        캐릭터는 직원이 내 기록에서 꾸미고, 자리는 인원관리의 포지션으로 정해져요. 이번 달 개근 중인 직원은 옆이 반짝여요. 손님은 영업시간엔 늘 있고(점심·저녁엔 더 많이), 매출이 많으면 더 늘어요. 홀 직원이 주문을 받고 음식을 나르며, 홀 직원이 없으면 카운터, 그다음 다른 직원이 대신해요.
       </div>
     </div>
   )

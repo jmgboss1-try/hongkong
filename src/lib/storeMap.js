@@ -19,6 +19,8 @@ export const NODES = {
   a1: [800, 380], a2: [815, 528], a0: [760, 300], a5: [712, 210], a6: [712, 82], aB: [800, 170],
   // 브레이크 (술 보관함과 창고 사이)
   r1: [76, 462], r2: [104, 462],
+  // 테이블 사이 좁은 통로 (손님이 자리에 앉고 직원이 음식을 내려놓는 곳)
+  w3: [680, 585], w56: [712, 133], w5b: [700, 250], w6t: [712, 30], wA1: [840, 318], wA: [845, 452], wA2: [845, 590],
 }
 
 const EDGES = [
@@ -29,11 +31,22 @@ const EDGES = [
   ['g2','t2s'],['t2s','m3'],['m3','t1s'],['t1s','hl'],['hl','r2'],['r2','r1'],
   ['m3','m4'],['m4','d1'],['d1','door'],
   ['g3','j1'],['m4','j1'],['j1','sb'],['sb','m5'],['m4','m5'],['m5','t3s'],['m5','t4s'],
-  ['sb','a1'],['a1','a0'],['a0','a5'],['a5','a6'],['a0','aB'],['aB','a6'],['a1','a2'],
+  ['sb','a1'],['a1','a0'],['a0','a5'],['a5','w56'],['w56','a6'],['a0','aB'],['aB','a6'],['a1','a2'],
+  ['m5','w3'],['a5','w5b'],['a0','w5b'],['a6','w6t'],['a1','wA1'],['a1','wA'],['a2','wA'],['a2','wA2'],
 ]
+
+// 의자마다 그 앞 통로 점 (테이블을 가로지르지 않는 가장 가까운 곳). 의자 자체도 통로 점이 됨: s_<테이블>_<번호>
+const SEAT_FROM = {
+  '1': ['hl','hl','t1s','m3'], '2': ['g1','hl','t2s','t2s'], '3': ['t3s','t3s','d1','w3'], '4': ['t4s','t4s','w3','a2'],
+  '5': ['w56','w56','w5b','w5b'], '6': ['w6t','w6t','w56','w56'], 'A1': ['wA1','wA'], 'A2': ['wA','wA2'],
+  'B1': ['aB'], 'B2': ['aB'], 'B3': ['aB'],
+}
+export const seatNode = (tableId, i) => `s_${tableId}_${i}`
+export const seatAisle = (tableId, i) => SEAT_FROM[tableId]?.[i] || 'g2'
 
 const ADJ = {}
 for (const [a, b] of EDGES) { (ADJ[a] ||= []).push(b); (ADJ[b] ||= []).push(a) }
+
 const dist = (a, b) => Math.hypot(NODES[a][0] - NODES[b][0], NODES[a][1] - NODES[b][1])
 export const nodeDist = dist
 
@@ -83,6 +96,10 @@ export const TABLES = [
   { id:'B2', x:874, y:138, w:70, h:62,  seats:[[845,169]], bar:true },
   { id:'B1', x:874, y:204, w:70, h:62,  seats:[[845,235]], bar:true },
 ]
+for (const t of TABLES) t.seats.forEach((xy, i) => {
+  const id = seatNode(t.id, i), from = seatAisle(t.id, i)
+  NODES[id] = xy; (ADJ[id] ||= []).push(from); (ADJ[from] ||= []).push(id)
+})
 // 손님이 앉는 순서: 테이블마다 한 명씩 돌아가며 (한쪽에 몰리지 않게)
 export const SEAT_ORDER = (() => {
   const order = ['2','1','3','4','5','6','A1','A2','B2','B1','B3']
