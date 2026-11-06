@@ -1,35 +1,27 @@
 import { useEffect, useState } from 'react'
 import { db } from '../firebase'
-import { doc, getDoc } from 'firebase/firestore'
+import { collection, getDocs } from 'firebase/firestore'
 import { GradeBadge } from '../AuthContext'
 
 const EMP_COLORS = ['#C3261C','#2B5C9E','#2E7D45','#6B4FA0','#B45309','#B42318']
 
 export default function Team() {
   const [employees, setEmployees] = useState([])
-  const [members, setMembers] = useState([])
   const [loading, setLoading] = useState(true)
 
+  // 재직 중인 직원 이름·입사일만 (예전 meta 문서에는 시급이 들어 있어 더 이상 읽지 않음)
   useEffect(()=>{
-    async function load() {
-      setLoading(true)
-      try {
-        const empSnap = await getDoc(doc(db,'meta','employees'))
-        const emps = empSnap.exists() ? empSnap.data().list||[] : []
-        setEmployees(emps)
-
-        // 인원관리에서 입사일 등 상세정보 가져오기
-        const memSnap = await getDoc(doc(db,'meta','members'))
-        if(memSnap.exists()) setMembers(memSnap.data().list||[])
-      } catch(e) { console.error(e) }
-      setLoading(false)
-    }
-    load()
+    getDocs(collection(db,'users')).then(snap => {
+      const list = []
+      snap.forEach(d => {
+        const u = d.data()
+        if (u.status === 'approved' && !['owner','store','investor'].includes(u.role) && u.name)
+          list.push({ uid:d.id, name:String(u.name), joinDate:u.joinDate || '' })
+      })
+      list.sort((a,b) => (a.joinDate || '9') < (b.joinDate || '9') ? -1 : 1)
+      setEmployees(list)
+    }).catch(e => console.error(e)).finally(() => setLoading(false))
   },[])
-
-  function getMemberInfo(uid) {
-    return members.find(m=>m.uid===uid) || {}
-  }
 
   return (
     <div>
@@ -48,7 +40,7 @@ export default function Team() {
 
           <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(200px,1fr))',gap:14}}>
             {employees.map((e,idx)=>{
-              const info = getMemberInfo(e.uid)
+              const info = e
               const color = EMP_COLORS[idx%EMP_COLORS.length]
               return(
                 <div key={e.uid} style={{background:'#FFFFFF',border:'1px solid #DCD7CE',borderRadius:6,overflow:'hidden'}}>
@@ -64,15 +56,7 @@ export default function Team() {
                       <GradeBadge joinDate={info.joinDate} size={11}/>
                     </div>
                     {info.joinDate && (
-                      <div style={{fontSize:11,color:'#6E6A63',display:'flex',flexDirection:'column',gap:3}}>
-                        <div>입사일: {info.joinDate}</div>
-                        <div>{e.phone||info.phone||'연락처 없음'}</div>
-                      </div>
-                    )}
-                    {!info.joinDate && (
-                      <div style={{fontSize:11,color:'#6E6A63'}}>
-                        <div>{e.phone||'연락처 없음'}</div>
-                      </div>
+                      <div style={{fontSize:11,color:'#6E6A63'}}>입사일: {info.joinDate}</div>
                     )}
                   </div>
                 </div>
