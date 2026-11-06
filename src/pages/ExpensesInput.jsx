@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { db } from '../firebase'
-import { doc, getDoc, setDoc } from 'firebase/firestore'
+import { doc, setDoc } from 'firebase/firestore'
 
 const pad = n => String(n).padStart(2,'0')
 
@@ -30,12 +30,10 @@ export default function ExpensesInput() {
   async function save() {
     setSaving(true)
     try {
-      const snap = await getDoc(doc(db,'expenses',today))
-      const existing = snap.exists() ? snap.data() : {}
+      // 지출 문서 전체를 읽지 않고 오늘 칸의 이 항목들만 덧씀 (직원은 지출 문서를 읽을 수 없음, 오늘 칸만 쓸 수 있음)
       const entry = {}
       FIELDS.forEach(f => { entry[f.id] = +form[f.id]||0 })
-      const newData = { ...existing, [todayDD]: entry }
-      await setDoc(doc(db,'expenses',today), newData)
+      await setDoc(doc(db,'expenses',today), { [todayDD]: entry }, { merge:true })
       setDone(true)
       setForm({})
     } catch(e) { console.error(e) }

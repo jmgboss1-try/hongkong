@@ -16,6 +16,8 @@ The owner wants Claude to pick tools for a task on its own, without being told w
 
 Rules live in the Firebase console (project `terry-hongkong`), and the owner pastes them in themselves. Whenever a change needs a rule, always give step-by-step instructions in Korean: where to click (console.firebase.google.com → 프로젝트 → Firestore Database → 규칙 탭), exactly where in the file to paste (inside `match /databases/{database}/documents { … }`, before its closing brace), the full block to paste, pressing 게시, how to tell it worked, and what to send back if it errors (a screenshot of the rules page). Warn when an existing catch-all rule such as `match /{document=**}` would make a new restriction useless, because rules that allow access are OR'ed.
 
+The full rules are kept in `firestore.rules` at the repo root (a copy of what is published; the owner pastes the whole file). The owner has full access through a catch-all; every other role gets only what its screens use (staff: own key in `attendance`/`workhours`/`workextra`, own `checkedByEmp`/`inquiry` in `payroll`, own `avatar`/`seenUnlocks`/`menuOrder` on `users`, an appended pending request in `rewards/shop`, one spin in `rewards/{YYYY-MM}`, today's day key in `expenses` for 12-month staff; store: revenue, menu, orders, prepaid; investor: read revenue and investment). A new collection or a new staff/store write needs a rule there too; test with the Firestore emulator (`firebase emulators:exec` + `@firebase/rules-unit-testing`, Java is installed) before handing it over. Known remaining exposure: staff can still read whole `payroll`, `bonuses`, `workhours`/`workextra` month docs and every `users` doc (wages, ssn, phone), because pages read whole docs.
+
 ## Commands
 
 ```bash
