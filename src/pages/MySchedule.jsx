@@ -212,7 +212,7 @@ const [employType, setEmployType] = useState('part')
         </div>
       </div>
 
-      {/* NFC 출퇴근: 지각·조퇴·결근, 인정 시간 */}
+      {/* NFC 출퇴근: 지각·조퇴·결근 (인정 시간은 안 보여 줌) */}
       <MyAttendance curMonth={curMonth} uid={user.uid}/>
 
       {/* 급여 확인 섹션 */}

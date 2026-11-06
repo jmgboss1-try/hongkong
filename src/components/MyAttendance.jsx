@@ -1,13 +1,13 @@
 import { useEffect, useState } from 'react'
 import { db } from '../firebase'
 import { doc, getDoc } from 'firebase/firestore'
-import { hm, toDate, calcRecord, minsLabel, monthStatus, loadMonthContext } from '../lib/attendance'
+import { hm, toDate, minsLabel, monthStatus, loadMonthContext } from '../lib/attendance'
 
 const DAYS_KR = ['일','월','화','수','목','금','토']
 const T = { ink:'#1D1B18', sub:'#6E6A63', rule:'#DCD7CE', soft:'#ECE8E1', red:'#B42318', green:'#2E7D45', amber:'#B45309' }
 const num = { fontVariantNumeric:'tabular-nums' }
 
-// 내 기록: 이 달 내 출퇴근 (지각·조퇴·결근, 인정 시간, 승인 대기)과 개근 포상 결과
+// 내 기록: 이 달 내 출퇴근 (지각·조퇴·결근)과 개근 포상 결과. 인정 시간·승인 여부는 직원에게 안 보여 줌 (사장님만 근무관리에서)
 export default function MyAttendance({ curMonth, uid }) {
   const [data, setData] = useState(null)
 
@@ -50,7 +50,6 @@ export default function MyAttendance({ curMonth, uid }) {
         </div>
       )}
       {[...st.days].reverse().map(d => {
-        const calc = d.rec?.in ? calcRecord(d.rec) : null
         return (
           <div key={d.dd} style={{display:'flex', alignItems:'baseline', gap:10, padding:'7px 0', borderBottom:`1px solid ${T.soft}`, fontSize:13, flexWrap:'wrap'}}>
             <span style={{...num, color:T.sub, minWidth:62}}>{+d.dd}일 ({dow(d.dd)})</span>
@@ -64,8 +63,6 @@ export default function MyAttendance({ curMonth, uid }) {
             {d.absent && <b style={{color:T.red}}>결근</b>}
             {d.excused && <span style={{color:T.sub}}>사유 인정</span>}
             {d.noOut && <b style={{color:T.amber}}>퇴근 안 찍음</b>}
-            {calc && <span style={{...num}}>인정 {minsLabel(calc.total)}</span>}
-            {calc?.pending && <span style={{color:T.amber, fontSize:12, fontWeight:700}}>승인 대기</span>}
           </div>
         )
       })}
