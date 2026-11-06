@@ -134,7 +134,7 @@ function Statement({ r, userData }) {
         <span>실지급액</span><span style={{flex:1}}/><span style={{...num, color:T.accent}}>{won(gross - dedTotal)}</span>
       </div>
       <div style={{fontSize:11, color:T.sub, marginTop:8, lineHeight:1.6}}>
-        가불(미리 받은 돈)이 있었으면 그만큼은 이미 받은 것으로, 실제 입금액은 실지급액에서 가불을 뺀 금액이에요. 확정일 {p.confirmedAt?.slice(0, 10) || ''}
+        확정일 {p.confirmedAt?.slice(0, 10) || ''}
       </div>
       <div className="ws-noprint" style={{marginTop:12}}>
         <button type="button" onClick={()=>window.print()}
