@@ -3,7 +3,7 @@ import { db, auth } from '../firebase'
 import { compressImage, PhoneReceiveModal } from '../components/PhotoAttach'
 import { doc, getDoc, setDoc } from 'firebase/firestore'
 import { useAuth } from '../AuthContext'
-import { chLabels, isNewChannels, ETC_HINT } from '../lib/revenueChannels'
+import { chLabels, isNewChannels, ETC_HINT, CHANGE_NOTICE_UNTIL } from '../lib/revenueChannels'
 
 const pad = n => String(n).padStart(2,'0')
 const DAYS_KR = ['일','월','화','수','목','금','토']
@@ -254,6 +254,13 @@ export default function RevenueInput() {
           <h1 style={{fontSize:22, fontWeight:800, margin:0, letterSpacing:'-0.01em', fontFamily:'inherit', color:T.ink}}>매출 입력</h1>
           <span style={{fontSize:14, color:T.sub}}>{todayLabel}</span>
         </header>
+        {/* 매출 칸이 바뀐 첫 일주일 안내 (11월 9일 ~ 15일) */}
+        {newCh && `${today}-${todayDD}` <= CHANGE_NOTICE_UNTIL && (
+          <div style={{margin:'12px 0 0', padding:'10px 12px', border:'1.5px solid #B45309', background:'#FFF8EC', borderRadius:6, fontSize:14, lineHeight:1.6, color:T.ink}}>
+            <b style={{color:'#B45309'}}>매출 칸이 바뀌었어요</b><br/>
+            포스 카드·현금 결제는 키오스크와 더해서 <b>홀</b>에, 쿠폰·이체·서울페이·전화배달만 <b>기타</b>에 적어 주세요.
+          </div>
+        )}
 
         {/* 오늘 현황 */}
         <div style={{display:'grid', gridTemplateColumns:'1fr 1fr 1.3fr', borderBottom:`1px solid ${T.rule}`, marginBottom:22}}>
