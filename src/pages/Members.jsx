@@ -5,6 +5,7 @@ import TimePick from '../components/TimePick'
 import { db, auth } from '../firebase'
 import { collection, getDocs, getDoc, doc, setDoc } from 'firebase/firestore'
 import { GradeBadge } from '../AuthContext'
+import { loadPrivateMap, withPrivate, saveUser } from '../lib/privateInfo'
 
 function calcTenure(joinDate, leaveDate) {
   if (!joinDate) return '—'
@@ -245,10 +246,10 @@ export default function Members() {
   async function load() {
     setLoading(true)
     try {
-      const snap = await getDocs(collection(db,'users'))
+      const [snap, priv] = await Promise.all([getDocs(collection(db,'users')), loadPrivateMap()])
       const active = [], ret = []
       snap.forEach(d => {
-        const data = d.data()
+        const data = withPrivate({ uid:d.id, ...d.data() }, priv)
         if(data.role === 'owner') return
         if(data.status === 'approved') active.push({uid:d.id,...data})
         if(data.status === 'retired') ret.push({uid:d.id,...data})
@@ -269,8 +270,8 @@ export default function Members() {
     try {
       const now = new Date()
       const thisMonth = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`
-      const userSnap = await getDoc(doc(db,'users',form.uid))
-      const existingData = userSnap.exists() ? userSnap.data() : {}
+      const [userSnap, privSnap] = await Promise.all([getDoc(doc(db,'users',form.uid)), getDoc(doc(db,'userPrivate',form.uid))])
+      const existingData = { ...(userSnap.exists() ? userSnap.data() : {}), ...(privSnap.exists() ? privSnap.data() : {}) }
 
       // ── 시급 이력 ──
       const existingHistory = existingData.wageHistory || []
@@ -301,7 +302,7 @@ export default function Members() {
       newScheduleHistory.push({ month: thisMonth, workDays: newWorkDays, avgHours: newAvgHours })
       newScheduleHistory.sort((a,b) => a.month > b.month ? 1 : -1)
 
-      await setDoc(doc(db,'users',form.uid), {
+      await saveUser(form.uid, {
         name: form.name,
         role: form.role || 'staff',
         wage: newWage,
@@ -323,7 +324,7 @@ export default function Members() {
         position: (form.positions?.length ? form.positions : [form.position || 'hall'])[0],
         // 일찍 출근 자동 인정 분 (null = 매장 기본 따름, 근무관리 → NFC 출퇴근 → 설정)
         earlyAuto: form.earlyAuto === '' || form.earlyAuto == null ? null : +form.earlyAuto,
-      }, {merge:true})
+      })
 
       await load()
       setShowForm(false)
@@ -364,7 +365,7 @@ export default function Members() {
     setAddSaving(true)
     try {
       const newUid = 'manual_' + Date.now()
-      await setDoc(doc(db,'users',newUid), {
+      await saveUser(newUid, {
         name:         addForm.name.trim(),
         role:         'staff',
         status:       'approved',

@@ -5,6 +5,7 @@ import { useAuth } from '../AuthContext'
 import { toDate, hm, dayStatus, breakForShift, recBreak, planFor, reapplyDay } from '../lib/attendance'
 import { deleteField } from 'firebase/firestore'
 import TimePick from '../components/TimePick'
+import { saveUser } from '../lib/privateInfo'
 
 const pad = n => String(n).padStart(2,'0')
 const DAYS_KR = ['일','월','화','수','목','금','토']
@@ -129,7 +130,7 @@ export default function Staff() {
   }, [monthsKey, isOwner, reloadKey])
 
   async function approveUser(u, grade, joinDate, wage) {
-    await setDoc(doc(db,'users',u.uid), { ...u, status:'approved', grade:+grade, wage:+wage||10030, joinDate:joinDate||'' })
+    await saveUser(u.uid, { ...u, status:'approved', grade:+grade, wage:+wage||10030, joinDate:joinDate||'' })
     setPending(p => p.filter(x=>x.uid!==u.uid))
     setStaff(s => [...s, { ...u, status:'approved', joinDate }])
   }

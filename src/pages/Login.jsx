@@ -55,7 +55,6 @@ export default function Login() {
         role: 'staff',
         grade: null,
         status: 'pending',
-        wage: 10030,
         createdAt: new Date().toISOString()
       })
       await auth.signOut()

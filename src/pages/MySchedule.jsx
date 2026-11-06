@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react'
 import { db } from '../firebase'
-import { doc, getDoc, setDoc, collection, query, where, getDocs } from 'firebase/firestore'
+import { doc, getDoc, collection, query, where, getDocs } from 'firebase/firestore'
 import { useAuth, GradeBadge } from '../AuthContext'
 import MyAttendance from '../components/MyAttendance'
 import MyRewardSpin from '../components/MyRewardSpin'
 import AvatarEditor from '../components/AvatarEditor'
+import { loadMyPayslip, loadMyPrivate, writeMyPayFields } from '../lib/privateInfo'
 
 const pad = n => String(n).padStart(2,'0')
 const daysIn = ym => { const[y,m]=ym.split('-').map(Number); return new Date(y,m,0).getDate() }
@@ -51,27 +52,28 @@ const [employType, setEmployType] = useState('part')
       setLoading(true)
       try {
         // 시급·근무시간·추가근무·매장 일정·급여 확인을 한 번에 같이 불러옴
-        const [userSnap, whSnap, exSnap, evSnap, prSnap] = await Promise.all([
+        const [userSnap, whSnap, exSnap, evSnap, mine, priv] = await Promise.all([
           getDoc(doc(db,'users',user.uid)),
           getDoc(doc(db,'workhours',curMonth)),
           getDoc(doc(db,'workextra',curMonth)),
           getDoc(doc(db,'events',curMonth)),
-          getDoc(doc(db,'payroll',curMonth)),
+          loadMyPayslip(user.uid, curMonth),
+          loadMyPrivate(user.uid, userData),
         ])
         if(userSnap.exists()) {
-          setWage(userSnap.data().wage||10030)
+          setWage(priv.wage||10030)
           setEmployType(userSnap.data().employType||'part')
         }
         setWorkHours((whSnap.exists() ? whSnap.data() : {})[user.uid] || {})
         setWorkExtra((exSnap.exists() ? exSnap.data() : {})[user.uid] || {})
         setEvents(evSnap.exists() ? evSnap.data() : {})
-        setPayroll(prSnap.exists() ? (prSnap.data()[user.uid]||null) : null)
+        setPayroll(mine.pay)
 
       } catch(e) { console.error(e) }
       setLoading(false)
     }
     load()
-  },[curMonth, user.uid])
+  },[curMonth, user.uid]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const days = daysIn(curMonth)
   const [cy,cm] = curMonth.split('-').map(Number)
@@ -115,29 +117,19 @@ const [employType, setEmployType] = useState('part')
   async function checkPayroll() {
     if(!payroll?.confirmedByOwner) return
     try {
-      const prSnap = await getDoc(doc(db,'payroll',curMonth))
-      if(prSnap.exists()) {
-        const newPayroll = { ...prSnap.data(), [user.uid]: { ...(prSnap.data()[user.uid]||{}), checkedByEmp:true, checkedAt:new Date().toISOString() }}
-        await setDoc(doc(db,'payroll',curMonth), newPayroll)
-        setPayroll(p=>({...p, checkedByEmp:true}))
-        alert('급여 내역을 확인했습니다!')
-      }
+      await writeMyPayFields(user.uid, curMonth, { checkedByEmp:true, checkedAt:new Date().toISOString() })
+      setPayroll(p=>({...p, checkedByEmp:true}))
+      alert('급여 내역을 확인했습니다!')
     } catch(e) { console.error(e) }
   }
 
   async function sendInquiry(msg) {
     if(!msg.trim()) return
     try {
-      const prSnap = await getDoc(doc(db,'payroll',curMonth))
-      if(prSnap.exists()) {
-        const newPayroll = { ...prSnap.data(), [user.uid]: {
-          ...(prSnap.data()[user.uid]||{}),
-          inquiry: { message:msg.trim(), createdAt:new Date().toISOString(), resolved:false }
-        }}
-        await setDoc(doc(db,'payroll',curMonth), newPayroll)
-        setPayroll(p=>({...p, inquiry:{message:msg.trim(), createdAt:new Date().toISOString(), resolved:false}}))
-        alert('문의가 전송됐습니다!')
-      }
+      const inquiry = { message:msg.trim(), createdAt:new Date().toISOString(), resolved:false }
+      await writeMyPayFields(user.uid, curMonth, { inquiry })
+      setPayroll(p=>({...p, inquiry}))
+      alert('문의가 전송됐습니다!')
     } catch(e) { console.error(e) }
   }
 

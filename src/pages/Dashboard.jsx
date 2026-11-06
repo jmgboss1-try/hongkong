@@ -5,6 +5,7 @@ import { doc, getDoc, getDocs, collection } from 'firebase/firestore'
 import { withSubMemos, loadSubs } from '../lib/attendance'
 import { bankSummary } from '../lib/bankRecon'
 import { ComposedChart, Bar, Line, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts'
+import { loadPrivateMap } from '../lib/privateInfo'
 
 const pad = n => String(n).padStart(2,'0')
 const mLabel = ym => { const[y,m]=ym.split('-'); return `${y}년 ${+m}월` }
@@ -113,7 +114,7 @@ export default function Dashboard() {
       // 매출·지출·직원·근무시간·대타를 한 번에 같이 불러옴 (하나씩 기다리면 몇 초씩 걸림)
       const [cy2,cm2]=curMonth.split('-').map(Number)
       const prevMonth=cm2===1?`${cy2-1}-12`:`${cy2}-${pad(cm2-1)}`
-      const [revSnap,,usersSnap,whSnap,exSnap,memoSnap,prevWhSnap,prevExSnap,prevMemoSnap,subs] = await Promise.all([
+      const [revSnap,,usersSnap,whSnap,exSnap,memoSnap,prevWhSnap,prevExSnap,prevMemoSnap,subs, privMap] = await Promise.all([
         getDoc(doc(db,'revenue',curMonth)),
         loadExpenses(),
         getDocs(collection(db,'users')),
@@ -124,6 +125,7 @@ export default function Dashboard() {
         getDoc(doc(db,'workextra',prevMonth)),
         getDoc(doc(db,'workmemos',prevMonth)),
         loadSubs(),
+        loadPrivateMap(),
       ])
       if(revSnap.exists()) {
         const d = revSnap.data()
@@ -140,7 +142,7 @@ export default function Dashboard() {
 
       const emps = []
       usersSnap.forEach(d=>{
-        const data=d.data()
+        const data=({ ...d.data(), ...(privMap[d.id] || {}) })
         if(data.status==='approved'&&data.role!=='owner')
           emps.push({uid:d.id,name:data.name,wage:data.wage||10030,
             wageHistory:data.wageHistory||[],workDays:data.workDays||[1,2,3,4,5],

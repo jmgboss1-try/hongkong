@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { db } from '../firebase'
 import { doc, getDoc, setDoc, collection, getDocs } from 'firebase/firestore'
 import { withSubMemos, loadSubs } from '../lib/attendance'
+import { loadPrivateMap, syncPayslipsQuiet } from '../lib/privateInfo'
 
 const pad = n => String(n).padStart(2,'0')
 const daysIn = ym => { const[y,m]=ym.split('-').map(Number); return new Date(y,m,0).getDate() }
@@ -120,6 +121,7 @@ async function setCarry(uid, month, total) {
   const ps = await getDoc(doc(db,'payroll',month))
   const pd = ps.exists() ? ps.data() : {}
   await setDoc(doc(db,'payroll',month), { ...pd, [uid]: { ...(pd[uid]||{}), carriedOut: total, carriedTo: total > 0 ? next : null } })
+  syncPayslipsQuiet(month)   // 직원이 보는 급여 복사본도 맞춤
 }
 // month 로 넘어온 가불이 delta 만큼 바뀌었을 때: month 가 이미 다음 달로 넘긴 게 있으면 그 금액도 같이 바꾸고 계속 이어감
 async function chainCarry(uid, month, delta) {
@@ -437,7 +439,7 @@ export default function Payroll() {
       const [cy,cm] = curMonth.split('-').map(Number)
       const prev = cm===1?`${cy-1}-12`:`${cy}-${pad(cm-1)}`
       // 한 번에 같이 받기 (예전엔 직원 목록 → 이번 달 자료 → 대타 순서로 세 번 기다렸음)
-      const [usersSnap,wh,ex,me,pwh,pex,pme,pr,ownerSnap,sevSnap,advSnap,bonusSnap,subs] = await Promise.all([
+      const [usersSnap,wh,ex,me,pwh,pex,pme,pr,ownerSnap,sevSnap,advSnap,bonusSnap,subs, privMap] = await Promise.all([
         getDocs(collection(db,'users')),
         getDoc(doc(db,'workhours',curMonth)),
         getDoc(doc(db,'workextra',curMonth)),
@@ -451,12 +453,13 @@ export default function Payroll() {
         getDoc(doc(db,'advances', curMonth)),
         getDoc(doc(db,'bonuses', curMonth)),
         loadSubs(),
+        loadPrivateMap(),
       ])
       const emps = []
       const ssnData = {}
       const nameData = {}
       usersSnap.forEach(d=>{
-        const data=d.data()
+        const data=({ ...d.data(), ...(privMap[d.id] || {}) })
         nameData[d.id] = data.name
         if(data.role==='owner') return
         const isActive  = data.status === 'approved'
@@ -518,6 +521,7 @@ if(!isActive && !isRetired) return
 
   async function savePayroll(newPayroll) {
     await setDoc(doc(db,'payroll',curMonth), newPayroll)
+    syncPayslipsQuiet(curMonth)   // 직원이 보는 급여 복사본도 맞춤
     setPayroll(newPayroll)
   }
 
@@ -731,6 +735,7 @@ if(!isActive && !isRetired) return
   }
   async function saveBonuses(newBonuses) {
     await setDoc(doc(db,'bonuses',curMonth), newBonuses)
+    syncPayslipsQuiet(curMonth)   // 직원이 보는 급여 복사본도 맞춤
     setBonuses(newBonuses)
   }
   async function addBonus(uid) {

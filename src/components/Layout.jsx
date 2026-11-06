@@ -3,7 +3,8 @@ import { auth, db } from '../firebase'
 import { signOut } from 'firebase/auth'
 import { doc, setDoc } from 'firebase/firestore'
 import { useAuth, GradeBadge } from '../AuthContext'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { migratePrivacy } from '../lib/privateInfo'
 import { PhoneFileReceiveModal } from './PhoneFileTransfer'
 import NavIcon from './NavIcon'
 import OrderAlert from './OrderAlert'
@@ -20,6 +21,8 @@ export default function Layout({ children }) {
   const navigate = useNavigate()
   const location = useLocation()
   const { user, isOwner, isStore, isInvestor, isLegend, userData } = useAuth()
+  // 예전 자료의 주민번호·시급 등을 개인 문서로, 급여를 사람별 복사본으로 한 번 옮김 (사장님 계정에서만)
+  useEffect(() => { if (isOwner) migratePrivacy() }, [isOwner])
   const [sideOpen, setSideOpen] = useState(false)
   const [fileOpen, setFileOpen] = useState(false) // 폰 → 이 컴퓨터로 파일 옮기기
   // 탭 순서 (경로 배열) — 계정별로 users/{uid}.menuOrder 에 저장

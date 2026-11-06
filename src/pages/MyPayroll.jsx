@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react'
-import { db } from '../firebase'
-import { doc, getDoc, setDoc } from 'firebase/firestore'
+import { loadMyPayslip, writeMyPayFields } from '../lib/privateInfo'
 import { useAuth } from '../AuthContext'
 import WageStatements from '../components/WageStatements'
 
@@ -26,33 +25,27 @@ export default function MyPayroll() {
     if(!user) return
     setLoading(true)
     try {
-      const [snap, bonusSnap] = await Promise.all([
-        getDoc(doc(db,'payroll',curMonth)),
-        getDoc(doc(db,'bonuses',curMonth)),
-      ])
-      const data = snap.exists() ? snap.data() : {}
-      setPayroll(data[user.uid] || null)
-      const bonusData = bonusSnap.exists() ? bonusSnap.data() : {}
-      setMyBonuses(bonusData[user.uid] || [])
+      // 내 급여 복사본만 읽음 (다른 직원 급여는 읽을 수 없음)
+      const mine = await loadMyPayslip(user.uid, curMonth)
+      setPayroll(mine.pay)
+      setMyBonuses(mine.bonuses)
     } catch(e){ console.error(e) }
     setLoading(false)
   }
 
   useEffect(()=>{ load() },[curMonth, user])
 
-  async function updatePayroll(updater) {
-    const snap = await getDoc(doc(db,'payroll',curMonth))
-    const full  = snap.exists() ? snap.data() : {}
-    const newData = { ...full, [user.uid]: updater(full[user.uid]||{}) }
-    await setDoc(doc(db,'payroll',curMonth), newData)
-    setPayroll(newData[user.uid])
+  // 바꾸는 항목만 원본·복사본의 내 칸에 씀
+  async function updatePayroll(fields) {
+    await writeMyPayFields(user.uid, curMonth, fields)
+    setPayroll(p => ({ ...(p || {}), ...fields }))
   }
 
   async function checkPayroll() {
     if(!window.confirm('급여 내역을 확인하셨습니까?')) return
     setSaving(true)
     try {
-      await updatePayroll(prev=>({ ...prev, checkedByEmp:true, checkedAt:new Date().toISOString() }))
+      await updatePayroll({ checkedByEmp:true, checkedAt:new Date().toISOString() })
     } catch(e){ console.error(e) }
     setSaving(false)
   }
@@ -61,14 +54,13 @@ export default function MyPayroll() {
     if(!inquiryText.trim()) return alert('문의 내용을 입력해주세요')
     setSaving(true)
     try {
-      await updatePayroll(prev=>({
-        ...prev,
+      await updatePayroll({
         inquiry: {
           message: inquiryText.trim(),
           createdAt: new Date().toISOString(),
           ownerReply: null, repliedAt: null, resolved: false,
         }
-      }))
+      })
       setShowInquiryForm(false)
       setInquiryText('')
     } catch(e){ console.error(e) }

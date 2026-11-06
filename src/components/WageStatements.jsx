@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react'
 import { db } from '../firebase'
 import { doc, getDoc } from 'firebase/firestore'
+import { loadMyPayslip, loadMyPrivate } from '../lib/privateInfo'
 
 // 임금명세서 모아보기 (직원 내 급여): 사장님이 급여를 확정한 달은 자동으로 명세서가 쌓임
 // 근로기준법 시행령 제27조의2 기재 사항: 근로자 정보, 임금지급일, 임금 총액, 항목별 금액(기본급·수당·상여),
 // 근로일수·총 근로시간, 항목별 계산 방법, 공제 항목별 금액과 총액
-// 데이터: payroll/{달}[uid] (확정된 값), bonuses/{달}[uid] (상여), workhours/workextra/{달}[uid] (근로일수)
+// 데이터: payslips/{uid}/months/{달} (확정된 급여·상여의 내 복사본), workhours/workextra/{달}[uid] (근로일수), userPrivate/{uid} (생년월일)
 const T = { ink:'#1D1B18', sub:'#6E6A63', rule:'#DCD7CE', soft:'#ECE8E1', chip:'#F3F1EC', accent:'#C3261C', green:'#2E7D45', blue:'#2B5C9E' }
 const num = { fontVariantNumeric:'tabular-nums' }
 const pad = n => String(n).padStart(2, '0')
@@ -26,24 +27,24 @@ function monthsFor(joinDate) {
 export default function WageStatements({ uid, userData }) {
   const [list, setList] = useState(null)   // [{ ym, p, bonuses, days }]
   const [open, setOpen] = useState(null)
+  const [ssn, setSsn] = useState('')
 
   useEffect(() => {
     if (!uid) return
     let off = false
     const months = monthsFor(userData?.joinDate)
     const safe = p => p.then(s => s.exists() ? s.data() : null).catch(() => null)
-    Promise.all(months.map(ym => Promise.all([
-      safe(getDoc(doc(db, 'payroll', ym))), safe(getDoc(doc(db, 'bonuses', ym))),
-      safe(getDoc(doc(db, 'workhours', ym))), safe(getDoc(doc(db, 'workextra', ym))),
-    ]).then(([pay, bon, wh, ex]) => {
-      const p = pay?.[uid]
+    loadMyPrivate(uid, userData).then(pr => { if (!off) setSsn(pr.ssn || '') })
+    Promise.all(months.map(ym => loadMyPayslip(uid, ym).then(async mine => {
+      const p = mine.pay
       if (!p?.confirmedByOwner) return null
+      const [wh, ex] = await Promise.all([safe(getDoc(doc(db, 'workhours', ym))), safe(getDoc(doc(db, 'workextra', ym)))])
       const h = wh?.[uid] || {}, e = ex?.[uid] || {}
       const days = Object.keys({ ...h, ...e }).filter(dd => /^\d\d$/.test(dd) && ((+h[dd] || 0) > 0 || (+e[dd] || 0) > 0)).length
-      return { ym, p, bonuses: Array.isArray(bon?.[uid]) ? bon[uid] : [], days }
+      return { ym, p, bonuses: mine.bonuses, days }
     }))).then(rows => { if (!off) setList(rows.filter(Boolean)) })
     return () => { off = true }
-  }, [uid, userData?.joinDate])
+  }, [uid, userData?.joinDate]) // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!list) return null
   return (
@@ -69,14 +70,14 @@ export default function WageStatements({ uid, userData }) {
             <span style={{fontSize:14, fontWeight:700, ...num}}>{won((r.p.netPay || 0) + r.bonuses.reduce((a, b) => a + (+b.amount || 0), 0))}</span>
             <span style={{fontSize:12, color:T.blue}}>{open === r.ym ? '접기' : '보기'}</span>
           </button>
-          {open === r.ym && <Statement r={r} userData={userData}/>}
+          {open === r.ym && <Statement r={r} userData={userData} ssn={ssn}/>}
         </div>
       ))}
     </section>
   )
 }
 
-function Statement({ r, userData }) {
+function Statement({ r, userData, ssn }) {
   const { ym, p, bonuses, days } = r
   const d = p.deduction || {}
   const bonusTotal = bonuses.reduce((a, b) => a + (+b.amount || 0), 0)
@@ -108,7 +109,7 @@ function Statement({ r, userData }) {
 
       {head('근로자')}
       {row('성명', userData?.name || '')}
-      {userData?.ssn && row('생년월일', String(userData.ssn).slice(0, 6))}
+      {ssn && row('생년월일', String(ssn).slice(0, 6))}
       {userData?.joinDate && row('입사일', userData.joinDate)}
       {row('임금 계산 기간', `${ym}-01 ~ ${ym}-${lastDay(ym)}`)}
       {row('임금 지급일', p.paid ? (p.paidAt?.slice(0, 10) || '지급함') : '지급 전', { last:true })}

@@ -69,16 +69,24 @@ service cloud.firestore {
       allow read: if isMember();
       allow create, update: if isStaff() && onlyMyKey();
     }
-    // 급여: 직원은 자기 급여의 '확인함'·'문의'만 씀
+    // 급여: 원본은 사장님만 읽음. 직원은 자기 칸의 '확인함'·'문의'만 씀 (읽지 않고)
     match /payroll/{ym} {
-      allow read: if isMember();
       allow update: if isStaff() && onlyMyKey()
         && request.resource.data[request.auth.uid]
              .diff(resource.data.get(request.auth.uid, {}))
              .affectedKeys().hasOnly(['checkedByEmp', 'checkedAt', 'inquiry']);
     }
-    match /bonuses/{ym} {
-      allow read: if isMember();
+    // 상여: 사장님만 (직원은 아래 payslips 복사본으로 자기 것만 봄)
+    // 직원이 보는 내 급여·상여 복사본 (사장님이 급여를 저장할 때 만들어짐)
+    match /payslips/{uid}/months/{ym} {
+      allow read: if isMe(uid);
+      allow update: if isMe(uid) && isStaff() && changed().hasOnly(['pay'])
+        && request.resource.data.pay.diff(resource.data.pay).affectedKeys()
+             .hasOnly(['checkedByEmp', 'checkedAt', 'inquiry']);
+    }
+    // 주민번호·계좌·전화번호·시급: 본인만 읽음, 쓰기는 사장님만
+    match /userPrivate/{uid} {
+      allow read: if isMe(uid);
     }
     match /schedule/{ym} {
       allow read: if isMember();

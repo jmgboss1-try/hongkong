@@ -3,6 +3,7 @@ import { db } from '../firebase'
 import { doc, getDoc, setDoc, collection, getDocs } from 'firebase/firestore'
 import AttendancePanel from '../components/AttendancePanel'
 import { withSubMemos, loadSubs, dayStatus, hm, toDate } from '../lib/attendance'
+import { loadPrivateMap } from '../lib/privateInfo'
 
 const pad = n => String(n).padStart(2,'0')
 
@@ -90,7 +91,7 @@ export default function WorkManage() {
       const [cy,cm] = curMonth.split('-').map(Number)
       const prevMonth = cm===1 ? `${cy-1}-12` : `${cy}-${pad(cm-1)}`
       const data = s => s?.exists() ? s.data() : {}
-      const [usersSnap, sevSnap, whSnap, exSnap, memoSnap, prevWhSnap, prevExSnap, prevMemoSnap, subList, attSnap] = await Promise.all([
+      const [usersSnap, sevSnap, whSnap, exSnap, memoSnap, prevWhSnap, prevExSnap, prevMemoSnap, subList, attSnap, privMap] = await Promise.all([
         getDocs(collection(db,'users')),
         getDoc(doc(db,'severance',curMonth)),
         getDoc(doc(db,'workhours',curMonth)),
@@ -101,11 +102,12 @@ export default function WorkManage() {
         getDoc(doc(db,'workmemos',prevMonth)),
         loadSubs(),
         getDoc(doc(db,'attendance',curMonth)).catch(()=>null),
+        loadPrivateMap(),
       ])
       const finalEmps = []
       const nameData = {}
       usersSnap.forEach(d => {
-        const u = d.data()
+        const u = ({ ...d.data(), ...(privMap[d.id] || {}) })
         nameData[d.id] = u.name
         if(u.status==='approved' && u.role!=='owner' && u.role!=='store' && u.role!=='investor' && u.payType!=='fixed') {
           finalEmps.push({

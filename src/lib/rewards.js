@@ -1,6 +1,7 @@
 import { db } from '../firebase'
 import { collection, doc, getDoc, getDocs, setDoc, arrayUnion } from 'firebase/firestore'
 import { loadMonthContext, monthStatus, pad } from './attendance'
+import { syncPayslipsQuiet } from './privateInfo'
 
 // 개근 포상
 // rewards/{YYYY-MM} = {
@@ -60,6 +61,7 @@ export async function addRewardBonuses(ym, rows, gameLabel) {
   for (const r of rows) if (r.amount > 0)
     b[r.uid] = [...(b[r.uid]||[]), { id:String(n++), date:day, amount:r.amount, memo:`${m}월 개근 포상 (${gameLabel}: ${r.prize})` }]
   await setDoc(doc(db,'bonuses',ym), b)
+  syncPayslipsQuiet(ym)
   await setDoc(doc(db,'rewards',ym), { paid: Object.fromEntries(rows.filter(r=>r.amount>0).map(r => [r.uid, true])) }, { merge:true })
 }
 
