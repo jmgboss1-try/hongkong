@@ -12,6 +12,10 @@ Business context that affects features: the store's bank account holder (예금�
 
 The owner wants Claude to pick tools for a task on its own, without being told which skill or plugin to use. Before a task where a skill or plugin could help (design work, documents, spreadsheets, reports and the like), search the plugin catalog first. If something fits, show the install card; the owner only clicks it. If the catalog has nothing and a good skill exists elsewhere (e.g. on GitHub, installed with `npx skills add <owner/repo> -a claude-code -y`), ask the owner once before installing it. Install it at project level (`.claude/skills/`), review its files for anything that sends data out or runs unexpected commands, then commit and push it so later sessions keep it (cloud sessions lose global installs). Skip all of this when the task doesn't need it; most changes don't. Installed so far: `hallmark` (`.claude/skills/hallmark`, design for new pages; use on existing screens only when the owner names it), plus the `frontend-design` plugin on the owner's account.
 
+## Firestore rules (owner preference)
+
+Rules live in the Firebase console (project `terry-hongkong`), and the owner pastes them in themselves. Whenever a change needs a rule, always give step-by-step instructions in Korean: where to click (console.firebase.google.com → 프로젝트 → Firestore Database → 규칙 탭), exactly where in the file to paste (inside `match /databases/{database}/documents { … }`, before its closing brace), the full block to paste, pressing 게시, how to tell it worked, and what to send back if it errors (a screenshot of the rules page). Warn when an existing catch-all rule such as `match /{document=**}` would make a new restriction useless, because rules that allow access are OR'ed.
+
 ## Commands
 
 ```bash
