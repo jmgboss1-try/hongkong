@@ -11,7 +11,7 @@ import { MAP_W, MAP_H, NODES, route, nodeDist, SLOTS, HALL_POINTS, TABLES, SEAT_
 
 // 우리 매장: 지금 출근한 직원들의 캐릭터가 위에서 내려다본 매장 그림 안에서 일하는 모습
 //  - NFC 출근하면 문에서 걸어 들어와 자기 포지션(인원관리)으로, 브레이크면 휴게 공간, 퇴근하면 문으로 나감
-//  - 머리 위: 개근 중(불꽃), 근속 등급(병아리·별·왕관), 오늘 체크리스트를 다 끝냈으면 별
+//  - 개근 중인 직원은 옆이 반짝임 (머리 위 작은 그림은 없앰)
 //  - 오늘 매출만큼 손님이 앉아 있고, 배달이 많으면 배달 봉투가 쌓임
 // attendance·revenue·checklist는 실시간(onSnapshot)으로 받아서 포스에 띄워 두면 저절로 바뀜
 
@@ -63,16 +63,6 @@ function Walker({ at, start, off = [0, 0], speed = SPEED, ghost, children }) {
   )
 }
 
-function Badges({ flame, grade, star }) {
-  const items = []
-  if (flame) items.push(<g key="f"><rect x="2" y="4" width="6" height="8" fill="#E8742A"/><rect x="3" y="1" width="3" height="4" fill="#E8742A"/><rect x="4" y="7" width="3" height="5" fill="#F6C343"/></g>)
-  if (grade === 'legend') items.push(<g key="g"><rect x="1" y="5" width="10" height="6" fill="#D9A441"/><rect x="1" y="2" width="2" height="3" fill="#D9A441"/><rect x="5" y="1" width="2" height="4" fill="#D9A441"/><rect x="9" y="2" width="2" height="3" fill="#D9A441"/></g>)
-  if (grade === 'senior') items.push(<g key="g"><polygon points="6,1 7.6,4.6 11.4,4.8 8.4,7.2 9.4,11 6,8.8 2.6,11 3.6,7.2 0.6,4.8 4.4,4.6" fill="#2B5C9E"/></g>)
-  if (grade === 'chick') items.push(<g key="g"><rect x="2" y="3" width="8" height="7" fill="#F6C343"/><rect x="9" y="5" width="2" height="2" fill="#E8742A"/><rect x="6" y="4" width="1" height="1" fill="#1D1B18"/></g>)
-  if (star) items.push(<g key="s"><polygon points="6,0 7.8,4.2 12,4.4 8.6,7.2 9.8,11.6 6,9 2.2,11.6 3.4,7.2 0,4.4 4.2,4.2" fill="#F6C343" stroke="#B45309" strokeWidth=".6"/></g>)
-  const wsum = items.length * 14
-  return <g transform={`translate(${-wsum/2},-${SIZE*1.25 + 16})`}>{items.map((it,i) => <g key={i} transform={`translate(${i*14},0)`}>{it}</g>)}</g>
-}
 
 // 말풍선 (머리 오른쪽). lines: [[글, 색], ...]
 function Bubble({ lines, pop }) {
@@ -95,7 +85,7 @@ function Person({ p, moving }) {
   return (
     <>
       <g transform={`translate(${-SIZE/2},${-SIZE*1.25})`}><Avatar look={look} size={SIZE} pose={pose} title={label} role={p.role}/></g>
-      <Badges {...badges}/>
+      {/* 머리 위 작은 그림(불꽃·근속 등급·체크리스트 별)은 사장님 요청으로 안 보여 줌 */}
       {/* 개근 중이면 반짝반짝 */}
       {/* 위치는 바깥 g에 (CSS 애니메이션이 같은 요소의 transform 속성을 덮어써서 발밑으로 떨어지던 문제) */}
       {badges.flame && [[-SIZE/2 - 4, -SIZE*0.9, 0], [SIZE/2 + 2, -SIZE*0.5, 0.6]].map(([x, y, d], i) => (
@@ -413,7 +403,7 @@ export default function OurStore() {
       )}
 
       <div style={{fontSize:12, color:T.sub, marginTop:12, lineHeight:1.7}}>
-        캐릭터는 직원이 내 기록에서 꾸미고, 자리는 인원관리의 포지션으로 정해져요. 머리 위 표시: 불꽃은 이번 달 개근 중, 병아리·별·왕관은 근속 등급, 노란 별은 오늘 체크리스트 완료.
+        캐릭터는 직원이 내 기록에서 꾸미고, 자리는 인원관리의 포지션으로 정해져요. 이번 달 개근 중인 직원은 옆이 반짝여요.
       </div>
     </div>
   )
