@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { db } from '../firebase'
-import { collection, doc, getDoc, getDocs, onSnapshot } from 'firebase/firestore'
+import { collection, doc, getDoc, getDocs, onSnapshot, setDoc } from 'firebase/firestore'
 import { calcGrade, useAuth } from '../AuthContext'
 import Avatar from '../components/Avatar'
 import AvatarEditor from '../components/AvatarEditor'
@@ -8,13 +8,15 @@ import { lookOf, defaultLook, AVATAR_CSS, POSITIONS } from '../lib/avatar'
 import { loadAvatarRules, perfectStreaks, tenureMonths, canUse, allowedLook, linesFor, lineEveryOf } from '../lib/avatarRules'
 import { toDate, hm, recBreak, planFor, dayStatus, monthStatus, loadMonthContext, pad } from '../lib/attendance'
 import { MAP_W, MAP_H, NODES, route, nodeDist, SLOTS, HALL_POINTS, TABLES, SEAT_ORDER } from '../lib/storeMap'
-import { storeLife, activeTables } from '../lib/storeLife'
+import { storeLife, activeTables, lifeConfig, TONES } from '../lib/storeLife'
+import StoreLifeSettings from '../components/StoreLifeSettings'
 
 // 우리 매장: 지금 출근한 직원들의 캐릭터가 위에서 내려다본 매장 그림 안에서 일하는 모습
 //  - NFC 출근하면 문에서 걸어 들어와 자기 포지션(인원관리)으로, 브레이크면 휴게 공간, 퇴근하면 문으로 나감
 //  - 개근 중인 직원은 옆이 반짝임 (머리 위 작은 그림은 없앰)
-//  - 손님은 들어와서 주문하고, 홀 직원이 음식을 날라 주고, 다 먹으면 나가고 직원이 치움 (src/lib/storeLife.js)
-//    가끔 입구에서 미끄러지거나, 손님끼리 수다, 직원을 불러 단무지를 더 달라고 함
+//  - 손님은 키오스크(가끔 포스)에서 주문하고, 셀프바에서 반찬을 담고, 홀 직원이 음식을 날라 주고,
+//    다 먹으면 그릇을 퇴식구에 놓고 나감. 포스 배달 알림, 주방 실수와 사장님 반응도 (src/lib/storeLife.js)
+//    대사·빈도는 사장님이 이 화면 아래 '매장 장면 설정'에서 고침 (rewards/storeLife)
 //  - 손님 수는 오늘 매출과 시간대(점심·저녁 바쁜 시간)로 정함. 배달이 많으면 배달 봉투가 쌓임
 // attendance·revenue·checklist는 실시간(onSnapshot)으로 받아서 포스에 띄워 두면 저절로 바뀜
 
@@ -69,15 +71,17 @@ function Walker({ at, start, off = [0, 0], speed = SPEED, ghost, children }) {
 
 // 말풍선 (머리 오른쪽). lines: [[글, 색], ...]
 // below: 그림 맨 위쪽에 있는 사람은 말풍선이 잘리지 않게 발 아래로
-function Bubble({ lines, pop, below }) {
+// ax: 그 사람의 그림 속 가로 위치. 오른쪽 끝에 가까우면 말풍선을 왼쪽으로 펼침
+function Bubble({ lines, pop, below, ax = 0 }) {
   const w = Math.max(...lines.map(([t]) => t.length)) * 12 + 16, h = lines.length * 16 + 8
+  const left = ax + SIZE/2 + w + 12 > W
   return (
-    <g transform={`translate(${SIZE/2 - 2},${below ? 4 : -SIZE*1.25 - 4})`} style={{pointerEvents:'none'}}>
+    <g transform={`translate(${left ? -SIZE/2 + 2 : SIZE/2 - 2},${below ? 4 : -SIZE*1.25 - 4})${left ? ' scale(-1,1)' : ''}`} style={{pointerEvents:'none'}}>
       <g className={pop ? 'av-pop' : undefined}>
         <rect x="6" y="0" width={w} height={h} rx="6" fill="#FFFFFF" stroke={T.ink} strokeWidth="1.5"/>
         <polygon points={below ? '6,14 -2,6 12,10' : `6,${h-14} -2,${h-6} 12,${h-10}`} fill="#FFFFFF" stroke={T.ink} strokeWidth="1.5" strokeLinejoin="round"/>
         <rect x="7" y={below ? 9 : h-15} width="7" height="6" fill="#FFFFFF"/>
-        {lines.map(([t, c], i) => <text key={i} x={6 + w/2} y={17 + i*16} textAnchor="middle" fontSize="12" fontWeight="800" fill={c || T.ink}>{t}</text>)}
+        {lines.map(([t, c], i) => <text key={i} x={6 + w/2} y={17 + i*16} textAnchor="middle" fontSize="12" fontWeight="800" fill={c || T.ink} transform={left ? `translate(${12 + w},0) scale(-1,1)` : undefined}>{t}</text>)}
       </g>
     </g>
   )
@@ -100,7 +104,7 @@ function Person({ p, moving }) {
       {/* 바쁜 시간: 땀 */}
       {p.busy && pose !== 'rest' && <path className="av-drip" d={`M${-SIZE/2 + 2},${-SIZE*1.05} q-2,4 0,5 q2,-1 0,-5z`} fill="#7FB2D9"/>}
       {pose === 'rest' && <text className="av-float" x="14" y={-SIZE*1.1} fontSize="14" fontWeight="800" fill={T.blue}>z</text>}
-      {p.say && <Bubble key={p.say.map(l => l[0]).join()} lines={p.say} pop={p.sayPop} below={(NODES[p.to]?.[1] ?? 999) < 90}/>}
+      {p.say && <Bubble key={p.say.map(l => l[0]).join()} lines={p.say} pop={p.sayPop} below={(NODES[p.to]?.[1] ?? 999) < 90} ax={NODES[p.to]?.[0] ?? 0}/>}
       <text x="0" y="16" textAnchor="middle" fontSize="13" fontWeight="800" fill={boss ? T.accent : T.ink} stroke="#FFFFFF" strokeWidth="4" paintOrder="stroke">{label}</text>
     </>
   )
@@ -133,6 +137,9 @@ export default function OurStore() {
   // 아바타 지급 기준: 기준이 안 되는(또는 거둔) 아이템은 기본 모습으로
   const [avRules, setAvRules] = useState(null)
   const [streaks, setStreaks] = useState({})
+  const [lifeRaw, setLifeRaw] = useState(null)   // 매장 장면 설정 (rewards/storeLife)
+  // 포스 배달 알림을 목소리로 (이 기기만, 기본 꺼짐: 진짜 배달 주문으로 착각하지 않게)
+  const [voice, setVoice] = useState(() => { try { return localStorage.getItem('storeLife.voice') === '1' } catch { return false } })
   const ym = `${now.getFullYear()}-${pad(now.getMonth()+1)}`, dd = pad(now.getDate())
   const todayStr = `${ym}-${dd}`
 
@@ -174,6 +181,7 @@ export default function OurStore() {
       }, () => {}),
       onSnapshot(doc(db,'revenue',ym), s => setRev(s.exists() ? s.data() : {}), () => {}),
       onSnapshot(doc(db,'checklist','records'), s => setChecks(s.exists() ? (s.data().byDate || {}) : {}), () => {}),
+      onSnapshot(doc(db,'rewards','storeLife'), s => setLifeRaw(s.exists() ? s.data() : null), () => {}),
     ]
     return () => { off = true; subs.forEach(u => u()) }
   }, [ym])
@@ -245,16 +253,21 @@ export default function OurStore() {
   const working = people.filter(p => p.state === 'work' && !p.boss)
   const byPos = k => working.filter(p => (p.ps || []).includes(k)).map(p => p.uid).sort()
   const servers = byPos('hall').length ? byPos('hall') : byPos('counter').length ? byPos('counter') : working.length ? [working[0].uid] : owner ? [owner.uid] : []
-  const life = storeLife(beat, activeTables(guests), servers)
-  for (const p of people) {
-    const task = life.tasks[p.uid]
-    if (!task || p.state !== 'work') continue
-    p.to = task.to; p.task = task
-    if (task.hold) p.look = { ...p.look, hold: task.hold }
+  const crew = { servers, cooks: [...byPos('wok'), ...byPos('kitchen')], counter: byPos('counter'), delivery: byPos('delivery'), all: working.map(p => p.uid).sort(), owner: owner?.uid || null }
+  const lifeCfg = lifeConfig(lifeRaw)
+  const life = storeLife(beat, activeTables(guests), crew, lifeCfg)
+  // 일 맡은 사람: 갈 곳·드는 것·땀. 사장님이 실수한 직원 옆으로 갈 때는 그 사람 자리로
+  const applyTask = (p, task) => {
+    p.task = task
+    if (task.to && !task.stay) p.to = task.to
+    if (task.hold !== undefined) p.look = { ...p.look, hold: task.hold }
+    if (task.sweat) p.sweat = true
   }
+  for (const p of people) { const task = life.tasks[p.uid]; if (task && p.state === 'work' && !task.near) applyTask(p, task) }
+  for (const p of people) { const task = life.tasks[p.uid]; if (task && p.state === 'work' && task.near) { applyTask(p, task); const a = people.find(x => x.uid === task.near); if (a) p.to = a.to } }
   const every = lineEveryOf(avRules)
   for (const p of people) {
-    p.role = roleAt(p.to, p.posKey); p.busy = busy
+    p.role = roleAt(p.to, p.posKey); p.busy = busy || !!p.sweat
     const h = hashOf(p.uid)
     const who = { rules:avRules, user:p.user, streak:streaks[p.uid] || 0, tenure:tenureMonths(p.user?.joinDate), owner:!!p.boss }
     const pickLine = (whens, n) => { const list = whens.flatMap(w => linesFor(avRules, w, p.role, who).map(l => [l, w])); if (!list.length) return null; const [l, w] = list[n % list.length]; return toBubble(l.text, w) }
@@ -267,11 +280,19 @@ export default function OurStore() {
       p.sayPop = true
     }
   }
-  // 주문이 들어가면 웍 앞 사람(없으면 사장님)이 대답
-  if (life.kitchenSay) {
-    const cook = people.find(p => p.state === 'work' && !p.task && SLOTS.wok.includes(p.to)) || people.find(p => p.boss && !p.task)
-    if (cook) { cook.say = toBubble(life.kitchenSay); cook.sayPop = true }
-  }
+  // 어서오세요·안녕히 가세요·주문 확인 같은 한마디 (그 자리에서 말만)
+  for (const p of people) if (life.shouts[p.uid] && !p.task?.say && p.state === 'work') { p.say = toBubble(life.shouts[p.uid]); p.sayPop = true }
+  const mistake = life.mistake
+  const actorP = mistake ? people.find(p => p.uid === mistake.actor) : null
+  // 포스 배달 알림을 목소리로 (켠 기기만)
+  const posId = life.posSay?.id, posText = life.posSay?.text
+  useEffect(() => {
+    if (!voice || !posId || !posText || typeof speechSynthesis === 'undefined') return
+    try { const u = new SpeechSynthesisUtterance(posText.replace(/[~!/]/g, ' ')); u.lang = 'ko-KR'; u.rate = 1.05; speechSynthesis.speak(u) } catch { /* 목소리 못 냄 */ }
+  }, [voice, posId]) // eslint-disable-line react-hooks/exhaustive-deps
+  const toggleVoice = () => setVoice(v => { const nv = !v; try { localStorage.setItem('storeLife.voice', nv ? '1' : '0') } catch { /* 저장 못 함 */ } return nv })
+  // 사장님이 실수에 반응 고르기: 모든 화면에 같은 반응이 보이게 저장
+  const react = tone => mistake && setDoc(doc(db,'rewards','storeLife'), { react: { id: mistake.id, tone } }, { merge: true }).catch(e => console.error(e))
   // 같은 자리에 두 사람이 오면 옆으로 살짝 비켜 섬
   const taken = {}
   for (const p of people) { const n = taken[p.to] = (taken[p.to] || 0) + 1; p.off = n > 1 ? [(n-1)*20, (n-1)*5] : [0, 0] }
@@ -315,6 +336,10 @@ export default function OurStore() {
             ? <><ellipse cx={bx} cy={by - 1} rx="5.5" ry="2.6" fill={DISH_COLOR[f.dishes[i]] || '#C3261C'}/><rect x={bx-2} y={by-2} width="1.6" height="1.2" fill={f.dishes[i] === 'jjajang' ? '#F6C343' : '#2E7D45'}/></>
             : <ellipse cx={bx} cy={by - 1} rx="5" ry="2.2" fill="#EFE9DF"/>}</g>
         })}
+        {f.side && f.state !== 'empty' && (() => { const cx = t.x + t.w/2 + (t.bar ? 14 : 0), py = t.y + t.h/2 + (t.h > 60 ? 18 : 0); return (
+          <g><rect x={cx-12} y={py-3} width="10" height="6" fill="#FFFFFF" stroke="#D5D0C6"/><rect x={cx-10} y={py-2} width="6" height="3" fill="#F6C343"/>
+            <rect x={cx+2} y={py-3} width="10" height="6" fill="#FFFFFF" stroke="#D5D0C6"/><rect x={cx+4} y={py-2} width="6" height="3" fill="#C3261C"/></g>
+        ) })()}
         {f.shared && f.state !== 'water' && (() => { const cx = t.x + t.w/2, py = t.y + t.h/2 - (t.h > 60 ? 18 : 0); return (
           <g><ellipse cx={cx} cy={py} rx="13" ry="6" fill="#FFFFFF" stroke="#D5D0C6"/>
             {f.state === 'food' && [[-6,-1,'#D9A441'],[0,-2,'#C98A2E'],[6,-1,'#D9A441'],[-2,1,'#E8742A']].map(([dx,dy,c],k) => <rect key={k} x={cx+dx-2.5} y={py+dy-1.5} width="5" height="3.5" fill={c}/>)}</g>
@@ -402,21 +427,34 @@ export default function OurStore() {
 
           {/* 걸어 들어오고 나가는 손님 (입구에서 미끄러지기도) */}
           {life.customers.filter(c => c.mode === 'walk').map(c => (
-            <Walker key={c.key + c.start} at={c.to} start={c.start} speed={SPEED * 0.8}>{moving => (
+            <Walker key={c.key} at={c.to} start={c.start} off={c.off} speed={SPEED * 0.8}>{moving => (
               <g>
                 {c.fallen
                   ? <g transform="rotate(-80)"><g transform="translate(-14,-30)"><Avatar look={custLook(c)} size={28} apron={false}/></g></g>
-                  : <g transform="translate(-14,-30)"><Avatar look={custLook(c)} size={28} apron={false} pose={moving ? 'walk' : 'idle'}/></g>}
+                  : <g transform="translate(-14,-30)"><Avatar look={{ ...custLook(c), hold: c.hold || 'none' }} size={28} apron={false} pose={moving ? 'walk' : 'idle'}/></g>}
                 {c.fallen && [[-30,-14],[-22,-22],[-12,-16]].map(([x,y],i) => <g key={i} transform={`translate(${x},${y})`}><polygon className="av-twinkle" style={{animationDelay:`${i*0.2}s`}} points="0,-4 1.2,-1.2 4,0 1.2,1.2 0,4 -1.2,1.2 -4,0 -1.2,-1.2" fill="#F6C343"/></g>)}
-                {c.say && <Bubble key={c.say} lines={toBubble(c.say)} pop/>}
+                {c.say && <Bubble key={c.say} lines={toBubble(c.say)} pop below={(NODES[c.to]?.[1] ?? 999) < 90} ax={NODES[c.to]?.[0] ?? 0}/>}
               </g>
             )}</Walker>
           ))}
           {/* 앉아 있는 손님의 말풍선 (테이블 위에 가려지지 않게 나중에 그림) */}
           {life.customers.filter(c => c.mode === 'sit' && c.say).map(c => {
             const [x, y] = NODES[c.node]
-            return <g key={'say' + c.key} transform={`translate(${x},${y + 6})`}><Bubble key={c.say} lines={toBubble(c.say)} pop below={y < 90}/></g>
+            return <g key={'say' + c.key} transform={`translate(${x},${y + 6})`}><Bubble key={c.say} lines={toBubble(c.say)} pop below={y < 90} ax={x}/></g>
           })}
+
+          {/* 포스 배달 주문 알림 */}
+          {life.posSay && (
+            <g transform="translate(140,150)" style={{pointerEvents:'none'}}>
+              <Bubble key={life.posSay.id} lines={toBubble(life.posSay.text)} pop below/>
+              {[0,1,2].map(i => <text key={i} className="av-float" style={{animationDelay:`${i*0.4}s`}} x={-14 + i*10} y={-4} fontSize="13" fontWeight="800" fill={T.accent}>♪</text>)}
+            </g>
+          )}
+          {/* 그릇 떨어뜨림: 깨진 조각 */}
+          {mistake?.shards && actorP && NODES[actorP.to] && (() => { const [x, y] = NODES[actorP.to]; return (
+            <g transform={`translate(${x + 18},${y + 2})`} style={{pointerEvents:'none'}}>
+              {[[0,0,'0,0 6,-3 4,3'],[9,2,'0,0 5,1 2,4'],[-6,3,'0,0 4,-2 5,3'],[4,6,'0,0 3,-3 6,1']].map(([dx,dy,pts],i) => <polygon key={i} transform={`translate(${dx},${dy})`} points={pts} fill="#FFFFFF" stroke="#B8B2A7"/>)}
+            </g>) })()}
 
           {/* 직원 */}
           {[...people].sort((a,b) => String(a.uid).localeCompare(String(b.uid))).map(p => (
@@ -424,6 +462,26 @@ export default function OurStore() {
               ghost={(p.look?.special || []).includes('trail') ? () => <g transform={`translate(${-SIZE/2},${-SIZE*1.25})`}><Avatar look={p.look} size={SIZE} pose="walk" role={p.role}/></g> : null}>{moving => <g opacity={p.state === 'leaving' ? 0.85 : 1}><Person p={p} moving={moving}/></g>}</Walker>
           ))}
         </svg>
+      </div>
+
+      {/* 주방 실수: 사장님 화면에서 반응 고르기 (고르면 모든 화면에 같은 반응) */}
+      {isOwner && mistake && actorP && (
+        <div style={{display:'flex', alignItems:'center', gap:8, flexWrap:'wrap', marginTop:10, padding:'10px 12px', border:`1.5px solid ${T.amber}`, background:'#FFF8EC', borderRadius:6}}>
+          <b style={{fontSize:14, color:T.amber}}>{actorP.label}님이 실수했어요</b>
+          <span style={{fontSize:12, color:T.sub}}>{mistake.chosen ? `고른 반응: ${TONES.find(x => x[0] === mistake.tone)?.[1]}` : mistake.phase === 'oops' ? `${Math.max(0, mistake.left)}초 안에 고르면 그렇게 말해요` : '기본 반응으로 말했어요'}</span>
+          <span style={{flex:1}}/>
+          {TONES.filter(([k]) => k !== 'random').map(([k, label]) => (
+            <button key={k} type="button" onClick={() => react(k)} disabled={mistake.phase !== 'oops'}
+              style={{fontFamily:'inherit', fontSize:13, fontWeight:700, padding:'6px 12px', borderRadius:4, cursor: mistake.phase === 'oops' ? 'pointer' : 'default',
+                border:`1px solid ${mistake.tone === k ? T.accent : T.rule}`, background: mistake.tone === k && mistake.chosen ? T.accent : '#FFFFFF', color: mistake.tone === k && mistake.chosen ? '#FFFFFF' : T.ink, opacity: mistake.phase === 'oops' || mistake.tone === k ? 1 : 0.5}}>{label}</button>
+          ))}
+        </div>
+      )}
+      <div style={{display:'flex', justifyContent:'flex-end', marginTop:8}}>
+        <button type="button" onClick={toggleVoice}
+          style={{fontFamily:'inherit', fontSize:12, padding:'5px 10px', borderRadius:4, border:`1px solid ${T.rule}`, background: voice ? T.ink : '#FFFFFF', color: voice ? '#FFFFFF' : T.sub, cursor:'pointer'}}>
+          배달 알림 목소리 {voice ? '켜짐' : '꺼짐'} (이 기기)
+        </button>
       </div>
 
       {/* 아래: 글로 보는 지금 상황 */}
@@ -456,6 +514,8 @@ export default function OurStore() {
           ))}
         </section>
       </div>
+      {/* 매장 장면 설정 (사장님만): 대사·빈도·주문 방법·사장님 반응 */}
+      {isOwner && <StoreLifeSettings raw={lifeRaw}/>}
       {/* 사장님 캐릭터 꾸미기 (사장님 계정에서만) */}
       {isOwner && user && (
         <div style={{marginTop:22}}>
@@ -465,7 +525,7 @@ export default function OurStore() {
       )}
 
       <div style={{fontSize:12, color:T.sub, marginTop:12, lineHeight:1.7}}>
-        캐릭터는 직원이 내 기록에서 꾸미고, 자리는 인원관리의 포지션으로 정해져요. 이번 달 개근 중인 직원은 옆이 반짝여요. 손님은 영업시간엔 늘 있고(점심·저녁엔 더 많이), 매출이 많으면 더 늘어요. 홀 직원이 주문을 받고 음식을 나르며, 홀 직원이 없으면 카운터, 그다음 다른 직원이 대신해요.
+        캐릭터는 직원이 내 기록에서 꾸미고, 자리는 인원관리의 포지션으로 정해져요. 이번 달 개근 중인 직원은 옆이 반짝여요. 손님은 영업시간엔 늘 있고(점심·저녁엔 더 많이), 매출이 많으면 더 늘어요. 손님은 키오스크(가끔 포스)에서 주문하고 셀프바에서 반찬을 담아요. 홀 직원이 음식을 나르고(홀 직원이 없으면 카운터, 그다음 다른 직원), 손님은 다 먹으면 그릇을 퇴식구에 놓고 나가요.
       </div>
     </div>
   )
