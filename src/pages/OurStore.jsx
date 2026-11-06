@@ -25,7 +25,7 @@ const CUSTOMER_LOOKS = Array.from({length:12}, (_,i) => ({ ...defaultLook(`손�
 
 // 통로를 따라 걷기: at(통로 점 이름)이 바뀌면 지금 있는 점에서 거기까지 가장 짧은 길로 한 칸씩 걸어감.
 // 처음 나타날 때는 start 에서 출발 (출근하면 출입문). 걷는 동안은 children(true)
-function Walker({ at, start, off = [0, 0], speed = SPEED, children }) {
+function Walker({ at, start, off = [0, 0], speed = SPEED, ghost, children }) {
   const cur = useRef(start || at)
   const busyUntil = useRef(0)
   const [st, setSt] = useState({ node: start || at, dur: 0 })
@@ -49,10 +49,17 @@ function Walker({ at, start, off = [0, 0], speed = SPEED, children }) {
     return () => { alive = false; clearTimeout(t) }
   }, [at, speed])
   const [x, y] = NODES[st.node] || NODES.door
+  const tf = `translate(${x + off[0]}px, ${y + off[1]}px)`
   return (
-    <g style={{transform:`translate(${x + off[0]}px, ${y + off[1]}px)`, transition:`transform ${st.dur}ms linear`}}>
-      {children(moving)}
-    </g>
+    <>
+      {/* 잔상(특별 아이템): 같은 곳으로 조금 늦게 따라오는 흐린 복사본 둘. 멈추면 사라짐 */}
+      {ghost && [[160, 0.35], [320, 0.18]].map(([lag, op]) => (
+        <g key={lag} style={{transform:tf, transition:`transform ${st.dur + lag}ms linear, opacity .4s`, opacity: moving ? op : 0, pointerEvents:'none'}}>{ghost()}</g>
+      ))}
+      <g style={{transform:tf, transition:`transform ${st.dur}ms linear`}}>
+        {children(moving)}
+      </g>
+    </>
   )
 }
 
@@ -90,8 +97,11 @@ function Person({ p, moving }) {
       <g transform={`translate(${-SIZE/2},${-SIZE*1.25})`}><Avatar look={look} size={SIZE} pose={pose} title={label} role={p.role}/></g>
       <Badges {...badges}/>
       {/* 개근 중이면 반짝반짝 */}
+      {/* 위치는 바깥 g에 (CSS 애니메이션이 같은 요소의 transform 속성을 덮어써서 발밑으로 떨어지던 문제) */}
       {badges.flame && [[-SIZE/2 - 4, -SIZE*0.9, 0], [SIZE/2 + 2, -SIZE*0.5, 0.6]].map(([x, y, d], i) => (
-        <polygon key={i} className="av-twinkle" style={{animationDelay:`${d}s`}} transform={`translate(${x},${y})`} points="0,-4 1.2,-1.2 4,0 1.2,1.2 0,4 -1.2,1.2 -4,0 -1.2,-1.2" fill="#F6C343"/>
+        <g key={i} transform={`translate(${x},${y})`}>
+          <polygon className="av-twinkle" style={{animationDelay:`${d}s`}} points="0,-4 1.2,-1.2 4,0 1.2,1.2 0,4 -1.2,1.2 -4,0 -1.2,-1.2" fill="#F6C343"/>
+        </g>
       ))}
       {/* 바쁜 시간: 땀 */}
       {p.busy && pose !== 'rest' && <path className="av-drip" d={`M${-SIZE/2 + 2},${-SIZE*1.05} q-2,4 0,5 q2,-1 0,-5z`} fill="#7FB2D9"/>}
@@ -358,7 +368,8 @@ export default function OurStore() {
 
           {/* 직원 */}
           {[...people].sort((a,b) => String(a.uid).localeCompare(String(b.uid))).map(p => (
-            <Walker key={p.uid} at={p.to} start={p.from} off={p.off} speed={p.busy ? SPEED * 1.5 : SPEED}>{moving => <g opacity={p.state === 'leaving' ? 0.85 : 1}><Person p={p} moving={moving}/></g>}</Walker>
+            <Walker key={p.uid} at={p.to} start={p.from} off={p.off} speed={p.busy ? SPEED * 1.5 : SPEED}
+              ghost={(p.look?.special || []).includes('trail') ? () => <g transform={`translate(${-SIZE/2},${-SIZE*1.25})`}><Avatar look={p.look} size={SIZE} pose="walk" role={p.role}/></g> : null}>{moving => <g opacity={p.state === 'leaving' ? 0.85 : 1}><Person p={p} moving={moving}/></g>}</Walker>
           ))}
         </svg>
       </div>

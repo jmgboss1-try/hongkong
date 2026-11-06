@@ -5,7 +5,7 @@
 export const HAIRS = [
   { id:'short', label:'짧은 머리' }, { id:'long', label:'긴 머리' }, { id:'bun', label:'올림머리' },
   { id:'ponytail', label:'포니테일' }, { id:'twin', label:'양갈래' }, { id:'bob', label:'단발 뱅' },
-  { id:'twoblock', label:'투블럭' }, { id:'curly', label:'곱슬' }, { id:'spiky', label:'삐죽 머리' },
+  { id:'twoblock', label:'투블럭' }, { id:'curly', label:'곱슬' }, { id:'perm', label:'파마' }, { id:'spiky', label:'삐죽 머리' },
   { id:'mohawk', label:'모히칸' }, { id:'cap', label:'모자' }, { id:'bald', label:'민머리' },
 ]
 export const HAIR_COLORS = ['#1D1B18', '#5A3A22', '#8B5A2B', '#D9A441', '#B42318', '#2B5C9E', '#C77DA6', '#E8E4DC']
@@ -20,14 +20,16 @@ export const MOUTHS = [{ id:'smile', label:'미소' }, { id:'grin', label:'활�
 export const MARKS = [{ id:'none', label:'없음' }, { id:'mustache', label:'콧수염' }, { id:'beard', label:'턱수염' }, { id:'freckles', label:'주근깨' }, { id:'mole', label:'점' }]
 export const HATS = [
   { id:'none', label:'없음' }, { id:'chef', label:'요리사 모자' }, { id:'bandana', label:'반다나' }, { id:'beanie', label:'비니' }, { id:'backcap', label:'거꾸로 모자' },
+  { id:'blackcap', label:'검은 야구모자' }, { id:'redback', label:'빨간 거꾸로 모자' },
 ]
-export const TOPS = [{ id:'long', label:'긴팔' }, { id:'tee', label:'반팔' }, { id:'hoodie', label:'후드' }, { id:'chef', label:'조리복' }]
+export const TOPS = [{ id:'long', label:'긴팔' }, { id:'tee', label:'반팔' }, { id:'hoodie', label:'후드' }, { id:'chef', label:'조리복' }, { id:'bare', label:'맨몸' }]
 export const APRONS = ['#F3F1EC', '#FFFFFF', '#1D1B18', '#C3261C', '#2B5C9E', '#3E5A80', 'none']   // none = 앞치마 없음
 export const PANTS = ['#3B3A38', '#1D1B18', '#3E5A80', '#C8B48F', '#7A7672']
-export const SHOES = [{ id:'black', label:'검정' }, { id:'white', label:'흰 운동화' }, { id:'boots', label:'장화' }]
+export const SHOES = [{ id:'black', label:'검정' }, { id:'white', label:'흰 운동화' }, { id:'boots', label:'장화' }, { id:'crocs', label:'크록스' }]
 export const HOLDS = [
   { id:'auto', label:'포지션 따라' }, { id:'none', label:'없음' }, { id:'ladle', label:'국자' }, { id:'wok', label:'웍' }, { id:'tray', label:'쟁반' },
   { id:'towel', label:'행주' }, { id:'bag', label:'배달 봉투' }, { id:'menu', label:'메뉴판' }, { id:'phone', label:'휴대폰' },
+  { id:'jjamppong', label:'짬뽕' }, { id:'jjajang', label:'짜장' }, { id:'tangsu', label:'탕수육' },
 ]
 // 포지션 따라: 웍 담당은 웍, 주방은 국자, 홀은 쟁반, 카운터는 메뉴판, 배달은 봉투
 export const HOLD_BY_POSITION = { wok:'wok', kitchen:'ladle', hall:'tray', counter:'menu', delivery:'bag' }
@@ -39,7 +41,7 @@ export const DECOS = [{ id:'blush', label:'볼터치' }, { id:'earring', label:'
 // 특별 아이템: 기본은 '직접 줄 때만'. 지급 기준은 사장님 '아바타' 탭 (lib/avatarRules.js)
 export const LOCKED = [
   { id:'goldApron', label:'금색 앞치마' }, { id:'crown', label:'왕관' }, { id:'sparkle', label:'반짝이' },
-  { id:'goldWok', label:'황금 웍' }, { id:'rainbow', label:'무지개 브릿지' },
+  { id:'goldWok', label:'황금 웍' }, { id:'rainbow', label:'무지개 브릿지' }, { id:'trail', label:'잔상 (움직일 때)' },
 ]
 export const POSITIONS = [
   { id:'wok', label:'웍 (조리)' }, { id:'kitchen', label:'주방 (준비·설거지)' }, { id:'hall', label:'홀 (서빙)' },

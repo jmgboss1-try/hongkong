@@ -18,7 +18,7 @@ export default function Avatar({ look: rawLook, pose = 'idle', size = 48, x = 0,
   const hat = sp.has('crown') ? 'crown' : look.hat
   const apronColor = sp.has('goldApron') ? GOLD : look.apron
   const hold = sp.has('goldWok') ? 'goldWok' : look.hold === 'auto' ? (HOLD_BY_POSITION[role] || 'none') : look.hold
-  const body = top === 'chef' ? '#F4F4F2' : shirt
+  const body = top === 'chef' ? '#F4F4F2' : top === 'bare' ? skin : shirt
   const shaved = hc + '66'
 
   // ── 머리카락 ──
@@ -35,6 +35,10 @@ export default function Avatar({ look: rawLook, pose = 'idle', size = 48, x = 0,
     cap('c0',4,1.6,8,2.4,hc); cap('c5',3,3,1,4,hc); cap('c6',12,3,1,4,hc)
     ;[[3,2],[5,1],[7,0.8],[9,1],[11,1.2],[2.4,4.4],[12.6,4.4]].forEach(([a,b],i) => cap('cb'+i,a,b,1.2,1.2,hc))
   }
+  if (hair === 'perm') {   // 파마: 볼륨 있게 부풀고 옆으로 뽀글뽀글
+    cap('pm0',3.6,1.2,8.8,2.8,hc); cap('pm1',2.6,3,1.6,5.4,hc); cap('pm2',11.8,3,1.6,5.4,hc)
+    ;[[3,0.8],[4.6,0.3],[6.4,0],[8.2,0],[10,0.3],[11.6,0.8],[2,4.2],[2,6.6],[13,4.2],[13,6.6],[3,8.2],[12.2,8.2]].forEach(([a,b],i) => cap('pb'+i,a,b,1.3,1.3,hc))
+  }
   if (hair === 'spiky') { cap('s1',4,2,8,2,hc); cap('s2',4,1,1,1,hc); cap('s3',6,0,1,2,hc); cap('s4',8,1,1,1,hc); cap('s5',10,0,1,2,hc); cap('s6',3,3,1,2,hc); cap('s7',12,3,1,2,hc) }
   if (hair === 'mohawk') { cap('m1',4,2.4,8,1.2,shaved); cap('m2',7,-0.6,2,3.6,hc) }
   if (hair === 'cap') { cap('k1',4,1,8,3,shirt); cap('k2',3,3,11,1,shirt); cap('k3',3,4,1,1,hc); cap('k4',12,4,1,1,hc) }
@@ -47,6 +51,8 @@ export default function Avatar({ look: rawLook, pose = 'idle', size = 48, x = 0,
   if (hat === 'bandana') HT.push(px(3.6,2,8.8,1.6,'#C3261C','hb1'), px(5,2.5,0.5,0.5,'#FFFFFF','hb2'), px(8,2.7,0.5,0.5,'#FFFFFF','hb3'), px(10.5,2.4,0.5,0.5,'#FFFFFF','hb4'), px(12.2,2.8,1.2,1.2,'#C3261C','hb5'), px(12.8,3.8,0.8,1.3,'#C3261C','hb6'))
   if (hat === 'beanie') HT.push(px(3.6,0.6,8.8,2.8,shirt,'hn1'), px(3.6,2.6,8.8,1,'#00000033','hn2'), px(7.2,-0.6,1.6,1.4,'#F4F4F2','hn3'))
   if (hat === 'backcap') HT.push(px(4,0.8,8,2.8,shirt,'hk1'), px(12,2.8,2.6,0.8,shirt,'hk2'), px(7.6,0.6,0.8,0.5,'#FFFFFF','hk3'))
+  if (hat === 'blackcap') HT.push(px(4,0.8,8,2.8,'#1D1B18','hy1'), px(3,3.2,10,0.9,'#1D1B18','hy2'), px(3,3.9,10,0.3,'#3A3A3A','hy3'), px(7.3,1.5,1.4,0.9,'#FFFFFF','hy4'))
+  if (hat === 'redback') HT.push(px(4,0.8,8,2.8,'#C3261C','hr1'), px(12,2.8,2.6,0.8,'#C3261C','hr2'), px(7.6,0.6,0.8,0.5,'#FFFFFF','hr3'), px(5,2.6,6,0.5,'#9E1E16','hr4'))
   if (hat === 'crown') HT.push(px(4.2,0.4,7.6,2,GOLD,'hw1'), px(4.2,-0.8,1.2,1.4,GOLD,'hw2'), px(7.4,-1.3,1.2,1.9,GOLD,'hw3'), px(10.6,-0.8,1.2,1.4,GOLD,'hw4'), px(7.7,1,0.6,0.7,'#C3261C','hw5'), px(5,1.1,0.5,0.5,'#2B5C9E','hw6'), px(10.5,1.1,0.5,0.5,'#2B5C9E','hw7'))
 
   // ── 눈·눈썹·입·얼굴 표시 ──
@@ -80,11 +86,14 @@ export default function Avatar({ look: rawLook, pose = 'idle', size = 48, x = 0,
     bag:   [px(12.2,14.6,3,3,'#FFFFFF','o1'), px(12.2,15.4,3,0.6,'#C3261C','o2'), px(12.8,14,1.8,0.6,'#B8B2A7','o3')],
     menu:  [px(12.2,11.6,2.6,3.4,'#C3261C','o1'), px(12.6,12.2,1.8,0.3,'#FFFFFF','o2'), px(12.6,12.9,1.8,0.3,'#FFFFFF','o3')],
     phone: [px(12.2,12.8,1.3,2.2,INK,'o1'), px(12.4,13.1,0.9,1.5,'#7FB2D9','o2')],
+    jjamppong: [px(11.4,13.2,4,1.8,'#FFFFFF','o1'), px(11.7,13.2,3.4,0.7,'#C3261C','o2'), px(12.2,13.2,0.6,0.4,'#F6C343','o3'), px(13.6,13.3,0.6,0.4,'#2E7D45','o4'), px(11.4,14.8,4,0.3,'#DCD7CE','o5')],
+    jjajang:   [px(11.4,13.2,4,1.8,'#FFFFFF','o1'), px(11.7,13.2,3.4,0.7,'#3B2A1E','o2'), px(12.4,13.3,0.6,0.3,'#F6C343','o3'), px(11.4,14.8,4,0.3,'#DCD7CE','o5')],
+    tangsu:    [px(11,14.2,4.8,0.6,'#FFFFFF','o1'), px(11.4,13.3,1.2,1,'#D9A441','o2'), px(12.7,13.1,1.2,1.1,'#C98A2E','o3'), px(14,13.4,1.1,0.9,'#D9A441','o4'), px(12.2,13,2.2,0.4,'#E8742A','o5')],
   }[hold] || null
 
   // 소매: 반팔이면 팔뚝이 보임
-  const sleeve = top === 'tee' ? 1.6 : 4
-  const shoeColor = shoes === 'white' ? '#F4F4F2' : shoes === 'boots' ? '#E8E4DC' : INK
+  const sleeve = top === 'bare' ? 0 : top === 'tee' ? 1.6 : 4
+  const shoeColor = shoes === 'white' ? '#F4F4F2' : shoes === 'boots' ? '#E8E4DC' : shoes === 'crocs' ? '#4FA3D9' : INK
 
   return (
     <g transform={`translate(${x},${y})`}>
@@ -96,10 +105,14 @@ export default function Avatar({ look: rawLook, pose = 'idle', size = 48, x = 0,
         {shoes === 'boots'
           ? <>{px(5,17.4,2,2.6,shoeColor,'f1')}{px(9,17.4,2,2.6,shoeColor,'f2')}</>
           : <>{px(5,19,2,1,shoeColor,'f1')}{px(9,19,2,1,shoeColor,'f2')}</>}
+        {shoes === 'crocs' && <>{px(4.6,18.6,2.8,1.4,shoeColor,'cr1')}{px(8.6,18.6,2.8,1.4,shoeColor,'cr2')}
+          {[[5,18.9],[6.2,18.9],[9,18.9],[10.2,18.9]].map(([a,b],i) => px(a,b,0.5,0.5,'#FFFFFF','ch'+i))}
+          {px(4.6,18.4,0.6,0.8,'#2B5C9E','cs1')}{px(10.8,18.4,0.6,0.8,'#2B5C9E','cs2')}</>}
         {shoes === 'white' && <>{px(5,19.7,2,0.3,'#8D9297','f3')}{px(9,19.7,2,0.3,'#8D9297','f4')}</>}
         {/* 몸 */}
         {px(4,10,8,6,body,'b')}
         {top === 'hoodie' && <>{px(4.2,9.4,7.6,0.9,shirt,'hd1')}{px(4.2,9.4,7.6,0.9,'#00000026','hd2')}{px(6.6,10.3,0.4,1.6,'#F4F4F2','hd3')}{px(9,10.3,0.4,1.6,'#F4F4F2','hd4')}{px(5.5,13.8,5,1.4,'#00000022','hd5')}</>}
+        {top === 'bare' && <>{px(6,11,1.2,0.4,'#00000022','bb1')}{px(8.8,11,1.2,0.4,'#00000022','bb2')}{px(7.8,14,0.4,0.4,'#00000033','bb3')}</>}
         {top === 'chef' && <>{px(5,10,6,0.8,shirt,'cf1')}{px(6.6,11.1,0.6,0.6,INK,'cf2')}{px(8.8,11.1,0.6,0.6,INK,'cf3')}</>}
         {withApron && apronColor !== 'none' && <>{px(5,12,6,4,apronColor,'ap')}{px(5,11,1,1,apronColor,'ap1')}{px(10,11,1,1,apronColor,'ap2')}</>}
         {withApron && deco.has('nametag') && <>{px(9.6,10.4,1.9,1,'#FFFFFF','nt1')}{px(9.6,10.4,1.9,0.3,'#C3261C','nt2')}</>}
