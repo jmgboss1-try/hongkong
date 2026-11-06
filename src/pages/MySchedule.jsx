@@ -343,15 +343,10 @@ const [employType, setEmployType] = useState('part')
                         )}
 
                         {(()=>{
+                          // 날짜별 시간·일급은 안 보여 주고 근무한 날인지만
                           const ex = workExtra[dd]||0
-                          const totalDayH = h + ex/60
                           return h>0||ex>0 ? (
-                            <div style={{marginTop:'auto'}}>
-                              <div style={{fontSize:12,fontWeight:700,color:colors?.text,fontFamily:'inherit',fontVariantNumeric:'tabular-nums',textAlign:'center'}}>
-                                {h}h{ex>0?` ${ex}m`:''}
-                              </div>
-                              <div style={{fontSize:9,color:'#6E6A63',textAlign:'center'}}>{Math.round(totalDayH*wage).toLocaleString()}원</div>
-                            </div>
+                            <div style={{marginTop:'auto', fontSize:11, fontWeight:700, color:colors?.text, textAlign:'center'}}>근무</div>
                           ) : (
                             <div style={{fontSize:8,color:'#DCD7CE',marginTop:'auto',textAlign:'center'}}>휴무</div>
                           )
@@ -364,59 +359,7 @@ const [employType, setEmployType] = useState('part')
             </div>
           </div>
 
-          {/* 근무 상세 목록 */}
-          {workDays.length > 0 && (
-            <div style={{background:'#FFFFFF',border:'1px solid #DCD7CE',borderRadius:6,overflow:'hidden'}}>
-              <div style={{padding:'14px 18px',borderBottom:'1px solid #DCD7CE',fontSize:13,fontWeight:600}}>
-                {mLabel(curMonth)} 근무 상세
-              </div>
-              <table style={{width:'100%',borderCollapse:'collapse',fontSize:12}}>
-                <thead>
-                  <tr style={{background:'#F3F1EC'}}>
-                    {['날짜','요일','근무시간','일급'].map(h=>(
-                      <th key={h} style={{padding:'8px 14px',fontSize:10,fontWeight:600,color:'#6E6A63',
-                        textAlign:h==='날짜'||h==='요일'?'left':'right',whiteSpace:'nowrap'}}>{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {workDays.map(dd=>{
-                    const h = workHours[dd]||0
-                    const ex = workExtra[dd]||0
-                    const totalDayH = h + ex/60
-                    const [y2,m2] = curMonth.split('-').map(Number)
-                    const dow = new Date(y2,m2-1,+dd).getDay()
-                    const dowLabel = DAYS_KR[dow]
-                    const colors = getHourColor(h)
-                    return(
-                      <tr key={dd}>
-                        <td style={{padding:'10px 14px',borderBottom:'1px solid #DCD7CE',color:'#1D1B18',fontFamily:'inherit',fontVariantNumeric:'tabular-nums'}}>{+dd}일</td>
-                        <td style={{padding:'10px 14px',borderBottom:'1px solid #DCD7CE',
-                          color:dow===0?'#B42318':dow===6?'#2B5C9E':'#6E6A63',fontWeight:600}}>{dowLabel}</td>
-                        <td style={{padding:'10px 14px',borderBottom:'1px solid #DCD7CE',textAlign:'right'}}>
-                          <span style={{background:colors?.bg,color:colors?.text,fontFamily:'inherit',fontVariantNumeric:'tabular-nums',
-                            fontWeight:700,padding:'3px 10px',borderRadius:20,fontSize:12}}>
-                            {h}h{ex>0?` ${ex}m`:''}
-                          </span>
-                        </td>
-                        <td style={{padding:'10px 14px',borderBottom:'1px solid #DCD7CE',textAlign:'right',
-                          fontFamily:'inherit',fontVariantNumeric:'tabular-nums',color:'#C3261C',fontWeight:700}}>
-                          {Math.round(totalDayH*wage).toLocaleString()}원
-                        </td>
-                      </tr>
-                    )
-                  })}
-                </tbody>
-                <tfoot>
-                  <tr style={{background:'#ECE8E1'}}>
-                    <td colSpan={2} style={{padding:'10px 14px',fontWeight:700,color:'#C3261C'}}>합 계</td>
-                    <td style={{padding:'10px 14px',textAlign:'right',fontWeight:700,color:'#C3261C',fontFamily:'inherit',fontVariantNumeric:'tabular-nums'}}>{totalHours}h{totalMins>0?` ${totalMins}m`:''}</td>
-                    <td style={{padding:'10px 14px',textAlign:'right',fontWeight:700,color:'#C3261C',fontFamily:'inherit',fontVariantNumeric:'tabular-nums'}}>{totalWage.toLocaleString()}원</td>
-                  </tr>
-                </tfoot>
-              </table>
-            </div>
-          )}
+          {/* 날짜별 근무시간·일급은 직원에게 안 보여 줌 (월 합계만 위 요약에) */}
 
           {workDays.length === 0 && (
             <div style={{background:'#FFFFFF',border:'1px solid #DCD7CE',borderRadius:6,padding:40,textAlign:'center',color:'#6E6A63'}}>

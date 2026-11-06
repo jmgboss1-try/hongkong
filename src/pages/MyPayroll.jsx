@@ -2,12 +2,13 @@ import { useEffect, useState } from 'react'
 import { db } from '../firebase'
 import { doc, getDoc, setDoc } from 'firebase/firestore'
 import { useAuth } from '../AuthContext'
+import WageStatements from '../components/WageStatements'
 
 const pad = n => String(n).padStart(2,'0')
 const mLabel = ym => { const[y,m]=ym.split('-'); return `${y}년 ${+m}월` }
 
 export default function MyPayroll() {
-  const { user } = useAuth()
+  const { user, userData } = useAuth()
   const [curMonth, setCurMonth] = useState(()=>{
     const now=new Date(); return `${now.getFullYear()}-${pad(now.getMonth()+1)}`
   })
@@ -291,6 +292,8 @@ export default function MyPayroll() {
           )}
         </>
       )}
+      {/* 확정된 달의 임금명세서가 차곡차곡 쌓임 */}
+      <WageStatements uid={user?.uid} userData={userData}/>
     </div>
   )
 }
