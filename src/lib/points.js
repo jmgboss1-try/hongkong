@@ -12,7 +12,7 @@ import { doc, getDoc } from 'firebase/firestore'
 import { loadMonthContext, monthStatus, pad } from './attendance'
 
 export const DEFAULT_POINT_CONFIG = {
-  start: '2026-12', monthly: 100, boost: 20, late: 10, absent: 10, streakExtra: 10,
+  start: '2026-10', monthly: 100, boost: 20, late: 10, absent: 10, streakExtra: 10,
   prizes: '30포인트, 20포인트, 10포인트, 꽝',
 }
 export async function loadPointConfig() {
