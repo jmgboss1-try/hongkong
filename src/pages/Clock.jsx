@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { db } from '../firebase'
 import { doc, getDoc, setDoc, deleteField, serverTimestamp } from 'firebase/firestore'
 import { useAuth } from '../AuthContext'
-import { DEFAULT_RADIUS, ymOf, ddOf, hm, toDate, planFor, breakForShift, calcRecord, applyRecord, distanceM, getPosition, minsLabel } from '../lib/attendance'
+import { DEFAULT_RADIUS, ymOf, ddOf, hm, toDate, planFor, breakForShift, calcRecord, applyRecord, distanceM, getPosition } from '../lib/attendance'
 
 const DAYS_KR = ['일','월','화','수','목','금','토']
 const T = { ink:'#1D1B18', sub:'#6E6A63', rule:'#DCD7CE', accent:'#C3261C', red:'#B42318', green:'#2E7D45', blue:'#2B5C9E', amber:'#B45309' }
@@ -175,7 +175,6 @@ export default function Clock() {
           ...(r.breakStart && !r.noBreak ? [['브레이크', `${r.breakStart} ~ ${r.breakEnd} (근무시간에서 빠져요)`]] : []),
           ['출근', hm(inD)],
           ['퇴근', outD ? hm(outD) : '—'],
-          ...(c ? [['인정 시간', minsLabel(c.total)]] : []),
         ].map(([k,v])=>(
           <div key={k} style={{display:'flex', justifyContent:'space-between', padding:'10px 0', borderBottom:`1px solid ${T.rule}`, fontSize:16}}>
             <span style={{color:T.sub}}>{k}</span><b style={{fontVariantNumeric:'tabular-nums'}}>{v}</b>
@@ -191,10 +190,9 @@ export default function Clock() {
       {(result.kind === 'in' || result.kind === 'soon') && !r.schedStart && (
         <div style={{marginTop:14, fontSize:14, color:T.amber, lineHeight:1.6}}>오늘은 예정된 근무가 없는 날이에요. 오늘 근무는 사장님이 승인하면 급여에 들어가요.</div>
       )}
-      {c?.pending && (
-        <div style={{marginTop:14, fontSize:14, color:T.amber, lineHeight:1.6}}>
-          {[c.early && r.earlyOk == null && `일찍 온 ${minsLabel(c.early)}`, c.unsched && r.unschedOk == null && `예정 없는 날 근무 ${minsLabel(c.unsched)}`].filter(Boolean).join(', ')}은 사장님 승인 후 급여에 들어가요.
-        </div>
+      {/* 인정 시간·일찍 온 시간 승인 여부는 직원 화면에 안 보여 줌. 예정 없는 날 근무만 안내 */}
+      {c?.unsched > 0 && r.unschedOk == null && (
+        <div style={{marginTop:14, fontSize:14, color:T.amber, lineHeight:1.6}}>오늘은 예정 없는 날 근무라 사장님 승인 후 급여에 들어가요.</div>
       )}
 
       {result.kind === 'soon' && (
