@@ -16,7 +16,7 @@ const num = { fontVariantNumeric:'tabular-nums' }
 const won = n => Math.round(n || 0).toLocaleString('ko-KR')
 const pad = n => String(n).padStart(2, '0')
 const OWNER = '__owner'
-const DEFAULT_BIZ = { name:'홍콩반점 중앙대점', bizNo:'', ceo:'정민규', address:'' }
+const DEFAULT_BIZ = { name:'홍콩반점 중앙대점', bizNo:'', ceo:'', address:'' }  // 대표자는 사업자등록증에 있는 이름으로 직접 넣음
 const btn = primary => ({ fontFamily:'inherit', fontSize:13, fontWeight:700, padding:'6px 12px', borderRadius:4, cursor:'pointer',
   border: primary ? 'none' : `1px solid ${T.rule}`, background: primary ? T.accent : '#FFFFFF', color: primary ? '#FFFFFF' : T.ink })
 const input = { fontFamily:'inherit', fontSize:13, padding:'5px 8px', borderRadius:4, border:`1px solid ${T.rule}`, background:'#FFFFFF', color:T.ink, boxSizing:'border-box', width:'100%' }
