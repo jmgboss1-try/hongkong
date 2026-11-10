@@ -49,12 +49,7 @@ export default function WageStatements({ uid, userData }) {
   if (!list) return null
   return (
     <section style={{marginTop:24}}>
-      <style>{`@media print {
-        body * { visibility: hidden !important; }
-        #wage-statement-print, #wage-statement-print * { visibility: visible !important; }
-        #wage-statement-print { position: absolute; left: 0; top: 0; width: 100%; }
-        .ws-noprint { display: none !important; }
-      }`}</style>
+      <style>{STATEMENT_PRINT_CSS}</style>
       <div style={{borderBottom:`2px solid ${T.ink}`, paddingBottom:6, marginBottom:6, display:'flex', alignItems:'baseline', gap:10, flexWrap:'wrap'}}>
         <h2 style={{fontSize:16, fontWeight:800, margin:0, fontFamily:'inherit', color:T.ink}}>임금명세서</h2>
         <span style={{fontSize:12, color:T.sub}}>사장님이 급여를 확정한 달은 여기에 자동으로 쌓여요</span>
@@ -77,7 +72,16 @@ export default function WageStatements({ uid, userData }) {
   )
 }
 
-function Statement({ r, userData, ssn }) {
+// 인쇄할 때 명세서만 보이게
+export const STATEMENT_PRINT_CSS = `@media print {
+  body * { visibility: hidden !important; }
+  #wage-statement-print, #wage-statement-print * { visibility: visible !important; }
+  #wage-statement-print { position: absolute; left: 0; top: 0; width: 100%; }
+  .ws-noprint { display: none !important; }
+}`
+
+// r = { ym, p, bonuses, days }. 사장님 본인 명세서(급여관리)도 이걸로 그림: days 가 null 이면 근로일수 '—'
+export function Statement({ r, userData, ssn }) {
   const { ym, p, bonuses, days } = r
   const d = p.deduction || {}
   const bonusTotal = bonuses.reduce((a, b) => a + (+b.amount || 0), 0)
@@ -115,7 +119,7 @@ function Statement({ r, userData, ssn }) {
       {row('임금 지급일', p.paid ? (p.paidAt?.slice(0, 10) || '지급함') : '지급 전', { last:true })}
 
       {head('근로 시간')}
-      {row('근로일수', `${days}일`)}
+      {row('근로일수', days == null ? '—' : `${days}일`)}
       {row('총 근로시간', p.isFixed ? '월급제' : hours, { last:true })}
 
       {head('지급 항목')}
@@ -127,7 +131,7 @@ function Statement({ r, userData, ssn }) {
       {row('지급 총액', won(gross), { bold:true, last:true })}
 
       {head('공제 항목')}
-      {deductions.length === 0 && row('공제', '없음')}
+      {deductions.length === 0 && row('공제', dedTotal > 0 ? won(dedTotal) : '없음')}
       {deductions.map(([k, v]) => <div key={k}>{row(k, won(v), { note: k === '소득세' || k === '지방소득세' ? '사업소득 원천징수 3.3% (상여 제외)' : undefined })}</div>)}
       {row('공제 총액', won(dedTotal), { bold:true, last:true })}
 
@@ -135,7 +139,7 @@ function Statement({ r, userData, ssn }) {
         <span>실지급액</span><span style={{flex:1}}/><span style={{...num, color:T.accent}}>{won(gross - dedTotal)}</span>
       </div>
       <div style={{fontSize:11, color:T.sub, marginTop:8, lineHeight:1.6}}>
-        확정일 {p.confirmedAt?.slice(0, 10) || ''}
+        {p.confirmedAt ? `확정일 ${p.confirmedAt.slice(0, 10)}` : ''}
       </div>
       <div className="ws-noprint" style={{marginTop:12}}>
         <button type="button" onClick={()=>window.print()}

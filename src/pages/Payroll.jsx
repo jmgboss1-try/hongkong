@@ -3,6 +3,8 @@ import { db } from '../firebase'
 import { doc, getDoc, setDoc, collection, getDocs } from 'firebase/firestore'
 import { withSubMemos, loadSubs } from '../lib/attendance'
 import { loadPrivateMap, syncPayslipsQuiet } from '../lib/privateInfo'
+import { Statement, STATEMENT_PRINT_CSS } from '../components/WageStatements'
+import { useAuth } from '../AuthContext'
 
 const pad = n => String(n).padStart(2,'0')
 const daysIn = ym => { const[y,m]=ym.split('-').map(Number); return new Date(y,m,0).getDate() }
@@ -414,6 +416,8 @@ export default function Payroll() {
   const [replyText, setReplyText]         = useState('')
   const [saving, setSaving]               = useState(false)
   const [showTaxReport, setShowTaxReport] = useState(false)
+  const [showMyStatement, setShowMyStatement] = useState(false) // 사장님 본인 임금명세서
+  const { userData: me } = useAuth()
   const [ownerConfig, setOwnerConfig]     = useState({ ssn:'', salary:0, deduction:0 })
   const [ownerConfigFrom, setOwnerConfigFrom] = useState(null) // 설정을 불러온 월 (이번 달에 없으면 가장 최근 달)
   const [severance, setSeverance]         = useState({}) // {uid:{amount,tax,net,paidDate}}
@@ -796,6 +800,11 @@ if(!isActive && !isRetired) return
             style={{background:'#F3F1EC',border:'1px solid #DCD7CE',color:'#1D1B18',borderRadius:4,
               padding:'8px 14px',fontSize:12,cursor:'pointer',fontFamily:'inherit'}}>
             세무 보고서
+          </button>
+          <button onClick={()=>setShowMyStatement(true)}
+            style={{background:'#F3F1EC',border:'1px solid #DCD7CE',color:'#1D1B18',borderRadius:4,
+              padding:'8px 14px',fontSize:12,cursor:'pointer',fontFamily:'inherit'}}>
+            내 임금명세서
           </button>
           <button onClick={confirmAll} disabled={saving}
             style={{background:'#C3261C',color:'#FFFFFF',border:'none',borderRadius:4,
@@ -1227,6 +1236,33 @@ if(!isActive && !isRetired) return
       )}
 
       {/* 세무 보고서 모달 */}
+      {/* 사장님 본인 임금명세서: 세무 보고서의 '급여 설정'(payrollOwner, 다음 달로 이어짐)으로 이 달 명세서 */}
+      {showMyStatement && (
+        <div onClick={()=>setShowMyStatement(false)} style={{position:'fixed', inset:0, background:'rgba(29,27,24,.45)', zIndex:1000, overflowY:'auto', padding:'24px 12px'}}>
+          <style>{STATEMENT_PRINT_CSS}</style>
+          <div onClick={e=>e.stopPropagation()} style={{maxWidth:560, margin:'0 auto', background:'#FAF9F6', borderRadius:6, padding:'14px 16px'}}>
+            <div className="ws-noprint" style={{display:'flex', alignItems:'center', gap:8, marginBottom:6}}>
+              <b style={{fontSize:15}}>내 임금명세서 · {mLabel(curMonth)}</b>
+              <span style={{flex:1}}/>
+              <button type="button" onClick={()=>setShowMyStatement(false)} style={{fontFamily:'inherit', fontSize:13, padding:'5px 12px', borderRadius:4, border:'1px solid #DCD7CE', background:'#FFFFFF', cursor:'pointer'}}>닫기</button>
+            </div>
+            {(ownerConfig.salary || 0) > 0 ? (
+              <Statement
+                r={{ ym: curMonth, days: null, bonuses: [],
+                  p: { isFixed:true, basePay:ownerConfig.salary, totalPay:ownerConfig.salary, netPay:ownerConfig.salary - (ownerConfig.deduction||0),
+                    deduction:{ total: ownerConfig.deduction || 0 }, paid:true } }}
+                userData={{ name: '정민규', joinDate: me?.joinDate }} ssn={ownerConfig.ssn || ''}/>
+            ) : (
+              <div style={{fontSize:13, color:'#6E6A63', padding:'16px 0', lineHeight:1.7}}>
+                {mLabel(curMonth)}에 적용된 급여 설정이 없어요. 세무 보고서 → 정민규 급여 설정에서 급여·공제를 넣고 적용하면 여기에 명세서가 나와요.
+              </div>
+            )}
+            <div className="ws-noprint" style={{fontSize:12, color:'#6E6A63', marginTop:6, lineHeight:1.6}}>
+              세무 보고서의 '정민규 급여 설정' 값으로 만들어요{ownerConfigFrom && ownerConfigFrom !== curMonth ? ` (${mLabel(ownerConfigFrom)}에 적용한 값이 이어진 것)` : ''}. 다른 달은 위에서 달을 바꾸고 다시 열어 주세요.
+            </div>
+          </div>
+        </div>
+      )}
       {showTaxReport && (
         <TaxReportModal
   month={curMonth}
