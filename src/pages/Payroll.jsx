@@ -5,7 +5,7 @@ import { withSubMemos, loadSubs } from '../lib/attendance'
 import { loadPrivateMap, syncPayslipsQuiet } from '../lib/privateInfo'
 import { Statement, STATEMENT_PRINT_CSS } from '../components/WageStatements'
 import { useAuth } from '../AuthContext'
-import { calcDeduction } from '../lib/payDeduction'
+import { calcDeduction, insuranceFor } from '../lib/payDeduction'
 import WithholdingReceipt from '../components/WithholdingReceipt'
 import { useBizInfo } from '../lib/bizInfo'
 
@@ -47,7 +47,7 @@ function computeSalary(emp, wh, ex, empMemos, prevWh, prevEx, prevEmpMemos, curM
   // 고정급 직원 처리
   if (emp.payType === 'fixed') {
     const totalPay = emp.fixedSalary || 0
-    const deduction = calcDeduction(totalPay, emp.employType || 'part')
+    const deduction = calcDeduction(totalPay, emp.employType || 'part', insuranceFor(emp.insuranceHistory, curMonth))
     const netPay = totalPay - deduction.total
     return { basePay: totalPay, weeklyHoliday: 0, totalPay, netPay, deduction,
              totalHours: 0, totalMins: 0, wage: 0, isFixed: true }
@@ -95,7 +95,7 @@ function computeSalary(emp, wh, ex, empMemos, prevWh, prevEx, prevEmpMemos, curM
   const totalH = totalHours + totalMins/60
   const basePay = Math.round(totalH * wage)
   const totalPay = basePay + totalWeeklyHoliday
-  const deduction = calcDeduction(totalPay, emp.employType||'part')
+  const deduction = calcDeduction(totalPay, emp.employType||'part', insuranceFor(emp.insuranceHistory, curMonth))
   const netPay = totalPay - deduction.total
   return { basePay, weeklyHoliday: totalWeeklyHoliday, totalPay, netPay, deduction, totalHours, totalMins, wage }
 }
@@ -474,7 +474,7 @@ if(!isActive && !isRetired) return
             avgHours:data.avgHours||8, employType:data.employType||'part',
             holidayBase:data.holidayBase||'contract',
             scheduleHistory:data.scheduleHistory||[],
-            payType:data.payType||'hourly', fixedSalary:data.fixedSalary||0,
+            payType:data.payType||'hourly', fixedSalary:data.fixedSalary||0, insuranceHistory:data.insuranceHistory||[],
             isRetired, leaveDate:data.leaveDate||null})
         if(data.ssn) ssnData[d.id] = data.ssn
       })
@@ -715,7 +715,7 @@ if(!isActive && !isRetired) return
     const advPaid = advanceListOf(emp.uid).filter(r=>!r.carryFrom).reduce((a,r)=>a+(r.amount||0),0)
     const bonusTotal = bonusTotalOf(emp.uid)
     const grossWithBonus = (display.totalPay||0) + bonusTotal
-    const deductionWithBonus = bonusTotal>0 ? calcDeduction(grossWithBonus, emp.employType||'part') : display.deduction
+    const deductionWithBonus = bonusTotal>0 ? calcDeduction(grossWithBonus, emp.employType||'part', insuranceFor(emp.insuranceHistory, curMonth)) : display.deduction
     const netWithBonus = grossWithBonus - (deductionWithBonus?.total||0)
     const finalPay = (bonusTotal>0 ? netWithBonus : (display.netPay||display.totalPay||0)) - advTotal
     const carriedOut = p?.carriedOut || 0

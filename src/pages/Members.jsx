@@ -6,6 +6,7 @@ import { db, auth } from '../firebase'
 import { collection, getDocs, getDoc, doc, setDoc } from 'firebase/firestore'
 import { GradeBadge } from '../AuthContext'
 import { loadPrivateMap, withPrivate, saveUser } from '../lib/privateInfo'
+import { insuranceFor } from '../lib/payDeduction'
 
 function calcTenure(joinDate, leaveDate) {
   if (!joinDate) return '—'
@@ -286,6 +287,17 @@ export default function Members() {
       newHistory.push({ month: thisMonth, wage: newWage })
       newHistory.sort((a,b) => a.month > b.month ? 1 : -1)
 
+      // ── 4대보험 금액 이력 (정직원): 공단 고지서 금액. 바뀐 경우만 '적용 시작 달'에 한 줄 남김 ──
+      const KEYS = ['pension','health','care','employ']
+      let newInsHistory = existingData.insuranceHistory || []
+      if ((form.employType||'part') === 'full') {
+        const from = form.insFrom || thisMonth
+        const cur = insuranceFor(newInsHistory, from) || {}
+        const next = Object.fromEntries(KEYS.map(k => [k, Math.max(0, Math.round(+form['ins_'+k] || 0))]))
+        if (KEYS.some(k => (+cur[k]||0) !== next[k]))
+          newInsHistory = [...newInsHistory.filter(h => h.month !== from), { month: from, ...next }].sort((a,b) => a.month > b.month ? 1 : -1)
+      }
+
       // ── 근무스케쥴(소정근로일/평균근무시간) 이력 — 시급 이력과 동일한 패턴 ──
       const existingScheduleHistory = existingData.scheduleHistory || []
       const oldWorkDays = existingData.workDays || [1,2,3,4,5]
@@ -315,6 +327,7 @@ export default function Members() {
         workDays: newWorkDays,
         holidayBase: form.holidayBase || 'contract',
         employType: form.employType || 'part',
+        insuranceHistory: newInsHistory,
         payType: form.payType || 'hourly',
         fixedSalary: +form.fixedSalary || 0,
         wageHistory: newHistory,
@@ -393,7 +406,10 @@ export default function Members() {
   }
 
   function editMember(m) {
-    setForm({...m, workDays: Array.isArray(m.workDays) ? m.workDays : [1,2,3,4,5]})
+    const now = new Date(), ym = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`
+    const ins = insuranceFor(m.insuranceHistory, ym) || {}
+    setForm({...m, workDays: Array.isArray(m.workDays) ? m.workDays : [1,2,3,4,5], insFrom: ym,
+      ins_pension: ins.pension || '', ins_health: ins.health || '', ins_care: ins.care || '', ins_employ: ins.employ || ''})
     setShowForm(true)
     window.scrollTo({top:0,behavior:'smooth'})
   }
@@ -787,6 +803,31 @@ export default function Members() {
               })}
             </div>
           </div>
+
+          {/* 4대보험 금액 (정직원): 공단 고지서에 나온 근로자 부담분. 넣으면 급여에서 이 금액을 그대로 뗌 */}
+          {(form.employType||'part') === 'full' && (
+            <div style={{padding:'0 18px 14px'}}>
+              <label style={{fontSize:10,color:'#6E6A63',fontWeight:600,display:'block',marginBottom:6}}>4대보험 금액 (고지서의 근로자 부담분, 월)</label>
+              <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit, minmax(120px, 1fr))',gap:8}}>
+                {[['pension','국민연금'],['health','건강보험'],['care','장기요양'],['employ','고용보험']].map(([k,l]) => (
+                  <label key={k} style={{fontSize:11,color:'#6E6A63'}}>{l}
+                    <input type="text" inputMode="numeric" placeholder="0" value={form['ins_'+k] === '' || form['ins_'+k] == null ? '' : (+form['ins_'+k]).toLocaleString('ko-KR')}
+                      onChange={e=>setF('ins_'+k, e.target.value.replace(/[^0-9]/g,''))}
+                      style={{display:'block',width:'100%',boxSizing:'border-box',marginTop:3,background:'#FFFFFF',border:'1px solid #DCD7CE',borderRadius:4,padding:'7px 9px',fontSize:13,fontFamily:'inherit',textAlign:'right',fontVariantNumeric:'tabular-nums'}}/>
+                  </label>
+                ))}
+                <label style={{fontSize:11,color:'#6E6A63'}}>적용 시작 달
+                  <input type="month" value={form.insFrom || ''} onChange={e=>setF('insFrom', e.target.value)}
+                    style={{display:'block',width:'100%',boxSizing:'border-box',marginTop:3,background:'#FFFFFF',border:'1px solid #DCD7CE',borderRadius:4,padding:'6px 8px',fontSize:13,fontFamily:'inherit'}}/>
+                </label>
+              </div>
+              <div style={{fontSize:11,color:'#6E6A63',marginTop:6,lineHeight:1.6}}>
+                합계 {['pension','health','care','employ'].reduce((a,k)=>a+(+form['ins_'+k]||0),0).toLocaleString('ko-KR')}원.
+                넣으면 '적용 시작 달'부터 매달 이 금액을 그대로 떼고, 금액이 바뀌면 새 달로 다시 넣으면 돼요 (예전 달은 그대로).
+                모두 비워 두면 예전처럼 급여 × 비율로 계산해요.
+              </div>
+            </div>
+          )}
 
           <div style={{padding:'0 18px 18px',display:'flex',gap:8}}>
             <button onClick={save} disabled={saving}

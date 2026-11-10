@@ -8,7 +8,7 @@
 import { db } from '../firebase'
 import { collection, deleteField, doc, FieldPath, getDoc, getDocs, setDoc, updateDoc, writeBatch } from 'firebase/firestore'
 
-export const PRIVATE_FIELDS = ['ssn', 'account', 'phone', 'wage', 'wageHistory', 'fixedSalary']
+export const PRIVATE_FIELDS = ['ssn', 'account', 'phone', 'wage', 'wageHistory', 'fixedSalary', 'insuranceHistory']
 
 // 사장님 화면: users 목록에 개인 정보 합치기
 export async function loadPrivateMap() {

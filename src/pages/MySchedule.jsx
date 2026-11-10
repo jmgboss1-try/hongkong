@@ -6,7 +6,7 @@ import MyAttendance from '../components/MyAttendance'
 import MyRewardSpin from '../components/MyRewardSpin'
 import AvatarEditor from '../components/AvatarEditor'
 import { loadMyPayslip, loadMyPrivate, writeMyPayFields } from '../lib/privateInfo'
-import { calcDeduction } from '../lib/payDeduction'
+import { calcDeduction, insuranceFor } from '../lib/payDeduction'
 
 const pad = n => String(n).padStart(2,'0')
 const daysIn = ym => { const[y,m]=ym.split('-').map(Number); return new Date(y,m,0).getDate() }
@@ -29,6 +29,7 @@ export default function MySchedule() {
   const [events, setEvents] = useState({})
   const [wage, setWage] = useState(10030)
 const [employType, setEmployType] = useState('part')
+const [insHistory, setInsHistory] = useState([])   // 4대보험 고지 금액 이력 (내 개인 문서)
   const [payroll, setPayroll] = useState(null)
   const [loading, setLoading] = useState(true)
 
@@ -54,6 +55,7 @@ const [employType, setEmployType] = useState('part')
         ])
         if(userSnap.exists()) {
           setWage(priv.wage||10030)
+          setInsHistory(priv.insuranceHistory||[])
           setEmployType(userSnap.data().employType||'part')
         }
         setWorkHours((whSnap.exists() ? whSnap.data() : {})[user.uid] || {})
@@ -95,7 +97,7 @@ const [employType, setEmployType] = useState('part')
   }
 
   const totalPay = totalWage + weeklyHoliday
-  const deduction = calcDeduction(totalPay, employType)
+  const deduction = calcDeduction(totalPay, employType, insuranceFor(insHistory, curMonth))
   const netPay = totalPay - deduction.total
 
   // 근무 강도에 따른 색상

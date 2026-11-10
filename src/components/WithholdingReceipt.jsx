@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { db } from '../firebase'
 import { collection, doc, getDoc, getDocs } from 'firebase/firestore'
 import { loadPrivateMap } from '../lib/privateInfo'
-import { calcDeduction, deductionKind, splitTax } from '../lib/payDeduction'
+import { calcDeduction, deductionKind, splitTax, insuranceFor } from '../lib/payDeduction'
 import { STATEMENT_PRINT_CSS } from './WageStatements'
 import { DEFAULT_BIZ, loadBizInfo, saveBizInfo } from '../lib/bizInfo'
 
@@ -39,7 +39,7 @@ export default function WithholdingReceipt({ defaultYear, onClose }) {
       .then(([us, priv, po, bz]) => {
         if (off) return
         const list = []
-        us.forEach(d => { const u = d.data(); if (u.role !== 'owner' && u.role !== 'store' && u.role !== 'investor' && u.name) list.push({ uid:d.id, name:u.name, ssn: priv[d.id]?.ssn || u.ssn || '' }) })
+        us.forEach(d => { const u = d.data(); if (u.role !== 'owner' && u.role !== 'store' && u.role !== 'investor' && u.name) list.push({ uid:d.id, name:u.name, ssn: priv[d.id]?.ssn || u.ssn || '', ins: priv[d.id]?.insuranceHistory || [] }) })
         list.sort((a, b) => String(a.name).localeCompare(String(b.name), 'ko'))
         setPeople(list)
         setOwnerCfgs(po.docs.filter(d => /^\d{4}-\d{2}$/.test(d.id)).map(d => ({ id:d.id, ...d.data() })).sort((a, b) => a.id < b.id ? -1 : 1))
@@ -79,7 +79,7 @@ export default function WithholdingReceipt({ defaultYear, onClose }) {
       const kind = deductionKind(p.deduction)
       const pay = +p.totalPay || 0
       // 실제로 뗀 공제: 상여가 있으면 급여+상여에 같은 방식으로 다시 계산 (급여관리와 같음)
-      const d = bonus > 0 && kind !== 'none' ? calcDeduction(pay + bonus, kind) : (p.deduction || {})
+      const d = bonus > 0 && kind !== 'none' ? calcDeduction(pay + bonus, kind, insuranceFor(people.find(x => x.uid === who)?.ins, ym)) : (p.deduction || {})
       const t = splitTax(d.tax || 0, pay + (bonus > 0 ? bonus : 0))
       rows.push({ ym, kind, pay, bonus, pension:d.pension||0, health:d.health||0, care:d.care||0, employ:d.employ||0, income:t.income, local:t.local, other:0 })
     }
