@@ -20,7 +20,8 @@ export default function Clock() {
   const [me, setMe] = useState(null)        // 내 users 문서 (아바타·대사용)
   const started = useRef(false)
 
-  const staffOk = user && userData && !isStore && !isInvestor && (isOwner || !['pending','rejected','retired'].includes(userData.status))
+  // 사장님은 출퇴근을 기록하지 않음 (월급제, 근무관리·스케쥴에도 안 나옴)
+  const staffOk = user && userData && !isStore && !isInvestor && !isOwner && !['pending','rejected','retired'].includes(userData.status)
 
   async function readRec(ym, dd) {
     const s = await getDoc(doc(db,'attendance',ym))
@@ -143,7 +144,7 @@ export default function Clock() {
   if (!userData) return wrap(<div style={{color:T.sub}}>불러오는 중...</div>)
   if (!staffOk) return wrap(
     <div style={{fontSize:15, lineHeight:1.7}}>
-      {isStore || isInvestor ? '직원 본인 계정으로 로그인해야 출퇴근을 찍을 수 있어요.' : '아직 가입 승인이 안 됐어요. 사장님께 승인을 요청해 주세요.'}
+      {isOwner ? '사장님은 출퇴근을 찍지 않아도 돼요. 기록은 남기지 않았어요.' : isStore || isInvestor ? '직원 본인 계정으로 로그인해야 출퇴근을 찍을 수 있어요.' : '아직 가입 승인이 안 됐어요. 사장님께 승인을 요청해 주세요.'}
     </div>
   )
   if (phase === 'working') return wrap(<div style={{fontSize:16, color:T.sub, padding:'30px 0'}}>{msg}</div>)

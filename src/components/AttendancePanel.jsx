@@ -57,6 +57,10 @@ export default function AttendancePanel({ curMonth, nameMap, onApplied }) {
         opt(getDoc(doc(db,'checklist','holidays'))), opt(getDoc(doc(db,'substitutes','requests'))), opt(getDoc(doc(db,'rewards',curMonth))), opt(getDoc(doc(db,'schedule',curMonth))),
       ])
       let a = aSnap.exists() ? aSnap.data() : {}
+      // 사장님·매장계정·투자자 기록은 근무관리에서 빼고 근무시간에도 반영하지 않음 (사장님이 출퇴근 화면을 열었던 기록 등)
+      const skip = new Set()
+      uSnap.forEach(d => { if (['owner','store','investor'].includes(d.data().role)) skip.add(d.id) })
+      a = Object.fromEntries(Object.entries(a).filter(([uid]) => !skip.has(uid)))
       setCfg(cSnap.exists() ? cSnap.data() : null)
       const list = []
       uSnap.forEach(d => { const u = d.data(); if (u.status==='approved' && !['owner','store','investor'].includes(u.role)) list.push({ uid:d.id, ...u }) })
@@ -70,7 +74,7 @@ export default function AttendancePanel({ curMonth, nameMap, onApplied }) {
           if (c && c.total !== rec.appliedMins) { await applyRecord(curMonth, uid, dd, rec); changed = true }
         }
         if (changed) {
-          const s = await getDoc(doc(db,'attendance',curMonth)); a = s.exists() ? s.data() : {}
+          const s = await getDoc(doc(db,'attendance',curMonth)); a = Object.fromEntries(Object.entries(s.exists() ? s.data() : {}).filter(([uid]) => !skip.has(uid)))
           onApplied?.()
         }
       }
