@@ -87,8 +87,9 @@ export function Statement({ r, userData, ssn }) {
   const bonusTotal = bonuses.reduce((a, b) => a + (+b.amount || 0), 0)
   const gross = (p.totalPay || 0) + bonusTotal
   // 3.3%는 소득세 3% + 지방소득세 0.3%로 나눠 적음
-  const incomeTax = d.tax ? Math.round((p.totalPay || 0) * 0.03) : 0
-  const localTax = d.tax ? d.tax - incomeTax : 0
+  // 사장님 명세서처럼 소득세·지방소득세를 따로 적어 둔 경우는 그 값, 아니면 3.3%를 3% / 0.3%로 나눔
+  const incomeTax = d.incomeTax ?? (d.tax ? Math.round((p.totalPay || 0) * 0.03) : 0)
+  const localTax = d.localTax ?? (d.tax ? d.tax - incomeTax : 0)
   const deductions = [
     ['소득세', incomeTax], ['지방소득세', localTax], ['국민연금', d.pension], ['건강보험', d.health], ['장기요양보험', d.care], ['고용보험', d.employ],
   ].filter(([, v]) => v > 0)
@@ -132,7 +133,7 @@ export function Statement({ r, userData, ssn }) {
 
       {head('공제 항목')}
       {deductions.length === 0 && row('공제', dedTotal > 0 ? won(dedTotal) : '없음')}
-      {deductions.map(([k, v]) => <div key={k}>{row(k, won(v), { note: k === '소득세' || k === '지방소득세' ? '사업소득 원천징수 3.3% (상여 제외)' : undefined })}</div>)}
+      {deductions.map(([k, v]) => <div key={k}>{row(k, won(v), { note: d.tax && (k === '소득세' || k === '지방소득세') ? '사업소득 원천징수 3.3% (상여 제외)' : undefined })}</div>)}
       {row('공제 총액', won(dedTotal), { bold:true, last:true })}
 
       <div style={{display:'flex', alignItems:'baseline', marginTop:12, paddingTop:8, borderTop:`3px double ${T.ink}`, fontSize:15, fontWeight:900}}>

@@ -5,6 +5,8 @@ import { withSubMemos, loadSubs } from '../lib/attendance'
 import { loadPrivateMap, syncPayslipsQuiet } from '../lib/privateInfo'
 import { Statement, STATEMENT_PRINT_CSS } from '../components/WageStatements'
 import { useAuth } from '../AuthContext'
+import { calcDeduction } from '../lib/payDeduction'
+import WithholdingReceipt from '../components/WithholdingReceipt'
 
 const pad = n => String(n).padStart(2,'0')
 const daysIn = ym => { const[y,m]=ym.split('-').map(Number); return new Date(y,m,0).getDate() }
@@ -30,19 +32,6 @@ function getScheduleForMonth(emp, month) {
     : { workDays: emp.workDays || [1,2,3,4,5], avgHours: emp.avgHours || 8 }
 }
 
-function calcDeduction(totalPay, employType) {
-  if(employType === 'none') return { tax:0, pension:0, health:0, employ:0, care:0, total:0 }
-  if(employType === 'part') {
-    const tax = Math.round(totalPay * 0.033)
-    return { tax, pension:0, health:0, employ:0, care:0, total:tax }
-  }
-  const pension = Math.round(totalPay * 0.045)
-  const health  = Math.round(totalPay * 0.03545)
-  const employ  = Math.round(totalPay * 0.009)
-  const care    = Math.round(health   * 0.1295)
-  const total   = pension + health + employ + care
-  return { tax:0, pension, health, employ, care, total }
-}
 
 function calcWeeklyHoliday(weekHours, wage, workDays, weekAttendance, weekMemos, holidayHours) {
   if(weekHours < 15) return 0
@@ -251,6 +240,8 @@ useEffect(() => {
                 ['주민등록번호','text','ssn'],
                 ['급여 (원)','number','salary'],
                 ['공제합계 (원)','number','deduction'],
+                ['국민연금','number','pension'], ['건강보험','number','health'], ['장기요양','number','care'],
+                ['고용보험','number','employ'], ['소득세','number','incomeTax'], ['지방소득세','number','localTax'],
               ].map(([label,type,key])=>(
                 <div key={key}>
                   <label style={{fontSize:10,color:'#555',display:'block',marginBottom:3}}>{label}</label>
@@ -261,10 +252,14 @@ useEffect(() => {
                 </div>
               ))}
             </div>
+            <div style={{fontSize:11,color:'#555',marginTop:6}}>국민연금~지방소득세를 적으면 공제합계는 그 합으로 자동으로 맞춰지고, 원천징수영수증에 항목별로 나와요 (안 적으면 공제합계만 써요)</div>
             <div style={{marginTop:10,display:'flex',gap:8,alignItems:'center'}}>
               <button onClick={async ()=>{
-  setOwnerConfig(editOwner)
-  await setDoc(doc(db,'payrollOwner', curMonth), editOwner)
+  const parts = ['pension','health','care','employ','incomeTax','localTax'].reduce((a,k)=>a+(+editOwner[k]||0),0)
+  const cfg = parts > 0 ? { ...editOwner, deduction: parts } : editOwner
+  setEditOwner(cfg)
+  setOwnerConfig(cfg)
+  await setDoc(doc(db,'payrollOwner', curMonth), cfg)
   setOwnerConfigFrom(curMonth)
   setShowOwnerConfig(false)
 }}
@@ -417,6 +412,7 @@ export default function Payroll() {
   const [saving, setSaving]               = useState(false)
   const [showTaxReport, setShowTaxReport] = useState(false)
   const [showMyStatement, setShowMyStatement] = useState(false) // 사장님 본인 임금명세서
+  const [showWithholding, setShowWithholding] = useState(false) // 원천징수영수증 (사장님·직원, 연도별)
   const { userData: me } = useAuth()
   const [ownerConfig, setOwnerConfig]     = useState({ ssn:'', salary:0, deduction:0 })
   const [ownerConfigFrom, setOwnerConfigFrom] = useState(null) // 설정을 불러온 월 (이번 달에 없으면 가장 최근 달)
@@ -805,6 +801,11 @@ if(!isActive && !isRetired) return
             style={{background:'#F3F1EC',border:'1px solid #DCD7CE',color:'#1D1B18',borderRadius:4,
               padding:'8px 14px',fontSize:12,cursor:'pointer',fontFamily:'inherit'}}>
             내 임금명세서
+          </button>
+          <button onClick={()=>setShowWithholding(true)}
+            style={{background:'#F3F1EC',border:'1px solid #DCD7CE',color:'#1D1B18',borderRadius:4,
+              padding:'8px 14px',fontSize:12,cursor:'pointer',fontFamily:'inherit'}}>
+            원천징수영수증
           </button>
           <button onClick={confirmAll} disabled={saving}
             style={{background:'#C3261C',color:'#FFFFFF',border:'none',borderRadius:4,
@@ -1250,7 +1251,8 @@ if(!isActive && !isRetired) return
               <Statement
                 r={{ ym: curMonth, days: null, bonuses: [],
                   p: { isFixed:true, basePay:ownerConfig.salary, totalPay:ownerConfig.salary, netPay:ownerConfig.salary - (ownerConfig.deduction||0),
-                    deduction:{ total: ownerConfig.deduction || 0 }, paid:true } }}
+                    deduction:{ total: ownerConfig.deduction || 0, pension:+ownerConfig.pension||0, health:+ownerConfig.health||0, care:+ownerConfig.care||0,
+                      employ:+ownerConfig.employ||0, incomeTax:+ownerConfig.incomeTax||0, localTax:+ownerConfig.localTax||0 }, paid:true } }}
                 userData={{ name: '정민규', joinDate: me?.joinDate }} ssn={ownerConfig.ssn || ''}/>
             ) : (
               <div style={{fontSize:13, color:'#6E6A63', padding:'16px 0', lineHeight:1.7}}>
@@ -1263,6 +1265,7 @@ if(!isActive && !isRetired) return
           </div>
         </div>
       )}
+      {showWithholding && <WithholdingReceipt defaultYear={curMonth.slice(0,4)} onClose={()=>setShowWithholding(false)}/>}
       {showTaxReport && (
         <TaxReportModal
   month={curMonth}

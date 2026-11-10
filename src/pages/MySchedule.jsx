@@ -6,21 +6,13 @@ import MyAttendance from '../components/MyAttendance'
 import MyRewardSpin from '../components/MyRewardSpin'
 import AvatarEditor from '../components/AvatarEditor'
 import { loadMyPayslip, loadMyPrivate, writeMyPayFields } from '../lib/privateInfo'
+import { calcDeduction } from '../lib/payDeduction'
 
 const pad = n => String(n).padStart(2,'0')
 const daysIn = ym => { const[y,m]=ym.split('-').map(Number); return new Date(y,m,0).getDate() }
 const mLabel = ym => { const[y,m]=ym.split('-'); return `${y}년 ${+m}월` }
 const DAYS_KR = ['일','월','화','수','목','금','토']
 
-function calcDeduction(totalPay, employType) {
-  if(employType === 'none') return { total:0 }
-  if(employType === 'part') return { total: Math.round(totalPay * 0.033) }
-  const pension = Math.round(totalPay * 0.045)
-  const health  = Math.round(totalPay * 0.03545)
-  const employ  = Math.round(totalPay * 0.009)
-  const care    = Math.round(health   * 0.1295)
-  return { total: pension + health + employ + care }
-}
 function calcWeeklyHoliday(totalHours, wage) {
   if(totalHours < 15) return 0
   return Math.round((totalHours/40)*8*wage)
