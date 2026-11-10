@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { db } from '../firebase'
 import { doc, getDoc } from 'firebase/firestore'
 import { loadMyPayslip, loadMyPrivate } from '../lib/privateInfo'
+import { useBizInfo } from '../lib/bizInfo'
 
 // 임금명세서 모아보기 (직원 내 급여): 사장님이 급여를 확정한 달은 자동으로 명세서가 쌓임
 // 근로기준법 시행령 제27조의2 기재 사항: 근로자 정보, 임금지급일, 임금 총액, 항목별 금액(기본급·수당·상여),
@@ -28,6 +29,7 @@ export default function WageStatements({ uid, userData }) {
   const [list, setList] = useState(null)   // [{ ym, p, bonuses, days }]
   const [open, setOpen] = useState(null)
   const [ssn, setSsn] = useState('')
+  const biz = useBizInfo()
 
   useEffect(() => {
     if (!uid) return
@@ -65,7 +67,7 @@ export default function WageStatements({ uid, userData }) {
             <span style={{fontSize:14, fontWeight:700, ...num}}>{won((r.p.netPay || 0) + r.bonuses.reduce((a, b) => a + (+b.amount || 0), 0))}</span>
             <span style={{fontSize:12, color:T.blue}}>{open === r.ym ? '접기' : '보기'}</span>
           </button>
-          {open === r.ym && <Statement r={r} userData={userData} ssn={ssn}/>}
+          {open === r.ym && <Statement r={r} userData={userData} ssn={ssn} biz={biz}/>}
         </div>
       ))}
     </section>
@@ -81,9 +83,10 @@ export const STATEMENT_PRINT_CSS = `@media print {
 }`
 
 // r = { ym, p, bonuses, days }. 사장님 본인 명세서(급여관리)도 이걸로 그림: days 가 null 이면 근로일수 '—'
-export function Statement({ r, userData, ssn }) {
+export function Statement({ r, userData, ssn, biz }) {
   const { ym, p, bonuses, days } = r
   const d = p.deduction || {}
+  const now = new Date(), issuedOn = `${now.getFullYear()}년 ${now.getMonth() + 1}월 ${now.getDate()}일`
   const bonusTotal = bonuses.reduce((a, b) => a + (+b.amount || 0), 0)
   const gross = (p.totalPay || 0) + bonusTotal
   // 3.3%는 소득세 3% + 지방소득세 0.3%로 나눠 적음
@@ -109,8 +112,14 @@ export function Statement({ r, userData, ssn }) {
     <div id="wage-statement-print" style={{background:'#FFFFFF', border:`1px solid ${T.rule}`, borderRadius:6, padding:'18px 20px', margin:'4px 0 14px'}}>
       <div style={{textAlign:'center', borderBottom:`3px double ${T.ink}`, paddingBottom:8}}>
         <div style={{fontSize:18, fontWeight:900, letterSpacing:4}}>임금명세서</div>
-        <div style={{fontSize:12, color:T.sub, marginTop:2}}>{mLabel(ym)}분 · 홍콩반점 중앙대점</div>
+        <div style={{fontSize:12, color:T.sub, marginTop:2}}>{mLabel(ym)}분 · {biz?.name || '홍콩반점 중앙대점'}</div>
       </div>
+
+      {head('사업장')}
+      {row('상호', biz?.name || '홍콩반점 중앙대점')}
+      {biz?.bizNo && row('사업자등록번호', biz.bizNo)}
+      {biz?.ceo && row('대표자', biz.ceo)}
+      {biz?.address ? row('소재지', biz.address, { last:true }) : null}
 
       {head('근로자')}
       {row('성명', userData?.name || '')}
@@ -141,6 +150,12 @@ export function Statement({ r, userData, ssn }) {
       </div>
       <div style={{fontSize:11, color:T.sub, marginTop:8, lineHeight:1.6}}>
         {p.confirmedAt ? `확정일 ${p.confirmedAt.slice(0, 10)}` : ''}
+      </div>
+      {/* 발급: 사업주가 근로자에게 주는 임금명세서 (근로기준법 제48조 제2항) */}
+      <div style={{marginTop:14, fontSize:13, lineHeight:1.9, textAlign:'right'}}>
+        <div style={{textAlign:'left', fontSize:12}}>위와 같이 임금을 지급하였음을 확인합니다.</div>
+        <div>발급일 {issuedOn}</div>
+        <div>사업주 &nbsp;{biz?.name || '홍콩반점 중앙대점'}{biz?.ceo ? ` 대표 ${biz.ceo}` : ''} &nbsp;(서명 또는 인)</div>
       </div>
       <div className="ws-noprint" style={{marginTop:12}}>
         <button type="button" onClick={()=>window.print()}

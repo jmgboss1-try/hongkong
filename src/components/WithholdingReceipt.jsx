@@ -1,22 +1,22 @@
 import { useEffect, useState } from 'react'
 import { db } from '../firebase'
-import { collection, doc, getDoc, getDocs, setDoc } from 'firebase/firestore'
+import { collection, doc, getDoc, getDocs } from 'firebase/firestore'
 import { loadPrivateMap } from '../lib/privateInfo'
 import { calcDeduction, deductionKind, splitTax } from '../lib/payDeduction'
 import { STATEMENT_PRINT_CSS } from './WageStatements'
+import { DEFAULT_BIZ, loadBizInfo, saveBizInfo } from '../lib/bizInfo'
 
 // 원천징수영수증 (급여관리, 사장님만): 한 사람의 한 해
 //  - 3.3% 직원 → 거주자의 사업소득 원천징수영수증 (달마다 지급액·소득세 3%·지방소득세 0.3%)
 //  - 4대보험 직원·사장님(정민규) → 근로소득 원천징수 내역 (달마다 급여·상여·보험료·소득세). 연말정산이 들어간 공식
 //    근로소득 원천징수영수증은 홈택스·세무사 자료가 필요해서, 여기서는 앱에 있는 지급·공제 내역만 1년치로 모음
 //  자료: payroll/{달}[uid] (사장님이 확정한 달만), bonuses/{달}[uid], 사장님은 payrollOwner/{달} (다음 달로 이어짐)
-//  징수의무자 정보(상호·사업자등록번호·대표자·주소)는 meta/bizInfo 에 저장 (사장님만 읽고 씀)
+//  징수의무자 정보(상호·사업자등록번호·대표자·주소)는 rewards/bizInfo (src/lib/bizInfo.js, 임금명세서와 같이 씀)
 const T = { ink:'#1D1B18', sub:'#6E6A63', rule:'#DCD7CE', soft:'#ECE8E1', chip:'#F3F1EC', accent:'#C3261C', blue:'#2B5C9E' }
 const num = { fontVariantNumeric:'tabular-nums' }
 const won = n => Math.round(n || 0).toLocaleString('ko-KR')
 const pad = n => String(n).padStart(2, '0')
 const OWNER = '__owner'
-const DEFAULT_BIZ = { name:'홍콩반점 중앙대점', bizNo:'', ceo:'', address:'' }  // 대표자는 사업자등록증에 있는 이름으로 직접 넣음
 const btn = primary => ({ fontFamily:'inherit', fontSize:13, fontWeight:700, padding:'6px 12px', borderRadius:4, cursor:'pointer',
   border: primary ? 'none' : `1px solid ${T.rule}`, background: primary ? T.accent : '#FFFFFF', color: primary ? '#FFFFFF' : T.ink })
 const input = { fontFamily:'inherit', fontSize:13, padding:'5px 8px', borderRadius:4, border:`1px solid ${T.rule}`, background:'#FFFFFF', color:T.ink, boxSizing:'border-box', width:'100%' }
@@ -35,7 +35,7 @@ export default function WithholdingReceipt({ defaultYear, onClose }) {
   useEffect(() => {
     let off = false
     Promise.all([getDocs(collection(db, 'users')), loadPrivateMap().catch(() => ({})), getDocs(collection(db, 'payrollOwner')),
-      getDoc(doc(db, 'meta', 'bizInfo')).catch(() => null)])
+      loadBizInfo()])
       .then(([us, priv, po, bz]) => {
         if (off) return
         const list = []
@@ -43,7 +43,7 @@ export default function WithholdingReceipt({ defaultYear, onClose }) {
         list.sort((a, b) => String(a.name).localeCompare(String(b.name), 'ko'))
         setPeople(list)
         setOwnerCfgs(po.docs.filter(d => /^\d{4}-\d{2}$/.test(d.id)).map(d => ({ id:d.id, ...d.data() })).sort((a, b) => a.id < b.id ? -1 : 1))
-        if (bz?.exists()) setBiz({ ...DEFAULT_BIZ, ...bz.data() })
+        setBiz(bz)
       }).catch(e => console.error(e))
     return () => { off = true }
   }, [])
@@ -58,7 +58,7 @@ export default function WithholdingReceipt({ defaultYear, onClose }) {
     return () => { off = true }
   }, [year])
 
-  const saveBiz = async () => { await setDoc(doc(db, 'meta', 'bizInfo'), biz); setEditBiz(false) }
+  const saveBiz = async () => { await saveBizInfo(biz); setEditBiz(false) }
 
   // ── 한 사람의 달별 줄 만들기 ──
   const nowYm = `${thisYear}-${pad(new Date().getMonth() + 1)}`
