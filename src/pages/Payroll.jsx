@@ -5,7 +5,7 @@ import { withSubMemos, loadSubs } from '../lib/attendance'
 import { loadPrivateMap, syncPayslipsQuiet } from '../lib/privateInfo'
 import { Statement, STATEMENT_PRINT_CSS } from '../components/WageStatements'
 import { useAuth } from '../AuthContext'
-import { calcDeduction, insuranceFor } from '../lib/payDeduction'
+import { calcDeduction, insuranceFor, splitDeduction } from '../lib/payDeduction'
 import WithholdingReceipt from '../components/WithholdingReceipt'
 import { useBizInfo, useSeal } from '../lib/bizInfo'
 
@@ -140,6 +140,7 @@ const STATUS = {
 function TaxReportModal({ month, curMonth, employees, payroll, getComputed, ssnMap, ownerConfig, setOwnerConfig, ownerConfigFrom, setOwnerConfigFrom, severance, nameMap, bonuses, onClose }) {
   const [showOwnerConfig, setShowOwnerConfig] = useState(false)
 const [editOwner, setEditOwner] = useState(ownerConfig)
+const [estNote, setEstNote] = useState('')   // '공제합계로 나눠 보기' 결과 안내
 
 useEffect(() => {
   setEditOwner(ownerConfig)
@@ -254,6 +255,18 @@ useEffect(() => {
               ))}
             </div>
             <div style={{fontSize:11,color:'#555',marginTop:6}}>국민연금~지방소득세를 적으면 공제합계는 그 합으로 자동으로 맞춰지고, 원천징수영수증에 항목별로 나와요 (안 적으면 공제합계만 써요)</div>
+            <div style={{marginTop:8,display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}>
+              <button type="button" onClick={()=>{
+                  if(!(editOwner.salary>0) || !(editOwner.deduction>0)) { setEstNote('급여와 공제합계를 먼저 넣어 주세요'); return }
+                  const est = splitDeduction(editOwner.salary, editOwner.deduction)
+                  setEditOwner(prev=>({ ...prev, pension:est.pension, health:est.health, care:est.care, employ:est.employ, incomeTax:est.incomeTax, localTax:est.localTax }))
+                  setEstNote(est.scaled ? '추정한 4대보험이 공제합계보다 커서 비율대로 줄였어요. 고지서와 맞춰 보고 고친 뒤 적용하세요' : '2026년 요율로 추정해서 채웠어요. 고지서와 다를 수 있으니 확인하고 고친 뒤 적용하세요')
+                }}
+                style={{background:'#FFFFFF',border:'1px solid #aac',borderRadius:5,padding:'5px 12px',fontSize:11,fontWeight:700,cursor:'pointer',fontFamily:'inherit',color:'#1a56db'}}>
+                공제합계로 나눠 보기 (추정)
+              </button>
+              <span style={{fontSize:11,color: estNote ? '#b45309' : '#888'}}>{estNote || '공제합계만 알면 4대보험(국민연금 4.75%·건강 3.595%·장기요양 13.14%·고용 0.9%)을 추정하고 나머지를 소득세·지방소득세로 나눠 채워요'}</span>
+            </div>
             <div style={{marginTop:10,display:'flex',gap:8,alignItems:'center'}}>
               <button onClick={async ()=>{
   const parts = ['pension','health','care','employ','incomeTax','localTax'].reduce((a,k)=>a+(+editOwner[k]||0),0)

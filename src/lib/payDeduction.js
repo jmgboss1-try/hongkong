@@ -30,3 +30,26 @@ export function insuranceFor(history, ym) {
   if (!h) return null
   return ['pension', 'health', 'care', 'employ'].some(k => (+h[k] || 0) > 0) ? h : null
 }
+
+// 공제합계만 알 때 대략 나눠 보기 (2026년 근로자 부담 요율, 추정값):
+//  국민연금 4.75% (기준소득월액 40만~637만원), 건강보험 3.595%, 장기요양 = 건강보험료 × 13.14%, 고용보험 0.9%
+//  각 보험료는 10원 미만 버림. 나머지를 소득세 : 지방소득세 = 10 : 1 로 나눔
+//  보험료 추정이 공제합계보다 크면 보험료를 비율대로 줄여서 합계가 공제합계와 같게 맞춤
+export const EST_RATES_2026 = { pension: 0.0475, health: 0.03595, careOfHealth: 0.1314, employ: 0.009, pensionMin: 400000, pensionMax: 6370000 }
+export function splitDeduction(salary, total) {
+  const R = EST_RATES_2026, floor10 = n => Math.floor(Math.round(n * 100) / 1000) * 10   // 소수 오차 없이 10원 미만 버림
+  const pay = Math.max(0, +salary || 0), sum = Math.max(0, Math.round(+total || 0))
+  let pension = floor10(Math.min(Math.max(pay, R.pensionMin), R.pensionMax) * R.pension)
+  let health = floor10(pay * R.health)
+  let care = floor10(health * R.careOfHealth)
+  let employ = floor10(pay * R.employ)
+  let ins = pension + health + care + employ, scaled = false
+  if (ins > sum && ins > 0) {
+    const k = sum / ins; scaled = true
+    pension = floor10(pension * k); health = floor10(health * k); care = floor10(care * k); employ = sum - pension - health - care
+    ins = sum
+  }
+  const rest = sum - ins
+  const incomeTax = floor10(rest / 1.1), localTax = rest - incomeTax
+  return { pension, health, care, employ, incomeTax, localTax, scaled }
+}
