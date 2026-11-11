@@ -76,10 +76,19 @@ export default function WageStatements({ uid, userData }) {
 }
 
 // 인쇄할 때 명세서만 보이게
+// 인쇄: #wage-statement-print 만 남기고 나머지는 지움. 감싸고 있는 창(고정 위치 모달·스크롤 상자)은 평범한 상자로 풀어서
+// 오른쪽이 잘리거나(고정 너비·overflow) 같은 장이 여러 번 찍히는(position:fixed 는 장마다 반복) 일이 없게 함
 export const STATEMENT_PRINT_CSS = `@media print {
-  body * { visibility: hidden !important; }
-  #wage-statement-print, #wage-statement-print * { visibility: visible !important; }
-  #wage-statement-print { position: absolute; left: 0; top: 0; width: 100%; }
+  @page { size: A4; margin: 12mm; }
+  html, body { height: auto !important; overflow: visible !important; background: #FFFFFF !important; }
+  body *:not(:has(#wage-statement-print)):not(#wage-statement-print):not(#wage-statement-print *) { display: none !important; }
+  *:has(#wage-statement-print) { position: static !important; display: block !important; overflow: visible !important; transform: none !important;
+    width: auto !important; max-width: none !important; height: auto !important; min-height: 0 !important; max-height: none !important;
+    margin: 0 !important; padding: 0 !important; border: 0 !important; background: none !important; box-shadow: none !important; }
+  #wage-statement-print { position: static !important; width: auto !important; max-width: none !important; margin: 0 !important;
+    box-sizing: border-box !important; border: 0 !important; box-shadow: none !important; }
+  #wage-statement-print .ws-row { padding-top: 3px !important; padding-bottom: 3px !important; line-height: 1.35 !important; }
+  .ws-sign { break-inside: avoid; }
   .ws-noprint { display: none !important; }
 }`
 
@@ -100,7 +109,7 @@ export function Statement({ r, userData, ssn, biz, seal }) {
   const dedTotal = d.total || 0
   const hours = `${p.totalHours || 0}시간${p.totalMins ? ` ${p.totalMins}분` : ''}`
   const row = (k, v, opt = {}) => (
-    <div style={{display:'flex', alignItems:'baseline', gap:8, padding:'6px 0', borderBottom: opt.last ? 'none' : `1px dotted ${T.rule}`, fontSize:13, fontWeight: opt.bold ? 800 : 400}}>
+    <div className="ws-row" style={{display:'flex', alignItems:'baseline', gap:8, padding:'6px 0', borderBottom: opt.last ? 'none' : `1px dotted ${T.rule}`, fontSize:13, fontWeight: opt.bold ? 800 : 400}}>
       <span style={{color: opt.bold ? T.ink : T.sub, minWidth:96}}>{k}</span>
       {opt.note && <span style={{fontSize:11, color:T.sub, flex:1}}>{opt.note}</span>}
       {!opt.note && <span style={{flex:1}}/>}
@@ -153,7 +162,7 @@ export function Statement({ r, userData, ssn, biz, seal }) {
         {p.confirmedAt ? `확정일 ${p.confirmedAt.slice(0, 10)}` : ''}
       </div>
       {/* 발급: 사업주가 근로자에게 주는 임금명세서 (근로기준법 제48조 제2항) */}
-      <div style={{marginTop:14, fontSize:13, lineHeight:1.9, textAlign:'right'}}>
+      <div className="ws-sign" style={{marginTop:14, fontSize:13, lineHeight:1.9, textAlign:'right'}}>
         <div style={{textAlign:'left', fontSize:12}}>위와 같이 임금을 지급하였음을 확인합니다.</div>
         <div>발급일 {issuedOn}</div>
         <div>사업주 &nbsp;{biz?.name || '홍콩반점 중앙대점'}{biz?.ceo ? ` 대표 ${biz.ceo}` : ''} &nbsp;<span style={{position:'relative', display:'inline-block'}}>(서명 또는 인){seal && <img src={seal} alt="직인" style={sealStyle}/>}</span></div>
