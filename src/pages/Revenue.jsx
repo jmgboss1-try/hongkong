@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { db } from '../firebase'
 import { doc, getDoc, setDoc } from 'firebase/firestore'
 import { useAuth } from '../AuthContext'
-import { monthLabels, monthScheme, mixedLabel, isAfterCut, chLabels, ETC_HINT } from '../lib/revenueChannels'
+import { monthLabels, monthScheme, mixedLabel, isAfterCut, chLabels, ETC_HINT, HALL_HINT } from '../lib/revenueChannels'
 
 const pad = n => String(n).padStart(2,'0')
 const daysIn = ym => { const[y,m]=ym.split('-').map(Number); return new Date(y,m,0).getDate() }
@@ -450,7 +450,7 @@ export default function Revenue() {
             )}
 
             <div style={{maxWidth:520}}>
-              {inputRow(inCH.kiosk === '홀' ? '홀 (키오스크+포스)' : '키오스크', money(kiosk, setKiosk, inCH.kiosk))}
+              {inputRow(inCH.kiosk === '홀' ? `홀 (${HALL_HINT})` : '키오스크', money(kiosk, setKiosk, inCH.kiosk))}
               {!showDelDetail
                 ? inputRow('배달', money(del, setDel, '배달'))
                 : <>

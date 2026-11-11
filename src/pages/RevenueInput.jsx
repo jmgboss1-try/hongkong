@@ -3,7 +3,7 @@ import { db, auth } from '../firebase'
 import { compressImage, PhoneReceiveModal } from '../components/PhotoAttach'
 import { doc, getDoc, setDoc } from 'firebase/firestore'
 import { useAuth } from '../AuthContext'
-import { chLabels, isNewChannels, ETC_HINT, CHANGE_NOTICE_UNTIL } from '../lib/revenueChannels'
+import { chLabels, isNewChannels, ETC_HINT, HALL_HINT, CHANGE_NOTICE_UNTIL } from '../lib/revenueChannels'
 
 const pad = n => String(n).padStart(2,'0')
 const DAYS_KR = ['일','월','화','수','목','금','토']
@@ -34,7 +34,7 @@ export default function RevenueInput() {
   const today = `${now.getFullYear()}-${pad(now.getMonth()+1)}`
   const todayDD = pad(now.getDate())
   const todayLabel = `${now.getMonth()+1}월 ${now.getDate()}일 (${DAYS_KR[now.getDay()]})`
-  // 11월 9일부터: 키오스크 → 홀(키오스크+포스 결제), 포스 → 기타(쿠폰·이체·서울페이·전화배달)
+  // 11월 9일부터: 키오스크 → 홀(매출 프로그램 합계), 포스 → 기타(현금·이체·페이·전화배달)
   const CH = chLabels(`${today}-${todayDD}`), newCh = isNewChannels(`${today}-${todayDD}`)
 
   const [activeSession, setActiveSession] = useState('morning') // 'morning' | 'middle' | 'close'
@@ -258,7 +258,7 @@ export default function RevenueInput() {
         {newCh && `${today}-${todayDD}` <= CHANGE_NOTICE_UNTIL && (
           <div style={{margin:'12px 0 0', padding:'10px 12px', border:'1.5px solid #B45309', background:'#FFF8EC', borderRadius:6, fontSize:14, lineHeight:1.6, color:T.ink}}>
             <b style={{color:'#B45309'}}>매출 칸이 바뀌었어요</b><br/>
-            포스 카드·현금 결제는 키오스크와 더해서 <b>홀</b>에, 쿠폰·이체·서울페이·전화배달만 <b>기타</b>에 적어 주세요.
+            <b>홀</b>에는 매출 프로그램 합계만, 현금·이체·페이·전화배달은 <b>기타</b>에 적어 주세요.
           </div>
         )}
 
@@ -344,7 +344,7 @@ export default function RevenueInput() {
               </div>
             )}
 
-            {row(newCh ? '홀 (키오스크+포스)' : '키오스크',
+            {row(newCh ? `홀 (${HALL_HINT})` : '키오스크',
               money(kiosk, setKiosk, `${CH.kiosk} 매출`, {width:'min(170px, 46vw)'}))}
 
             <div style={{marginTop:6}}>
