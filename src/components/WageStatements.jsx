@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { db } from '../firebase'
 import { doc, getDoc } from 'firebase/firestore'
 import { loadMyPayslip, loadMyPrivate } from '../lib/privateInfo'
-import { useBizInfo } from '../lib/bizInfo'
+import { useBizInfo, useSeal, sealStyle } from '../lib/bizInfo'
 
 // 임금명세서 모아보기 (직원 내 급여): 사장님이 급여를 확정한 달은 자동으로 명세서가 쌓임
 // 근로기준법 시행령 제27조의2 기재 사항: 근로자 정보, 임금지급일, 임금 총액, 항목별 금액(기본급·수당·상여),
@@ -30,6 +30,7 @@ export default function WageStatements({ uid, userData }) {
   const [open, setOpen] = useState(null)
   const [ssn, setSsn] = useState('')
   const biz = useBizInfo()
+  const seal = useSeal()
 
   useEffect(() => {
     if (!uid) return
@@ -67,7 +68,7 @@ export default function WageStatements({ uid, userData }) {
             <span style={{fontSize:14, fontWeight:700, ...num}}>{won((r.p.netPay || 0) + r.bonuses.reduce((a, b) => a + (+b.amount || 0), 0))}</span>
             <span style={{fontSize:12, color:T.blue}}>{open === r.ym ? '접기' : '보기'}</span>
           </button>
-          {open === r.ym && <Statement r={r} userData={userData} ssn={ssn} biz={biz}/>}
+          {open === r.ym && <Statement r={r} userData={userData} ssn={ssn} biz={biz} seal={seal}/>}
         </div>
       ))}
     </section>
@@ -83,7 +84,7 @@ export const STATEMENT_PRINT_CSS = `@media print {
 }`
 
 // r = { ym, p, bonuses, days }. 사장님 본인 명세서(급여관리)도 이걸로 그림: days 가 null 이면 근로일수 '—'
-export function Statement({ r, userData, ssn, biz }) {
+export function Statement({ r, userData, ssn, biz, seal }) {
   const { ym, p, bonuses, days } = r
   const d = p.deduction || {}
   const now = new Date(), issuedOn = `${now.getFullYear()}년 ${now.getMonth() + 1}월 ${now.getDate()}일`
@@ -155,7 +156,7 @@ export function Statement({ r, userData, ssn, biz }) {
       <div style={{marginTop:14, fontSize:13, lineHeight:1.9, textAlign:'right'}}>
         <div style={{textAlign:'left', fontSize:12}}>위와 같이 임금을 지급하였음을 확인합니다.</div>
         <div>발급일 {issuedOn}</div>
-        <div>사업주 &nbsp;{biz?.name || '홍콩반점 중앙대점'}{biz?.ceo ? ` 대표 ${biz.ceo}` : ''} &nbsp;(서명 또는 인)</div>
+        <div>사업주 &nbsp;{biz?.name || '홍콩반점 중앙대점'}{biz?.ceo ? ` 대표 ${biz.ceo}` : ''} &nbsp;<span style={{position:'relative', display:'inline-block'}}>(서명 또는 인){seal && <img src={seal} alt="직인" style={sealStyle}/>}</span></div>
       </div>
       <div className="ws-noprint" style={{marginTop:12}}>
         <button type="button" onClick={()=>window.print()}

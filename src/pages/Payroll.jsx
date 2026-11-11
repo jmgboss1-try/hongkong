@@ -7,7 +7,7 @@ import { Statement, STATEMENT_PRINT_CSS } from '../components/WageStatements'
 import { useAuth } from '../AuthContext'
 import { calcDeduction, insuranceFor } from '../lib/payDeduction'
 import WithholdingReceipt from '../components/WithholdingReceipt'
-import { useBizInfo } from '../lib/bizInfo'
+import { useBizInfo, useSeal } from '../lib/bizInfo'
 
 const pad = n => String(n).padStart(2,'0')
 const daysIn = ym => { const[y,m]=ym.split('-').map(Number); return new Date(y,m,0).getDate() }
@@ -416,6 +416,7 @@ export default function Payroll() {
   const [showWithholding, setShowWithholding] = useState(false) // 원천징수영수증 (사장님·직원, 연도별)
   const { userData: me } = useAuth()
   const biz = useBizInfo()
+  const seal = useSeal()
   const [ownerConfig, setOwnerConfig]     = useState({ ssn:'', salary:0, deduction:0 })
   const [ownerConfigFrom, setOwnerConfigFrom] = useState(null) // 설정을 불러온 월 (이번 달에 없으면 가장 최근 달)
   const [severance, setSeverance]         = useState({}) // {uid:{amount,tax,net,paidDate}}
@@ -1255,7 +1256,7 @@ if(!isActive && !isRetired) return
                   p: { isFixed:true, basePay:ownerConfig.salary, totalPay:ownerConfig.salary, netPay:ownerConfig.salary - (ownerConfig.deduction||0),
                     deduction:{ total: ownerConfig.deduction || 0, pension:+ownerConfig.pension||0, health:+ownerConfig.health||0, care:+ownerConfig.care||0,
                       employ:+ownerConfig.employ||0, incomeTax:+ownerConfig.incomeTax||0, localTax:+ownerConfig.localTax||0 }, paid:true } }}
-                userData={{ name: '정민규', joinDate: me?.joinDate }} ssn={ownerConfig.ssn || ''} biz={biz}/>
+                userData={{ name: '정민규', joinDate: me?.joinDate }} ssn={ownerConfig.ssn || ''} biz={biz} seal={seal}/>
             ) : (
               <div style={{fontSize:13, color:'#6E6A63', padding:'16px 0', lineHeight:1.7}}>
                 {mLabel(curMonth)}에 적용된 급여 설정이 없어요. 세무 보고서 → 정민규 급여 설정에서 급여·공제를 넣고 적용하면 여기에 명세서가 나와요.

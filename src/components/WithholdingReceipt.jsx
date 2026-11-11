@@ -4,7 +4,7 @@ import { collection, doc, getDoc, getDocs } from 'firebase/firestore'
 import { loadPrivateMap } from '../lib/privateInfo'
 import { calcDeduction, deductionKind, splitTax, insuranceFor } from '../lib/payDeduction'
 import { STATEMENT_PRINT_CSS } from './WageStatements'
-import { DEFAULT_BIZ, loadBizInfo, saveBizInfo } from '../lib/bizInfo'
+import { DEFAULT_BIZ, loadBizInfo, saveBizInfo, loadSeal, saveSeal, makeSealPng, sealStyle } from '../lib/bizInfo'
 
 // 원천징수영수증 (급여관리, 사장님만): 한 사람의 한 해
 //  - 3.3% 직원 → 거주자의 사업소득 원천징수영수증 (달마다 지급액·소득세 3%·지방소득세 0.3%)
@@ -30,6 +30,16 @@ export default function WithholdingReceipt({ defaultYear, onClose }) {
   const [ownerCfgs, setOwnerCfgs] = useState([]) // payrollOwner 문서들 [{id, ...}]
   const [biz, setBiz] = useState(DEFAULT_BIZ)
   const [editBiz, setEditBiz] = useState(false)
+  const [seal, setSeal] = useState(null)        // 직인 이미지 (rewards/bizSeal)
+  const [sealMsg, setSealMsg] = useState('')
+  useEffect(() => { loadSeal().then(setSeal) }, [])
+  const pickSeal = async file => {
+    if (!file) return
+    setSealMsg('직인 만드는 중…')
+    try { const png = await makeSealPng(file); await saveSeal(png); setSeal(png); setSealMsg('직인을 저장했어요. 임금명세서와 이 영수증에 찍혀요') }
+    catch (e) { console.error(e); setSealMsg('직인을 저장하지 못했어요') }
+  }
+  const removeSeal = async () => { if (!window.confirm('직인을 지울까요?')) return; await saveSeal(null); setSeal(null); setSealMsg('직인을 지웠어요') }
 
   // 사람 목록·사장님 급여 설정·징수의무자 정보 (한 번)
   useEffect(() => {
@@ -114,7 +124,7 @@ export default function WithholdingReceipt({ defaultYear, onClose }) {
     <div style={{marginTop:16, fontSize:13, lineHeight:1.9, textAlign:'right'}}>
       <div style={{textAlign:'left'}}>위의 원천징수세액(수입금액)을 정히 영수(지급)합니다.</div>
       <div>{issued}</div>
-      <div>징수(보고)의무자 &nbsp;{biz.name} &nbsp;{biz.ceo} &nbsp;(서명 또는 인)</div>
+      <div>징수(보고)의무자 &nbsp;{biz.name} &nbsp;{biz.ceo} &nbsp;<span style={{position:'relative', display:'inline-block'}}>(서명 또는 인){seal && <img src={seal} alt="직인" style={sealStyle}/>}</span></div>
     </div>
   )
 
@@ -143,6 +153,16 @@ export default function WithholdingReceipt({ defaultYear, onClose }) {
               <label key={k} style={{fontSize:12, color:T.sub}}>{l}<input value={biz[k] || ''} onChange={e => setBiz(b => ({ ...b, [k]: e.target.value }))} style={{...input, marginTop:3}}/></label>
             ))}
             <button type="button" onClick={saveBiz} style={btn(true)}>저장</button>
+            <div style={{gridColumn:'1 / -1', display:'flex', alignItems:'center', gap:10, flexWrap:'wrap', borderTop:`1px solid ${T.rule}`, paddingTop:8}}>
+              <span style={{fontSize:12, color:T.sub}}>직인</span>
+              {seal ? <img src={seal} alt="직인" style={{width:56, height:56, objectFit:'contain', background:'#FFFFFF', border:`1px solid ${T.rule}`, borderRadius:4}}/> : <span style={{fontSize:12, color:T.sub}}>없음</span>}
+              <label style={{...btn(false), display:'inline-block'}}>{seal ? '바꾸기' : '직인 사진 올리기'}
+                <input type="file" accept="image/*" style={{display:'none'}} onChange={e => { pickSeal(e.target.files?.[0]); e.target.value = '' }}/>
+              </label>
+              {seal && <button type="button" onClick={removeSeal} style={btn(false)}>지우기</button>}
+              <span style={{fontSize:11, color:T.sub, flexBasis:'100%'}}>흰 종이에 찍은 직인 사진을 올리면 바탕은 투명하게 빼고 빨간 도장만 남겨요. 임금명세서·원천징수영수증의 '(서명 또는 인)' 위에 찍혀요.</span>
+              {sealMsg && <span style={{fontSize:12, color:T.ink}}>{sealMsg}</span>}
+            </div>
           </div>
         )}
 
