@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { db } from '../firebase'
 import { doc, getDoc, setDoc } from 'firebase/firestore'
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, ReferenceArea, CartesianGrid } from 'recharts'
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, ReferenceArea, ReferenceLine, CartesianGrid, Cell } from 'recharts'
 import { readDeliveryExcel, pickSalesField, SALES_FIELDS } from '../lib/deliveryImport'
 
 // 매출분석 — 배달앱별 하루 주문수·매출·객단가, 할인·이벤트 기간과 그 전 기간 비교
@@ -124,6 +124,127 @@ function ChartTooltip({ active, payload, metric }) {
       {r.ads != null && r.ads > 0 && <div style={{color:'#5F5B54'}}>광고비 {won(r.ads)}원</div>}
       {r.excel && <div style={{color:'#6E6A63',fontSize:10}}>배달앱 엑셀 기준</div>}
       {r.events.length > 0 && <div style={{color:'#C3261C',marginTop:2}}>{r.events.join(', ')}</div>}
+    </div>
+  )
+}
+
+// ── 효과 한눈에: '평소'(직전 같은 기간과 4주 같은 요일의 평균)보다 얼마나 더/덜 팔렸나 ──
+const avg2 = (a, b) => a == null ? b : b == null ? a : (a + b) / 2
+function effectOf(months, periods, ev) {
+  const targets = PLATFORMS.filter(p => !ev.platforms?.length || ev.platforms.includes(p.key))
+  const others = PLATFORMS.filter(p => !targets.includes(p))
+  const sumUp = list => list.reduce((acc, p) => {
+    const E = stats(months, periods.during, p.key), B = stats(months, periods.before, p.key), W = stats(months, periods.sameWeekday, p.key)
+    const base = avg2(B.salesPerDay, W.salesPerDay), baseOrd = avg2(B.ordersPerDay, W.ordersPerDay), baseDisc = avg2(B.discountPerDay, W.discountPerDay) ?? 0
+    const row = { p, ev: E.salesPerDay, base, days: E.salesN,
+      extra: E.salesPerDay != null && base != null ? (E.salesPerDay - base) * E.salesN : null,
+      extraOrdPerDay: E.ordersPerDay != null && baseOrd != null ? E.ordersPerDay - baseOrd : null,
+      extraDisc: E.discountPerDay != null ? (E.discountPerDay - baseDisc) * E.discN : null }
+    acc.rows.push(row)
+    if (row.extra != null) { acc.extra += row.extra; acc.evDay += E.salesPerDay; acc.baseDay += base; acc.n = Math.max(acc.n, E.salesN) }
+    if (row.extraOrdPerDay != null) { acc.ordDay += row.extraOrdPerDay; acc.hasOrd = true }
+    if (row.extraDisc != null) { acc.disc += row.extraDisc; acc.hasDisc = true }
+    return acc
+  }, { rows: [], extra: 0, evDay: 0, baseDay: 0, n: 0, ordDay: 0, hasOrd: false, disc: 0, hasDisc: false })
+  const t = sumUp(targets), o = sumUp(others)
+  const pctT = t.baseDay ? (t.evDay - t.baseDay) / t.baseDay * 100 : null
+  const pctO = o.baseDay ? (o.evDay - o.baseDay) / o.baseDay * 100 : null
+  return { targets, t, o, pctT, pctO, has: t.baseDay > 0 && t.n > 0 }
+}
+
+function EventEffect({ months, periods, ev }) {
+  const R = effectOf(months, periods, ev)
+  const days = periods.during.length
+  if (!R.has) return (
+    <div style={{fontSize:13, color:'#6E6A63', padding:'8px 0 14px', lineHeight:1.7}}>
+      비교할 매출 기록이 아직 부족해요. 이벤트 기간과 그 전 기간의 마감 매출(또는 배달앱 엑셀)이 있어야 계산돼요.
+    </div>
+  )
+  const { t, pctT, pctO } = R
+  const perDay = t.evDay - t.baseDay
+  const up = perDay >= 0
+  const verdict = pctT >= 10 ? ['효과 있음', '#2E7D45'] : pctT <= -10 ? ['덜 팔렸어요', '#B42318'] : ['평소와 비슷해요', '#B45309']
+  const color = up ? '#2E7D45' : '#B42318'
+  const sign = n => (n >= 0 ? '+' : '−') + won(Math.abs(n))
+  const man = n => { const a = Math.abs(n); return (n >= 0 ? '+' : '−') + (a >= 10000 ? `${(a / 10000).toFixed(a >= 1000000 ? 0 : 1).replace(/\.0$/, '')}만원` : `${won(a)}원`) }
+  const net = t.hasDisc ? t.extra - t.disc : null
+  const othersAlsoUp = R.o.rows.length > 0 && pctO != null && pctT != null && pctT > 5 && pctO >= pctT * 0.6
+
+  // 날짜별: 이벤트 기간과 바로 전 기간, 대상 앱 합계
+  const chartDays = [...periods.before, ...periods.during]
+  const data = chartDays.map(d => {
+    let sales = null
+    for (const p of R.targets) { const v = dayValue(months, d, p.key).sales; if (v != null) sales = (sales || 0) + v }
+    return { date: d, label: shortDate(d), sales, during: d >= ev.from }
+  })
+  const maxBar = Math.max(1, ...t.rows.flatMap(r => [r.ev || 0, r.base || 0]))
+
+  return (
+    <div style={{marginBottom:14}}>
+      {/* 결론 */}
+      <div style={{borderLeft:`4px solid ${verdict[1]}`, background:'#FAF9F6', padding:'12px 14px', borderRadius:'0 6px 6px 0'}}>
+        <div style={{display:'flex', alignItems:'baseline', gap:8, flexWrap:'wrap'}}>
+          <span style={{fontSize:12, fontWeight:700, color:'#FFFFFF', background:verdict[1], borderRadius:4, padding:'2px 8px'}}>{verdict[0]}</span>
+          <span style={{fontSize:12, color:'#6E6A63'}}>{shortDate(ev.from)}~{shortDate(periods.to)} {days}일 · {R.targets.map(p => p.short).join('·')} 기준</span>
+        </div>
+        <div style={{fontSize:22, fontWeight:900, color, marginTop:6, lineHeight:1.3}}>
+          평소보다 {man(t.extra)} {up ? '더 팔렸어요' : '덜 팔렸어요'}
+        </div>
+        <div style={{fontSize:13, color:'#1D1B18', marginTop:4, lineHeight:1.7, fontVariantNumeric:'tabular-nums'}}>
+          하루 평균 {sign(perDay)}원 ({pctT >= 0 ? '+' : ''}{pctT.toFixed(0)}%)
+          {t.hasOrd && <> · 주문 하루 {t.ordDay >= 0 ? '+' : '−'}{Math.abs(t.ordDay).toFixed(1)}건</>}
+        </div>
+        {net != null && (
+          <div style={{fontSize:13, marginTop:2, lineHeight:1.7, fontVariantNumeric:'tabular-nums'}}>
+            가게가 부담한 할인 {t.disc >= 0 ? '평소보다 ' : ''}{won(Math.abs(t.disc))}원 {t.disc >= 0 ? '더 씀' : '덜 씀'} → 할인 빼고 <b style={{color: net >= 0 ? '#2E7D45' : '#B42318'}}>{man(net)}</b>
+          </div>
+        )}
+        {othersAlsoUp && (
+          <div style={{fontSize:12, color:'#B45309', marginTop:6, lineHeight:1.6}}>
+            대상이 아닌 앱도 같은 기간에 {pctO.toFixed(0)}% 올랐어요. 이벤트보다 날씨·시기 영향이 섞였을 수 있어요.
+          </div>
+        )}
+        <div style={{fontSize:11, color:'#6E6A63', marginTop:6}}>평소 = 바로 전 {periods.before.length}일과 4주 전까지 같은 요일의 하루 평균</div>
+      </div>
+
+      {/* 앱별 평소 vs 이벤트 */}
+      <div style={{marginTop:14}}>
+        <div style={{fontSize:12, fontWeight:700, marginBottom:6}}>앱별 하루 매출</div>
+        {[...t.rows, ...R.o.rows.map(r => ({ ...r, other: true }))].filter(r => r.ev != null || r.base != null).map(r => {
+          const pc = r.ev != null && r.base ? (r.ev - r.base) / r.base * 100 : null
+          return (
+            <div key={r.p.key} style={{display:'grid', gridTemplateColumns:'64px 1fr 64px', alignItems:'center', gap:8, padding:'4px 0', opacity: r.other ? 0.55 : 1}}>
+              <div style={{fontSize:12, fontWeight:700}}>{r.p.short}{r.other && <div style={{fontSize:10, fontWeight:400, color:'#6E6A63'}}>비교용</div>}</div>
+              <div>
+                <div style={{display:'flex', alignItems:'center', gap:6}}><div style={{height:9, width:`${(r.base || 0) / maxBar * 70}%`, background:'#DCD7CE', borderRadius:2, flexShrink:0}}/><span style={{fontSize:10, color:'#6E6A63', fontVariantNumeric:'tabular-nums', whiteSpace:'nowrap'}}>평소 {won(r.base)}</span></div>
+                <div style={{display:'flex', alignItems:'center', gap:6, marginTop:3}}><div style={{height:9, width:`${(r.ev || 0) / maxBar * 70}%`, background:r.p.color, borderRadius:2, flexShrink:0}}/><span style={{fontSize:10, fontVariantNumeric:'tabular-nums', whiteSpace:'nowrap'}}>이벤트 {won(r.ev)}</span></div>
+              </div>
+              <div style={{textAlign:'right'}}><Change value={pc}/></div>
+            </div>
+          )
+        })}
+      </div>
+
+      {/* 날짜별: 평소선 위는 초록, 아래는 빨강 */}
+      <div style={{marginTop:14}}>
+        <div style={{fontSize:12, fontWeight:700, marginBottom:4}}>날짜별 매출 ({R.targets.map(p => p.short).join('·')} 합계)</div>
+        <div style={{width:'100%', height:200}}>
+          <ResponsiveContainer>
+            <BarChart data={data} margin={{ top:8, right:8, left:0, bottom:0 }}>
+              <CartesianGrid stroke="#ECE8E1" vertical={false}/>
+              <XAxis dataKey="label" tick={{ fontSize:10, fill:'#6E6A63' }} interval="preserveStartEnd"/>
+              <YAxis tick={{ fontSize:10, fill:'#6E6A63' }} width={46} tickFormatter={v => v >= 10000 ? `${Math.round(v / 10000)}만` : v}/>
+              <ReferenceArea x1={shortDate(ev.from)} x2={shortDate(periods.to)} fill="#C3261C" fillOpacity={0.06}/>
+              <ReferenceLine y={t.baseDay} stroke="#6E6A63" strokeDasharray="4 4" label={{ value:'평소', position:'insideTopLeft', fontSize:10, fill:'#6E6A63' }}/>
+              <Tooltip formatter={v => [`${won(v)}원`, '매출']} labelFormatter={(l, pl) => { const d = pl?.[0]?.payload?.date; return d ? `${l} (${DAYS_KR[weekday(d)]})${pl[0].payload.during ? ' · 이벤트' : ''}` : l }}/>
+              <Bar dataKey="sales" radius={[2,2,0,0]}>
+                {data.map(d => <Cell key={d.date} fill={!d.during ? '#CFC9BF' : (d.sales ?? 0) >= t.baseDay ? '#2E7D45' : '#B42318'}/>)}
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+        <div style={{fontSize:11, color:'#6E6A63'}}>회색 = 이벤트 전 · 초록 = 평소보다 많이 판 날 · 빨강 = 덜 판 날 · 점선 = 평소</div>
+      </div>
     </div>
   )
 }
@@ -590,6 +711,9 @@ export default function SalesAnalysis() {
             <div style={{fontSize:12,color:'#6E6A63'}}>아직 시작 전인 일정이에요</div>
           ) : (
             <>
+              {!loading && <EventEffect months={months} periods={periods} ev={selEvent}/>}
+              <details>
+              <summary style={{fontSize:12,color:'#2B5C9E',cursor:'pointer',margin:'4px 0 10px'}}>자세히 보기 (숫자 표)</summary>
               <div style={{fontSize:11,color:'#6E6A63',lineHeight:1.7,marginBottom:12}}>
                 이벤트 기간 {shortDate(selEvent.from)}~{shortDate(periods.to)} ({periods.during.length}일)을
                 ① 바로 전 {periods.before.length}일 ({shortDate(periods.before[0])}~{shortDate(periods.before[periods.before.length-1])}),
@@ -667,6 +791,7 @@ export default function SalesAnalysis() {
                 ▲▼는 이벤트 기간이 비교 기간보다 몇 % 높거나 낮은지예요. 주문수·객단가는 주문 건수를 적은 날만 계산해요.
                 할인 대상이 아닌 앱도 같이 올랐다면 할인보다는 날씨·시기 영향일 수 있어요.
               </div>
+              </details>
             </>
           )}
         </div>
