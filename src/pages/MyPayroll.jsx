@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { loadMyPayslip, writeMyPayFields } from '../lib/privateInfo'
 import { useAuth } from '../AuthContext'
 import WageStatements from '../components/WageStatements'
+import MyContracts from '../components/MyContracts'
 
 const pad = n => String(n).padStart(2,'0')
 const mLabel = ym => { const[y,m]=ym.split('-'); return `${y}년 ${+m}월` }
@@ -90,6 +91,9 @@ export default function MyPayroll() {
           {monthOpts.map(m=><option key={m} value={m}>{mLabel(m)}</option>)}
         </select>
       </div>
+
+      {/* 사장님이 보낸 근로계약서 (서명할 게 있으면 맨 위에) */}
+      {user && <MyContracts uid={user.uid}/>}
 
       {loading ? (
         <div style={{textAlign:'center',color:'#6E6A63',padding:60}}>로딩 중...</div>

@@ -95,6 +95,14 @@ service cloud.firestore {
       allow read: if isMember();
     }
 
+    // 근로계약서: 본인만 읽고, 본인은 보낸(sent) 계약서에 서명만 (서명 칸만 바꾸고 signed 로). 만들기·지우기는 사장님
+    match /contracts/{uid}/items/{id} {
+      allow read: if isMe(uid);
+      allow update: if isMe(uid) && isStaff() && resource.data.status == 'sent'
+        && request.resource.data.status == 'signed'
+        && changed().hasOnly(['status', 'empSign', 'empSignedAt', 'empAddress', 'empPhone']);
+    }
+
     // ───── 포상·포인트 ─────
     // rewards/points(설정)·shop(상점)·avatar(아바타 기준)·{YYYY-MM}(개근 포상)
     match /rewards/{id} {

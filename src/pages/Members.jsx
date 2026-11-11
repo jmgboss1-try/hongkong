@@ -7,6 +7,8 @@ import { collection, getDocs, getDoc, doc, setDoc } from 'firebase/firestore'
 import { GradeBadge } from '../AuthContext'
 import { loadPrivateMap, withPrivate, saveUser } from '../lib/privateInfo'
 import { insuranceFor } from '../lib/payDeduction'
+import ContractManager from '../components/ContractManager'
+import EmploymentCert from '../components/EmploymentCert'
 
 function calcTenure(joinDate, leaveDate) {
   if (!joinDate) return '—'
@@ -103,6 +105,7 @@ function SetPasswordBox({ m }) {
 
 function MemberCard({ m, onEdit, onRetire }) {
   const [showDetail, setShowDetail] = useState(false)
+  const [paper, setPaper] = useState(null)   // 'contract' | 'cert' (근로계약서·재직증명서 창)
   const tenure = calcTenure(m.joinDate)
   const severance = calcSeverance(m.joinDate, null, m.wage||10030, m.avgHours||8)
 
@@ -165,7 +168,17 @@ function MemberCard({ m, onEdit, onRetire }) {
               style={{background:'transparent',border:'1px solid #B42318',color:'#B42318',borderRadius:4,padding:'8px 16px',fontSize:11,cursor:'pointer',fontFamily:'inherit'}}>
               퇴직 처리
             </button>
+            <button onClick={()=>setPaper('contract')}
+              style={{background:'#FFFFFF',border:'1px solid #DCD7CE',color:'#1D1B18',borderRadius:4,padding:'8px 16px',fontSize:11,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
+              근로계약서
+            </button>
+            <button onClick={()=>setPaper('cert')}
+              style={{background:'#FFFFFF',border:'1px solid #DCD7CE',color:'#1D1B18',borderRadius:4,padding:'8px 16px',fontSize:11,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
+              재직증명서
+            </button>
           </div>
+          {paper === 'contract' && <ContractManager member={m} onClose={()=>setPaper(null)}/>}
+          {paper === 'cert' && <EmploymentCert member={m} onClose={()=>setPaper(null)}/>}
         </div>
       )}
     </div>
@@ -174,6 +187,7 @@ function MemberCard({ m, onEdit, onRetire }) {
 
 function RetiredCard({ m, onRestore }) {
   const [showDetail, setShowDetail] = useState(false)
+  const [cert, setCert] = useState(false)   // 경력증명서 창
   const tenure = calcTenure(m.joinDate, m.leaveDate)
   const severance = calcSeverance(m.joinDate, m.leaveDate, m.wage||10030, m.avgHours||8)
 
@@ -225,6 +239,11 @@ function RetiredCard({ m, onRestore }) {
               padding:'8px 16px',fontSize:11,cursor:'pointer',fontFamily:'inherit'}}>
             복직 처리
           </button>
+            <button onClick={()=>setCert(true)}
+              style={{background:'#FFFFFF',border:'1px solid #DCD7CE',color:'#1D1B18',borderRadius:4,padding:'8px 16px',fontSize:11,fontWeight:700,cursor:'pointer',fontFamily:'inherit',marginLeft:8}}>
+              경력증명서
+            </button>
+            {cert && <EmploymentCert member={m} onClose={()=>setCert(false)}/>}
         </div>
       )}
     </div>
