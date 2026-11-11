@@ -3,7 +3,7 @@
 // 예전에 meta/bizInfo (사장님만 읽음)에 저장했던 값은 사장님 화면에서만 대신 읽어 줌
 import { useEffect, useState } from 'react'
 import { db } from '../firebase'
-import { doc, getDoc, setDoc } from 'firebase/firestore'
+import { doc, getDoc, setDoc, onSnapshot } from 'firebase/firestore'
 
 export const DEFAULT_BIZ = { name:'홍콩반점 중앙대점', bizNo:'', ceo:'', address:'' }
 export async function loadBizInfo() {
@@ -18,9 +18,16 @@ export async function loadBizInfo() {
   return DEFAULT_BIZ
 }
 export const saveBizInfo = biz => setDoc(doc(db, 'rewards', 'bizInfo'), biz)
+// 실시간: 원천징수영수증에서 사업장 정보·직인을 바꾸면 이미 열린 화면(내 임금명세서 등)에도 바로 반영
 export function useBizInfo() {
   const [biz, setBiz] = useState(DEFAULT_BIZ)
-  useEffect(() => { let off = false; loadBizInfo().then(b => { if (!off) setBiz(b) }); return () => { off = true } }, [])
+  useEffect(() => {
+    let off = false
+    const unsub = onSnapshot(doc(db, 'rewards', 'bizInfo'),
+      s => { if (s.exists()) setBiz({ ...DEFAULT_BIZ, ...s.data() }); else loadBizInfo().then(b => { if (!off) setBiz(b) }) },
+      () => loadBizInfo().then(b => { if (!off) setBiz(b) }))
+    return () => { off = true; unsub() }
+  }, [])
   return biz
 }
 
@@ -32,7 +39,7 @@ export async function loadSeal() {
 export const saveSeal = img => setDoc(doc(db, 'rewards', 'bizSeal'), { img: img || null, at: new Date().toISOString() })
 export function useSeal() {
   const [seal, setSeal] = useState(null)
-  useEffect(() => { let off = false; loadSeal().then(s => { if (!off) setSeal(s) }); return () => { off = true } }, [])
+  useEffect(() => onSnapshot(doc(db, 'rewards', 'bizSeal'), s => setSeal(s.exists() ? (s.data().img || null) : null), () => {}), [])
   return seal
 }
 // 사진 → 직인 PNG: 최대 280px, 흰 바탕(밝고 색이 옅은 점)은 투명하게, 인주색은 남김
