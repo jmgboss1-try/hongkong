@@ -51,14 +51,33 @@ function lastBusinessDayBefore(dateStr, holidays) {
   return null
 }
 
-// interval='biweekly'인 항목이 특정 날짜에 노출되는지 판단 (baseDate 기준 14일 간격)
+// 요일 항목의 반복 주기: weekly(매주) · biweekly(2주) · w3 · w4 · w6 · w8 (N주마다)
+const INTERVALS = [
+  { v:'weekly', label:'매주', n:1 }, { v:'biweekly', label:'2주마다', n:2 }, { v:'w3', label:'3주마다', n:3 },
+  { v:'w4', label:'4주마다', n:4 }, { v:'w6', label:'6주마다', n:6 }, { v:'w8', label:'8주마다', n:8 },
+]
+const weeksOf = interval => INTERVALS.find(x=>x.v===interval)?.n || 1
+const intervalLabel = interval => weeksOf(interval) > 1 ? INTERVALS.find(x=>x.v===interval).label : ''
+// 월요일 시작 주 번호 (1970-01-05 월요일 기준)
+const weekNo = dateStr => { const [y,m,d] = dateStr.split('-').map(Number); return Math.floor((Date.UTC(y,m-1,d) - Date.UTC(1970,0,5)) / (7*86400000)) }
+// N주마다 항목이 그 날짜가 있는 주에 하는지: 기준일이 있는 주부터 N주 간격 (기준일이 그 요일이 아니어도 됨)
 function isBiweeklyActive(item, dateStr) {
-  if(item.interval !== 'biweekly' || !item.baseDate) return true
-  const base = new Date(item.baseDate)
-  const target = new Date(dateStr)
-  const diffDays = Math.round((target - base) / (1000*60*60*24))
-  if(diffDays < 0) return false
-  return (diffDays % 14) === 0
+  const n = weeksOf(item.interval)
+  if(n <= 1 || !item.baseDate) return true
+  const diff = weekNo(dateStr) - weekNo(item.baseDate)
+  return ((diff % n) + n) % n === 0
+}
+
+// N주마다 항목의 다음 세 번 (휴무일 무시, 날짜만 보여 줌)
+function NextDates({ item }) {
+  const out = []
+  const d = new Date()
+  for(let i=0; i<=120 && out.length<3; i++){
+    const ds = `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`
+    if(d.getDay()===item.dow && isBiweeklyActive(item, ds)) out.push(`${d.getMonth()+1}/${d.getDate()}`)
+    d.setDate(d.getDate()+1)
+  }
+  return <span style={{fontSize:10,color:'#6B4FA0'}}>다음: {out.join(', ') || '—'}</span>
 }
 
 // 오늘부터 daysAhead일 후까지(당일 포함) 그 항목이 실제로 발생하는 날짜를 찾아서 반환. 없으면 null.
@@ -244,7 +263,7 @@ export default function Checklist() {
     const item = {
       id:'w_'+Date.now(), label:newWeekly.label.trim(), dow:+newWeekly.dow, time:newWeekly.time,
       interval: newWeekly.interval,
-      baseDate: newWeekly.interval==='biweekly' ? newWeekly.baseDate : null,
+      baseDate: weeksOf(newWeekly.interval) > 1 ? newWeekly.baseDate : null,
       alertUid: newWeekly.alertUid || '',
       alertMsg: newWeekly.alertMsg || '',
     }
@@ -268,7 +287,7 @@ export default function Checklist() {
       const nw = weeklyItems.map(it=>it.id===editItemId
         ? { id:it.id, label:editItemForm.label, photoCount: it.photoCount||0, dow:+editItemForm.dow, time:editItemForm.time,
             interval: editItemForm.interval || 'weekly',
-            baseDate: editItemForm.interval==='biweekly' ? (editItemForm.baseDate||todayStr()) : null,
+            baseDate: weeksOf(editItemForm.interval) > 1 ? (editItemForm.baseDate||todayStr()) : null,
             alertUid: editItemForm.alertUid || '',
             alertMsg: editItemForm.alertMsg || '' } : it)
       await saveConfig(dailyItems, nw)
@@ -512,8 +531,8 @@ export default function Checklist() {
           }}>
             {item.label}
             <span style={{fontSize:big?11:10,color:'#C3261C',marginLeft:6,fontWeight:700}}>({item.time})</span>
-            {item.interval==='biweekly' && (
-              <span style={{fontSize:big?10:9,color:'#6B4FA0',marginLeft:5,fontWeight:700}}>2주마다</span>
+            {intervalLabel(item.interval) && (
+              <span style={{fontSize:big?10:9,color:'#6B4FA0',marginLeft:5,fontWeight:700}}>{intervalLabel(item.interval)}</span>
             )}
           </span>
           {PhotoBadge(item)}
@@ -673,13 +692,14 @@ export default function Checklist() {
                           <option value="오후">오후</option>
                         </select>
                         <select value={editItemForm.interval||'weekly'} onChange={e=>setEditItemForm(f=>({...f,interval:e.target.value}))} style={inputStyle}>
-                          <option value="weekly">매주</option>
-                          <option value="biweekly">2주마다</option>
+                          {INTERVALS.map(o=><option key={o.v} value={o.v}>{o.label}</option>)}
                         </select>
-                        {editItemForm.interval==='biweekly' && (
+                        {weeksOf(editItemForm.interval) > 1 && (<>
+                          <span style={{fontSize:10,color:'#6E6A63'}}>기준일</span>
                           <input type="date" value={editItemForm.baseDate||todayStr()}
                             onChange={e=>setEditItemForm(f=>({...f,baseDate:e.target.value}))} style={inputStyle}/>
-                        )}
+                          <NextDates item={{...editItemForm, dow:+editItemForm.dow, baseDate:editItemForm.baseDate||todayStr()}}/>
+                        </>)}
                       </div>
                       <div style={{display:'flex',gap:8,flexWrap:'wrap',alignItems:'center'}}>
                         <span style={{fontSize:10,color:'#6E6A63'}}>알림(선택):</span>
@@ -702,7 +722,7 @@ export default function Checklist() {
                       <div style={{flex:1}}>
                         <div style={{fontSize:12,color:'#1D1B18'}}>
                           {item.label}
-                          {item.interval==='biweekly' && <span style={{fontSize:10,color:'#6B4FA0',marginLeft:6,fontWeight:700}}>2주마다</span>}
+                          {intervalLabel(item.interval) && <span style={{fontSize:10,color:'#6B4FA0',marginLeft:6,fontWeight:700}}>{intervalLabel(item.interval)}</span>}
                         </div>
                         {(item.alertUid||item.alertMsg) && (
                           <div style={{fontSize:10,color:'#B42318',marginTop:2}}>
@@ -738,14 +758,14 @@ export default function Checklist() {
                   <option value="오후">오후</option>
                 </select>
                 <select value={newWeekly.interval} onChange={e=>setNewWeekly(f=>({...f,interval:e.target.value}))} style={inputStyle}>
-                  <option value="weekly">매주</option>
-                  <option value="biweekly">2주마다</option>
+                  {INTERVALS.map(o=><option key={o.v} value={o.v}>{o.label}</option>)}
                 </select>
-                {newWeekly.interval==='biweekly' && (
-                  <div style={{display:'flex',alignItems:'center',gap:6}}>
+                {weeksOf(newWeekly.interval) > 1 && (
+                  <div style={{display:'flex',alignItems:'center',gap:6,flexWrap:'wrap'}}>
                     <span style={{fontSize:10,color:'#6E6A63'}}>기준일</span>
                     <input type="date" value={newWeekly.baseDate}
                       onChange={e=>setNewWeekly(f=>({...f,baseDate:e.target.value}))} style={inputStyle}/>
+                    <NextDates item={{...newWeekly, dow:+newWeekly.dow}}/>
                   </div>
                 )}
               </div>
