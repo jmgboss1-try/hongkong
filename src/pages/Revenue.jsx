@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { db } from '../firebase'
 import { doc, getDoc, setDoc } from 'firebase/firestore'
 import { useAuth } from '../AuthContext'
+import RevenuePace from '../components/RevenuePace'
 import { monthLabels, monthScheme, mixedLabel, isAfterCut, chLabels, ETC_HINT, HALL_HINT } from '../lib/revenueChannels'
 
 const pad = n => String(n).padStart(2,'0')
@@ -410,6 +411,9 @@ export default function Revenue() {
           </section>
         </div>
       )}
+
+      {/* 지난달 같은 기간과 비교 */}
+      {!loading && <RevenuePace ym={curMonth}/>}
 
       {/* 매출 입력 (사장만) */}
       {isOwner && (

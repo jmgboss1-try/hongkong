@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import RevenuePace from '../components/RevenuePace'
 import RewardPrompt from '../components/RewardPrompt'
 import { db } from '../firebase'
 import { doc, getDoc, getDocs, collection } from 'firebase/firestore'
@@ -258,14 +259,21 @@ export default function Dashboard() {
 
       const result = []
       let curTotal=0, prevTotal=0
+      // 같은 기간끼리 비교: 이번 달이면 오늘(오늘 마감 전이면 어제)까지만 양쪽을 더함
+      const now = new Date()
+      let cut = days
+      if(curMonth === `${now.getFullYear()}-${pad(now.getMonth()+1)}`) {
+        cut = now.getDate()
+        if(!getRevValue(d[pad(cut)], 'total')) cut -= 1
+      }
       for(let i=1;i<=days;i++){
         const dd = pad(i)
         const v = getRevValue(d[dd], chartChannel)
-        curTotal += v
+        if(i <= cut) curTotal += v
         const row = { label:`${i}일`, value:v }
         if(showCompare) {
           const pv = getRevValue(pd[dd], chartChannel)
-          prevTotal += pv
+          if(i <= cut) prevTotal += pv
           row.compareValue = pv
         }
         result.push(row)
@@ -274,7 +282,7 @@ export default function Dashboard() {
       setCompareSummary(showCompare ? {
         curTotal, prevTotal,
         diffPct: prevTotal>0 ? Math.round((curTotal-prevTotal)/prevTotal*100) : null,
-        prevLabel: mLabelShort(prevYm)+' 동일기간',
+        prevLabel: mLabelShort(prevYm)+(cut < days ? ` 1~${cut}일` : ''),
       } : null)
     } catch(e){ console.error(e) }
     setChartLoading(false)
@@ -434,6 +442,9 @@ export default function Dashboard() {
                 : <p style={{fontSize:12, color:T.sub, margin:'6px 0 0', lineHeight:1.6}}>지출관리에서 계좌내역을 올리면 실제 통장 잔액과 맞춰볼 수 있어요</p>}
             </section>
           </div>
+
+          {/* 지난달 같은 기간과 비교 */}
+          <RevenuePace ym={curMonth}/>
 
           {/* 매출 추이 */}
           <section>
