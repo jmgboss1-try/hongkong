@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { db } from '../firebase'
-import { doc, getDoc, setDoc } from 'firebase/firestore'
+import { collection, doc, getDoc, getDocs, setDoc, updateDoc } from 'firebase/firestore'
 import { useAuth } from '../AuthContext'
 
 const pad = n => String(n).padStart(2,'0')
@@ -40,6 +40,7 @@ const CATEGORIES_BY_INVESTOR = {
     { key: 'investment', label: '투자금 회수' },
     { key: 'loss',       label: '운영 손해분 회수' },
     { key: 'severance',  label: '퇴직금 대납 회수' },
+    { key: 'salary',     label: '미지급 월급 회수' },
   ],
   hyung: [
     { key: 'investment', label: '투자금 회수' },
@@ -52,7 +53,28 @@ const ALL_CATEGORIES = [
   { key: 'loss',       label: '운영 손해분 회수' },
   { key: 'severance',  label: '퇴직금 대납 회수' },
   { key: 'loan',       label: '대출금 상환 회수' },
+  { key: 'salary',     label: '미지급 월급 회수' },
 ]
+
+// 미지급 월급 (테리): 급여관리의 '내 급여 설정'(payrollOwner/{달}, 다음 달로 이어짐)의 세후 월급(급여 − 공제)을
+// 시작 달부터 지난달까지 달마다 셈. 그 달에 받았다고 표시한 달(terry.salaryPaid[달] = true)은 뺌.
+// payrollOwner 는 사장님만 읽을 수 있어서, 사장님이 열 때 계산해 terry.salaryOwed = [{ym, owed}] 로 저장해 두고 투자자도 그걸 봄
+function ownerSalaryMonths(ownerDocs, from, now = new Date()) {
+  const sorted = [...ownerDocs].sort((a,b)=>a.id.localeCompare(b.id))
+  if (!sorted.length) return []
+  const thisYm = `${now.getFullYear()}-${pad(now.getMonth()+1)}`
+  let ym = from || sorted[0].id
+  const out = []
+  for (let i=0; i<240 && ym < thisYm; i++) {
+    const cfg = [...sorted].reverse().find(d => d.id <= ym)
+    const owed = cfg ? Math.max(0, (+cfg.salary||0) - (+cfg.deduction||0)) : 0
+    if (owed > 0) out.push({ ym, owed })
+    const [y,m] = ym.split('-').map(Number)
+    ym = m === 12 ? `${y+1}-01` : `${y}-${pad(m+1)}`
+  }
+  return out
+}
+const salaryTargetOf = cfg => (cfg?.salaryOwed || []).filter(x => !cfg?.salaryPaid?.[x.ym]).reduce((a,x)=>a+x.owed, 0)
 
 // 단리 이자 계산 (연 5%, 일 단위)
 function calcInterest(principal, fromDate, toDate, rate = 0.05) {
@@ -160,8 +182,42 @@ function ProgressBar({ value, max, color }) {
   )
 }
 
+// 미지급 월급 달 목록 (펼쳐 보기). 사장님은 '받음'을 체크해 그 달을 목표에서 뺄 수 있음
+function SalaryMonths({ cfg, open, setOpen, canEdit, onToggle }) {
+  const list = cfg.salaryOwed || []
+  const paid = cfg.salaryPaid || {}
+  const unpaid = list.filter(x => !paid[x.ym])
+  if (!list.length) return (
+    <div style={{fontSize:9,color:'#6E6A63',marginTop:2}}>급여관리 → 세무 보고서의 '내 급여 설정'에 월급을 넣으면 지난달까지 달마다 세어져요</div>
+  )
+  return (
+    <div style={{marginTop:6}}>
+      <button type="button" onClick={()=>setOpen(!open)}
+        style={{background:'none',border:'none',padding:0,cursor:'pointer',fontFamily:'inherit',fontSize:10,color:'#6E6A63'}}>
+        못 받은 달 {unpaid.length}개월 ({list[0].ym.replace('-','.')}~{list[list.length-1].ym.replace('-','.')}, 세후 기준) {open ? '접기' : '달별로 보기'}
+      </button>
+      {open && (
+        <div style={{marginTop:6,background:'#FFFFFF',border:'1px solid #DCD7CE',borderRadius:4,padding:'4px 8px'}}>
+          {list.map(x => (
+            <label key={x.ym} style={{display:'flex',alignItems:'center',gap:8,padding:'4px 0',borderBottom:'1px dotted #DCD7CE',fontSize:11,
+              color: paid[x.ym] ? '#A8A39A' : '#1D1B18', cursor: canEdit ? 'pointer' : 'default'}}>
+              <span style={{width:64,fontVariantNumeric:'tabular-nums'}}>{x.ym.replace('-','.')}</span>
+              <span style={{flex:1,textAlign:'right',fontVariantNumeric:'tabular-nums',textDecoration: paid[x.ym] ? 'line-through' : 'none'}}>{wonFmt(x.owed)}</span>
+              {canEdit
+                ? <><input type="checkbox" checked={!!paid[x.ym]} onChange={e=>onToggle(x.ym, e.target.checked)} style={{accentColor:'#2E7D45'}}/><span style={{fontSize:10,color:'#6E6A63'}}>받음</span></>
+                : <span style={{fontSize:10,color: paid[x.ym] ? '#2E7D45' : '#B42318'}}>{paid[x.ym] ? '받음' : '못 받음'}</span>}
+            </label>
+          ))}
+          <div style={{fontSize:9,color:'#6E6A63',padding:'4px 0'}}>그 달에 받았으면 '받음'을 체크하세요. 나중에 몰아서 받으면 '회수 입력'에서 미지급 월급 회수로 적으면 돼요.</div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 export default function Investment() {
-  const { isInvestor } = useAuth()
+  const { isInvestor, isOwner } = useAuth()
+  const [showSalary, setShowSalary] = useState(false)
   const [config, setConfig]   = useState({
     terry: { amount: 0, startDate: '', interestRate: 0.05 },
     hyung:  { amount: 0, startDate: '', interestRate: 0.05 },
@@ -177,20 +233,32 @@ export default function Investment() {
   const [form, setForm]               = useState({ date:todayStr(), amount:'', investor:'terry', category:'investment', memo:'' })
   const [transferForm, setTransferForm] = useState({})  // { key:'uid:category', to, amount }
 
-  async function load() {
+  async function load(own) {
     setLoading(true)
     try {
       const [cfgSnap, recSnap] = await Promise.all([
         getDoc(doc(db,'investment','config')),
         getDoc(doc(db,'investment','records')),
       ])
-      if (cfgSnap.exists()) setConfig(cfgSnap.data())
+      let cfg = cfgSnap.exists() ? cfgSnap.data() : null
       if (recSnap.exists()) setRecords(recSnap.data().list || [])
+      // 사장님이 열 때: 미지급 월급 달 목록을 급여 설정에서 다시 세어 저장 (투자자 화면도 같은 값을 보게)
+      if (own && cfg) {
+        try {
+          const ps = await getDocs(collection(db,'payrollOwner'))
+          const owed = ownerSalaryMonths(ps.docs.map(d=>({ id:d.id, ...d.data() })).filter(d=>/^\d{4}-\d{2}$/.test(d.id)), cfg.terry?.salaryFrom)
+          if (JSON.stringify(owed) !== JSON.stringify(cfg.terry?.salaryOwed || [])) {
+            await updateDoc(doc(db,'investment','config'), { 'terry.salaryOwed': owed })
+            cfg = { ...cfg, terry: { ...(cfg.terry||{}), salaryOwed: owed } }
+          }
+        } catch(e) { console.error(e) }
+      }
+      if (cfg) setConfig(cfg)
     } catch(e) { console.error(e) }
     setLoading(false)
   }
 
-  useEffect(()=>{ load() },[])
+  useEffect(()=>{ load(isOwner) },[isOwner])
 
   async function saveConfig() {
     for (const uid of Object.keys(INVESTORS)) {
@@ -267,6 +335,16 @@ export default function Investment() {
     setRecords(newList)
   }
 
+  // 미지급 월급: 그 달에 받았는지 표시 (받은 달은 회수 목표에서 빠짐)
+  async function togglePaid(ym, paid) {
+    const next = { ...(config.terry?.salaryPaid || {}) }
+    if (paid) next[ym] = true; else delete next[ym]
+    try {
+      await updateDoc(doc(db,'investment','config'), { 'terry.salaryPaid': next })
+      setConfig(c => ({ ...c, terry: { ...(c.terry||{}), salaryPaid: next } }))
+    } catch(e) { console.error(e); alert('저장 중 오류가 발생했어요') }
+  }
+
   const today = todayStr()
   const transfers = config.transfers || []
   const catLabel = (uid, key) => categoriesFor(uid, config[uid]).find(c=>c.key===key)?.label
@@ -297,7 +375,8 @@ export default function Investment() {
     // 테리의 경우 운영손해분/퇴직금 목표도 포함
     const lossTarget      = uid === 'terry' ? (inv.lossAmount     || 0) : 0
     const severanceTarget = uid === 'terry' ? (inv.severanceAmount|| 0) : 0
-    const totalTarget = principal + interest + loanTarget + lossTarget + severanceTarget
+    const salaryTarget    = uid === 'terry' ? salaryTargetOf(inv) : 0
+    const totalTarget = principal + interest + loanTarget + lossTarget + severanceTarget + salaryTarget
 
     const recovered = records
       .filter(r => r.investor === uid)
@@ -314,7 +393,8 @@ export default function Investment() {
       loanInterest:   uid === 'hyung' ? hyungLoanInterest : 0,
       loanSchedule:   uid === 'hyung' ? hyungLoanCalc.schedule : [],
       lossTarget,
-      severanceTarget }
+      severanceTarget,
+      salaryTarget }
   }
 
   const totalPrincipal  = Object.values(summary).reduce((a,s)=>a+s.principal,0)
@@ -440,6 +520,7 @@ export default function Investment() {
                   ...(uid==='terry' ? [
                     ['운영 손해분 목표 (원)','amount','lossAmount'],
                     ['퇴직금 대납 목표 (원)','amount','severanceAmount'],
+                    ['미지급 월급 셈 시작 달 (비우면 급여 설정 첫 달)','month','salaryFrom'],
                   ] : []),
                   ...(uid==='hyung' ? [['대출 시작일 (연10%)','date','loanStartDate']] : []),
                 ].map(([label,type,key])=>{
@@ -451,7 +532,7 @@ export default function Investment() {
                   <div key={key} style={{marginBottom:10}}>
                     <label style={{fontSize:10,color:'#6E6A63',display:'block',marginBottom:4}}>{label}</label>
                     <input
-                      type={isAmount ? 'text' : 'date'}
+                      type={isAmount ? 'text' : type === 'month' ? 'month' : 'date'}
                       inputMode={isAmount ? 'numeric' : undefined}
                       value={dispVal}
                       onChange={e=>{
@@ -720,9 +801,10 @@ export default function Investment() {
                           : cat.key==='loss'       ? s.lossTarget
                           : cat.key==='severance'  ? s.severanceTarget
                           : cat.key==='loan'       ? s.loanTarget
+                          : cat.key==='salary'     ? s.salaryTarget
                           : 0
                         const pct = target > 0 ? Math.min(100, Math.round(val/target*100)) : 0
-                        const notSet = target === 0 && cat.key !== 'investment' && !cat.addition
+                        const notSet = target === 0 && cat.key !== 'investment' && cat.key !== 'salary' && !cat.addition
                         const excess = target > 0 ? val - target : 0
                         const tKey = `${uid}:${cat.key}`
                         const others = categoriesFor(uid, inv_cfg).filter(c=>c.key!==cat.key)
@@ -747,6 +829,8 @@ export default function Investment() {
                                 목표 금액 미설정 (투자금 설정에서 입력)
                               </div>
                             )}
+                            {cat.key === 'salary' && <SalaryMonths cfg={inv_cfg} open={showSalary} setOpen={setShowSalary} canEdit={isOwner}
+                              onToggle={togglePaid}/>}
                             {s.doneAt[cat.key] && (
                               <div style={{fontSize:9,color:'#2E7D45',marginTop:4}}>
                                 {s.doneAt[cat.key]}에 다 회수{cat.addition?.noInterest ? '됐어요' : '돼서 이자 계산을 멈췄어요'}

@@ -76,6 +76,7 @@ export const INVEST_OPTIONS = [
   { value:'__inv:terry:investment', investor:'terry', category:'investment', label:'테리 투자금 회수' },
   { value:'__inv:terry:loss',       investor:'terry', category:'loss',       label:'테리 운영 손해분 회수' },
   { value:'__inv:terry:severance',  investor:'terry', category:'severance',  label:'테리 퇴직금 대납 회수' },
+  { value:'__inv:terry:salary',     investor:'terry', category:'salary',     label:'테리 미지급 월급 회수' },
   { value:'__inv:hyung:investment', investor:'hyung', category:'investment', label:'형 투자금 회수' },
   { value:'__inv:hyung:loan',       investor:'hyung', category:'loan',       label:'형 대출금 상환 회수' },
 ]
