@@ -3,7 +3,7 @@ import { auth, db } from '../firebase'
 import { signOut } from 'firebase/auth'
 import { doc, setDoc } from 'firebase/firestore'
 import { useAuth, GradeBadge } from '../AuthContext'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { migratePrivacy } from '../lib/privateInfo'
 import { PhoneFileReceiveModal } from './PhoneFileTransfer'
 import NavIcon from './NavIcon'
@@ -23,6 +23,10 @@ export default function Layout({ children }) {
   const { user, isOwner, isStore, isInvestor, isLegend, userData } = useAuth()
   // 예전 자료의 주민번호·시급 등을 개인 문서로, 급여를 사람별 복사본으로 한 번 옮김 (사장님 계정에서만)
   useEffect(() => { if (isOwner) migratePrivacy() }, [isOwner])
+  useEffect(() => {
+    const bar = tabbarRef.current, el = bar?.querySelector('[data-active="1"]')
+    if (bar && el) bar.scrollLeft = el.offsetLeft - (bar.clientWidth - el.offsetWidth) / 2   // 페이지는 안 움직이고 탭줄만
+  }, [location.pathname])
   const [sideOpen, setSideOpen] = useState(false)
   const [fileOpen, setFileOpen] = useState(false) // 폰 → 이 컴퓨터로 파일 옮기기
   // 탭 순서 (경로 배열) — 계정별로 users/{uid}.menuOrder 에 저장
@@ -98,7 +102,9 @@ export default function Layout({ children }) {
   const menus = applyOrder(baseMenus, editOrder || savedOrder || userData?.menuOrder)
   const narrowNav = !wideNav && !editOrder
   const NAV_W = narrowNav ? 72 : 208
-  const bottomMenus = menus.slice(0, 5)
+  // 모바일 하단 탭: 모든 메뉴를 옆으로 밀어서 볼 수 있게 (지금 화면 탭은 가운데로)
+  const bottomMenus = menus
+  const tabbarRef = useRef(null)
 
   function moveMenu(idx, dir) {
     const paths = menus.map(m=>m.path)
@@ -300,11 +306,11 @@ export default function Layout({ children }) {
         background:'#FFFFFF', borderTop:'1px solid #DCD7CE',
         padding:'6px 0 8px'
       }}>
-        <div style={{display:'flex', justifyContent:'space-around'}}>
+        <div ref={tabbarRef} className="tabbar-scroll" style={{display:'flex', overflowX:'auto', overscrollBehaviorX:'contain', WebkitOverflowScrolling:'touch', scrollbarWidth:'none'}}>
           {bottomMenus.map(m=>(
-            <div key={m.path} onClick={()=>navigate(m.path)}
-              style={{display:'flex', flexDirection:'column', alignItems:'center', padding:'8px 6px 6px', cursor:'pointer',
-                color:location.pathname===m.path?'#1D1B18':'#6E6A63', minWidth:50,
+            <div key={m.path} onClick={()=>navigate(m.path)} data-active={location.pathname===m.path ? '1' : '0'}
+              style={{display:'flex', flexDirection:'column', alignItems:'center', padding:'8px 4px 6px', cursor:'pointer', flex:'0 0 auto',
+                color:location.pathname===m.path?'#1D1B18':'#6E6A63', width: bottomMenus.length <= 5 ? `${100 / bottomMenus.length}%` : '18%', boxSizing:'border-box', whiteSpace:'nowrap',
                 borderTop:`2px solid ${location.pathname===m.path ? '#C3261C' : 'transparent'}`, marginTop:-7}}>
               <span style={{color: NAV_GROUPS[navGroupOf(m.path)].color, opacity: location.pathname===m.path ? 1 : 0.8, marginBottom:2}}><NavIcon name={m.path} size={20}/></span>
               <span style={{fontSize:11, fontWeight:location.pathname===m.path?700:500}}>{m.label}</span>
@@ -321,6 +327,7 @@ export default function Layout({ children }) {
         .nav-item:hover { background: #ECE8E1 !important; }
         .nav-item[aria-current="page"]:hover { background: #FFFFFF !important; }
         .nav-item:focus-visible { outline: 2px solid #1D1B18; outline-offset: -2px; }
+        .tabbar-scroll::-webkit-scrollbar { display: none; }
         @media (max-width: 768px) {
           .page-surface { margin: -70px -14px -80px; padding: 70px 14px 80px; }
         }
