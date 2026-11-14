@@ -388,7 +388,7 @@ function Settings({ config, onDone }) {
   async function save() {
     setBusy(true)
     try {
-      const clean = { ...c, monthly:+c.monthly||0, boost:+c.boost||0, late:+c.late||0, absent:+c.absent||0, streakExtra:+c.streakExtra||0 }
+      const clean = { ...c, monthly:+c.monthly||0, boost:+c.boost||0, late:+c.late||0, absent:+c.absent||0, streakExtra:+c.streakExtra||0, lateHalf:+c.lateHalf||0, lateHalfPct:Math.min(100, Math.max(1, +c.lateHalfPct||50)) }
       await setDoc(doc(db, 'rewards', 'points'), clean); onDone('설정을 저장했어요')
     } catch(e) { console.error(e); onDone('저장하지 못했어요') }
     setBusy(false)
@@ -408,6 +408,8 @@ function Settings({ config, onDone }) {
       {row('late', '지각 감점', '한 번마다')}
       {row('absent', '결근 감점', '한 번마다 (결근 아님 처리한 날은 빼요)')}
       {row('streakExtra', '연속 추가 감점', '바로 앞 근무일도 지각·결근이면 더 빼요')}
+      {row('lateHalf', '지각 잦은 달 감점', '한 달이 끝났을 때 아래 비율 이상 지각했으면 그 달 마지막 날 한 번 더 빼요 (0이면 안 함)')}
+      {row('lateHalfPct', '지각 비율 기준 (%)', '그 달 출근한 날 중 지각한 날의 비율. 50 = 절반 이상')}
       <label style={{display:'flex', flexDirection:'column', gap:6, padding:'8px 0', fontSize:14}}>
         개근 게임 상품 (룰렛·사다리에 들어갈 칸, 쉼표로)
         <input value={c.prizes} onChange={e=>setC(x=>({ ...x, prizes:e.target.value }))} style={inp}/>

@@ -6,13 +6,14 @@
 //  개인  points/{uid} = { adjust:[{id,date,amount,note}], games:[{id,date,amount,note}] }   (본인·사장님만 읽음)
 //         points/{uid}/codes/{요청id} = { img, text, note }   (상품권 바코드·선물코드, 사장님이 승인할 때 넣음)
 //  자동  매달 기본 포인트, 지난달 개근이면 부스트, 지각·결근 감점(바로 앞 근무일도 지각·결근이면 추가 감점)은
-//        출퇴근 기록에서 계산 (저장 안 함). 잔액은 0 아래로 안 내려감. 퇴사하면 소멸
+//        출퇴근 기록에서 계산 (저장 안 함). 끝난 달에 근무일의 lateHalfPct% 이상 지각이면 그 달 마지막 날 lateHalf 감점. 잔액은 0 아래로 안 내려감. 퇴사하면 소멸
 import { db } from '../firebase'
 import { doc, getDoc } from 'firebase/firestore'
 import { loadMonthContext, monthStatus, pad } from './attendance'
 
 export const DEFAULT_POINT_CONFIG = {
   start: '2026-10', monthly: 100, boost: 20, late: 10, absent: 10, streakExtra: 10,
+  lateHalf: 150, lateHalfPct: 50,   // 한 달 근무일 중 지각한 날이 이 비율(%) 이상이면 그 달 끝에 한 번 더 감점
   prizes: '30포인트, 20포인트, 10포인트, 꽝',
 }
 export async function loadPointConfig() {
@@ -77,12 +78,21 @@ export function pointLedger({ uid, user, config, months, personal, requests, now
       }
       prevBad = !!bad
     }
+    // 지각이 잦은 달: 끝난 달만, 출근한 날(결근·결근 아님 처리 제외) 중 지각한 날 비율로
+    if (st.monthOver && (+config.lateHalf || 0) > 0) {
+      const worked = st.days.filter(d => d.counted && !d.excused && !d.absent && d.rec?.in)
+      const lateDays = worked.filter(d => d.late > 0).length
+      const pct = +config.lateHalfPct || 50
+      if (worked.length && lateDays * 100 >= worked.length * pct)
+        ev.push({ date: `${ym}-${pad(new Date(+ym.slice(0, 4), +ym.slice(5), 0).getDate())}`, amount: -(+config.lateHalf),
+          kind: 'lateHalf', note: `${+ym.slice(5)}월 지각 ${lateDays}일 / 근무 ${worked.length}일 (${pct}% 이상)` })
+    }
   }
   for (const a of personal?.adjust || []) ev.push({ date: a.date, amount: +a.amount || 0, kind: 'adjust', note: a.note || '사장님 조정' })
   for (const g of personal?.games || []) ev.push({ date: g.date, amount: +g.amount || 0, kind: 'game', note: g.note || '개근 게임' })
   for (const r of requests || []) if (r.uid === uid && r.status !== 'rejected')
     ev.push({ date: String(r.at).slice(0, 10), amount: -(+r.cost || 0), kind: 'exchange', note: `${r.itemName} 교환${r.status === 'pending' ? ' (확인 대기)' : ''}`, reqId: r.id })
-  const order = { monthly: 0, boost: 1, game: 2, adjust: 3, late: 4, absent: 4, streak: 5, exchange: 6 }
+  const order = { monthly: 0, boost: 1, game: 2, adjust: 3, late: 4, absent: 4, streak: 5, lateHalf: 5, exchange: 6 }
   ev.sort((a, b) => a.date < b.date ? -1 : a.date > b.date ? 1 : (order[a.kind] ?? 9) - (order[b.kind] ?? 9))
   let bal = 0
   for (const e of ev) { const before = bal; bal = Math.max(0, bal + e.amount); e.applied = bal - before; e.balance = bal }
