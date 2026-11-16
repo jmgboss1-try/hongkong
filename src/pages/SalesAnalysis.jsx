@@ -4,21 +4,18 @@ import { doc, getDoc, setDoc } from 'firebase/firestore'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, ReferenceArea, ReferenceLine, CartesianGrid, Cell } from 'recharts'
 import { readDeliveryExcel, pickSalesField, SALES_FIELDS } from '../lib/deliveryImport'
 import DiscountCalc from '../components/DiscountCalc'
+import { GoalCard } from '../components/DiscountGoal'
+import { PLATFORMS, EVENTS_DOC, OPEN_END, DEFAULT_MARGIN, isGoalEvent, goalMonths, addDays, daysBetween, dateRange, todayStr, monthsOf, dayValue, stats, loadSalesMonths } from '../lib/salesStats'
 
 // 매출분석 — 배달앱별 하루 주문수·매출·객단가, 할인·이벤트 기간과 그 전 기간 비교
 //
 // 데이터: revenue/{YYYY-MM}[dd] 의 마감 값 (baemin·coupang·yogiyo·ddangyeo = 하루 매출,
 //         baeminOrders… = 마감 때 적은 주문 건수)
 // 배달앱 엑셀: revenue/_apps-{YYYY-MM} → { [앱]: { [dd]: { orders, sales, discount, payout, … } } } — 있으면 그날 그 앱은 이 값을 우선
-// 이벤트: revenue/_salesEvents → { list: [{ id, title, kind, platforms:[], from, to, memo }] }
+// 이벤트: revenue/_salesEvents → { list: [{ id, title, kind, platforms:[], from, to, memo, perOrder?, margin? }] }
+//         할인에 건당 할인(perOrder)을 적으면 '할인 목표'로 매일 추적 (lib/salesStats discountGoal, 대시보드에도 한 줄). 끝날 날 미정 = to OPEN_END
 //         (매장 계정도 revenue 문서는 쓸 수 있어서 같은 컬렉션에 둠. revenue를 통째로 읽는 코드는 '_'로 시작하는 문서를 건너뛸 것)
 
-const PLATFORMS = [
-  { key:'baemin',   label:'배달의민족', short:'배민',   color:'#2E7D45' },
-  { key:'coupang',  label:'쿠팡이츠',   short:'쿠팡',   color:'#B42318' },
-  { key:'yogiyo',   label:'요기요',     short:'요기요', color:'#C3261C' },
-  { key:'ddangyeo', label:'땡겨요',     short:'땡겨요', color:'#2B5C9E' },
-]
 const KINDS = [
   { key:'discount', label:'할인' },
   { key:'event',    label:'이벤트' },
@@ -30,56 +27,13 @@ const METRICS = [
   { key:'sales',  label:'매출',   unit:'원' },
   { key:'aov',    label:'객단가', unit:'원' },
 ]
-const EVENTS_DOC = ['revenue', '_salesEvents']
 const DAYS_KR = ['일','월','화','수','목','금','토']
 
-const pad = n => String(n).padStart(2,'0')
-const fmtDate = d => `${d.getUTCFullYear()}-${pad(d.getUTCMonth()+1)}-${pad(d.getUTCDate())}`
 const parseDate = s => new Date(`${s}T00:00:00Z`)
-const addDays = (s, n) => { const d = parseDate(s); d.setUTCDate(d.getUTCDate()+n); return fmtDate(d) }
-const daysBetween = (a, b) => Math.round((parseDate(b) - parseDate(a)) / 86400000)
-const dateRange = (from, to) => { const out = []; for (let d = from; d <= to; d = addDays(d, 1)) out.push(d); return out }
 const weekday = s => parseDate(s).getUTCDay()
 const shortDate = s => `${+s.slice(5,7)}/${+s.slice(8,10)}`
 const won = n => n == null ? '—' : Math.round(n).toLocaleString('ko-KR')
-const todayStr = () => { const n = new Date(); return `${n.getFullYear()}-${pad(n.getMonth()+1)}-${pad(n.getDate())}` }
-const monthsOf = (from, to) => { const out = new Set(); for (let d = from; d <= to; d = addDays(d, 1)) out.add(d.slice(0,7)); return [...out] }
 const newId = () => `${Date.now()}`
-
-// 하루·앱 하나의 값. 배달앱 엑셀로 넣은 날은 그 값(가게 부담 할인·정산금액 포함),
-// 아니면 마감 매출과 마감 때 적은 주문 건수
-function dayValue(months, date, p) {
-  const m = months[date.slice(0,7)], dd = date.slice(8,10)
-  const x = m?.apps?.[p]?.[dd]
-  const rec = m?.rev?.[dd]
-  const entered = rec && typeof rec[`${p}Orders`] === 'number' ? rec[`${p}Orders`] : null
-  // 주문 건수: 마감 때 적은 건수가 있으면 그것(출력물 기준이라 정확), 없으면 엑셀 (배민은 포장·가게배달이 추정치)
-  if (x) return { sales:x.sales, orders: entered ?? x.orders ?? null, discount:x.discount ?? null, payout:x.payout ?? null, ads:x.ads ?? null, excel:true }
-  if (!rec) return { sales:null, orders:null, discount:null, payout:null, ads:null }
-  const sales = typeof rec[p] === 'number' ? rec[p] : null
-  const orders = typeof rec[`${p}Orders`] === 'number' ? rec[`${p}Orders`] : null
-  return { sales, orders, discount:null, payout:null, ads:null }
-}
-
-// 여러 날의 평균. 주문수·객단가는 주문 건수를 적은 날만, 매출은 매출이 있는 날만 셈
-function stats(months, dates, p) {
-  let salesN = 0, salesSum = 0, ordN = 0, ordSum = 0, ordSales = 0, discN = 0, discSum = 0, adsN = 0, adsSum = 0
-  for (const d of dates) {
-    const v = dayValue(months, d, p)
-    if (v.sales != null) { salesN++; salesSum += v.sales }
-    if (v.orders != null) { ordN++; ordSum += v.orders; ordSales += v.sales || 0 }
-    if (v.discount != null) { discN++; discSum += v.discount }
-    if (v.ads != null) { adsN++; adsSum += v.ads }
-  }
-  return {
-    salesN, ordN, ordSum, salesSum, discN, discSum,
-    discountPerDay: discN ? discSum / discN : null,
-    adsN, adsPerDay: adsN ? adsSum / adsN : null,
-    salesPerDay: salesN ? salesSum / salesN : null,
-    ordersPerDay: ordN ? ordSum / ordN : null,
-    aov: ordSum ? ordSales / ordSum : null,
-  }
-}
 
 // 이벤트 비교 기간: 이벤트 기간(오늘까지), 바로 전 같은 길이, 4주 전까지 같은 요일
 function comparePeriods(ev) {
@@ -252,7 +206,7 @@ function EventEffect({ months, periods, ev }) {
 
 function emptyForm() {
   const t = todayStr()
-  return { id:null, title:'', kind:'discount', platforms:[], from:t, to:t, memo:'' }
+  return { id:null, title:'', kind:'discount', platforms:[], from:t, to:t, memo:'', perOrder:'', margin:'' }
 }
 
 export default function SalesAnalysis() {
@@ -277,17 +231,17 @@ export default function SalesAnalysis() {
     const set = new Set(monthsOf(range.from, range.to))
     if (periods) monthsOf(periods.sameWeekday[0] || periods.before[0], periods.to).forEach(m => set.add(m))
     if (cmpRange?.from && cmpRange?.to && cmpRange.from <= cmpRange.to) monthsOf(cmpRange.from, cmpRange.to).forEach(m => set.add(m))
+    for (const e of events) if (isGoalEvent(e)) goalMonths(e).forEach(m => set.add(m))
     return [...set].sort()
-  }, [range.from, range.to, periods, cmpRange])
+  }, [range.from, range.to, periods, cmpRange, events])
 
   useEffect(() => {
     const missing = neededMonths.filter(m => !(m in months))
     if (!missing.length) { setLoading(false); return }
     let cancelled = false
     setLoading(true)
-    const read = id => getDoc(doc(db,'revenue',id)).then(s => s.exists() ? s.data() : {})
-    Promise.all(missing.map(m => Promise.all([read(m), read(`_apps-${m}`).catch(() => ({}))]).then(([rev, apps]) => [m, { rev, apps }])))
-      .then(list => { if (!cancelled) setMonths(prev => ({ ...prev, ...Object.fromEntries(list) })) })
+    loadSalesMonths(missing)
+      .then(got => { if (!cancelled) setMonths(prev => ({ ...prev, ...got })) })
       .catch(e => console.error(e))
       .finally(() => { if (!cancelled) setLoading(false) })
     return () => { cancelled = true }
@@ -322,7 +276,10 @@ export default function SalesAnalysis() {
   async function saveForm() {
     if (!form.title.trim()) return alert('제목을 적어주세요')
     if (!form.from || !form.to || form.to < form.from) return alert('기간을 확인해 주세요')
-    const ev = { ...form, title: form.title.trim(), memo: form.memo.trim(), id: form.id || newId() }
+    if (form.kind === 'discount' && form.perOrder !== '' && form.perOrder != null && !(+form.perOrder > 0)) return alert('건당 할인 금액을 확인해 주세요')
+    const ev = { ...form, title: form.title.trim(), memo: form.memo.trim(), id: form.id || newId(),
+      perOrder: form.kind === 'discount' && +form.perOrder > 0 ? +form.perOrder : null,
+      margin: form.kind === 'discount' && +form.perOrder > 0 ? (+form.margin || DEFAULT_MARGIN) : null }
     const ok = await writeEvents(list => [...list.filter(e => e.id !== ev.id), ev])
     if (ok) { setForm(null); setSelId(ev.id) }
   }
@@ -613,15 +570,26 @@ export default function SalesAnalysis() {
         })()}
       </div>
 
+      {/* 할인 목표 (건당 할인 일정) */}
+      {events.some(e => isGoalEvent(e)) && (
+        <div style={{...card,marginBottom:14,borderColor:'rgba(195,38,28,0.45)'}}>
+          <div style={{fontSize:14,fontWeight:700}}>할인 목표</div>
+          <div style={{fontSize:11,color:'#6E6A63',marginTop:2}}>건당 할인을 적은 할인 일정이에요. 할인 전 4주와 같은 이익을 내려면 하루 몇 건이 필요한지, 실제로 얼마나 받고 있는지</div>
+          {events.filter(e => isGoalEvent(e)).map(ev => <GoalCard key={ev.id} months={months} ev={ev} loading={loading}/>)}
+        </div>
+      )}
+
       {/* 할인 손익 계산기 */}
       <DiscountCalc loading={loading}
+        onMakeEvent={(perOrder, margin) => { setForm({ ...emptyForm(), title:`건당 ${perOrder.toLocaleString('ko-KR')}원 할인`, kind:'discount', perOrder:String(perOrder), margin:String(margin), to: OPEN_END });
+          setTimeout(() => document.getElementById('sales-events')?.scrollIntoView({ behavior:'smooth' }), 50) }}
         base={PLATFORMS.map(p => ({ ...p, ...stats(months, rangeDates, p.key) }))}
         baseLabel={`${shortDate(range.from)}~${shortDate(range.to)}`}
         cmp={cmpRange?.from && cmpRange?.to && cmpRange.from <= cmpRange.to ? PLATFORMS.map(p => ({ ...p, ...stats(months, dateRange(cmpRange.from, cmpRange.to), p.key) })) : null}
         cmpRange={cmpRange} setCmpRange={setCmpRange}/>
 
       {/* 할인·이벤트 일정 */}
-      <div style={{...card,marginBottom:14}}>
+      <div id="sales-events" style={{...card,marginBottom:14}}>
         <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:12,gap:8,flexWrap:'wrap'}}>
           <div>
             <div style={{fontSize:14,fontWeight:700}}>할인·이벤트 일정</div>
@@ -648,8 +616,13 @@ export default function SalesAnalysis() {
                   style={{...input,width:'100%',marginTop:4,background:'#FFFFFF'}}/>
               </label>
               <label style={{fontSize:10,color:'#6E6A63'}}>종료일
-                <input type="date" value={form.to} min={form.from} onChange={e=>setForm(f=>({ ...f, to:e.target.value }))}
-                  style={{...input,width:'100%',marginTop:4,background:'#FFFFFF'}}/>
+                {form.to === OPEN_END
+                  ? <div style={{...input,marginTop:4,background:'#FFFFFF',color:'#6E6A63'}}>정하지 않음 (계속)</div>
+                  : <input type="date" value={form.to} min={form.from} onChange={e=>setForm(f=>({ ...f, to:e.target.value }))}
+                      style={{...input,width:'100%',marginTop:4,background:'#FFFFFF'}}/>}
+                <span style={{display:'flex',alignItems:'center',gap:4,marginTop:4}}>
+                  <input type="checkbox" checked={form.to === OPEN_END} onChange={e=>setForm(f=>({ ...f, to: e.target.checked ? OPEN_END : f.from }))}/>끝나는 날 아직 안 정함
+                </span>
               </label>
               <div style={{fontSize:10,color:'#6E6A63'}}>종류
                 <div style={{display:'flex',gap:4,flexWrap:'wrap',marginTop:4}}>
@@ -665,6 +638,23 @@ export default function SalesAnalysis() {
                   })}
                 </div>
               </div>
+              {form.kind === 'discount' && (
+                <div style={{gridColumn:'1/-1',display:'flex',gap:12,flexWrap:'wrap',alignItems:'flex-end',background:'#FFFFFF',border:'1px solid #DCD7CE',borderRadius:4,padding:'8px 10px'}}>
+                  <label style={{fontSize:10,color:'#6E6A63'}}>주문 1건당 할인 (원)
+                    <input type="text" inputMode="numeric" value={form.perOrder ?? ''} placeholder="예: 1000"
+                      onChange={e=>setForm(f=>({ ...f, perOrder:e.target.value.replace(/[^0-9]/g,'') }))}
+                      style={{...input,width:110,marginTop:4,background:'#FFFFFF',textAlign:'right',display:'block'}}/>
+                  </label>
+                  <label style={{fontSize:10,color:'#6E6A63'}}>이익률 (%)
+                    <input type="text" inputMode="decimal" value={form.margin ?? ''} placeholder={String(DEFAULT_MARGIN)}
+                      onChange={e=>setForm(f=>({ ...f, margin:e.target.value.replace(/[^0-9.]/g,'') }))}
+                      style={{...input,width:70,marginTop:4,background:'#FFFFFF',textAlign:'right',display:'block'}}/>
+                  </label>
+                  <div style={{fontSize:10,color:'#6E6A63',flex:1,minWidth:180,lineHeight:1.6}}>
+                    건당 할인을 적으면 할인 전 4주 평균으로 '하루 몇 건 받아야 본전인지' 목표를 정하고, 시작하면 매일 실제 주문과 비교해요 (대시보드에도 나와요)
+                  </div>
+                </div>
+              )}
               <label style={{gridColumn:'1/-1',fontSize:10,color:'#6E6A63'}}>메모 (선택)
                 <textarea value={form.memo} onChange={e=>setForm(f=>({ ...f, memo:e.target.value }))} rows={2}
                   placeholder="예: 최소주문 20,000원, 첫 주문 고객만"
@@ -697,13 +687,14 @@ export default function SalesAnalysis() {
                 <div style={{flex:1,minWidth:160}}>
                   <div style={{fontSize:12,fontWeight:600}}>{ev.title}</div>
                   <div style={{fontSize:10,color:'#6E6A63',marginTop:2}}>
-                    {ev.from === ev.to ? ev.from : `${ev.from} ~ ${ev.to}`} ({daysBetween(ev.from, ev.to)+1}일)
+                    {ev.to === OPEN_END ? `${ev.from} ~ 계속` : ev.from === ev.to ? ev.from : `${ev.from} ~ ${ev.to} (${daysBetween(ev.from, ev.to)+1}일)`}
+                    {+ev.perOrder > 0 && ` · 건당 ${(+ev.perOrder).toLocaleString('ko-KR')}원`}
                     {' · '}{ev.platforms?.length ? ev.platforms.map(k=>PLATFORMS.find(p=>p.key===k)?.short).join(', ') : '전체 앱'}
                     {ev.memo && ` · ${ev.memo}`}
                   </div>
                 </div>
                 <button type="button" onClick={()=>setSelId(on ? null : ev.id)} style={chip(on)}>{on ? '효과 닫기' : '효과 보기'}</button>
-                <button type="button" onClick={()=>setForm({ ...emptyForm(), ...ev, platforms: ev.platforms || [], memo: ev.memo || '' })}
+                <button type="button" onClick={()=>setForm({ ...emptyForm(), ...ev, platforms: ev.platforms || [], memo: ev.memo || '', perOrder: ev.perOrder ?? '', margin: ev.margin ?? '' })}
                   style={{...chip(false),padding:'6px 10px'}}>수정</button>
                 <button type="button" onClick={()=>removeEvent(ev)}
                   style={{background:'transparent',border:'1px solid #E8C4BF',color:'#B42318',borderRadius:6,padding:'5px 9px',fontSize:11,cursor:'pointer',fontFamily:'inherit'}}>삭제</button>

@@ -26,7 +26,7 @@ function breakEven({ orders, aov, margin, discount }) {
   return { now, unit, after, need, extra: need - orders, extraPct: (need - orders) / orders * 100, needSales: need * aov }
 }
 
-export default function DiscountCalc({ base, baseLabel, cmp, cmpRange, setCmpRange, loading }) {
+export default function DiscountCalc({ base, baseLabel, cmp, cmpRange, setCmpRange, loading, onMakeEvent }) {
   const saved = load()
   const total = (list) => {
     const has = list.filter(p => p.ordersPerDay != null && p.aov != null)
@@ -35,8 +35,8 @@ export default function DiscountCalc({ base, baseLabel, cmp, cmpRange, setCmpRan
     return { orders, aov: orders ? sales / orders : null }
   }
   const dataTot = total(base)
-  const [s, setS] = useState(() => ({ margin: saved.margin ?? 20, discount: saved.discount ?? 1000, orders: '', aov: '', appMargin: saved.appMargin || {} }))
-  const set = patch => setS(v => { const n = { ...v, ...patch }; keep({ margin: n.margin, discount: n.discount, appMargin: n.appMargin }); return n })
+  const [s, setS] = useState(() => ({ margin: saved.margin ?? 20, discount: saved.discount ?? 1000, orders: '', aov: '', appMargin: saved.appMargin || {}, open: !!saved.open }))
+  const set = patch => setS(v => { const n = { ...v, ...patch }; keep({ margin: n.margin, discount: n.discount, appMargin: n.appMargin, open: n.open }); return n })
 
   const orders = s.orders !== '' ? +s.orders : dataTot.orders
   const aov = s.aov !== '' ? +s.aov : dataTot.aov
@@ -70,10 +70,15 @@ export default function DiscountCalc({ base, baseLabel, cmp, cmpRange, setCmpRan
 
   return (
     <section style={{background:'#FFFFFF', border:`1px solid ${T.rule}`, borderRadius:6, padding:16, marginBottom:14}}>
-      <div style={{display:'flex', justifyContent:'space-between', alignItems:'baseline', gap:10, flexWrap:'wrap', borderBottom:`2px solid ${T.ink}`, paddingBottom:6, marginBottom:10}}>
-        <h2 style={{fontSize:16, fontWeight:800, margin:0, fontFamily:'inherit', color:T.ink}}>할인 손익 계산기</h2>
-        <span style={{fontSize:11, color:T.sub}}>건당 할인을 하면 주문이 얼마나 늘어야 지금만큼 남는지</span>
-      </div>
+      <button type="button" onClick={() => set({ open: !s.open })} aria-expanded={s.open}
+        style={{display:'flex', justifyContent:'space-between', alignItems:'baseline', gap:10, flexWrap:'wrap', width:'100%', background:'none', border:'none', cursor:'pointer',
+          fontFamily:'inherit', textAlign:'left', padding:'0 0 6px', borderBottom: s.open ? `2px solid ${T.ink}` : 'none', marginBottom: s.open ? 10 : 0}}>
+        <span style={{fontSize:16, fontWeight:800, color:T.ink}}>할인 손익 계산기 <span style={{fontSize:12, fontWeight:500, color:'#2B5C9E', marginLeft:6}}>{s.open ? '접기' : '펼치기'}</span></span>
+        <span style={{fontSize:11, color:T.sub, ...num}}>
+          {!s.open && r && !r.impossible ? `${won(discount)}원 할인이면 하루 ${one(r.need)}건 (+${one(r.extra)}건) 필요` : '건당 할인을 하면 주문이 얼마나 늘어야 지금만큼 남는지'}
+        </span>
+      </button>
+      {s.open && <>
 
       <div style={{display:'flex', gap:14, flexWrap:'wrap', alignItems:'flex-end', marginBottom:12}}>
         {field('하루 주문', s.orders, v => set({ orders: v }), { ph: one(dataTot.orders), unit:'건' })}
@@ -232,6 +237,13 @@ export default function DiscountCalc({ base, baseLabel, cmp, cmpRange, setCmpRan
       <div style={{fontSize:11, color:T.sub, marginTop:12, lineHeight:1.6}}>
         할인해도 객단가는 그대로이고 할인은 가게가 다 부담한다고 보고 계산해요. 할인 때문에 주문 금액이 18,000원 최소주문에 맞춰 올라가면 실제로는 조금 더 남을 수 있어요.
       </div>
+      {onMakeEvent && discount > 0 && (
+        <button type="button" onClick={() => onMakeEvent(discount, margin)}
+          style={{marginTop:10, background:T.accent, color:'#FFFFFF', border:'none', borderRadius:4, padding:'8px 14px', fontSize:12, fontWeight:700, cursor:'pointer', fontFamily:'inherit'}}>
+          건당 {won(discount)}원 할인 시작을 일정에 적기
+        </button>
+      )}
+      </>}
     </section>
   )
 }

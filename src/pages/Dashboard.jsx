@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import RevenuePace from '../components/RevenuePace'
+import { GoalLine } from '../components/DiscountGoal'
 import RewardPrompt from '../components/RewardPrompt'
 import { db } from '../firebase'
 import { doc, getDoc, getDocs, collection } from 'firebase/firestore'
@@ -442,6 +443,9 @@ export default function Dashboard() {
                 : <p style={{fontSize:12, color:T.sub, margin:'6px 0 0', lineHeight:1.6}}>지출관리에서 계좌내역을 올리면 실제 통장 잔액과 맞춰볼 수 있어요</p>}
             </section>
           </div>
+
+          {/* 건당 할인 목표 (매출분석의 할인 일정) */}
+          <GoalLine/>
 
           {/* 지난달 같은 기간과 비교 */}
           <RevenuePace ym={curMonth}/>
