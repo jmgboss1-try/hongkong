@@ -3,6 +3,7 @@ import { db } from '../firebase'
 import { doc, getDoc, setDoc } from 'firebase/firestore'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, ReferenceArea, ReferenceLine, CartesianGrid, Cell } from 'recharts'
 import { readDeliveryExcel, pickSalesField, SALES_FIELDS } from '../lib/deliveryImport'
+import DiscountCalc from '../components/DiscountCalc'
 
 // 매출분석 — 배달앱별 하루 주문수·매출·객단가, 할인·이벤트 기간과 그 전 기간 비교
 //
@@ -266,6 +267,7 @@ export default function SalesAnalysis() {
   const [saving, setSaving] = useState(false)
   const [selId, setSelId]   = useState(null)     // 효과를 볼 이벤트
   const [showTable, setShowTable] = useState(false)
+  const [cmpRange, setCmpRange] = useState(null) // 할인 손익 계산기: 실제로 할인하던 기간 { from, to }
 
   const selEvent = events.find(e => e.id === selId) || null
   const periods = useMemo(() => selEvent ? comparePeriods(selEvent) : null, [selEvent])
@@ -274,8 +276,9 @@ export default function SalesAnalysis() {
   const neededMonths = useMemo(() => {
     const set = new Set(monthsOf(range.from, range.to))
     if (periods) monthsOf(periods.sameWeekday[0] || periods.before[0], periods.to).forEach(m => set.add(m))
+    if (cmpRange?.from && cmpRange?.to && cmpRange.from <= cmpRange.to) monthsOf(cmpRange.from, cmpRange.to).forEach(m => set.add(m))
     return [...set].sort()
-  }, [range.from, range.to, periods])
+  }, [range.from, range.to, periods, cmpRange])
 
   useEffect(() => {
     const missing = neededMonths.filter(m => !(m in months))
@@ -609,6 +612,13 @@ export default function SalesAnalysis() {
           )
         })()}
       </div>
+
+      {/* 할인 손익 계산기 */}
+      <DiscountCalc loading={loading}
+        base={PLATFORMS.map(p => ({ ...p, ...stats(months, rangeDates, p.key) }))}
+        baseLabel={`${shortDate(range.from)}~${shortDate(range.to)}`}
+        cmp={cmpRange?.from && cmpRange?.to && cmpRange.from <= cmpRange.to ? PLATFORMS.map(p => ({ ...p, ...stats(months, dateRange(cmpRange.from, cmpRange.to), p.key) })) : null}
+        cmpRange={cmpRange} setCmpRange={setCmpRange}/>
 
       {/* 할인·이벤트 일정 */}
       <div style={{...card,marginBottom:14}}>
