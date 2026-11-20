@@ -20,7 +20,8 @@ const DELIVERY_PLATFORMS = [
 ]
 
 // 세션별 접두어 매핑 (close는 접두어 없음)
-const PREFIX = { morning:'morning', middle:'middle', close:'' }
+// early = 얼리 영업 (9:00~10:30, 사장님만 적음). 오전처럼 그 시각까지 쌓인 금액. 오전·마감은 9시부터 쌓인 금액이라 얼리를 포함
+const PREFIX = { early:'early', morning:'morning', middle:'middle', close:'' }
 const fieldKey = (session, base) => {
   const p = PREFIX[session]
   if(!p) return base
@@ -109,6 +110,11 @@ export default function Revenue() {
     const m = getMorning(r)
     return m.kiosk+m.del+m.pos > 0
   }
+  const hasEarlyData = (dd) => {
+    const r = data[dd]; if(!r) return false
+    const e = getSession(r, 'early')
+    return e.kiosk+e.del+e.pos > 0
+  }
   const hasMiddleData = (dd) => {
     const r = data[dd]; if(!r) return false
     const m = getMiddle(r)
@@ -120,6 +126,7 @@ export default function Revenue() {
     return t.kiosk+t.del+t.pos > 0
   }
   const isDuplicateNew = (dd, type) =>
+    type === 'early'   ? hasEarlyData(dd) :
     type === 'morning' ? hasMorningData(dd) :
     type === 'middle'  ? hasMiddleData(dd)  : hasTotalData(dd)
   const isDuplicateOld = (dd) => {
@@ -135,7 +142,7 @@ export default function Revenue() {
       const isDup = isNewMonth ? isDuplicateNew(targetDay, targetType) : isDuplicateOld(targetDay)
       if (isDup) {
         const label = isNewMonth
-          ? `${+targetDay}일 ${targetType==='morning'?'오전':targetType==='middle'?'미들타임':'마감'}`
+          ? `${+targetDay}일 ${targetType==='early'?'얼리':targetType==='morning'?'오전':targetType==='middle'?'미들타임':'마감'}`
           : `${+targetDay}일`
         alert(`${label}은 이미 입력된 내역이 있습니다.\n수정하려면 해당 행의 수정 버튼을 클릭하세요.`)
         return
@@ -235,7 +242,7 @@ export default function Revenue() {
 
   async function delRow(dd, type) {
     const label = isNewMonth
-      ? `${+dd}일 ${type==='morning'?'오전':type==='middle'?'미들타임':'마감'}`
+      ? `${+dd}일 ${type==='early'?'얼리':type==='morning'?'오전':type==='middle'?'미들타임':'마감'}`
       : `${+dd}일 매출`
     if (!window.confirm(`${label} 내역을 삭제하시겠습니까?`)) return
     const newData = { ...data }
@@ -249,8 +256,8 @@ export default function Revenue() {
         delete existing.close
         ;['baemin','coupang','yogiyo','ddangyeo'].forEach(k=>delete existing[`${k}Orders`])
       }
-      const m = getMorning(existing), mid = getMiddle(existing), t = getTotal(existing)
-      if(m.kiosk+m.del+m.pos+mid.kiosk+mid.del+mid.pos+t.kiosk+t.del+t.pos === 0) delete newData[dd]
+      const m = getMorning(existing), mid = getMiddle(existing), t = getTotal(existing), e = getSession(existing, 'early')
+      if(m.kiosk+m.del+m.pos+mid.kiosk+mid.del+mid.pos+t.kiosk+t.del+t.pos+e.kiosk+e.del+e.pos === 0) delete newData[dd]
       else newData[dd] = existing
     } else {
       delete newData[dd]
@@ -275,12 +282,12 @@ export default function Revenue() {
 
   const activeDays = Object.keys(data).filter(dd => {
     const r = data[dd]
-    const m = getMorning(r), mid = getMiddle(r), t = getTotal(r)
-    return m.kiosk+m.del+m.pos+mid.kiosk+mid.del+mid.pos+t.kiosk+t.del+t.pos > 0
+    const m = getMorning(r), mid = getMiddle(r), t = getTotal(r), e = getSession(r, 'early')
+    return m.kiosk+m.del+m.pos+mid.kiosk+mid.del+mid.pos+t.kiosk+t.del+t.pos+e.kiosk+e.del+e.pos > 0
   }).sort()
 
   const activeType = editDay ? editType : inputType
-  const TYPE_COLORS = { morning:'#C3261C', middle:'#6B4FA0', close:'#2B5C9E' }
+  const TYPE_COLORS = { early:'#B45309', morning:'#C3261C', middle:'#6B4FA0', close:'#2B5C9E' }
 
   const now = new Date()
   const curYM = `${now.getFullYear()}-${pad(now.getMonth()+1)}`
@@ -363,7 +370,7 @@ export default function Revenue() {
   const best = dayTotals.reduce((a,x)=> !a || x.sum > a.sum ? x : a, null)
   const avg = dayTotals.length ? Math.round(grand / dayTotals.length) : 0
   const yest = (()=>{ const y=new Date(); y.setDate(y.getDate()-1); return pad(y.getDate()) })()
-  const typeLabel = t => t==='morning' ? '오전' : t==='middle' ? '미들타임' : '마감'
+  const typeLabel = t => t==='early' ? '얼리' : t==='morning' ? '오전' : t==='middle' ? '미들타임' : '마감'
 
   return (
     <div style={{maxWidth:1100}}>
@@ -423,6 +430,7 @@ export default function Revenue() {
             editDay
               ? <button type="button" onClick={cancelEdit} style={{background:'#FFFFFF', border:`1px solid ${T.rule}`, borderRadius:4, padding:'4px 10px', fontSize:12, cursor:'pointer', fontFamily:'inherit', color:T.ink}}>취소</button>
               : isNewMonth && <>
+                  {textTab(inputType==='early', '얼리', ()=>setInputType('early'), TYPE_COLORS.early)}
                   {textTab(inputType==='morning', '오전', ()=>setInputType('morning'), TYPE_COLORS.morning)}
                   {textTab(inputType==='middle', '미들타임', ()=>setInputType('middle'), TYPE_COLORS.middle)}
                   {textTab(inputType==='close', '마감', ()=>setInputType('close'), TYPE_COLORS.close)}
@@ -445,6 +453,7 @@ export default function Revenue() {
                   })}
                 </select>
                 {isNewMonth && inputType==='close' && <span style={{fontSize:12, color:T.sub}}>오후는 마감 − 오전 − 미들로 자동 계산돼요</span>}
+                {isNewMonth && inputType==='early' && <span style={{fontSize:12, color:T.sub}}>9:00~10:30 매출 (10시 30분에 POS에 쌓인 금액). 오전·마감은 지금처럼 9시부터 쌓인 금액으로 적어요</span>}
               </div>
             )}
             {activeType === 'middle' && (
@@ -541,9 +550,11 @@ export default function Revenue() {
 
                   const afternoon = getAfternoon(r)
                   const mRec = getMorning(r), midRec = getMiddle(r), tRec = getTotal(r)
-                  const hasM = hasMorningData(dd), hasMid = hasMiddleData(dd), hasT = hasTotalData(dd)
+                  const hasM = hasMorningData(dd), hasMid = hasMiddleData(dd), hasT = hasTotalData(dd), hasE = hasEarlyData(dd)
                   const isNeg = afternoon && (afternoon.kiosk<0||afternoon.del<0||afternoon.pos<0)
                   const rows = []
+                  if (hasE) rows.push({ id:'early', label:'얼리 9~10:30', color:TYPE_COLORS.early, v:getSession(r, 'early'), eType:'early',
+                    plat:{baemin:'earlyBaemin',coupang:'earlyCoupang',yogiyo:'earlyYogiyo',ddangyeo:'earlyDdangyeo'} })
                   if (hasM) rows.push({ id:'morning', label:'오전', color:TYPE_COLORS.morning, v:mRec, eType:'morning',
                     plat:{baemin:'morningBaemin',coupang:'morningCoupang',yogiyo:'morningYogiyo',ddangyeo:'morningDdangyeo'} })
                   if (hasMid) rows.push({ id:'middle', label:'미들', color:TYPE_COLORS.middle, v:midRec, eType:'middle',
@@ -552,8 +563,10 @@ export default function Revenue() {
                     rows.push({ id:'afternoon', label: isNeg ? '오후 (오전+미들이 더 큼)' : '오후', auto:true, color: isNeg ? T.red : T.blue, v:afternoon })
                     rows.push({ id:'total', label:'하루 합계', color:T.ink, v:tRec, eType:'close', strong:true,
                       plat:{baemin:'baemin',coupang:'coupang',yogiyo:'yogiyo',ddangyeo:'ddangyeo'} })
-                  } else if (hasM||hasMid) {
-                    rows.push({ id:'warn', label:'마감 미입력', color:T.red, v:null })
+                  } else if (hasM||hasMid||hasE) {
+                    if (hasE && hasT) rows.push({ id:'total', label:'하루 합계', color:T.ink, v:tRec, eType:'close', strong:true,
+                      plat:{baemin:'baemin',coupang:'coupang',yogiyo:'yogiyo',ddangyeo:'ddangyeo'} })
+                    else rows.push({ id:'warn', label:'마감 미입력', color:T.red, v:null })
                   } else if (hasT) {
                     rows.push({ id:'total', label:'마감', color:T.ink, v:tRec, eType:'close', strong:true,
                       plat:{baemin:'baemin',coupang:'coupang',yogiyo:'yogiyo',ddangyeo:'ddangyeo'} })

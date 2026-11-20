@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import RevenuePace from '../components/RevenuePace'
 import { GoalLine } from '../components/DiscountGoal'
+import EarlySales from '../components/EarlySales'
 import RewardPrompt from '../components/RewardPrompt'
 import { db } from '../firebase'
 import { doc, getDoc, getDocs, collection } from 'firebase/firestore'
@@ -446,6 +447,9 @@ export default function Dashboard() {
 
           {/* 건당 할인 목표 (매출분석의 할인 일정) */}
           <GoalLine/>
+
+          {/* 얼리 영업 (9:00~10:30) */}
+          <EarlySales ym={curMonth}/>
 
           {/* 지난달 같은 기간과 비교 */}
           <RevenuePace ym={curMonth}/>
