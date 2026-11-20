@@ -21,7 +21,8 @@ const T = { bg:'#FAF9F6', ink:'#1D1B18', sub:'#6E6A63', faint:'#A8A39A', rule:'#
 const won = n => (n || 0).toLocaleString('ko-KR')
 
 
-const PREFIX = { morning:'morning', middle:'middle', close:'' }
+// early = 얼리 영업 9:00~10:30 (10시 30분에 포스에 찍힌 금액). 오전·마감은 9시부터 쌓인 금액이라 얼리를 포함
+const PREFIX = { early:'early', morning:'morning', middle:'middle', close:'' }
 const fieldKey = (session, base) => {
   const p = PREFIX[session]
   if(!p) return base // close는 접두어 없음
@@ -37,7 +38,7 @@ export default function RevenueInput() {
   // 11월 9일부터: 키오스크 → 홀(매출 프로그램 합계), 포스 → 기타(현금·이체·페이·전화배달)
   const CH = chLabels(`${today}-${todayDD}`), newCh = isNewChannels(`${today}-${todayDD}`)
 
-  const [activeSession, setActiveSession] = useState('morning') // 'morning' | 'middle' | 'close'
+  const [activeSession, setActiveSession] = useState(() => new Date().getHours() < 11 ? 'early' : 'morning') // 'early' | 'morning' | 'middle' | 'close'
   const [data, setData] = useState({})
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -164,13 +165,13 @@ export default function RevenueInput() {
         // 마감: 앱별 주문 건수 (비워두면 기록 안 함)
         ...(activeSession==='close' ? Object.fromEntries(Object.entries(orders)
           .filter(([,v])=>v!=='' && v!=null).map(([k,v])=>[`${k}Orders`, Math.max(0, Math.round(+v)||0)])) : {}),
-        [activeSession==='morning'?'morningBy':activeSession==='middle'?'middleBy':'closeBy']: userData?.name || '매장전용',
-        [activeSession==='morning'?'morningAt':activeSession==='middle'?'middleAt':'closeAt']: new Date().toISOString(),
+        [`${activeSession}By`]: userData?.name || '매장전용',
+        [`${activeSession}At`]: new Date().toISOString(),
       }
       // 오늘 날짜 칸만 저장 (다른 날짜는 건드리지 않음)
       await setDoc(doc(db,'revenue',today), { [todayDD]: newRow }, { merge:true })
       setData({ ...latest, [todayDD]: newRow })
-      const label = activeSession==='morning'?'오전':activeSession==='middle'?'미들타임':'마감'
+      const label = sessionInfo[activeSession].label
       alert(`${label} 매출을 저장했어요`)
     } catch(e) { console.error(e) }
     setSaving(false)
@@ -181,6 +182,8 @@ export default function RevenueInput() {
   const sum = (session) =>
     (rec[fieldKey(session,'kiosk')]||0) + (rec[fieldKey(session,'del')]||0) + (rec[fieldKey(session,'pos')]||0)
 
+  const hasEarly   = sum('early') > 0
+  const earlySum   = sum('early')
   const hasMorning = sum('morning') > 0
   const hasMiddle  = sum('middle') > 0
   const hasClose   = sum('close') > 0
@@ -197,6 +200,7 @@ export default function RevenueInput() {
   const isNegative     = afternoonKiosk < 0 || afternoonDel < 0 || afternoonPos < 0
 
   const sessionInfo = {
+    early:   { label:'얼리',     hint:'9:00~10:30 · 10시 30분에 포스에 찍힌 금액 그대로 입력해요 (오전·마감은 지금처럼 하루 누적 금액으로 적어요)' },
     morning: { label:'오전',     hint:'오전 영업이 끝나면 입력' },
     middle:  { label:'미들타임', hint:'14:30~16:30, 포스에 찍힌 누적 금액 그대로 입력' },
     close:   { label:'마감',     hint:'하루 전체 합계를 입력해요. 오후 매출은 자동으로 계산돼요' },
@@ -240,6 +244,7 @@ export default function RevenueInput() {
   }
 
   const summary = [
+    { key:'early',   label:'얼리',  val:earlySum,   filled:hasEarly,   by:rec.earlyBy },
     { key:'morning', label:'오전',  val:morningSum, filled:hasMorning, by:rec.morningBy },
     { key:'middle',  label:'미들',  val:middleSum,  filled:hasMiddle,  by:rec.middleBy },
     { key:'close',   label:'마감 (하루 합계)', val:closeSum, filled:hasClose, by:rec.closeBy },
@@ -263,7 +268,7 @@ export default function RevenueInput() {
         )}
 
         {/* 오늘 현황 */}
-        <div style={{display:'grid', gridTemplateColumns:'1fr 1fr 1.3fr', borderBottom:`1px solid ${T.rule}`, marginBottom:22}}>
+        <div style={{display:'grid', gridTemplateColumns:'1fr 1fr 1fr 1.3fr', borderBottom:`1px solid ${T.rule}`, marginBottom:22}}>
           {summary.map((k,i) => (
             <div key={k.key} style={{padding:'12px 0 12px', paddingLeft: i ? 14 : 0, borderLeft: i ? `1px solid ${T.rule}` : 'none'}}>
               <div style={{fontSize:12, color:T.sub}}>{k.label}</div>
@@ -279,7 +284,7 @@ export default function RevenueInput() {
         <div role="tablist" style={{display:'flex', gap:22, borderBottom:`1px solid ${T.rule}`, marginBottom:18}}>
           {Object.entries(sessionInfo).map(([key,s]) => {
             const on = activeSession===key
-            const done = (key==='morning'&&hasMorning)||(key==='middle'&&hasMiddle)||(key==='close'&&hasClose)
+            const done = (key==='early'&&hasEarly)||(key==='morning'&&hasMorning)||(key==='middle'&&hasMiddle)||(key==='close'&&hasClose)
             return (
               <button key={key} role="tab" aria-selected={on} onClick={()=>setActiveSession(key)}
                 style={{background:'none', border:'none', padding:'10px 0', marginBottom:-1, cursor:'pointer', fontFamily:'inherit',
@@ -405,7 +410,7 @@ export default function RevenueInput() {
         )}
 
         {/* 오늘 입력 내역 */}
-        {(hasMorning || hasMiddle || hasClose) && (
+        {(hasEarly || hasMorning || hasMiddle || hasClose) && (
           <section style={{marginTop:34}}>
             <h2 style={{fontSize:15, fontWeight:800, margin:'0 0 6px', fontFamily:'inherit', color:T.ink}}>오늘 입력 내역</h2>
             <div style={{overflowX:'auto'}}>
@@ -419,6 +424,16 @@ export default function RevenueInput() {
                   </tr>
                 </thead>
                 <tbody>
+                  {hasEarly && (
+                    <tr>
+                      <td style={{...cell, textAlign:'left', fontWeight:600}}>얼리 <span style={{fontSize:11, color:T.sub, fontWeight:400}}>9~10:30</span></td>
+                      <td style={cell}>{won(rec.earlyKiosk)}</td>
+                      <td style={cell}>{won(rec.earlyDel)}<DeliveryDetail session="early"/></td>
+                      <td style={cell}>{won(rec.earlyPos)}</td>
+                      <td style={{...cell, fontWeight:700}}>{won(earlySum)}</td>
+                      <td style={{...cell, textAlign:'left', color:T.sub}}>{rec.earlyBy||'–'}</td>
+                    </tr>
+                  )}
                   {hasMorning && (
                     <tr>
                       <td style={{...cell, textAlign:'left', fontWeight:600}}>오전</td>
