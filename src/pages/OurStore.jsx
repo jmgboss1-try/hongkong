@@ -190,7 +190,7 @@ export default function OurStore() {
   const r = rev[dd] || {}
   const sum = (...ks) => ks.reduce((a,k) => a + (r[k]||0), 0)
   const closeTotal = sum('kiosk','del','pos')
-  const total = closeTotal || sum('morningKiosk','morningDel','morningPos','middleKiosk','middleDel','middlePos')
+  const total = closeTotal || sum('morningKiosk','morningDel','morningPos','middleKiosk','middleDel','middlePos') || sum('earlyKiosk','earlyDel','earlyPos')
   const delTotal = r.del || sum('morningDel','middleDel')
   const customers = Math.min(SEAT_ORDER.length, Math.round(total / 100000))
   const bags = Math.min(6, Math.round(delTotal / 120000))

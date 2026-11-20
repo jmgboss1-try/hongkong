@@ -521,11 +521,13 @@ export default function Revenue() {
                     <td rowSpan={rowSpan} style={{padding:'8px 12px', borderBottom:`1px solid ${T.rule}`, verticalAlign:'top', whiteSpace:'nowrap',
                       color:getDowColor(curMonth,dd), fontWeight:600}}>{+dd}일 ({getDow(curMonth,dd)})</td>
                   )
-                  const platLines = keys => DELIVERY_PLATFORMS.some(p=>(r[keys[p.key]]||0)!==0) && (
+                  // keys: 앱 → 필드 이름, 또는 앱 → 금액(숫자)
+                  const pv = (keys, k) => typeof keys[k] === 'number' ? keys[k] : (r[keys[k]]||0)
+                  const platLines = keys => DELIVERY_PLATFORMS.some(p=>pv(keys,p.key)!==0) && (
                     <div style={{marginTop:2}}>
-                      {DELIVERY_PLATFORMS.filter(p=>(r[keys[p.key]]||0)!==0).map(p=>(
+                      {DELIVERY_PLATFORMS.filter(p=>pv(keys,p.key)!==0).map(p=>(
                         <div key={p.key} style={{display:'flex', justifyContent:'space-between', gap:8, fontSize:11, lineHeight:1.5, color:T.sub}}>
-                          <span>{p.label}</span><span>{won(r[keys[p.key]])}</span>
+                          <span>{p.label}</span><span>{won(pv(keys,p.key))}</span>
                         </div>
                       ))}
                     </div>
@@ -555,8 +557,14 @@ export default function Revenue() {
                   const rows = []
                   if (hasE) rows.push({ id:'early', label:'얼리 9~10:30', color:TYPE_COLORS.early, v:getSession(r, 'early'), eType:'early',
                     plat:{baemin:'earlyBaemin',coupang:'earlyCoupang',yogiyo:'earlyYogiyo',ddangyeo:'earlyDdangyeo'} })
-                  if (hasM) rows.push({ id:'morning', label:'오전', color:TYPE_COLORS.morning, v:mRec, eType:'morning',
-                    plat:{baemin:'morningBaemin',coupang:'morningCoupang',yogiyo:'morningYogiyo',ddangyeo:'morningDdangyeo'} })
+                  // 오전은 9시부터 쌓인 금액으로 저장돼 있어서, 얼리가 있으면 얼리를 뺀 10:30 이후 금액만 보여 줌 (저장값은 그대로)
+                  if (hasM) {
+                    const eRec = hasE ? getSession(r, 'early') : null
+                    const net = (k, e) => (r[k]||0) - (hasE ? (r[e]||0) : 0)
+                    rows.push({ id:'morning', label: hasE ? '오전 10:30~' : '오전', color:TYPE_COLORS.morning, eType:'morning',
+                      v: eRec ? { kiosk:mRec.kiosk-eRec.kiosk, del:mRec.del-eRec.del, pos:mRec.pos-eRec.pos } : mRec,
+                      plat:{ baemin:net('morningBaemin','earlyBaemin'), coupang:net('morningCoupang','earlyCoupang'), yogiyo:net('morningYogiyo','earlyYogiyo'), ddangyeo:net('morningDdangyeo','earlyDdangyeo') } })
+                  }
                   if (hasMid) rows.push({ id:'middle', label:'미들', color:TYPE_COLORS.middle, v:midRec, eType:'middle',
                     plat:{baemin:'middleBaemin',coupang:'middleCoupang',yogiyo:'middleYogiyo',ddangyeo:'middleDdangyeo'} })
                   if ((hasM||hasMid) && hasT) {

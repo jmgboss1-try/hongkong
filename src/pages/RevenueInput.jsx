@@ -38,6 +38,8 @@ export default function RevenueInput() {
   // 11월 9일부터: 키오스크 → 홀(매출 프로그램 합계), 포스 → 기타(현금·이체·페이·전화배달)
   const CH = chLabels(`${today}-${todayDD}`), newCh = isNewChannels(`${today}-${todayDD}`)
 
+  // 얼리는 못 적은 날을 나중에 채울 수 있게 이번 달 지난 날짜도 고를 수 있음 (다른 탭은 오늘만)
+  const [earlyDay, setEarlyDay] = useState(() => pad(new Date().getDate()))
   const [activeSession, setActiveSession] = useState(() => new Date().getHours() < 11 ? 'early' : 'morning') // 'early' | 'morning' | 'middle' | 'close'
   const [data, setData] = useState({})
   const [loading, setLoading] = useState(true)
@@ -83,7 +85,7 @@ export default function RevenueInput() {
 
   useEffect(()=>{
     setScan(null)
-    const rec = data[todayDD]
+    const rec = data[activeSession === 'early' ? earlyDay : todayDD]
     if(!rec) { resetInputs(); return }
     if(activeSession === 'middle') {
       // 미들타임은 "누적값" 기준으로 입력/표시 (저장은 순수값으로 되어있으므로 오전값을 더해 복원)
@@ -103,7 +105,7 @@ export default function RevenueInput() {
     }
     const o = k => rec[`${k}Orders`] != null ? String(rec[`${k}Orders`]) : ''
     setOrders({ baemin:o('baemin'), coupang:o('coupang'), yogiyo:o('yogiyo'), ddangyeo:o('ddangyeo') })
-  },[activeSession, data])
+  },[activeSession, data, earlyDay, todayDD])
 
   // 마감 출력물 사진(JPEG data URL) → 서버(/api/read-receipt)에서 Claude로 읽어 칸을 채움. 저장은 확인 후 직접
   async function readPhoto(photo) {
@@ -135,7 +137,8 @@ export default function RevenueInput() {
       // 저장 직전 최신 데이터를 다시 읽음 — 켜둔 사이 사장님이 다른 기기에서 고친 내용을 덮어쓰지 않도록
       const snap = await getDoc(doc(db,'revenue',today))
       const latest = snap.exists() ? snap.data() : {}
-      const existing = latest[todayDD] || {}
+      const targetDD = activeSession === 'early' && earlyDay <= todayDD ? earlyDay : todayDD
+      const existing = latest[targetDD] || {}
 
       let kioskVal, posVal, baeminVal, coupangVal, yogiyoVal, ddangyeoVal
 
@@ -169,9 +172,9 @@ export default function RevenueInput() {
         [`${activeSession}At`]: new Date().toISOString(),
       }
       // 오늘 날짜 칸만 저장 (다른 날짜는 건드리지 않음)
-      await setDoc(doc(db,'revenue',today), { [todayDD]: newRow }, { merge:true })
-      setData({ ...latest, [todayDD]: newRow })
-      const label = sessionInfo[activeSession].label
+      await setDoc(doc(db,'revenue',today), { [targetDD]: newRow }, { merge:true })
+      setData({ ...latest, [targetDD]: newRow })
+      const label = (targetDD !== todayDD ? `${+targetDD}일 ` : '') + sessionInfo[activeSession].label
       alert(`${label} 매출을 저장했어요`)
     } catch(e) { console.error(e) }
     setSaving(false)
@@ -184,6 +187,8 @@ export default function RevenueInput() {
 
   const hasEarly   = sum('early') > 0
   const earlySum   = sum('early')
+  // 오전은 9시부터 쌓인 금액으로 저장 → 얼리가 있으면 보여 줄 때만 얼리를 뺀 10:30 이후 금액으로
+  const netM = base => (rec[fieldKey('morning', base)]||0) - (hasEarly ? (rec[fieldKey('early', base)]||0) : 0)
   const hasMorning = sum('morning') > 0
   const hasMiddle  = sum('middle') > 0
   const hasClose   = sum('close') > 0
@@ -230,13 +235,14 @@ export default function RevenueInput() {
   )
 
   function DeliveryDetail({ session }) {
-    const parts = DELIVERY_PLATFORMS.filter(p => (rec[fieldKey(session,p.key)]||0) > 0)
+    const val = k => session === 'morning' ? netM(k) : (rec[fieldKey(session,k)]||0)
+    const parts = DELIVERY_PLATFORMS.filter(p => val(p.key) > 0)
     if (!parts.length) return null
     return (
       <div style={{marginTop:2, display:'flex', flexDirection:'column', gap:1}}>
         {parts.map(p => (
           <div key={p.key} style={{display:'flex', justifyContent:'space-between', gap:8, fontSize:11, color:T.sub}}>
-            <span>{p.label}</span><span style={num}>{won(rec[fieldKey(session,p.key)])}</span>
+            <span>{p.label}</span><span style={num}>{won(val(p.key))}</span>
           </div>
         ))}
       </div>
@@ -245,7 +251,7 @@ export default function RevenueInput() {
 
   const summary = [
     { key:'early',   label:'얼리',  val:earlySum,   filled:hasEarly,   by:rec.earlyBy },
-    { key:'morning', label:'오전',  val:morningSum, filled:hasMorning, by:rec.morningBy },
+    { key:'morning', label: hasEarly ? '오전 10:30~' : '오전', val: hasEarly ? morningSum - earlySum : morningSum, filled:hasMorning, by:rec.morningBy },
     { key:'middle',  label:'미들',  val:middleSum,  filled:hasMiddle,  by:rec.middleBy },
     { key:'close',   label:'마감 (하루 합계)', val:closeSum, filled:hasClose, by:rec.closeBy },
   ]
@@ -303,9 +309,25 @@ export default function RevenueInput() {
           <section>
             <p style={{fontSize:13, color:T.sub, margin:'0 0 14px', lineHeight:1.6}}>
               {si.hint}
+              {activeSession==='morning' && hasEarly && <> · 얼리({won(earlySum)}원)는 오전 매출에서 자동으로 빠져서 보여요</>}
               {activeSession==='middle' && <> · 오전 매출({hasMorning ? `${won(morningTotal)}원` : '미입력'})을 빼서 미들타임 매출만 저장해요</>}
             </p>
 
+            {activeSession==='early' && (
+              <div style={{display:'flex', alignItems:'center', gap:8, flexWrap:'wrap', marginBottom:14, fontSize:14}}>
+                <span style={{color:T.sub}}>날짜</span>
+                <select value={earlyDay} onChange={e=>setEarlyDay(e.target.value)} aria-label="얼리 매출 날짜"
+                  style={{background:T.field, border:`1px solid ${T.fieldLine}`, borderRadius:4, color:T.ink, padding:'8px 10px', fontSize:15, fontFamily:'inherit'}}>
+                  {Array.from({ length: +todayDD }, (_, i) => pad(+todayDD - i)).map(dd => {
+                    const r = data[dd] || {}
+                    const done = (r.earlyKiosk||0)+(r.earlyDel||0)+(r.earlyPos||0) > 0
+                    const dow = DAYS_KR[new Date(+today.slice(0,4), +today.slice(5)-1, +dd).getDay()]
+                    return <option key={dd} value={dd}>{dd === todayDD ? '오늘' : `${+dd}일`} ({dow}){done ? ' · 입력됨' : ''}</option>
+                  })}
+                </select>
+                {earlyDay !== todayDD && <span style={{fontSize:13, color:'#B45309'}}>{+earlyDay}일 얼리 매출을 적고 있어요</span>}
+              </div>
+            )}
             {activeSession==='close' && (
               <div style={{marginBottom:16}}>
                 <div style={{display:'flex', gap:10, alignItems:'center', flexWrap:'wrap'}}>
@@ -436,11 +458,11 @@ export default function RevenueInput() {
                   )}
                   {hasMorning && (
                     <tr>
-                      <td style={{...cell, textAlign:'left', fontWeight:600}}>오전</td>
-                      <td style={cell}>{won(rec.morningKiosk)}</td>
-                      <td style={cell}>{won(rec.morningDel)}<DeliveryDetail session="morning"/></td>
-                      <td style={cell}>{won(rec.morningPos)}</td>
-                      <td style={{...cell, fontWeight:700}}>{won(morningSum)}</td>
+                      <td style={{...cell, textAlign:'left', fontWeight:600}}>오전{hasEarly && <span style={{fontSize:11, color:T.sub, fontWeight:400}}> 10:30~</span>}</td>
+                      <td style={cell}>{won(netM('kiosk'))}</td>
+                      <td style={cell}>{won(netM('del'))}<DeliveryDetail session="morning"/></td>
+                      <td style={cell}>{won(netM('pos'))}</td>
+                      <td style={{...cell, fontWeight:700}}>{won(hasEarly ? morningSum - earlySum : morningSum)}</td>
                       <td style={{...cell, textAlign:'left', color:T.sub}}>{rec.morningBy||'–'}</td>
                     </tr>
                   )}
