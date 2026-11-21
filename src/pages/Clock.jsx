@@ -15,7 +15,7 @@ export default function Clock() {
   const { user, userData, isOwner, isStore, isInvestor } = useAuth()
   const [phase, setPhase] = useState('working') // working | done | error
   const [msg, setMsg] = useState('위치를 확인하고 있어요...')
-  const [result, setResult] = useState(null)   // { kind:'in'|'out'|'already'|'soon', rec, ym, dd }
+  const [result, setResult] = useState(null)   // { kind:'in'|'out'|'already'|'soon'|'back', rec, ym, dd }
   const [busy, setBusy] = useState(false)
   const [me, setMe] = useState(null)        // 내 users 문서 (아바타·대사용)
   const started = useRef(false)
@@ -84,7 +84,7 @@ export default function Clock() {
           ...(br ? { breakStart: br.start, breakEnd: br.end } : {}) })
         setResult({ kind:'in', rec: await readRec(tYm, tDd), ym:tYm, dd:tDd, forgotYesterday })
       } else if (!rec.out) {
-        if (!force && now - toDate(rec.in) < 2*60*1000) {
+        if (!force && now - toDate(rec.splitBack || rec.in) < 2*60*1000) {   // 출근(또는 다시 출근) 2분 안에 또 찍으면 확인
           setResult({ kind:'soon', rec, ym:tYm, dd:tDd })
         } else {
           await write(tYm, tDd, { out: serverTimestamp(), outDist: dist })
@@ -93,6 +93,13 @@ export default function Clock() {
           try { await applyRecord(tYm, user.uid, tDd, r) } catch(e) { console.warn('근무시간 반영은 근무관리에서', e) }
           setResult({ kind:'out', rec: r, ym:tYm, dd:tDd })
         }
+      } else if (!rec.splitBack && now - toDate(rec.out) >= 10*60*1000) {
+        // 쪼개 근무 (예: 9:00~13:30, 17:00~21:00): 퇴근한 뒤 10분 넘어 다시 찍으면 다시 출근.
+        // 그 사이(퇴근~지금)를 그날 쉬는 시간(브레이크)으로 넣고 퇴근을 지움 → 마지막 퇴근 때 쉬는 시간을 뺀 시간이 계산됨. 하루 한 번만
+        const outD = toDate(rec.out)
+        await write(tYm, tDd, { out: deleteField(), outDist: deleteField(), breakStart: hm(outD), breakEnd: hm(now), editedBreak: true,
+          noBreak: deleteField(), splitBack: serverTimestamp(), splitBackDist: dist })
+        setResult({ kind:'back', rec: await readRec(tYm, tDd), ym:tYm, dd:tDd })
       } else {
         setResult({ kind:'already', rec, ym:tYm, dd:tDd })
       }
@@ -172,14 +179,16 @@ export default function Clock() {
       {result.kind === 'soon' && big('방금 출근했어요', hm(inD), T.green)}
       {result.kind === 'out' && big('퇴근했어요', hm(outD), T.blue)}
       {result.kind === 'already' && big('오늘은 이미 퇴근했어요', hm(outD), T.sub)}
+      {result.kind === 'back' && big('다시 출근했어요', hm(toDate(r.splitBack)), T.green)}
 
-      <ClockAvatar uid={user?.uid} me={me} kind={result.kind} rec={r}/>
+      <ClockAvatar uid={user?.uid} me={me} kind={result.kind === 'back' ? 'in' : result.kind} rec={r}/>
 
       <div style={{borderTop:`1px solid ${T.rule}`}}>
         {[
           ['예정', r.schedStart ? `${r.schedStart} 출근${r.schedEnd ? ` ~ ${r.schedEnd}` : ''}` : '오늘 예정 없음'],
-          ...(r.breakStart && !r.noBreak ? [['브레이크', `${r.breakStart} ~ ${r.breakEnd} (근무시간에서 빠져요)`]] : []),
+          ...(r.breakStart && !r.noBreak ? [[r.splitBack ? '쉬는 시간' : '브레이크', `${r.breakStart} ~ ${r.breakEnd} (근무시간에서 빠져요)`]] : []),
           ['출근', hm(inD)],
+          ...(r.splitBack ? [['다시 출근', hm(toDate(r.splitBack))]] : []),
           ['퇴근', outD ? hm(outD) : '—'],
         ].map(([k,v])=>(
           <div key={k} style={{display:'flex', justifyContent:'space-between', padding:'10px 0', borderBottom:`1px solid ${T.rule}`, fontSize:16}}>
