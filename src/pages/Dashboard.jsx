@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react'
 import RevenuePace from '../components/RevenuePace'
 import { GoalLine } from '../components/DiscountGoal'
 import EarlySales from '../components/EarlySales'
+import BentoBoard from '../components/BentoBoard'
+import { THEMES } from '../lib/dashTheme'
 import RewardPrompt from '../components/RewardPrompt'
 import { db } from '../firebase'
 import { doc, getDoc, getDocs, collection } from 'firebase/firestore'
@@ -105,6 +107,13 @@ export default function Dashboard() {
   const [chartData, setChartData]       = useState([])        // [{label, value, compareValue}]
   const [chartLoading, setChartLoading] = useState(false)
   const [compareSummary, setCompareSummary] = useState(null)  // {curTotal, prevTotal, diffPct}
+  const [revDoc, setRevDoc] = useState({})                     // 이 달 revenue 문서 (카드형 보기의 날짜별 막대)
+  // 보기 방식(카드형/장부형)과 카드형 강조색은 기기마다 기억
+  const lsGet = (k, d) => { try { return localStorage.getItem(k) || d } catch { return d } }
+  const [view, setViewState] = useState(() => lsGet('dash.view', 'bento'))
+  const [theme, setThemeState] = useState(() => lsGet('dash.theme', 'red'))
+  const setView = v => { setViewState(v); try { localStorage.setItem('dash.view', v) } catch { /* 저장 못 해도 됨 */ } }
+  const setTheme = v => { setThemeState(v); try { localStorage.setItem('dash.theme', v) } catch { /* 저장 못 해도 됨 */ } }
 
   useEffect(() => { load() }, [curMonth])
   useEffect(() => {
@@ -131,6 +140,7 @@ export default function Dashboard() {
         loadSubs(),
         loadPrivateMap(),
       ])
+      setRevDoc(revSnap.exists() ? revSnap.data() : {})
       if(revSnap.exists()) {
         const d = revSnap.data()
         let k=0,dl=0,p=0
@@ -381,8 +391,21 @@ export default function Dashboard() {
       {/* 머리: 이 달 장부 */}
       <header style={{display:'flex', alignItems:'center', justifyContent:'space-between', gap:12, flexWrap:'wrap',
         paddingBottom:10, borderBottom:`3px double ${T.ink}`, marginBottom:22}}>
-        <h1 style={{fontSize:24, fontWeight:800, margin:0, letterSpacing:'-0.01em', fontFamily:'inherit', color:T.ink}}>{mLabel(curMonth)} 장부</h1>
-        <div style={{display:'flex', alignItems:'center', gap:6}}>
+        <h1 style={{fontSize:24, fontWeight:800, margin:0, letterSpacing:'-0.01em', fontFamily:'inherit', color:T.ink}}>{mLabel(curMonth)} {view === 'bento' ? '한눈에' : '장부'}</h1>
+        <div style={{display:'flex', alignItems:'center', gap:6, flexWrap:'wrap'}}>
+          <div role="group" aria-label="보기 방식" style={{display:'flex', gap:12, marginRight:8}}>
+            {textTab(view==='bento', '카드형', ()=>setView('bento'), 'v-bento')}
+            {textTab(view==='ledger', '장부형', ()=>setView('ledger'), 'v-ledger')}
+          </div>
+          {view === 'bento' && (
+            <div role="group" aria-label="강조색" style={{display:'flex', gap:5, marginRight:8}}>
+              {Object.entries(THEMES).map(([k, t]) => (
+                <button key={k} type="button" title={t.name} aria-label={`강조색 ${t.name}`} aria-pressed={theme===k} onClick={()=>setTheme(k)}
+                  style={{width:20, height:20, borderRadius:10, background:t.accent, cursor:'pointer', padding:0,
+                    border: theme===k ? `2px solid ${T.ink}` : '2px solid #FFFFFF', boxShadow:`0 0 0 1px ${T.rule}`}}/>
+              ))}
+            </div>
+          )}
           <button type="button" aria-label="이전 달" disabled={monthIdx<=0} onClick={()=>setCurMonth(monthOpts[monthIdx-1])}
             style={{background:'none', border:`1px solid ${T.rule}`, borderRadius:4, padding:'6px 10px', cursor:'pointer', fontFamily:'inherit', color:T.ink}}>이전</button>
           <select value={curMonth} onChange={e=>setCurMonth(e.target.value)} aria-label="달 고르기"
@@ -399,6 +422,11 @@ export default function Dashboard() {
 
       {loading ? <div style={{color:T.sub, padding:'40px 0'}}>불러오는 중...</div> : (
         <>
+          {view === 'bento' && (
+            <BentoBoard ym={curMonth} rev={rev} exp={exp} profit={profit} labor={totalLaborCost} staffCount={staff.length} revDoc={revDoc} theme={theme}/>
+          )}
+          <details open={view !== 'bento'} key={view} style={{marginBottom: view === 'bento' ? 28 : 0}}>
+          {view === 'bento' && <summary style={{cursor:'pointer', fontSize:14, fontWeight:700, color:T.ink, padding:'4px 0 12px'}}>손익·통장 장부로 자세히 보기</summary>}
           <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(min(100%, 380px), 1fr))', gap:'28px 40px', marginBottom:34}}>
             {/* 손익 */}
             <section>
@@ -444,6 +472,8 @@ export default function Dashboard() {
                 : <p style={{fontSize:12, color:T.sub, margin:'6px 0 0', lineHeight:1.6}}>지출관리에서 계좌내역을 올리면 실제 통장 잔액과 맞춰볼 수 있어요</p>}
             </section>
           </div>
+
+          </details>
 
           {/* 건당 할인 목표 (매출분석의 할인 일정) */}
           <GoalLine/>
