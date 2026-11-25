@@ -1,7 +1,7 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { prevYmOf, monthNum, rewardResults } from '../lib/rewards'
 import { db } from '../firebase'
-import { doc, getDoc, setDoc, deleteDoc, collection, getDocs } from 'firebase/firestore'
+import { doc, getDoc, setDoc, deleteDoc, collection, getDocs, deleteField } from 'firebase/firestore'
 import { PhotoPicker, PhotoGrid, Lightbox } from '../components/PhotoAttach'
 
 const pad = n => String(n).padStart(2,'0')
@@ -122,6 +122,13 @@ const DEFAULT_WEEKLY = [
 
 const DOW_LABELS = ['일','월','화','수','목','금','토']
 
+// 오늘 할 일 움직임: 새 줄은 살짝 올라오며 나타나고, 체크 표시는 '톡' 커짐 (움직임 줄이기 설정이면 없음)
+const CK_CSS = `@keyframes ckIn { from { opacity:0; transform: translateY(6px) } to { opacity:1; transform:none } }
+@keyframes ckPop { 0% { transform: scale(.4) } 60% { transform: scale(1.25) } 100% { transform: scale(1) } }
+.ck-in { animation: ckIn .28s ease-out both }
+.ck-pop { animation: ckPop .3s cubic-bezier(.3,1.6,.5,1) both }
+@media (prefers-reduced-motion: reduce) { .ck-in, .ck-pop { animation: none } }`
+
 export default function Checklist() {
   const [dailyItems, setDailyItems]   = useState(DEFAULT_DAILY)
   const [weeklyItems, setWeeklyItems] = useState(DEFAULT_WEEKLY)
@@ -227,13 +234,50 @@ export default function Checklist() {
     setWeeklyItems(nw)
   }
 
-  async function toggleCheck(date, checkKey) {
-    const dayChecks = { ...(checks[date]||{}) }
-    if(dayChecks[checkKey]) delete dayChecks[checkKey]
-    else dayChecks[checkKey] = true
-    const newChecks = { ...checks, [date]: dayChecks }
-    await setDoc(doc(db,'checklist','records'), { byDate: newChecks })
-    setChecks(newChecks)
+  // 체크 하나만 바꿔 씀 (매장 포스·직원 폰이 동시에 체크해도 서로 덮어쓰지 않게, 연달아 빨리 눌러도 앞의 체크가 사라지지 않게)
+  async function toggleCheck(date, checkKey, value) {
+    const on = value ?? !checks[date]?.[checkKey]
+    setChecks(c => {
+      const day = { ...(c[date] || {}) }
+      if (on) day[checkKey] = true; else delete day[checkKey]
+      return { ...c, [date]: day }
+    })
+    await setDoc(doc(db,'checklist','records'), { byDate: { [date]: { [checkKey]: on ? true : deleteField() } } }, { merge: true })
+  }
+
+  // ── 오늘 할 일: 오전 · 오후 · 완료 탭. 체크하면 그 줄이 '완료' 탭으로 날아가며 사라짐 ──
+  const [taskTab, setTaskTab] = useState(() => new Date().getHours() < 15 ? '오전' : '오후')
+  const [leaving, setLeaving] = useState({})   // 날아가는 중인 칸 {key: true} (그동안은 목록에 체크된 채로 남김)
+  const doneTabRef = useRef(null)
+  function completeTask(key, btn) {
+    const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+    const wrap = btn?.closest('[data-task]')
+    if (reduce || !wrap?.animate || !doneTabRef.current) { toggleCheck(today, key, true); return }
+    setLeaving(l => ({ ...l, [key]: true }))
+    toggleCheck(today, key, true)
+    // 체크 표시가 '톡' 하고 나온 뒤 완료 탭으로 날아감
+    setTimeout(() => {
+      const r = btn.getBoundingClientRect(), t = doneTabRef.current?.getBoundingClientRect()
+      if (t) {
+        const ghost = btn.cloneNode(true)
+        Object.assign(ghost.style, { position:'fixed', left:`${r.left}px`, top:`${r.top}px`, width:`${r.width}px`, height:`${r.height}px`,
+          margin:'0', zIndex:'1000', pointerEvents:'none', boxShadow:'0 10px 30px rgba(29,27,24,.18)', transformOrigin:'center' })
+        document.body.appendChild(ghost)
+        const dx = t.left + t.width / 2 - (r.left + r.width / 2), dy = t.top + t.height / 2 - (r.top + r.height / 2)
+        ghost.animate([
+          { transform:'translate(0,0) scale(1)', opacity:1 },
+          { transform:`translate(${dx * 0.35}px, ${dy * 0.35 - 30}px) scale(.75)`, opacity:.95, offset:.35 },
+          { transform:`translate(${dx}px, ${dy}px) scale(.12)`, opacity:.3 },
+        ], { duration:560, easing:'cubic-bezier(.5,0,.6,1)' }).finished.then(() => {
+          ghost.remove()
+          doneTabRef.current?.animate([{ transform:'scale(1)' }, { transform:'scale(1.18)' }, { transform:'scale(1)' }], { duration:320, easing:'ease-out' })
+        })
+      }
+      wrap.style.overflow = 'hidden'
+      wrap.animate([{ height:`${wrap.offsetHeight}px`, opacity:1 }, { height:'0px', opacity:0 }],
+        { duration:380, delay:60, easing:'cubic-bezier(.4,0,.2,1)', fill:'forwards' })
+        .finished.then(() => setLeaving(l => { const n = { ...l }; delete n[key]; return n }))
+    }, 260)
   }
 
   const isChecked = (date, checkKey) => !!(checks[date]?.[checkKey])
@@ -550,6 +594,42 @@ export default function Checklist() {
             {item.alertMsg || '일찍 출근 필요'}
           </div>
         )}
+      </div>
+    )
+  }
+
+  // 오늘 할 일 칸: 매일 항목은 오전·오후 두 칸, 요일별 항목은 정해진 시간 한 칸 (요일별을 먼저)
+  const todaySlots = [
+    ...todayWeekly.map(it => ({ key: it.id, item: it, time: it.time==='오후' ? '오후' : '오전', weekly: true })),
+    ...dailyItems.map(it => ({ key: it.id+'_am', item: it, time: '오전' })),
+    ...dailyItems.map(it => ({ key: it.id+'_pm', item: it, time: '오후' })),
+  ]
+  const todayLeft = t => todaySlots.filter(x => x.time===t && !isChecked(today, x.key)).length
+  const todayDoneSlots = todaySlots.filter(x => isChecked(today, x.key) && !leaving[x.key])
+  const taskRow = x => {
+    const done = isChecked(today, x.key)
+    const it = x.item
+    return (
+      <div key={x.key} data-task={x.key} className="ck-in" style={{paddingBottom:8}}>
+        <div style={{display:'flex',alignItems:'stretch',gap:6}}>
+          <button type="button" disabled={done} onClick={e=>completeTask(x.key, e.currentTarget)}
+            style={{flex:1,minWidth:0,display:'flex',alignItems:'center',gap:12,padding:'13px 14px',textAlign:'left',fontFamily:'inherit',
+              cursor: done ? 'default' : 'pointer',borderRadius:6,color:'#1D1B18',
+              background: done ? '#EEF6F0' : '#FFFFFF', border: done ? '1px solid rgba(46,125,69,0.35)' : '1px solid #DCD7CE', transition:'background .2s, border-color .2s'}}>
+            <span className={done ? 'ck-pop' : undefined} style={{width:26,height:26,borderRadius:13,flexShrink:0,display:'grid',placeItems:'center',
+              background: done ? '#2E7D45' : '#FFFFFF', border: done ? 'none' : '2px solid #A8A39A', color:'#FFFFFF', fontSize:14, fontWeight:900}}>{done ? '✓' : ''}</span>
+            <span style={{flex:1,minWidth:0}}>
+              <span style={{fontSize:15,fontWeight:700}}>{it.label}</span>
+              {x.weekly && <span style={{fontSize:11,color:'#6B4FA0',marginLeft:6,fontWeight:700}}>{intervalLabel(it.interval) || '요일별'}</span>}
+              {x.weekly && (it.alertUid || it.alertMsg) && (
+                <span style={{display:'block',fontSize:11,color:'#B42318',fontWeight:700,marginTop:3}}>
+                  {it.alertUid && alertNameOf(it.alertUid) ? `${alertNameOf(it.alertUid)}님 ` : ''}{it.alertMsg || '일찍 출근 필요'}
+                </span>
+              )}
+            </span>
+          </button>
+          {PhotoBadge(it)}
+        </div>
       </div>
     )
   }
@@ -924,23 +1004,50 @@ export default function Checklist() {
               </div>
             )}
 
-            <div style={{fontSize:11,color:'#6E6A63',fontWeight:600,marginBottom:8}}>
-              매일 항목 <span style={{color:'#A8A39A'}}>({todayDailyDone}/{dailyTotalSlots})</span>
-            </div>
-            <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(260px,1fr))',gap:8,marginBottom: todayWeekly.length>0?16:0}}>
-              {dailyItems.map(it=>DailyRow(it, today, true))}
+            {/* 탭: 오전 할 일 · 오후 할 일 · 완료 */}
+            <div role="tablist" aria-label="오늘 할 일" style={{display:'grid',gridTemplateColumns:'repeat(3, minmax(0, 1fr))',gap:6,marginBottom:12,maxWidth:460}}>
+              {[['오전', todayLeft('오전')], ['오후', todayLeft('오후')], ['완료', todayDoneSlots.length]].map(([k, n]) => (
+                <button key={k} type="button" role="tab" aria-selected={taskTab===k} onClick={()=>setTaskTab(k)} ref={k==='완료' ? doneTabRef : undefined}
+                  style={{display:'flex',alignItems:'center',justifyContent:'center',gap:6,padding:'9px 6px',borderRadius:999,whiteSpace:'nowrap',cursor:'pointer',fontFamily:'inherit',fontSize:13,fontWeight:700,
+                    border: taskTab===k ? '1px solid transparent' : '1px solid #DCD7CE',
+                    background: taskTab===k ? (k==='완료' ? '#2E7D45' : 'var(--hk-accent)') : '#FFFFFF',
+                    color: taskTab===k ? '#FFFFFF' : '#1D1B18'}}>
+                  {k}
+                  <span style={{minWidth:20,padding:'1px 6px',borderRadius:999,fontSize:12,fontVariantNumeric:'tabular-nums',
+                    background: taskTab===k ? 'rgba(255,255,255,.25)' : k==='완료' ? 'rgba(46,125,69,.14)' : 'rgba(var(--hk-accent-rgb),.12)',
+                    color: taskTab===k ? '#FFFFFF' : k==='완료' ? '#2E7D45' : 'var(--hk-accent)'}}>{n}</span>
+                </button>
+              ))}
             </div>
 
-            {todayWeekly.length > 0 && (
-              <>
-                <div style={{fontSize:11,color:'#6E6A63',fontWeight:600,marginBottom:8}}>
-                  오늘의 요일별 항목 <span style={{color:'#A8A39A'}}>({todayWeeklyDone}/{todayWeekly.length})</span>
+            {taskTab !== '완료' ? (() => {
+              const list = todaySlots.filter(x => x.time===taskTab && (!isChecked(today, x.key) || leaving[x.key]))
+              if (!list.length) return (
+                <div key={'empty'+taskTab} className="ck-in" style={{textAlign:'center',padding:'28px 12px',background:'#FFFFFF',border:'1px dashed #DCD7CE',borderRadius:6}}>
+                  <div style={{fontSize:16,fontWeight:800,color:'#2E7D45'}}>{taskTab} 할 일을 다 했어요</div>
+                  <div style={{fontSize:12,color:'#6E6A63',marginTop:4}}>
+                    {taskTab==='오전' && todayLeft('오후') ? `오후 할 일이 ${todayLeft('오후')}개 남았어요` : '수고했어요!'}
+                  </div>
                 </div>
-                <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(240px,1fr))',gap:8}}>
-                  {todayWeekly.map(it=>WeeklyRow(it, today, true))}
-                </div>
-              </>
+              )
+              return <div>{list.map(x => taskRow(x))}</div>
+            })() : (
+              !todayDoneSlots.length
+                ? <div style={{textAlign:'center',padding:'24px 12px',fontSize:13,color:'#6E6A63'}}>아직 끝낸 일이 없어요</div>
+                : <div style={{display:'flex',flexDirection:'column',gap:6}}>
+                    {todayDoneSlots.map(x => (
+                      <div key={x.key} className="ck-in" style={{display:'flex',alignItems:'center',gap:10,padding:'9px 12px',borderRadius:6,
+                        background:'rgba(46,125,69,0.08)',border:'1px solid rgba(46,125,69,0.25)'}}>
+                        <span style={{width:20,height:20,borderRadius:10,background:'#2E7D45',color:'#FFFFFF',display:'grid',placeItems:'center',fontSize:12,fontWeight:900,flexShrink:0}}>✓</span>
+                        <span style={{flex:1,fontSize:13,color:'#6E6A63',textDecoration:'line-through'}}>{x.item.label}</span>
+                        <span style={{fontSize:11,fontWeight:700,color: x.time==='오전' ? 'var(--hk-accent)' : '#2B5C9E'}}>{x.time}</span>
+                        <button type="button" onClick={()=>toggleCheck(today, x.key, false)}
+                          style={{background:'#FFFFFF',border:'1px solid #DCD7CE',borderRadius:4,padding:'4px 9px',fontSize:11,color:'#6E6A63',cursor:'pointer',fontFamily:'inherit'}}>되돌리기</button>
+                      </div>
+                    ))}
+                  </div>
             )}
+            <style>{CK_CSS}</style>
           </div>
 
           {/* 이번주 전체 보기 */}
