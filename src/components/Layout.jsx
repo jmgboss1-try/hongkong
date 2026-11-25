@@ -313,7 +313,8 @@ export default function Layout({ children }) {
 
       {/* ── MAIN ── */}
       <div className="main-content" style={{marginLeft:NAV_W, transition:'margin-left .18s ease', flex:1, minWidth:0, padding:'28px 30px', minHeight:'100vh', textAlign:'left'}}>
-        {children}
+        {/* 탭을 옮길 때마다 새로 붙어서 화면이 떠오르며 나타남 (appView.css .hk-page) */}
+        <div key={location.pathname} className="hk-page">{children}</div>
       </div>
 
       {/* ── 모바일 하단 탭바 ── */}

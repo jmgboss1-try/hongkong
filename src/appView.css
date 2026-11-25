@@ -36,3 +36,39 @@
   html[data-view="card"] .main-content tr:first-child > th:first-child { border-top-left-radius: 10px; }
   html[data-view="card"] .main-content tr:first-child > th:last-child { border-top-right-radius: 10px; }
 }
+
+/* ── 움직임 (앱 전체, 보기 방식과 상관없이) ──
+   탭을 열면 큰 덩어리가 위에서부터 차례로 떠오르고, 표의 줄은 차례로 나타남. 버튼은 누를 때 살짝 눌림.
+   움직임 줄이기 설정이면 전부 꺼짐. .hk-page 는 Layout.jsx 가 탭마다 새로 붙임 */
+@keyframes hkIn { from { opacity: 0; transform: translateY(10px) } to { opacity: 1; transform: none } }
+@keyframes hkFade { from { opacity: 0 } to { opacity: 1 } }
+@media screen and (prefers-reduced-motion: no-preference) {
+  /* :where() 로 우선순위 0 — 화면이 자기 움직임(ri-in, wm-row 등)을 주면 그쪽이 이김. 떠 있는 창(position: fixed)은 제외 */
+  :where(.hk-page > :not(.page-surface) > :not([style*="position: fixed"]), .hk-page > .page-surface > * > :not([style*="position: fixed"])) { animation: hkIn .42s cubic-bezier(.2,.7,.2,1) both; }
+  :where(.hk-page > :not(.page-surface) > :nth-child(2), .hk-page > .page-surface > * > :nth-child(2)) { animation-delay: .05s }
+  :where(.hk-page > :not(.page-surface) > :nth-child(3), .hk-page > .page-surface > * > :nth-child(3)) { animation-delay: .10s }
+  :where(.hk-page > :not(.page-surface) > :nth-child(4), .hk-page > .page-surface > * > :nth-child(4)) { animation-delay: .15s }
+  :where(.hk-page > :not(.page-surface) > :nth-child(5), .hk-page > .page-surface > * > :nth-child(5)) { animation-delay: .20s }
+  :where(.hk-page > :not(.page-surface) > :nth-child(6), .hk-page > .page-surface > * > :nth-child(6)) { animation-delay: .25s }
+  :where(.hk-page > :not(.page-surface) > :nth-child(7), .hk-page > .page-surface > * > :nth-child(7)) { animation-delay: .30s }
+  :where(.hk-page > :not(.page-surface) > :nth-child(n+8), .hk-page > .page-surface > * > :nth-child(n+8)) { animation-delay: .35s }
+  /* 표의 줄: 처음 그려질 때 차례로 (다시 그려질 때는 안 움직임) */
+  :where(.hk-page tbody > tr) { animation: hkFade .35s ease-out both; }
+  :where(.hk-page tbody > tr:nth-child(2)) { animation-delay: .03s } :where(.hk-page tbody > tr:nth-child(3)) { animation-delay: .06s }
+  :where(.hk-page tbody > tr:nth-child(4)) { animation-delay: .09s } :where(.hk-page tbody > tr:nth-child(5)) { animation-delay: .12s }
+  :where(.hk-page tbody > tr:nth-child(6)) { animation-delay: .15s } :where(.hk-page tbody > tr:nth-child(7)) { animation-delay: .18s }
+  :where(.hk-page tbody > tr:nth-child(8)) { animation-delay: .21s } :where(.hk-page tbody > tr:nth-child(9)) { animation-delay: .24s }
+  :where(.hk-page tbody > tr:nth-child(n+10)) { animation-delay: .27s }
+  /* 펼쳐 보기(details)를 열면 내용이 떠오름 */
+  :where(.hk-page details[open] > :not(summary)) { animation: hkIn .28s ease-out both; }
+  /* 버튼·탭: 색이 부드럽게 바뀌고 누를 때 살짝 눌림 */
+  .main-content button { transition: background-color .18s, color .18s, border-color .18s, box-shadow .18s, transform .12s; }
+  .main-content button:not(:disabled):active { transform: scale(.97); }
+  .main-content input, .main-content select, .main-content textarea { transition: border-color .18s, box-shadow .18s, background-color .18s; }
+  .main-content input:focus-visible, .main-content select:focus-visible, .main-content textarea:focus-visible { box-shadow: 0 0 0 3px rgba(var(--hk-accent-rgb), .15); }
+  /* 카드형: 카드에 마우스를 올리면 그림자가 조금 짙어짐 (PC) */
+  @media (hover: hover) {
+    html[data-view="card"] .main-content section { transition: box-shadow .2s, transform .2s; }
+    html[data-view="card"] .main-content section:hover { box-shadow: 0 2px 4px rgba(29,27,24,.05), 0 10px 26px rgba(29,27,24,.07); }
+  }
+}

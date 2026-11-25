@@ -1,4 +1,5 @@
 import { Fragment, useEffect, useState } from 'react'
+import CountUp from '../components/CountUp'
 import BankImport from '../components/BankImport'
 import BankReconCard from '../components/BankReconCard'
 import BankTxList from '../components/BankTxList'
@@ -484,7 +485,7 @@ const [payingDate, setPayingDate]     = useState('')
       <span style={{whiteSpace:'nowrap'}}>{label}</span>
       {note && <span style={{fontSize:12, color:T.sub, marginLeft:6, whiteSpace:'nowrap', fontWeight:400}}>{note}</span>}
       {leader()}
-      <span style={{...num, whiteSpace:'nowrap', color: color || 'inherit'}}>{minus && value ? '− ' : plus && value ? '+ ' : ''}{won(value)}</span>
+      <span style={{...num, whiteSpace:'nowrap', color: color || 'inherit'}}>{minus && value ? '− ' : plus && value ? '+ ' : ''}<CountUp value={value}/></span>
     </div>
   )
   const total = (label, value, opts) => (

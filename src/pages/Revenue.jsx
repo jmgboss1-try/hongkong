@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import CountUp from '../components/CountUp'
 import { db } from '../firebase'
 import { doc, getDoc, setDoc } from 'firebase/firestore'
 import { useAuth } from '../AuthContext'
@@ -325,7 +326,7 @@ export default function Revenue() {
       <span style={{whiteSpace:'nowrap'}}>{label}</span>
       {note && <span style={{fontSize:12, color:T.sub, marginLeft:6, whiteSpace:'nowrap', fontWeight:400}}>{note}</span>}
       {leader()}
-      <span style={{...num, whiteSpace:'nowrap', color: color || 'inherit'}}>{text ?? won(value)}</span>
+      <span style={{...num, whiteSpace:'nowrap', color: color || 'inherit'}}>{text ?? <CountUp value={value}/>}</span>
     </div>
   )
   const inputRow = (label, control, note) => (

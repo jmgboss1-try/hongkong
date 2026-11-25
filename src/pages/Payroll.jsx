@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import CountUp from '../components/CountUp'
 import { db } from '../firebase'
 import { doc, getDoc, setDoc, collection, getDocs } from 'firebase/firestore'
 import { withSubMemos, loadSubs } from '../lib/attendance'
@@ -851,7 +852,7 @@ if(!isActive && !isRetired) return
             <span style={{whiteSpace:'nowrap'}}>{r.label}</span>
             {r.note && <span style={{fontSize:12,color:'#6E6A63',marginLeft:6,fontWeight:400,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{r.note}</span>}
             <span aria-hidden="true" style={{flex:1,borderBottom:'1px dotted #A8A39A',margin:'0 8px',minWidth:12,transform:'translateY(-4px)'}}/>
-            <span style={{fontVariantNumeric:'tabular-nums',whiteSpace:'nowrap',color:r.color||'#1D1B18',fontWeight: big ? 800 : 700}}>{r.val.toLocaleString()}</span>
+            <span style={{fontVariantNumeric:'tabular-nums',whiteSpace:'nowrap',color:r.color||'#1D1B18',fontWeight: big ? 800 : 700}}><CountUp value={r.val}/></span>
           </div>
         )
         return (

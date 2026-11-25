@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import CountUp from '../components/CountUp'
 import RevenuePace from '../components/RevenuePace'
 import { GoalLine } from '../components/DiscountGoal'
 import EarlySales from '../components/EarlySales'
@@ -367,7 +368,7 @@ export default function Dashboard() {
       <span style={{whiteSpace:'nowrap'}}>{label}</span>
       {note && <span style={{fontSize:12, color:T.sub, marginLeft:6, whiteSpace:'nowrap'}}>{note}</span>}
       <span aria-hidden="true" style={{flex:1, borderBottom:`1px dotted ${T.faint}`, margin:'0 8px', minWidth:12, transform:'translateY(-4px)'}}/>
-      <span style={{...num, whiteSpace:'nowrap', color: color || 'inherit'}}>{minus && value ? '− ' : ''}{won(value)}</span>
+      <span style={{...num, whiteSpace:'nowrap', color: color || 'inherit'}}>{minus && value ? '− ' : ''}<CountUp value={value}/></span>
     </div>
   )
   const sectionTitle = (text, right) => (
