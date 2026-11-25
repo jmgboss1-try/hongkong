@@ -1,11 +1,48 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { db } from '../firebase'
-import { doc, getDoc, setDoc, collection, getDocs } from 'firebase/firestore'
+import { doc, getDoc, setDoc, collection, getDocs, deleteField } from 'firebase/firestore'
 import AttendancePanel from '../components/AttendancePanel'
 import { withSubMemos, loadSubs, dayStatus, hm, toDate } from '../lib/attendance'
 import { loadPrivateMap } from '../lib/privateInfo'
 
 const pad = n => String(n).padStart(2,'0')
+
+// ── 움직임 ── (움직임 줄이기 설정이면 모두 꺼짐)
+//  금액은 굴러가듯 바뀌고, 보기를 바꾸면 내용이 살짝 떠오르며 줄마다 차례로 나타나고, 시간을 저장하면 그 칸이 초록으로 반짝임
+function useCountUp(value, ms = 600) {
+  const [v, setV] = useState(value)
+  const from = useRef(0)
+  useEffect(() => {
+    const reduce = !!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+    const dur = reduce ? 1 : ms
+    const start = performance.now(), a = from.current, b = value
+    let raf
+    const step = t => {
+      const k = Math.min(1, (t - start) / dur), e = 1 - Math.pow(1 - k, 3)
+      const cur = Math.round(a + (b - a) * e)
+      from.current = cur
+      setV(cur)
+      if (k < 1) raf = requestAnimationFrame(step)
+    }
+    raf = requestAnimationFrame(step)
+    return () => cancelAnimationFrame(raf)
+  }, [value, ms])
+  return v
+}
+function Count({ value, ms }) { return <>{useCountUp(value, ms).toLocaleString()}</> }
+const WM_CSS = `@keyframes wmIn { from { opacity:0; transform: translateY(8px) } to { opacity:1; transform:none } }
+@keyframes wmRow { from { opacity:0; transform: translateX(-6px) } to { opacity:1; transform:none } }
+@keyframes wmGrow { from { transform: scaleX(0) } to { transform: scaleX(1) } }
+@keyframes wmSaved { 0% { background:#DDF0E3; border-color:#2E7D45; box-shadow:0 0 0 0 rgba(46,125,69,.45) } 100% { box-shadow:0 0 0 8px rgba(46,125,69,0) } }
+@keyframes wmPulse { 0% { box-shadow:0 0 0 0 rgba(46,125,69,.5) } 100% { box-shadow:0 0 0 7px rgba(46,125,69,0) } }
+.wm-in { animation: wmIn .3s ease-out both }
+.wm-row { animation: wmRow .32s ease-out both }
+.wm-grow { transform-origin: left; animation: wmGrow .7s cubic-bezier(.2,.8,.2,1) both }
+.wm-saved { animation: wmSaved .9s ease-out }
+.wm-live { animation: wmPulse 1.4s ease-out infinite }
+.wm-pill { transition: background-color .2s, color .2s, transform .15s }
+.wm-pill:active { transform: scale(.96) }
+@media (prefers-reduced-motion: reduce) { .wm-in, .wm-row, .wm-grow, .wm-saved, .wm-live { animation: none } .wm-pill { transition: none } }`
 
 // 해당 월의 시급 찾기
 function getWageForMonth(emp, month) {
@@ -138,20 +175,31 @@ export default function WorkManage() {
 
   useEffect(() => { load() }, [curMonth])
 
+  // 저장한 칸 반짝임 {'uid|dd|h': true}
+  const [flash, setFlash] = useState({})
+  const markSaved = key => {
+    setFlash(f => ({ ...f, [key]: true }))
+    setTimeout(() => setFlash(f => { const n = { ...f }; delete n[key]; return n }), 900)
+  }
+  // 그 칸 하나만 저장 (NFC 퇴근이 같은 달 문서에 시간을 넣어도 서로 덮어쓰지 않게)
   async function saveWorkHours(uid, dd, hours) {
     const h = +hours || 0
+    if (h === ((workHours[uid]||{})[dd] || 0)) return
     const newWH = { ...workHours, [uid]: { ...(workHours[uid]||{}), [dd]: h } }
     if(!h) delete newWH[uid][dd]
-    await setDoc(doc(db,'workhours',curMonth), newWH)
+    await setDoc(doc(db,'workhours',curMonth), { [uid]: { [dd]: h || deleteField() } }, { merge:true })
     setWorkHours(newWH)
+    markSaved(`${uid}|${dd}|h`)
   }
 
   async function saveWorkExtra(uid, dd, mins) {
     const m = +mins || 0
+    if (m === ((workExtra[uid]||{})[dd] || 0)) return
     const newEx = { ...workExtra, [uid]: { ...(workExtra[uid]||{}), [dd]: m } }
     if(!m) delete newEx[uid][dd]
-    await setDoc(doc(db,'workextra',curMonth), newEx)
+    await setDoc(doc(db,'workextra',curMonth), { [uid]: { [dd]: m || deleteField() } }, { merge:true })
     setWorkExtra(newEx)
+    markSaved(`${uid}|${dd}|m`)
   }
 
   async function saveMemo(uid, dd, memo) {
@@ -267,7 +315,7 @@ function getEmpStats(emp) {
             <div style={{minWidth:120}}>추가근무 (분)</div>
             <div style={{flex:1}}>비고</div>
           </div>
-          {todayEmps.map(({emp})=>{
+          {todayEmps.map(({emp}, i)=>{
             const wh = workHours[emp.uid]||{}
             const ex = workExtra[emp.uid]||{}
             const empMemos = memos[emp.uid]||{}
@@ -275,11 +323,18 @@ function getEmpStats(emp) {
             const hasMissing = missing.length > 0
             const hasToday = (wh[todayDD]||0) > 0
             return (
-              <div key={emp.uid} style={{display:'flex',alignItems:'center',gap:14,padding:'10px 18px',
+              <div key={emp.uid} className="wm-row" style={{animationDelay:`${i*50}ms`,display:'flex',alignItems:'center',gap:14,padding:'10px 18px',
                 borderBottom:'1px solid #ECE8E1',
                 background:hasToday?'rgba(var(--hk-accent-rgb),0.04)':'transparent'}}>
-                <div style={{minWidth:80,fontSize:13,fontWeight:700,
+                <div style={{minWidth:80,fontSize:13,fontWeight:700,display:'flex',alignItems:'center',gap:7,
                   color:hasMissing?'#B42318':hasToday?'var(--hk-accent)':'#1D1B18'}}>
+                  {(() => {
+                    // 지금 상태 점: 근무 중 = 초록 깜박임, 퇴근 = 회색 체크, 안 찍음 = 빈 동그라미
+                    const r = curMonth===`${new Date().getFullYear()}-${pad(new Date().getMonth()+1)}` ? att[emp.uid]?.[todayDD] : null
+                    if (r?.in && !r.out) return <span className="wm-live" title="근무 중" style={{width:10,height:10,borderRadius:5,background:'#2E7D45',flexShrink:0}}/>
+                    if (r?.out) return <span title="퇴근" style={{width:14,height:14,borderRadius:7,background:'#A8A39A',color:'#FFFFFF',fontSize:9,display:'grid',placeItems:'center',flexShrink:0}}>✓</span>
+                    return <span title="안 찍음" style={{width:10,height:10,borderRadius:5,border:'1.5px solid #CBC5BA',boxSizing:'border-box',flexShrink:0}}/>
+                  })()}
                   {emp.name}
                   {hasMissing && <span style={{fontSize:9,marginLeft:4}}>⚠{missing.length}</span>}
                 </div>
@@ -297,7 +352,7 @@ function getEmpStats(emp) {
                     </div>
                   )
                 })()}
-                <input key={`h${wh[todayDD]||0}`} type="number" defaultValue={wh[todayDD]||''} min="0" max="24" step="0.5" placeholder="0"
+                <input key={`h${wh[todayDD]||0}`} className={flash[`${emp.uid}|${todayDD}|h`] ? 'wm-saved' : undefined} type="number" defaultValue={wh[todayDD]||''} min="0" max="24" step="0.5" placeholder="0"
                   onBlur={e=>saveWorkHours(emp.uid,todayDD,e.target.value)}
                   onKeyDown={e=>e.key==='Enter'&&e.target.blur()}
                   style={{width:100,background:wh[todayDD]>0?'rgba(var(--hk-accent-rgb),0.15)':'#F3F1EC',
@@ -305,7 +360,7 @@ function getEmpStats(emp) {
                     borderRadius:6,color:wh[todayDD]>0?'var(--hk-accent)':'#1D1B18',
                     padding:'7px 8px',fontSize:13,fontWeight:wh[todayDD]>0?700:400,
                     textAlign:'center',outline:'none',fontFamily:'inherit',fontVariantNumeric:'tabular-nums'}}/>
-                <input key={`m${ex[todayDD]||0}`} type="number" defaultValue={ex[todayDD]||''} min="0" max="180" step="5" placeholder="0"
+                <input key={`m${ex[todayDD]||0}`} className={flash[`${emp.uid}|${todayDD}|m`] ? 'wm-saved' : undefined} type="number" defaultValue={ex[todayDD]||''} min="0" max="180" step="5" placeholder="0"
                   onBlur={e=>saveWorkExtra(emp.uid,todayDD,e.target.value)}
                   onKeyDown={e=>e.key==='Enter'&&e.target.blur()}
                   style={{width:100,background:ex[todayDD]>0?'rgba(var(--hk-accent-rgb),0.15)':'#F3F1EC',
@@ -356,9 +411,9 @@ function getEmpStats(emp) {
           {label:'총 인건비', val:grandTotal, color:'#2E7D45'},
         ].map(k=>(
           <div key={k.label} style={{background:'#FFFFFF',border:'1px solid #DCD7CE',borderRadius:6,padding:'18px 20px',position:'relative',overflow:'hidden'}}>
-            <div style={{position:'absolute',top:0,left:0,right:0,height:3,background:k.color}}></div>
+            <div className="wm-grow" style={{position:'absolute',top:0,left:0,right:0,height:3,background:k.color}}></div>
             <div style={{fontSize:10,fontWeight:600,color:'#6E6A63',textTransform:'uppercase',letterSpacing:.8,marginBottom:6}}>{k.label}</div>
-            <div style={{fontSize:20,fontWeight:700,color:k.color,fontFamily:'inherit',fontVariantNumeric:'tabular-nums'}}>{k.val.toLocaleString()}원</div>
+            <div style={{fontSize:20,fontWeight:700,color:k.color,fontFamily:'inherit',fontVariantNumeric:'tabular-nums'}}><Count value={k.val}/>원</div>
           </div>
         ))}
       </div>
@@ -398,18 +453,18 @@ function getEmpStats(emp) {
 
       {/* 직원 탭 */}
       <div style={{display:'flex',gap:8,marginBottom:14,flexWrap:'wrap'}}>
-        <button onClick={()=>{ setShowTodayOnly(v=>!v); setActiveEmp(null) }}
+        <button className="wm-pill" onClick={()=>{ setShowTodayOnly(v=>!v); setActiveEmp(null) }}
           style={{padding:'7px 14px',borderRadius:4,border:'none',fontSize:12,fontWeight:600,cursor:'pointer',fontFamily:'inherit',
             background:showTodayOnly?'#2E7D45':'#F3F1EC',color:showTodayOnly?'#FFFFFF':'#6E6A63'}}>
           오늘 근무
         </button>
-        <button onClick={()=>{ setActiveEmp(null); setShowTodayOnly(false) }}
+        <button className="wm-pill" onClick={()=>{ setActiveEmp(null); setShowTodayOnly(false) }}
           style={{padding:'7px 14px',borderRadius:4,border:'none',fontSize:12,fontWeight:600,cursor:'pointer',fontFamily:'inherit',
             background:activeEmp===null&&!showTodayOnly?'var(--hk-accent)':'#F3F1EC',color:activeEmp===null&&!showTodayOnly?'#FFFFFF':'#6E6A63'}}>
           전체 요약
         </button>
         {employees.map(e=>(
-          <button key={e.uid} onClick={()=>setActiveEmp(e.uid)}
+          <button key={e.uid} className="wm-pill" onClick={()=>setActiveEmp(e.uid)}
             style={{padding:'7px 14px',borderRadius:4,border:'none',fontSize:12,fontWeight:600,cursor:'pointer',fontFamily:'inherit',
               background:activeEmp===e.uid?'var(--hk-accent)':'#F3F1EC',color:activeEmp===e.uid?'#FFFFFF':'#6E6A63'}}>
             {e.name}
@@ -419,11 +474,12 @@ function getEmpStats(emp) {
 
       {loading ? <div style={{textAlign:'center',color:'#6E6A63',padding:60}}>로딩 중...</div> : (
         <>
-          {showTodayOnly && todayContent}
+          <style>{WM_CSS}</style>
+          {showTodayOnly && <div key="today" className="wm-in">{todayContent}</div>}
 
           {/* 전체 요약 */}
           {activeEmp===null && !showTodayOnly && (
-            <div style={{background:'#FFFFFF',border:'1px solid #DCD7CE',borderRadius:6,overflow:'hidden',marginBottom:18}}>
+            <div key="all" className="wm-in" style={{background:'#FFFFFF',border:'1px solid #DCD7CE',borderRadius:6,overflow:'hidden',marginBottom:18}}>
               <div style={{padding:'14px 18px',borderBottom:'1px solid #DCD7CE',fontSize:13,fontWeight:600}}>직원별 급여 요약</div>
               <div style={{overflowX:'auto'}}>
                 <table style={{width:'100%',borderCollapse:'collapse',fontSize:12}}>
@@ -436,15 +492,21 @@ function getEmpStats(emp) {
                     </tr>
                   </thead>
                   <tbody>
-                    {allStats.map(({emp,totalHours,totalMins,basePay,totalWeeklyHoliday,totalPay})=>(
-                      <tr key={emp.uid} onClick={()=>setActiveEmp(emp.uid)} style={{cursor:'pointer'}}>
+                    {allStats.map(({emp,totalHours,totalMins,basePay,totalWeeklyHoliday,totalPay}, i)=>(
+                      <tr key={emp.uid} className="wm-row" onClick={()=>setActiveEmp(emp.uid)} style={{cursor:'pointer',animationDelay:`${i*45}ms`}}>
                         <td style={{padding:'10px 14px',borderBottom:'1px solid #DCD7CE',color:'#1D1B18',fontWeight:600}}>{emp.name}</td>
                         <td style={{padding:'10px 14px',borderBottom:'1px solid #DCD7CE',textAlign:'right',fontFamily:'inherit',fontVariantNumeric:'tabular-nums',color:'#1D1B18'}}>{(emp.wage||10030).toLocaleString()}</td>
                         <td style={{padding:'10px 14px',borderBottom:'1px solid #DCD7CE',textAlign:'right',fontFamily:'inherit',fontVariantNumeric:'tabular-nums',color:'#1D1B18'}}>{totalHours}h</td>
                         <td style={{padding:'10px 14px',borderBottom:'1px solid #DCD7CE',textAlign:'right',fontFamily:'inherit',fontVariantNumeric:'tabular-nums',color:totalMins>0?'var(--hk-accent)':'#6E6A63'}}>{totalMins>0?`${totalMins}m`:'—'}</td>
                         <td style={{padding:'10px 14px',borderBottom:'1px solid #DCD7CE',textAlign:'right',fontFamily:'inherit',fontVariantNumeric:'tabular-nums',color:'#1D1B18'}}>{basePay.toLocaleString()}</td>
                         <td style={{padding:'10px 14px',borderBottom:'1px solid #DCD7CE',textAlign:'right',fontFamily:'inherit',fontVariantNumeric:'tabular-nums',color:'#2B5C9E'}}>{totalWeeklyHoliday.toLocaleString()}</td>
-                        <td style={{padding:'10px 14px',borderBottom:'1px solid #DCD7CE',textAlign:'right',fontFamily:'inherit',fontVariantNumeric:'tabular-nums',color:'#2E7D45',fontWeight:700}}>{totalPay.toLocaleString()}</td>
+                        <td style={{padding:'10px 14px',borderBottom:'1px solid #DCD7CE',textAlign:'right',fontFamily:'inherit',fontVariantNumeric:'tabular-nums',color:'#2E7D45',fontWeight:700,minWidth:110}}>
+                          <Count value={totalPay}/>
+                          {/* 총 인건비 중 이 사람 몫 막대 */}
+                          <div style={{height:4,borderRadius:2,background:'#ECE8E1',marginTop:5,overflow:'hidden'}}>
+                            <div className="wm-grow" style={{height:'100%',borderRadius:2,background:'#2E7D45',width:`${grandTotal ? Math.round(totalPay / Math.max(1, ...allStats.map(x=>x.totalPay)) * 100) : 0}%`,animationDelay:`${150 + i*45}ms`}}/>
+                          </div>
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -473,7 +535,7 @@ function getEmpStats(emp) {
             const empMemos = memos[emp.uid] || {}
 
             return (
-              <div style={{background:'#FFFFFF',border:'1px solid #DCD7CE',borderRadius:6,overflow:'hidden'}}>
+              <div key={`emp-${emp.uid}`} className="wm-in" style={{background:'#FFFFFF',border:'1px solid #DCD7CE',borderRadius:6,overflow:'hidden'}}>
                 <div style={{padding:'14px 18px',borderBottom:'1px solid #DCD7CE',fontSize:13,fontWeight:600,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
                   <span>{emp.name} 근무 상세</span>
                   <span style={{fontSize:11,color:'#6E6A63'}}>시급 {(emp.wage||10030).toLocaleString()}원/h</span>
@@ -483,9 +545,9 @@ function getEmpStats(emp) {
                 <div style={{padding:'14px 18px',borderBottom:'1px solid #DCD7CE',display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:10}}>
                   {[
                     {label:'총 근무시간', val:`${totalHours}h ${totalMins>0?totalMins+'m':''}`, color:'var(--hk-accent)'},
-                    {label:'기본급', val:`${basePay.toLocaleString()}원`, color:'#1D1B18'},
-                    {label:'주휴수당', val:`${totalWeeklyHoliday.toLocaleString()}원`, color:'#2B5C9E'},
-                    {label:'이달 월급', val:`${totalPay.toLocaleString()}원`, color:'#2E7D45'},
+                    {label:'기본급', val:<><Count value={basePay}/>원</>, color:'#1D1B18'},
+                    {label:'주휴수당', val:<><Count value={totalWeeklyHoliday}/>원</>, color:'#2B5C9E'},
+                    {label:'이달 월급', val:<><Count value={totalPay}/>원</>, color:'#2E7D45'},
                   ].map(k=>(
                     <div key={k.label} style={{background:'#F3F1EC',borderRadius:4,padding:'10px 12px'}}>
                       <div style={{fontSize:10,color:'#6E6A63',marginBottom:3}}>{k.label}</div>
@@ -512,14 +574,15 @@ function getEmpStats(emp) {
                       </tr>
                     </thead>
 <tbody key={activeEmp}>
-  {rows.map(({d,dd,dow,h,m,weeklyHoliday})=>{
+  {rows.map(({d,dd,dow,h,m,weeklyHoliday}, i)=>{
                         const isWeekend = dow===0||dow===6
                         const isSun = dow===0
                         const now = new Date()
                         const isToday = curMonth===`${now.getFullYear()}-${pad(now.getMonth()+1)}` && d===now.getDate()
 
                         return (
-                          <tr key={dd} style={{
+                          <tr key={dd} className="wm-row" style={{
+                            animationDelay:`${Math.min(i*14, 420)}ms`,
                             background: isSun&&weeklyHoliday>0?'rgba(43,92,158,0.05)':h>0||m>0?'rgba(var(--hk-accent-rgb),0.04)':'transparent',
                             borderLeft: isSun&&weeklyHoliday>0?'3px solid #2B5C9E':h>0||m>0?'3px solid var(--hk-accent)':'3px solid transparent'
                           }}>
@@ -535,7 +598,7 @@ function getEmpStats(emp) {
                             {/* 근무시간 */}
                             <td style={{padding:'4px 10px',borderBottom:'1px solid #ECE8E1',textAlign:'center'}}>
                               {!isSun ? (
-<input key={`${activeEmp}_${dd}_h`} type="number" defaultValue={h||''} min="0" max="24" step="0.5" placeholder="0"
+<input key={`${activeEmp}_${dd}_h`} className={flash[`${emp.uid}|${dd}|h`] ? 'wm-saved' : undefined} type="number" defaultValue={h||''} min="0" max="24" step="0.5" placeholder="0"
   onBlur={e=>saveWorkHours(emp.uid,dd,e.target.value)}
   onKeyDown={e=>e.key==='Enter'&&e.target.blur()}
                                   style={{
@@ -552,7 +615,7 @@ function getEmpStats(emp) {
                             {/* 추가근무(분) */}
                             <td style={{padding:'4px 10px',borderBottom:'1px solid #ECE8E1',textAlign:'center'}}>
                               {!isSun ? (
-<input key={`${activeEmp}_${dd}_m`} type="number" defaultValue={m||''} min="0" max="180" step="5" placeholder="0"
+<input key={`${activeEmp}_${dd}_m`} className={flash[`${emp.uid}|${dd}|m`] ? 'wm-saved' : undefined} type="number" defaultValue={m||''} min="0" max="180" step="5" placeholder="0"
   onBlur={e=>saveWorkExtra(emp.uid,dd,e.target.value)}
   onKeyDown={e=>e.key==='Enter'&&e.target.blur()}
                                   style={{
