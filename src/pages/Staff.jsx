@@ -69,9 +69,30 @@ function PendingCard({ u, onApprove, onReject }) {
 // 스케쥴: 지금 매장 현황 + 이번 주 근무표 + 시간대별 인원
 // 근무표는 인원관리의 요일별 예정 시각(shiftTimes)에 대타 게시판(확정된 대타)과 임시휴무를 반영하고,
 // 지난 날에는 NFC 출퇴근 기록(지각·결근)을 겹쳐 보여줌. 매장 일정 메모는 events/{달}[dd]
+// ── 움직임 ── (움직임 줄이기 설정이면 모두 꺼짐)
+//  지금 매장: 사람마다 오늘 하루 막대(예정은 옅게, 실제 근무는 진하게)가 자라고 '지금' 선이 그어짐, 상태 점이 깜박임
+//  근무표: 주를 넘기면 그 방향에서 표가 미끄러져 들어옴. 시간대별 인원: 칸이 요일 순서대로 톡톡 채워짐
+const ST_CSS = `@keyframes stGrow { from { transform: scaleX(0) } to { transform: scaleX(1) } }
+@keyframes stFromR { from { opacity:0; transform: translateX(28px) } to { opacity:1; transform:none } }
+@keyframes stFromL { from { opacity:0; transform: translateX(-28px) } to { opacity:1; transform:none } }
+@keyframes stPop { 0% { opacity:0; transform: scale(.55) } 70% { opacity:1; transform: scale(1.06) } 100% { opacity:1; transform: scale(1) } }
+@keyframes stPulse { 0% { box-shadow: 0 0 0 0 var(--st-c) } 100% { box-shadow: 0 0 0 7px transparent } }
+@keyframes stNow { 0%, 100% { opacity: 1 } 50% { opacity: .45 } }
+@keyframes stIn { from { opacity:0; transform: translateY(6px) } to { opacity:1; transform:none } }
+.st-grow { transform-origin: left; animation: stGrow .7s cubic-bezier(.2,.8,.2,1) both }
+.st-from-r { animation: stFromR .35s cubic-bezier(.2,.8,.2,1) both }
+.st-from-l { animation: stFromL .35s cubic-bezier(.2,.8,.2,1) both }
+.st-pop { animation: stPop .34s ease-out both }
+.st-pulse { animation: stPulse 1.5s ease-out infinite }
+.st-now { animation: stNow 2s ease-in-out infinite }
+.st-in { animation: stIn .25s ease-out both }
+@media (prefers-reduced-motion: reduce) { .st-grow, .st-from-r, .st-from-l, .st-pop, .st-pulse, .st-now, .st-in { animation: none } }`
+
 export default function Staff() {
   const { isOwner } = useAuth()
   const [weekOffset, setWeekOffset] = useState(0)
+  const [dir, setDir] = useState(0)   // 주를 넘긴 방향 (-1 지난주 쪽, 1 다음 주 쪽) — 표가 그쪽에서 들어옴
+  const goWeek = w => { setDir(w < weekOffset ? -1 : w > weekOffset ? 1 : 0); setWeekOffset(w) }
   const [staff, setStaff] = useState([])
   const [pending, setPending] = useState([])
   const [att, setAtt] = useState({})         // { 'YYYY-MM': attendance 문서 }
@@ -282,12 +303,13 @@ export default function Staff() {
 
   return (
     <div style={{maxWidth:1100}}>
+      <style>{ST_CSS}</style>
       <header style={{display:'flex', alignItems:'center', justifyContent:'space-between', gap:12, flexWrap:'wrap', paddingBottom:10, borderBottom:`3px double ${T.ink}`, marginBottom:22}}>
         <h1 style={{fontSize:24, fontWeight:800, margin:0, fontFamily:'inherit', color:T.ink}}>스케쥴</h1>
         <div style={{display:'flex', alignItems:'center', gap:6, flexWrap:'wrap'}}>
-          {navBtn('이전 주', ()=>setWeekOffset(w=>w-1))}
-          {navBtn('이번 주', ()=>setWeekOffset(0), weekOffset===0)}
-          {navBtn('다음 주', ()=>setWeekOffset(w=>w+1))}
+          {navBtn('이전 주', ()=>goWeek(weekOffset-1))}
+          {navBtn('이번 주', ()=>goWeek(0), weekOffset===0)}
+          {navBtn('다음 주', ()=>goWeek(weekOffset+1))}
         </div>
       </header>
 
@@ -306,14 +328,54 @@ export default function Staff() {
         <section style={{marginBottom:30}}>
           {sectionTitle(`지금 매장 · ${hm(now)}`, closedOf(todayD) ? (holidayOf(dateStr(todayD))?.reason || '오늘은 휴무일') : `지금 근무 예정 ${plannedNow}명 · 출근해 있는 사람 ${inNow}명`)}
           {todayRows.length === 0 ? <div style={{fontSize:13, color:T.sub, padding:'10px 0'}}>오늘 근무 예정인 사람이 없어요</div> :
-            todayRows.map(({u, s, state, color, c}) => (
-              <div key={u.uid} style={{display:'flex', alignItems:'baseline', gap:10, padding:'8px 0', borderBottom:`1px solid ${T.soft}`, fontSize:14, flexWrap:'wrap'}}>
-                <b style={{minWidth:64}}>{u.name}</b>
-                <span style={{...num, color:T.sub, fontSize:13}}>{s ? `${s.start}~${s.end||''}` : '예정 없음'}{c.covering.length ? ` (${nameOf(c.covering[0].for)} 대타)` : ''}</span>
-                <span style={{flex:1}}/>
-                <span style={{fontWeight:700, color, ...num}}>{state}</span>
-              </div>
-            ))}
+            (() => {
+              // 오늘 하루 막대의 눈금: 가장 이른 출근 ~ 가장 늦은 퇴근(예정) 시각
+              const minOf = d => d.getHours()*60 + d.getMinutes()
+              let a0 = 24*60, a1 = 0
+              todayRows.forEach(({s, c}) => {
+                if (s) { a0 = Math.min(a0, toMin(s.start)); a1 = Math.max(a1, endMinOf(s)) }
+                const i = toDate(c.rec?.in), o = toDate(c.rec?.out)
+                if (i && !isNaN(i)) a0 = Math.min(a0, minOf(i))
+                if (o && !isNaN(o)) a1 = Math.max(a1, minOf(o))
+              })
+              a0 = Math.floor(a0/60)*60; a1 = Math.max(a0 + 60, Math.ceil(a1/60)*60)
+              const pct = m => `${Math.min(100, Math.max(0, (m - a0) / (a1 - a0) * 100))}%`
+              const wid = (m0, m1) => `${Math.max(0.8, Math.min(100, (Math.min(m1, a1) - Math.max(m0, a0)) / (a1 - a0) * 100))}%`
+              const showNow = !closedOf(todayD) && nowMin >= a0 && nowMin <= a1
+              return <>
+                {todayRows.map(({u, s, state, color, c}, i) => {
+                  const inD = toDate(c.rec?.in), outD = toDate(c.rec?.out)
+                  const working = inD && !outD, late = !inD && s && nowMin > toMin(s.start)
+                  return (
+                    <div key={u.uid} className="st-in" style={{animationDelay:`${i*50}ms`, padding:'8px 0 9px', borderBottom:`1px solid ${T.soft}`}}>
+                      <div style={{display:'flex', alignItems:'center', gap:10, fontSize:14, flexWrap:'wrap'}}>
+                        {/* 상태 점: 근무 중 초록 깜박, 늦음 빨강 깜박, 퇴근 회색 체크, 예정 빈 동그라미 */}
+                        {outD ? <span title="퇴근" style={{width:14, height:14, borderRadius:7, background:T.faint, color:'#FFFFFF', fontSize:9, display:'grid', placeItems:'center', flexShrink:0}}>✓</span>
+                          : working || late ? <span className="st-pulse" title={working ? '근무 중' : '아직 안 옴'} style={{'--st-c': working ? 'rgba(46,125,69,.55)' : 'rgba(180,35,24,.55)', width:10, height:10, borderRadius:5, background: working ? T.green : T.red, flexShrink:0, margin:'0 2px'}}/>
+                          : <span title="출근 예정" style={{width:10, height:10, borderRadius:5, border:`1.5px solid ${T.rule}`, boxSizing:'border-box', flexShrink:0, margin:'0 2px'}}/>}
+                        <b style={{minWidth:64}}>{u.name}</b>
+                        <span style={{...num, color:T.sub, fontSize:13}}>{s ? `${s.start}~${s.end||''}` : '예정 없음'}{c.covering.length ? ` (${nameOf(c.covering[0].for)} 대타)` : ''}</span>
+                        <span style={{flex:1}}/>
+                        <span style={{fontWeight:700, color, ...num}}>{state}</span>
+                      </div>
+                      {/* 오늘 하루 막대 */}
+                      <div aria-hidden="true" style={{position:'relative', height:8, borderRadius:4, background:'#F3F1EC', marginTop:7}}>
+                        {s && <span className="st-grow" style={{position:'absolute', top:0, bottom:0, left:pct(toMin(s.start)), width:wid(toMin(s.start), endMinOf(s)), borderRadius:4,
+                          background:'rgba(var(--hk-accent-rgb),.16)', border:'1px dashed rgba(var(--hk-accent-rgb),.45)', boxSizing:'border-box', animationDelay:`${i*50}ms`}}/>}
+                        {inD && <span className="st-grow" style={{position:'absolute', top:1, bottom:1, left:pct(minOf(inD)), width:wid(minOf(inD), outD ? minOf(outD) : nowMin), borderRadius:3,
+                          background: outD ? T.faint : T.green, animationDelay:`${120 + i*50}ms`}}/>}
+                        {showNow && <span className="st-now" style={{position:'absolute', top:-3, bottom:-3, left:pct(nowMin), width:2, marginLeft:-1, borderRadius:1, background:T.accent}}/>}
+                      </div>
+                    </div>
+                  )
+                })}
+                <div style={{display:'flex', justifyContent:'space-between', fontSize:11, color:T.faint, marginTop:4, ...num}}>
+                  <span>{a0/60}시</span>
+                  {showNow && <span style={{color:T.accent}}>지금 {hm(now)} · 점선 = 예정, 진한 막대 = 실제 근무</span>}
+                  <span>{a1/60}시</span>
+                </div>
+              </>
+            })()}
         </section>
 
         {/* 이번 주 근무표 */}
@@ -324,7 +386,7 @@ export default function Staff() {
               <button type="button" disabled={busy} onClick={copyLastWeek} style={linkBtn(T.blue)}>지난주와 같게</button>
             </span> : '대타·임시휴무 반영, 지난 날은 실제 출퇴근')}
           {rows.length === 0 ? <div style={{fontSize:13, color:T.sub, padding:'10px 0'}}>인원관리에서 직원별 요일 출퇴근 예정 시각을 넣으면 근무표가 만들어져요</div> : (
-            <div style={{overflowX:'auto'}}>
+            <div key={`w${weekOffset}`} className={dir < 0 ? 'st-from-l' : dir > 0 ? 'st-from-r' : undefined} style={{overflowX:'auto'}}>
               <table style={{borderCollapse:'collapse', width:'100%', minWidth: 90 + days.length*110, tableLayout:'fixed'}}>
                 <thead>
                   <tr>
@@ -392,7 +454,7 @@ export default function Staff() {
                         return (
                           cellEdit?.uid === u.uid && cellEdit?.ds === c.ds ? (
                           <td key={c.ds} style={{...td, whiteSpace:'normal', background:'#FFFFFF', outline:`2px solid ${T.accent}`}}>
-                            <div style={{display:'flex', flexDirection:'column', gap:3}}>
+                            <div className="st-in" style={{display:'flex', flexDirection:'column', gap:3}}>
                               <span style={{fontSize:11, color:T.sub, textAlign:'left'}}>출근</span>
                               <TimePick value={cellEdit.start} onChange={v=>setCellEdit(x=>({...x,start:v}))} label="출근 예정"/>
                               <span style={{fontSize:11, color:T.sub, textAlign:'left'}}>퇴근 (선택)</span>
@@ -443,19 +505,21 @@ export default function Staff() {
         {hours.length > 0 && (
           <section style={{marginBottom:30}}>
             {sectionTitle('시간대별 인원', '예정 기준 (대타 반영). 진할수록 사람이 많아요')}
-            <div style={{overflowX:'auto'}}>
+            <div key={`h${weekOffset}`} style={{overflowX:'auto'}}>
               <table style={{borderCollapse:'collapse', width:'100%', minWidth: 90 + days.length*110, tableLayout:'fixed'}}>
                 <thead>
                   <tr><th style={{...th, textAlign:'left', width:80}}>시간</th>{days.map(d => <th key={dateStr(d)} style={th}>{DAYS_KR[d.getDay()]} {d.getMonth()+1}/{d.getDate()}</th>)}</tr>
                 </thead>
                 <tbody>
-                  {hours.map(h => (
+                  {hours.map((h, hi) => (
                     <tr key={h}>
                       <td style={{...td, textAlign:'left', color:T.sub, padding:'4px 8px'}}>{h}시</td>
                       {shiftsByDay.map((l,i) => {
                         const n = countAt(l, h)
-                        return <td key={i} style={{...td, padding:'4px 8px', fontWeight:700, color: n/maxCount > 0.6 ? '#FFFFFF' : T.ink,
-                          background: n ? `rgba(var(--hk-accent-rgb),${0.12 + 0.68*n/maxCount})` : 'transparent'}}>{n || ''}</td>
+                        return <td key={i} style={{...td, padding:'3px 4px'}}>
+                          {n > 0 && <div className="st-pop" style={{animationDelay:`${i*70 + hi*25}ms`, borderRadius:6, padding:'3px 0', fontWeight:700,
+                            color: n/maxCount > 0.6 ? '#FFFFFF' : T.ink, background:`rgba(var(--hk-accent-rgb),${0.12 + 0.68*n/maxCount})`}}>{n}</div>}
+                        </td>
                       })}
                     </tr>
                   ))}
