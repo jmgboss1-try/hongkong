@@ -66,7 +66,7 @@ export default function BankTxList({ ym, data, categories, onChanged, day }) {
             {[['out','출금'],['in','입금']].map(([k,l])=>(
               <button key={k} type="button" onClick={()=>setDir(k)}
                 style={{background:'none',border:'none',padding:'4px 0',marginRight:6,cursor:'pointer',fontFamily:'inherit',fontSize:13,
-                  fontWeight:dir===k?800:500,color:dir===k?'#1D1B18':'#6E6A63',borderBottom:`2px solid ${dir===k?'#C3261C':'transparent'}`}}>{l}</button>
+                  fontWeight:dir===k?800:500,color:dir===k?'#1D1B18':'#6E6A63',borderBottom:`2px solid ${dir===k?'var(--hk-accent)':'transparent'}`}}>{l}</button>
             ))}
             <input value={q} onChange={e=>setQ(e.target.value)} placeholder="이름·금액 검색"
               aria-label="검색" style={{...sel,padding:'6px 10px',width:160,fontSize:12}}/>
@@ -92,7 +92,7 @@ export default function BankTxList({ ym, data, categories, onChanged, day }) {
                     <span style={{display:'flex',alignItems:'center',gap:4,fontSize:12,color:'#6E6A63'}}>
                       지금 칸
                       <select value={fromCat} onChange={ev=>setEdit(p=>({ ...p, [t.key]: { ...e, fromCat: ev.target.value } }))}
-                        style={{...sel, borderColor: fromCat ? '#DCD7CE' : '#C3261C'}} title="이 출금이 원래 어느 카테고리 칸에 들어가 있었는지">
+                        style={{...sel, borderColor: fromCat ? '#DCD7CE' : 'var(--hk-accent)'}} title="이 출금이 원래 어느 카테고리 칸에 들어가 있었는지">
                         <option value="">어느 칸?</option>
                         {categories.map(c=><option key={c.id} value={c.id}>{c.label}</option>)}
                       </select>
@@ -105,7 +105,7 @@ export default function BankTxList({ ym, data, categories, onChanged, day }) {
                     {renderOptions(t)}
                   </select>
                   <button onClick={()=>apply(t)} disabled={!changed || busyKey===t.key}
-                    style={{background: changed ? '#C3261C' : '#F3F1EC',color: changed ? '#FFFFFF' : '#6E6A63',border: changed ? 'none' : '1px solid #DCD7CE',
+                    style={{background: changed ? 'var(--hk-accent)' : '#F3F1EC',color: changed ? '#FFFFFF' : '#6E6A63',border: changed ? 'none' : '1px solid #DCD7CE',
                       borderRadius:4,padding:'5px 10px',fontSize:12,fontWeight:700,cursor: changed ? 'pointer' : 'default',fontFamily:'inherit'}}>
                     {busyKey===t.key ? '...' : confirmOnly ? '맞아요' : '바꾸기'}
                   </button>

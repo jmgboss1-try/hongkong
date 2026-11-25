@@ -6,7 +6,7 @@ import { useBizInfo, useSeal } from '../lib/bizInfo'
 import { DOW, DOW_ORDER, KIND_LABELS, draftContract, loadContracts, sendContract, deleteContract, dayMinutes, hm } from '../lib/contracts'
 
 // 인원관리 → 직원 → 근로계약서 (사장님): 보낸 계약서 목록, 새로 만들기(직원 정보로 채운 초안 → 고쳐서 보내기), 보기·인쇄
-const T = { ink:'#1D1B18', sub:'#6E6A63', rule:'#DCD7CE', chip:'#F3F1EC', accent:'#C3261C', green:'#2E7D45', amber:'#B45309' }
+const T = { ink:'#1D1B18', sub:'#6E6A63', rule:'#DCD7CE', chip:'#F3F1EC', accent:'var(--hk-accent)', green:'#2E7D45', amber:'#B45309' }
 const btn = primary => ({ fontFamily:'inherit', fontSize:13, fontWeight:700, padding:'7px 14px', borderRadius:4, cursor:'pointer',
   border: primary ? 'none' : `1px solid ${T.rule}`, background: primary ? T.accent : '#FFFFFF', color: primary ? '#FFFFFF' : T.ink })
 const inp = { fontFamily:'inherit', fontSize:13, padding:'6px 8px', borderRadius:4, border:`1px solid ${T.rule}`, background:'#FFFFFF', color:T.ink, boxSizing:'border-box' }

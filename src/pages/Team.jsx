@@ -3,7 +3,7 @@ import { db } from '../firebase'
 import { collection, getDocs } from 'firebase/firestore'
 import { GradeBadge } from '../AuthContext'
 
-const EMP_COLORS = ['#C3261C','#2B5C9E','#2E7D45','#6B4FA0','#B45309','#B42318']
+const EMP_COLORS = ['var(--hk-accent)','#2B5C9E','#2E7D45','#6B4FA0','#B45309','#B42318']
 
 export default function Team() {
   const [employees, setEmployees] = useState([])
@@ -34,7 +34,7 @@ export default function Team() {
         <>
           <div style={{background:'#FFFFFF',border:'1px solid #DCD7CE',borderRadius:6,padding:'18px 20px',marginBottom:20,textAlign:'center'}}>
             <div style={{fontSize:28,marginBottom:8}}></div>
-            <div style={{fontSize:16,fontWeight:700,color:'#C3261C',marginBottom:4}}>홍콩반점 중앙대점</div>
+            <div style={{fontSize:16,fontWeight:700,color:'var(--hk-accent)',marginBottom:4}}>홍콩반점 중앙대점</div>
             <div style={{fontSize:12,color:'#6E6A63'}}>총 {employees.length}명이 함께하고 있어요</div>
           </div>
 

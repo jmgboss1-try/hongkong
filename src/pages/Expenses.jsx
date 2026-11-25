@@ -72,7 +72,7 @@ function Btn({ children, onClick, kind = 'plain', disabled, small }) {
     <button type="button" onClick={onClick} disabled={disabled}
       style={{fontFamily:'inherit', cursor:'pointer', borderRadius:4, whiteSpace:'nowrap',
         fontSize: small ? 11 : 12, padding: small ? '3px 8px' : '6px 12px', fontWeight: kind==='primary' ? 700 : 500,
-        background: kind==='primary' ? '#C3261C' : kind==='ok' ? '#2E7D45' : '#FFFFFF',
+        background: kind==='primary' ? 'var(--hk-accent)' : kind==='ok' ? '#2E7D45' : '#FFFFFF',
         color: solid ? '#FFFFFF' : kind==='danger' ? '#B42318' : '#1D1B18',
         border: solid ? 'none' : `1px solid ${kind==='danger' ? '#E8C4BF' : '#DCD7CE'}`,
         opacity: disabled ? 0.6 : 1}}>
@@ -463,7 +463,7 @@ const [payingDate, setPayingDate]     = useState('')
   const getDowColor = dd => { const[y,m]=curMonth.split('-').map(Number); const dow=new Date(y,m-1,+dd).getDay(); return dow===0?'#B42318':dow===6?'#2B5C9E':'#1D1B18' }
 
   // ── 장부 화면 조각 (대시보드와 같은 모양). 컴포넌트가 아니라 함수로 그려야 입력칸 포커스가 안 빠짐 ──
-  const T = { ink:'#1D1B18', sub:'#6E6A63', faint:'#A8A39A', rule:'#DCD7CE', soft:'#ECE8E1', accent:'#C3261C',
+  const T = { ink:'#1D1B18', sub:'#6E6A63', faint:'#A8A39A', rule:'#DCD7CE', soft:'#ECE8E1', accent:'var(--hk-accent)',
     red:'#B42318', green:'#2E7D45', blue:'#2B5C9E', chip:'#F3F1EC' }
   const num = { fontVariantNumeric:'tabular-nums' }
   const won = n => (n||0).toLocaleString('ko-KR')

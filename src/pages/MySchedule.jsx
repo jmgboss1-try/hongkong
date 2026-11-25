@@ -104,7 +104,7 @@ const [insHistory, setInsHistory] = useState([])   // 4대보험 고지 금액 �
   function getHourColor(h) {
     if(!h || h===0) return null
     if(h <= 4) return { bg:'rgba(43,92,158,0.2)', border:'#2B5C9E', text:'#2B5C9E' }
-    if(h <= 6) return { bg:'rgba(195,38,28,0.2)', border:'#C3261C', text:'#C3261C' }
+    if(h <= 6) return { bg:'rgba(var(--hk-accent-rgb),0.2)', border:'var(--hk-accent)', text:'var(--hk-accent)' }
     return { bg:'rgba(46,125,69,0.2)', border:'#2E7D45', text:'#2E7D45' }
   }
 
@@ -139,8 +139,8 @@ const [insHistory, setInsHistory] = useState([])   // 4대보험 고지 금액 �
           <div style={{display:'flex',alignItems:'center',gap:8,marginTop:4,flexWrap:'wrap'}}>
             <span style={{fontSize:12,color:'#1D1B18'}}>{userData?.name}</span>
             <GradeBadge joinDate={userData?.joinDate} size={10}/>
-            <span style={{fontSize:11,color:'#C3261C',fontFamily:'inherit',fontVariantNumeric:'tabular-nums',
-              background:'rgba(195,38,28,0.12)',padding:'2px 7px',borderRadius:4}}>
+            <span style={{fontSize:11,color:'var(--hk-accent)',fontFamily:'inherit',fontVariantNumeric:'tabular-nums',
+              background:'rgba(var(--hk-accent-rgb),0.12)',padding:'2px 7px',borderRadius:4}}>
               {wage.toLocaleString()}원/h
             </span>
           </div>
@@ -154,7 +154,7 @@ const [insHistory, setInsHistory] = useState([])   // 4대보험 고지 금액 �
       {/* 요약 카드 */}
       <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:12,marginBottom:20}}>
         {[
-          {label:'근무일수', val:`${workDays.length}일`, color:'#C3261C'},
+          {label:'근무일수', val:`${workDays.length}일`, color:'var(--hk-accent)'},
           {label:'총 근무시간', val:`${totalHours}h`, color:'#2B5C9E'},
           {label:'기본급', val:`${totalWage.toLocaleString()}원`, color:'#1D1B18'},
           {label:'주휴수당', val:`${weeklyHoliday.toLocaleString()}원`, color:'#2E7D45'},
@@ -203,7 +203,7 @@ const [insHistory, setInsHistory] = useState([])   // 4대보험 고지 금액 �
 
       {/* 급여 확인 섹션 */}
       {payroll?.confirmedByOwner && (
-        <div style={{background:'#FFFFFF',border:`1px solid ${payroll.checkedByEmp?'#2E7D45':'#C3261C'}`,borderRadius:6,padding:'18px',marginBottom:20}}>
+        <div style={{background:'#FFFFFF',border:`1px solid ${payroll.checkedByEmp?'#2E7D45':'var(--hk-accent)'}`,borderRadius:6,padding:'18px',marginBottom:20}}>
           <div style={{fontSize:13,fontWeight:600,marginBottom:12}}>
             {mLabel(curMonth)} 확정 급여
           </div>
@@ -247,7 +247,7 @@ const [insHistory, setInsHistory] = useState([])   // 4대보험 고지 금액 �
                 <div style={{textAlign:'right'}}>
                   <div style={{fontSize:11,color:'#B42318',marginBottom:4}}>문의 중...</div>
                   {payroll.inquiry.ownerReply && (
-                    <div style={{background:'rgba(195,38,28,0.08)',border:'1px solid rgba(195,38,28,0.2)',
+                    <div style={{background:'rgba(var(--hk-accent-rgb),0.08)',border:'1px solid rgba(var(--hk-accent-rgb),0.2)',
                       borderRadius:4,padding:'8px 12px',fontSize:11,color:'#1D1B18',maxWidth:200,textAlign:'left'}}>
                       사장님 답변: {payroll.inquiry.ownerReply}
                     </div>
@@ -275,7 +275,7 @@ const [insHistory, setInsHistory] = useState([])   // 4대보험 고지 금액 �
               <div style={{display:'flex',gap:10}}>
                 {[
                   {color:'#2B5C9E',label:'4h 이하'},
-                  {color:'#C3261C',label:'4~6h'},
+                  {color:'var(--hk-accent)',label:'4~6h'},
                   {color:'#2E7D45',label:'6h 이상'},
                 ].map(c=>(
                   <div key={c.label} style={{display:'flex',alignItems:'center',gap:4,fontSize:10}}>
@@ -310,20 +310,20 @@ const [insHistory, setInsHistory] = useState([])   // 4대보험 고지 금액 �
                     return(
                       <div key={idx} style={{
                         background:colors?colors.bg:'#F3F1EC',
-                        border:isToday?'2px solid #C3261C':colors?`1px solid ${colors.border}`:'1px solid #DCD7CE',
+                        border:isToday?'2px solid var(--hk-accent)':colors?`1px solid ${colors.border}`:'1px solid #DCD7CE',
                         borderRadius:4,padding:'6px',minHeight:76,
                         display:'flex',flexDirection:'column',gap:2
                       }}>
                         <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start'}}>
                           <div style={{fontSize:11,fontWeight:700,fontFamily:'inherit',fontVariantNumeric:'tabular-nums',
-                            color:dow===0?'#B42318':dow===6?'#2B5C9E':isToday?'#C3261C':colors?colors.text:'#6E6A63'}}>
+                            color:dow===0?'#B42318':dow===6?'#2B5C9E':isToday?'var(--hk-accent)':colors?colors.text:'#6E6A63'}}>
                             {d}
                           </div>
-                          {isToday&&<div style={{width:5,height:5,borderRadius:'50%',background:'#C3261C',flexShrink:0}}></div>}
+                          {isToday&&<div style={{width:5,height:5,borderRadius:'50%',background:'var(--hk-accent)',flexShrink:0}}></div>}
                         </div>
 
                         {event&&(
-                          <div style={{background:'rgba(195,38,28,0.15)',color:'#C3261C',fontSize:7,padding:'2px 3px',borderRadius:3,lineHeight:1.4}}>
+                          <div style={{background:'rgba(var(--hk-accent-rgb),0.15)',color:'var(--hk-accent)',fontSize:7,padding:'2px 3px',borderRadius:3,lineHeight:1.4}}>
                             {event}
                           </div>
                         )}

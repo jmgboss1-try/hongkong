@@ -145,7 +145,7 @@ export default function Inventory() {
         ].map(t=>(
           <button key={t.key} onClick={()=>setActiveTab(t.key)}
             style={{padding:'9px 18px',borderRadius:4,border:'none',fontSize:13,fontWeight:600,cursor:'pointer',fontFamily:'inherit',
-              background:activeTab===t.key?'#C3261C':'#F3F1EC',
+              background:activeTab===t.key?'var(--hk-accent)':'#F3F1EC',
               color:activeTab===t.key?'#FFFFFF':'#6E6A63'}}>
             {t.label}
           </button>
@@ -184,7 +184,7 @@ export default function Inventory() {
                         padding:'8px 10px',fontSize:12,outline:'none',width:'100%',fontFamily:'inherit'}}/>
                   </div>
                   <button onClick={addItem}
-                    style={{background:'#C3261C',color:'#FFFFFF',border:'none',borderRadius:4,
+                    style={{background:'var(--hk-accent)',color:'#FFFFFF',border:'none',borderRadius:4,
                       padding:'9px 16px',fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'inherit',whiteSpace:'nowrap'}}>
                     추가
                   </button>
@@ -215,7 +215,7 @@ export default function Inventory() {
                           <td style={{padding:'10px 14px',borderBottom:'1px solid #DCD7CE',textAlign:'center',color:'#6E6A63'}}>{item.unit}</td>
                           <td style={{padding:'10px 14px',borderBottom:'1px solid #DCD7CE',textAlign:'center'}}>
                             <span style={{
-                              color: item.stock<=0?'#B42318':item.stock<=5?'#C3261C':'#2E7D45',
+                              color: item.stock<=0?'#B42318':item.stock<=5?'var(--hk-accent)':'#2E7D45',
                               fontFamily:'inherit',fontVariantNumeric:'tabular-nums',fontWeight:700,fontSize:14
                             }}>
                               {item.stock}{item.unit}
@@ -282,7 +282,7 @@ export default function Inventory() {
                     {items.map(item=>(
                       <button key={item.id} onClick={()=>setLogItem(item.id)}
                         style={{padding:'6px 14px',borderRadius:6,border:'none',fontSize:12,fontWeight:600,cursor:'pointer',fontFamily:'inherit',
-                          background:logItem===item.id?'#C3261C':'#F3F1EC',
+                          background:logItem===item.id?'var(--hk-accent)':'#F3F1EC',
                           color:logItem===item.id?'#FFFFFF':'#6E6A63'}}>
                         {item.name}
                         <span style={{fontSize:10,marginLeft:4,opacity:.7}}>({item.stock}{item.unit})</span>
@@ -313,7 +313,7 @@ export default function Inventory() {
                 </div>
 
                 <button onClick={addLog}
-                  style={{background:'#C3261C',color:'#FFFFFF',border:'none',borderRadius:4,
+                  style={{background:'var(--hk-accent)',color:'#FFFFFF',border:'none',borderRadius:4,
                     padding:'12px',fontSize:13,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
                   {logType==='in'?'입고 기록':'사용 기록'} 저장
                 </button>
@@ -428,7 +428,7 @@ export default function Inventory() {
                           </td>
                           <td style={{padding:'10px 14px',borderBottom:'1px solid #DCD7CE',textAlign:'center'}}>
                             <span style={{
-                              color:item.stock<=0?'#B42318':item.stock<=5?'#C3261C':'#2E7D45',
+                              color:item.stock<=0?'#B42318':item.stock<=5?'var(--hk-accent)':'#2E7D45',
                               fontFamily:'inherit',fontVariantNumeric:'tabular-nums',fontWeight:700,fontSize:14
                             }}>
                               {item.stock}{item.unit}

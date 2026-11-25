@@ -7,6 +7,7 @@ import { useEffect, useRef, useState } from 'react'
 import { migratePrivacy } from '../lib/privateInfo'
 import { PhoneFileReceiveModal } from './PhoneFileTransfer'
 import NavIcon from './NavIcon'
+import ThemeDots from './ThemeDots'
 import OrderAlert from './OrderAlert'
 import { NAV_GROUPS, navGroupOf } from '../lib/nav'
 
@@ -142,7 +143,7 @@ export default function Layout({ children }) {
       ))}
       <div style={{display:'flex', gap:6, padding:'10px 14px'}}>
         <button onClick={saveOrder}
-          style={{flex:1, background:'#C3261C', color:'#FFFFFF', border:'none', borderRadius:6, padding:'7px', fontSize:11, fontWeight:700, cursor:'pointer', fontFamily:'inherit'}}>
+          style={{flex:1, background:'var(--hk-accent)', color:'#FFFFFF', border:'none', borderRadius:6, padding:'7px', fontSize:11, fontWeight:700, cursor:'pointer', fontFamily:'inherit'}}>
           저장
         </button>
         <button onClick={()=>setEditOrder(baseMenus.map(m=>m.path))}
@@ -196,7 +197,7 @@ export default function Layout({ children }) {
         top:0, left:0, bottom:0, zIndex:10, transition:'width .18s ease',
       }} className="pc-sidebar">
         <div style={{padding: narrowNav ? '16px 0 12px' : '16px 14px 12px', borderBottom:'3px double #1D1B18', display:'flex', alignItems:'center', gap:10, justifyContent: narrowNav ? 'center' : 'flex-start'}}>
-          <div aria-hidden="true" style={{width:34, height:34, borderRadius:5, background:'#C3261C', color:'#FFFFFF', display:'grid', placeItems:'center', fontSize:17, fontWeight:900, flexShrink:0}}>홍</div>
+          <div aria-hidden="true" style={{width:34, height:34, borderRadius:5, background:'var(--hk-accent)', color:'#FFFFFF', display:'grid', placeItems:'center', fontSize:17, fontWeight:900, flexShrink:0}}>홍</div>
           {!narrowNav && <div>
             <div style={{fontSize:15, fontWeight:800, color:'#1D1B18', lineHeight:1.2}}>홍콩반점</div>
             <div style={{fontSize:11, color:'#6E6A63'}}>중앙대점 매장 관리</div>
@@ -204,7 +205,7 @@ export default function Layout({ children }) {
         </div>
         <div style={{padding: narrowNav ? '8px 0' : '8px 14px', borderBottom:'1px solid #DCD7CE', textAlign: narrowNav ? 'center' : 'left'}}>
           {isOwner ? (
-            <div style={{fontSize:11, color:'#C3261C', fontWeight:700}}>사장</div>
+            <div style={{fontSize:11, color:'var(--hk-accent)', fontWeight:700}}>사장</div>
           ) : isStore ? (
             <div style={{fontSize:11, color:'#2B5C9E', fontWeight:700}}>{narrowNav ? '매장' : '매장계정'}</div>
           ) : isInvestor ? (
@@ -223,6 +224,9 @@ export default function Layout({ children }) {
         </nav>
         {editOrder ? null : (
           <div style={{padding:'8px 0', borderTop:'1px solid #DCD7CE'}}>
+            {/* 색 테마: 좁은 메뉴에선 세로로 작게 */}
+            <ThemeDots size={narrowNav ? 14 : 16} label={!narrowNav}
+              style={narrowNav ? { flexDirection:'column', gap:5, padding:'4px 0 8px' } : { padding:'2px 16px 8px' }}/>
             {[
               ...((isOwner || isStore) ? [['_file', '폰에서 파일 받기', ()=>setFileOpen(true)]] : []),
               ['_order', '탭 순서 바꾸기', ()=>setEditOrder(menus.map(m=>m.path))],
@@ -251,7 +255,7 @@ export default function Layout({ children }) {
         <div style={{fontSize:15, fontWeight:800, color:'#1D1B18'}}>홍콩반점 <span style={{fontWeight:400, color:'#6E6A63', fontSize:13}}>중앙대점</span></div>
         <div style={{display:'flex', alignItems:'center', gap:10}}>
           {!isOwner && !isStore && !isInvestor && <GradeBadge joinDate={userData?.joinDate} size={9}/>}
-          {isOwner    && <span style={{fontSize:11, color:'#C3261C', fontWeight:700}}>사장</span>}
+          {isOwner    && <span style={{fontSize:11, color:'var(--hk-accent)', fontWeight:700}}>사장</span>}
           {isStore    && <span style={{fontSize:11, color:'#2B5C9E', fontWeight:700}}>매장</span>}
           {isInvestor && <span style={{fontSize:11, color:'#2E7D45', fontWeight:700}}>투자자</span>}
           <button onClick={()=>setSideOpen(v=>!v)}
@@ -268,13 +272,14 @@ export default function Layout({ children }) {
             onClick={e=>e.stopPropagation()}>
             <div style={{padding:'0 18px 16px', borderBottom:'1px solid #DCD7CE', marginBottom:8}}>
               <div style={{fontSize:13, fontWeight:700,
-                color:isOwner?'#C3261C':isStore?'#2B5C9E':isInvestor?'#2E7D45':'#1D1B18'}}>
+                color:isOwner?'var(--hk-accent)':isStore?'#2B5C9E':isInvestor?'#2E7D45':'#1D1B18'}}>
                 {isOwner?'사장':isStore?'매장계정':isInvestor?(userData?.name||'투자자'):userData?.name}
               </div>
               {!isOwner && !isStore && !isInvestor && <div style={{marginTop:4}}><GradeBadge joinDate={userData?.joinDate} size={10}/></div>}
             </div>
             {menuList(path=>{navigate(path);setSideOpen(false)}, false)}
             <div style={{padding:'16px 18px', borderTop:'1px solid #DCD7CE', marginTop:8}}>
+              <ThemeDots size={22} label style={{marginBottom:12}}/>
               {editButton}
               <button onClick={handleLogout} style={{width:'100%', background:'#F3F1EC', border:'1px solid #DCD7CE', borderRadius:6, color:'#6E6A63', padding:'8px', fontSize:12, cursor:'pointer', fontFamily:'inherit'}}>
                 로그아웃
@@ -311,7 +316,7 @@ export default function Layout({ children }) {
             <div key={m.path} onClick={()=>navigate(m.path)} data-active={location.pathname===m.path ? '1' : '0'}
               style={{display:'flex', flexDirection:'column', alignItems:'center', padding:'8px 4px 6px', cursor:'pointer', flex:'0 0 auto',
                 color:location.pathname===m.path?'#1D1B18':'#6E6A63', width: bottomMenus.length <= 5 ? `${100 / bottomMenus.length}%` : '18%', boxSizing:'border-box', whiteSpace:'nowrap',
-                borderTop:`2px solid ${location.pathname===m.path ? '#C3261C' : 'transparent'}`, marginTop:-7}}>
+                borderTop:`2px solid ${location.pathname===m.path ? 'var(--hk-accent)' : 'transparent'}`, marginTop:-7}}>
               <span style={{color: NAV_GROUPS[navGroupOf(m.path)].color, opacity: location.pathname===m.path ? 1 : 0.8, marginBottom:2}}><NavIcon name={m.path} size={20}/></span>
               <span style={{fontSize:11, fontWeight:location.pathname===m.path?700:500}}>{m.label}</span>
             </div>

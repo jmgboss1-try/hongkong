@@ -7,10 +7,10 @@ import { parseAmount, addRewardPoints, isPointPrize } from '../lib/rewards'
 // 결과는 rewards/{YYYY-MM} = { list:[{uid,name,prize,amount,paid}], game, playedAt } 에 저장
 // '포인트 지급'은 points/{uid}.games 에 더함 (2026-12부터 개근 포상은 포인트)
 
-const T = { ink:'#1D1B18', sub:'#6E6A63', rule:'#DCD7CE', accent:'#C3261C', red:'#B42318', green:'#2E7D45', blue:'#2B5C9E' }
-const SEG = ['#C3261C','#F3F1EC','#2B5C9E','#FFFFFF','#2E7D45','#F3F1EC','#B45309','#FFFFFF','#6B4FA0','#F3F1EC']
+const T = { ink:'#1D1B18', sub:'#6E6A63', rule:'#DCD7CE', accent:'var(--hk-accent)', red:'#B42318', green:'#2E7D45', blue:'#2B5C9E' }
+const SEG = ['var(--hk-accent)','#F3F1EC','#2B5C9E','#FFFFFF','#2E7D45','#F3F1EC','#B45309','#FFFFFF','#6B4FA0','#F3F1EC']
 const SEG_TEXT = c => ['#F3F1EC','#FFFFFF'].includes(c) ? T.ink : '#FFFFFF'
-const LANE = ['#C3261C','#2B5C9E','#2E7D45','#B45309','#6B4FA0','#1D1B18']
+const LANE = ['var(--hk-accent)','#2B5C9E','#2E7D45','#B45309','#6B4FA0','#1D1B18']
 
 const won = n => (n||0).toLocaleString('ko-KR')
 

@@ -75,7 +75,7 @@ export default function OrderAlert() {
   return (
     <button type="button" onClick={()=>{ navigate('/menu-manage'); try { window.dispatchEvent(new Event('showorders')) } catch { /* 없어도 됨 */ } }}
       style={{position:'fixed', top:12, left:'50%', transform:'translateX(-50%)', zIndex:50, display:'flex', alignItems:'center', gap:10,
-        background:'#C3261C', color:'#FFFFFF', border:'none', borderRadius:6, padding:'12px 18px', fontSize:16, fontWeight:800,
+        background:'var(--hk-accent)', color:'#FFFFFF', border:'none', borderRadius:6, padding:'12px 18px', fontSize:16, fontWeight:800,
         fontFamily:'inherit', cursor:'pointer', boxShadow:'0 4px 16px rgba(29,27,24,0.25)', maxWidth:'calc(100vw - 24px)'}}>
       QR 새 주문 {fresh.length}건 · 눌러서 접수하기
       {!ready && <span style={{fontSize:12, fontWeight:500, opacity:0.9}}>(화면을 한 번 누르면 소리가 켜져요)</span>}

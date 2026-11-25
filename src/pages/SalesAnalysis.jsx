@@ -53,7 +53,7 @@ const card = { background:'#FFFFFF', border:'1px solid #DCD7CE', borderRadius:6,
 const input = { background:'#F3F1EC', border:'1px solid #DCD7CE', borderRadius:4, color:'#1D1B18', padding:'7px 10px',
   fontSize:12, outline:'none', fontFamily:'inherit', boxSizing:'border-box' }
 const chip = on => ({ padding:'6px 12px', borderRadius:6, border:'none', fontSize:11, fontWeight:600, cursor:'pointer', fontFamily:'inherit',
-  background: on ? '#C3261C' : '#F3F1EC', color: on ? '#FFFFFF' : '#5F5B54', outline: on ? 'none' : '1px solid #DCD7CE' })
+  background: on ? 'var(--hk-accent)' : '#F3F1EC', color: on ? '#FFFFFF' : '#5F5B54', outline: on ? 'none' : '1px solid #DCD7CE' })
 
 function Change({ value }) {
   if (value == null) return <span style={{color:'#6E6A63'}}>—</span>
@@ -78,7 +78,7 @@ function ChartTooltip({ active, payload, metric }) {
       {r.discount != null && <div style={{color:'#5F5B54'}}>가게 부담 할인 {won(r.discount)}원</div>}
       {r.ads != null && r.ads > 0 && <div style={{color:'#5F5B54'}}>광고비 {won(r.ads)}원</div>}
       {r.excel && <div style={{color:'#6E6A63',fontSize:10}}>배달앱 엑셀 기준</div>}
-      {r.events.length > 0 && <div style={{color:'#C3261C',marginTop:2}}>{r.events.join(', ')}</div>}
+      {r.events.length > 0 && <div style={{color:'var(--hk-accent)',marginTop:2}}>{r.events.join(', ')}</div>}
     </div>
   )
 }
@@ -189,7 +189,7 @@ function EventEffect({ months, periods, ev }) {
               <CartesianGrid stroke="#ECE8E1" vertical={false}/>
               <XAxis dataKey="label" tick={{ fontSize:10, fill:'#6E6A63' }} interval="preserveStartEnd"/>
               <YAxis tick={{ fontSize:10, fill:'#6E6A63' }} width={46} tickFormatter={v => v >= 10000 ? `${Math.round(v / 10000)}만` : v}/>
-              <ReferenceArea x1={shortDate(ev.from)} x2={shortDate(periods.to)} fill="#C3261C" fillOpacity={0.06}/>
+              <ReferenceArea x1={shortDate(ev.from)} x2={shortDate(periods.to)} fill="var(--hk-accent)" fillOpacity={0.06}/>
               <ReferenceLine y={t.baseDay} stroke="#6E6A63" strokeDasharray="4 4" label={{ value:'평소', position:'insideTopLeft', fontSize:10, fill:'#6E6A63' }}/>
               <Tooltip formatter={v => [`${won(v)}원`, '매출']} labelFormatter={(l, pl) => { const d = pl?.[0]?.payload?.date; return d ? `${l} (${DAYS_KR[weekday(d)]})${pl[0].payload.during ? ' · 이벤트' : ''}` : l }}/>
               <Bar dataKey="sales" radius={[2,2,0,0]}>
@@ -378,7 +378,7 @@ export default function SalesAnalysis() {
       </div>
 
       {!loading && !anyOrders && (
-        <div style={{...card,marginBottom:14,borderColor:'rgba(195,38,28,0.35)',fontSize:12,color:'#1D1B18',lineHeight:1.7}}>
+        <div style={{...card,marginBottom:14,borderColor:'rgba(var(--hk-accent-rgb),0.35)',fontSize:12,color:'#1D1B18',lineHeight:1.7}}>
           이 기간엔 주문 건수 기록이 없어요. 매출입력의 <b>마감</b>에서 앱별 주문 건수를 적으면 여기 쌓여요.
           매출은 그대로 볼 수 있고, 예전 주문수는 배달앱 엑셀을 올리는 기능으로 채울 예정이에요.
         </div>
@@ -453,7 +453,7 @@ export default function SalesAnalysis() {
                         tickFormatter={v => metric==='orders' ? v : v >= 10000 ? `${Math.round(v/10000)}만` : v}/>
                       {evs.map(e => (
                         <ReferenceArea key={e.id} x1={e.from < range.from ? range.from : e.from} x2={e.to > range.to ? range.to : e.to}
-                          fill="#C3261C" fillOpacity={0.08} stroke="none" ifOverflow="hidden"/>
+                          fill="var(--hk-accent)" fillOpacity={0.08} stroke="none" ifOverflow="hidden"/>
                       ))}
                       <Tooltip content={<ChartTooltip metric={metric}/>} cursor={{fill:'rgba(0,0,0,0.04)'}}/>
                       <Bar dataKey={metric} fill={p.color} radius={[4,4,0,0]} maxBarSize={18} isAnimationActive={false}/>
@@ -515,7 +515,7 @@ export default function SalesAnalysis() {
             <input type="password" value={imp.pw} autoFocus onChange={e=>{ const pw = e.target.value; setImp(v=>({ ...v, pw })) }}
               placeholder="파일 비밀번호" aria-label="파일 비밀번호" style={{...input,width:150,background:'#FFFFFF'}}/>
             <button type="submit" disabled={!imp.pw}
-              style={{background:'#C3261C',color:'#FFFFFF',border:'none',borderRadius:4,padding:'7px 14px',fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>열기</button>
+              style={{background:'var(--hk-accent)',color:'#FFFFFF',border:'none',borderRadius:4,padding:'7px 14px',fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>열기</button>
             <button type="button" onClick={()=>setImp(null)}
               style={{background:'transparent',border:'1px solid #DCD7CE',color:'#5F5B54',borderRadius:4,padding:'7px 12px',fontSize:12,cursor:'pointer',fontFamily:'inherit'}}>취소</button>
             <span style={{width:'100%',fontSize:10,color:'#6E6A63'}}>비밀번호는 이 화면에서 파일을 여는 데만 쓰고 어디에도 저장하지 않아요</span>
@@ -542,7 +542,7 @@ export default function SalesAnalysis() {
                   ? <>{' · '}정산(입금)금액 <b style={{color:'#1D1B18'}}>{won(tot.out)}원</b>{unpaid > 0 && <span style={{color:'#6E6A63'}}> (아직 입금 전 {unpaid}일 제외)</span>}</>
                   : <span style={{color:'#6E6A63'}}> · 이 엑셀엔 정산금액이 없어요</span>}
               </div>
-              {!hasOrders && <div style={{fontSize:11,color:'#C3261C'}}>이 엑셀엔 주문 건수가 없어요. 주문수·객단가는 마감 때 적은 건수로 계산해요</div>}
+              {!hasOrders && <div style={{fontSize:11,color:'var(--hk-accent)'}}>이 엑셀엔 주문 건수가 없어요. 주문수·객단가는 마감 때 적은 건수로 계산해요</div>}
               {tot.est > 0 && <div style={{fontSize:11,color:'#6E6A63'}}>배민 배달 건수는 건당 배달비로 정확히 세요. 마감 때 건수를 적은 날은 그 건수를 먼저 써요</div>}
               <div style={{display:'flex',alignItems:'center',gap:6,flexWrap:'wrap',marginTop:6}}>
                 <span style={{color:'#5F5B54'}}>매출로 쓸 금액</span>
@@ -557,7 +557,7 @@ export default function SalesAnalysis() {
               {imp.saveError && <div style={{color:'#B42318',marginTop:6}}>{imp.saveError}</div>}
               <div style={{display:'flex',gap:8,marginTop:10}}>
                 <button type="button" onClick={saveExcel} disabled={imp.saving}
-                  style={{background:'#C3261C',color:'#FFFFFF',border:'none',borderRadius:4,padding:'8px 18px',fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
+                  style={{background:'var(--hk-accent)',color:'#FFFFFF',border:'none',borderRadius:4,padding:'8px 18px',fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
                   {imp.saving ? '저장 중...' : '매출분석에 넣기'}
                 </button>
                 <button type="button" onClick={()=>setImp(null)}
@@ -572,7 +572,7 @@ export default function SalesAnalysis() {
 
       {/* 할인 목표 (건당 할인 일정) */}
       {events.some(e => isGoalEvent(e)) && (
-        <div style={{...card,marginBottom:14,borderColor:'rgba(195,38,28,0.45)'}}>
+        <div style={{...card,marginBottom:14,borderColor:'rgba(var(--hk-accent-rgb),0.45)'}}>
           <div style={{fontSize:14,fontWeight:700}}>할인 목표</div>
           <div style={{fontSize:11,color:'#6E6A63',marginTop:2}}>건당 할인을 적은 할인 일정이에요. 할인 전 4주와 같은 이익을 내려면 하루 몇 건이 필요한지, 실제로 얼마나 받고 있는지</div>
           {events.filter(e => isGoalEvent(e)).map(ev => <GoalCard key={ev.id} months={months} ev={ev} loading={loading}/>)}
@@ -597,7 +597,7 @@ export default function SalesAnalysis() {
           </div>
           {!form && (
             <button type="button" onClick={()=>setForm(emptyForm())}
-              style={{background:'#C3261C',color:'#FFFFFF',border:'none',borderRadius:4,padding:'8px 14px',fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
+              style={{background:'var(--hk-accent)',color:'#FFFFFF',border:'none',borderRadius:4,padding:'8px 14px',fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
               + 일정 추가
             </button>
           )}
@@ -605,7 +605,7 @@ export default function SalesAnalysis() {
         {eventsErr && <div style={{fontSize:11,color:'#B42318',marginBottom:10}}>{eventsErr}</div>}
 
         {form && (
-          <div style={{background:'#F3F1EC',border:'1px solid #C3261C',borderRadius:6,padding:14,marginBottom:12}}>
+          <div style={{background:'#F3F1EC',border:'1px solid var(--hk-accent)',borderRadius:6,padding:14,marginBottom:12}}>
             <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(160px,1fr))',gap:10}}>
               <label style={{gridColumn:'1/-1',fontSize:10,color:'#6E6A63'}}>제목
                 <input value={form.title} onChange={e=>setForm(f=>({ ...f, title:e.target.value }))} placeholder="예: 배민 3,000원 할인"
@@ -663,7 +663,7 @@ export default function SalesAnalysis() {
             </div>
             <div style={{display:'flex',gap:8,marginTop:12}}>
               <button type="button" onClick={saveForm} disabled={saving}
-                style={{background:'#C3261C',color:'#FFFFFF',border:'none',borderRadius:4,padding:'8px 18px',fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
+                style={{background:'var(--hk-accent)',color:'#FFFFFF',border:'none',borderRadius:4,padding:'8px 18px',fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
                 {saving ? '저장 중...' : '저장'}
               </button>
               <button type="button" onClick={()=>setForm(null)}
@@ -680,8 +680,8 @@ export default function SalesAnalysis() {
             const on = selId === ev.id
             return (
               <div key={ev.id} style={{display:'flex',alignItems:'center',gap:10,flexWrap:'wrap',background:'#F3F1EC',borderRadius:4,padding:'9px 12px',
-                outline: on ? '1px solid #C3261C' : 'none'}}>
-                <span style={{fontSize:10,fontWeight:700,padding:'2px 7px',borderRadius:4,background:'rgba(195,38,28,0.12)',color:'#C3261C'}}>
+                outline: on ? '1px solid var(--hk-accent)' : 'none'}}>
+                <span style={{fontSize:10,fontWeight:700,padding:'2px 7px',borderRadius:4,background:'rgba(var(--hk-accent-rgb),0.12)',color:'var(--hk-accent)'}}>
                   {KINDS.find(k=>k.key===ev.kind)?.label || '기타'}
                 </span>
                 <div style={{flex:1,minWidth:160}}>
@@ -706,7 +706,7 @@ export default function SalesAnalysis() {
 
       {/* 효과 비교 */}
       {selEvent && (
-        <div style={{...card,borderColor:'rgba(195,38,28,0.45)'}}>
+        <div style={{...card,borderColor:'rgba(var(--hk-accent-rgb),0.45)'}}>
           <div style={{fontSize:14,fontWeight:700,marginBottom:4}}>'{selEvent.title}' 효과</div>
           {!periods ? (
             <div style={{fontSize:12,color:'#6E6A63'}}>아직 시작 전인 일정이에요</div>

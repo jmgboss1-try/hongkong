@@ -9,7 +9,7 @@ import {
 } from '../lib/avatar'
 import { loadAvatarRules, perfectStreaks, tenureMonths, canUse, tierLabel, itemKey, allowedLook } from '../lib/avatarRules'
 
-const T = { ink:'#1D1B18', sub:'#6E6A63', rule:'#DCD7CE', soft:'#ECE8E1', accent:'#C3261C', green:'#2E7D45', blue:'#2B5C9E', amber:'#B45309' }
+const T = { ink:'#1D1B18', sub:'#6E6A63', rule:'#DCD7CE', soft:'#ECE8E1', accent:'var(--hk-accent)', green:'#2E7D45', blue:'#2B5C9E', amber:'#B45309' }
 const TABS = [['face','얼굴'], ['hair','머리'], ['clothes','옷'], ['items','소품']]
 
 // 우리 매장 화면에 나오는 캐릭터 꾸미기 (users/{uid}.avatar). 내 기록(직원)과 우리 매장(사장님)에서 씀
@@ -103,7 +103,7 @@ export default function AvatarEditor({ uid, userData, title = '내 캐릭터', h
 
   return (
     <section style={{marginBottom:20}}>
-      <style>{AVATAR_CSS + '.av-chip:focus-visible{outline:2px solid #C3261C;outline-offset:2px}'}</style>
+      <style>{AVATAR_CSS + '.av-chip:focus-visible{outline:2px solid var(--hk-accent);outline-offset:2px}'}</style>
       <div style={{display:'flex', alignItems:'center', gap:12, borderBottom:`2px solid ${T.ink}`, paddingBottom:6}}>
         <svg width="40" height="54" viewBox="-4 -8 48 62" aria-hidden="true"><Avatar look={saved} size={40} role={role}/></svg>
         <div style={{flex:1}}>

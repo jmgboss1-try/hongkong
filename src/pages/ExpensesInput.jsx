@@ -50,7 +50,7 @@ export default function ExpensesInput() {
         <div style={{fontSize:16,fontWeight:700,color:'#2E7D45',marginBottom:8}}>오늘 지출 입력 완료!</div>
         <div style={{fontSize:12,color:'#6E6A63',marginBottom:24}}>{now.getMonth()+1}월 {now.getDate()}일 지출이 저장됐어요.</div>
         <button onClick={()=>setDone(false)}
-          style={{background:'#C3261C',color:'#FFFFFF',border:'none',borderRadius:4,padding:'10px 24px',fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
+          style={{background:'var(--hk-accent)',color:'#FFFFFF',border:'none',borderRadius:4,padding:'10px 24px',fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
           다시 입력
         </button>
       </div>
@@ -66,7 +66,7 @@ export default function ExpensesInput() {
         </div>
       </div>
 
-      <div style={{background:'rgba(195,38,28,0.08)',border:'1px solid rgba(195,38,28,0.2)',borderRadius:6,padding:'12px 16px',marginBottom:20,fontSize:12,color:'#C3261C'}}>
+      <div style={{background:'rgba(var(--hk-accent-rgb),0.08)',border:'1px solid rgba(var(--hk-accent-rgb),0.2)',borderRadius:6,padding:'12px 16px',marginBottom:20,fontSize:12,color:'var(--hk-accent)'}}>
         당일 지출만 입력 가능합니다. 입력한 내역은 사장님만 조회할 수 있어요.
       </div>
 
@@ -93,7 +93,7 @@ export default function ExpensesInput() {
         </div>
         <div style={{padding:'0 18px 18px'}}>
           <button onClick={save} disabled={saving}
-            style={{background:'#C3261C',color:'#FFFFFF',border:'none',borderRadius:4,padding:'10px 24px',fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
+            style={{background:'var(--hk-accent)',color:'#FFFFFF',border:'none',borderRadius:4,padding:'10px 24px',fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
             {saving?'저장 중...':'오늘 지출 저장'}
           </button>
         </div>

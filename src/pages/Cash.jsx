@@ -52,7 +52,7 @@ function CashForm({ type, baseAmount, onSave, existing }) {
                 style={{width:50,background:'#FAF9F6',border:'1px solid #DCD7CE',borderRadius:6,color:'#1D1B18',padding:'4px 0',fontSize:13,textAlign:'center',outline:'none',fontFamily:'inherit',fontVariantNumeric:'tabular-nums'}}/>
               <button onClick={()=>setCounts(c=>({...c,[b.id]:(c[b.id]||0)+1}))}
                 style={{width:28,height:28,borderRadius:6,background:'#DCD7CE',border:'none',color:'#1D1B18',fontSize:16,cursor:'pointer',fontFamily:'inherit'}}>＋</button>
-              <div style={{width:70,textAlign:'right',fontFamily:'inherit',fontVariantNumeric:'tabular-nums',fontSize:11,color:'#C3261C'}}>
+              <div style={{width:70,textAlign:'right',fontFamily:'inherit',fontVariantNumeric:'tabular-nums',fontSize:11,color:'var(--hk-accent)'}}>
                 {((counts[b.id]||0)*b.value).toLocaleString()}원
               </div>
             </div>
@@ -88,14 +88,14 @@ function CashForm({ type, baseAmount, onSave, existing }) {
         </div>
         <div style={{borderTop:'1px solid #DCD7CE',paddingTop:8,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
           <span style={{fontSize:13,fontWeight:700}}>차액 (오차)</span>
-          <span style={{fontFamily:'inherit',fontVariantNumeric:'tabular-nums',fontSize:16,fontWeight:700,color:diff===0?'#2E7D45':diff>0?'#C3261C':'#B42318'}}>
+          <span style={{fontFamily:'inherit',fontVariantNumeric:'tabular-nums',fontSize:16,fontWeight:700,color:diff===0?'#2E7D45':diff>0?'var(--hk-accent)':'#B42318'}}>
             {diff===0?'일치':diff>0?`+${diff.toLocaleString()}원`:`${diff.toLocaleString()}원`}
           </span>
         </div>
       </div>
 
       <button onClick={save} disabled={saving}
-        style={{background:'#C3261C',color:'#FFFFFF',border:'none',borderRadius:4,padding:'12px',fontSize:13,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
+        style={{background:'var(--hk-accent)',color:'#FFFFFF',border:'none',borderRadius:4,padding:'12px',fontSize:13,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
         {saving?'저장 중...':`${type==='open'?'오픈':'마감'} 시재 저장`}
       </button>
     </div>
@@ -219,7 +219,7 @@ async function saveRecord(type, data) {
                 style={{background:'#F3F1EC',border:'1px solid #DCD7CE',borderRadius:4,color:'#1D1B18',padding:'9px 12px',fontSize:12,outline:'none',width:'100%'}}/>
             </div>
             <button onClick={saveBaseAmount}
-              style={{background:'#C3261C',color:'#FFFFFF',border:'none',borderRadius:4,padding:'9px 16px',fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'inherit',whiteSpace:'nowrap'}}>
+              style={{background:'var(--hk-accent)',color:'#FFFFFF',border:'none',borderRadius:4,padding:'9px 16px',fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'inherit',whiteSpace:'nowrap'}}>
               설정
             </button>
           </div>
@@ -238,7 +238,7 @@ async function saveRecord(type, data) {
   <>
     <div style={{fontSize:16,fontWeight:700,color:'#2E7D45',fontFamily:'inherit',fontVariantNumeric:'tabular-nums'}}>{rec.total?.toLocaleString()}원</div>
     <div style={{fontSize:10,color:'#6E6A63',marginTop:4}}>{rec.recordedAt} · {rec.recordedByName||rec.recordedBy||'?'}</div>
-    <div style={{fontSize:11,marginTop:4,color:rec.diff===0?'#2E7D45':rec.diff>0?'#C3261C':'#B42318'}}>
+    <div style={{fontSize:11,marginTop:4,color:rec.diff===0?'#2E7D45':rec.diff>0?'var(--hk-accent)':'#B42318'}}>
       차액: {rec.diff===0?'일치':rec.diff>0?`+${rec.diff?.toLocaleString()}원`:`${rec.diff?.toLocaleString()}원`}
     </div>
     {rec.memo && <div style={{fontSize:11,marginTop:6,color:'#1D1B18',lineHeight:1.5}}>{rec.memo}</div>}
@@ -256,7 +256,7 @@ async function saveRecord(type, data) {
         {[['open','오픈 시재'],['close','마감 시재']].map(([type,label])=>(
           <button key={type} onClick={()=>setActiveType(type)}
             style={{flex:1,padding:'10px',fontSize:12,fontWeight:600,border:'none',cursor:'pointer',fontFamily:'inherit',transition:'.15s',
-              background:activeType===type?'#C3261C':'transparent',
+              background:activeType===type?'var(--hk-accent)':'transparent',
               color:activeType===type?'#FFFFFF':'#6E6A63'}}>
             {label}
           </button>
@@ -320,7 +320,7 @@ async function saveRecord(type, data) {
                             {r.open?.recordedByName||r.open?.recordedBy||'—'}
                           </td>
                           <td style={{padding:'9px 14px',borderBottom:'1px solid #DCD7CE',textAlign:'right',fontFamily:'inherit',fontVariantNumeric:'tabular-nums',
-                            color:r.open?.diff===0?'#2E7D45':r.open?.diff>0?'#C3261C':'#B42318'}}>
+                            color:r.open?.diff===0?'#2E7D45':r.open?.diff>0?'var(--hk-accent)':'#B42318'}}>
                             {r.open?.diff===undefined?'—':r.open.diff===0?'일치':r.open.diff>0?`+${r.open.diff.toLocaleString()}`:r.open.diff.toLocaleString()}
                           </td>
                           <td style={{padding:'9px 14px',borderBottom:'1px solid #DCD7CE',textAlign:'right',fontFamily:'inherit',fontVariantNumeric:'tabular-nums'}}>{r.close?.total?.toLocaleString()||'—'}</td>
@@ -329,10 +329,10 @@ async function saveRecord(type, data) {
                             {r.close?.recordedByName||r.close?.recordedBy||'—'}
                           </td>
                           <td style={{padding:'9px 14px',borderBottom:'1px solid #DCD7CE',textAlign:'right',fontFamily:'inherit',fontVariantNumeric:'tabular-nums',
-                            color:r.close?.diff===0?'#2E7D45':r.close?.diff>0?'#C3261C':'#B42318'}}>
+                            color:r.close?.diff===0?'#2E7D45':r.close?.diff>0?'var(--hk-accent)':'#B42318'}}>
                             {r.close?.diff===undefined?'—':r.close.diff===0?'일치':r.close.diff>0?`+${r.close.diff.toLocaleString()}`:r.close.diff.toLocaleString()}
                           </td>
-                          <td style={{padding:'9px 14px',borderBottom:'1px solid #DCD7CE',textAlign:'right',fontFamily:'inherit',fontVariantNumeric:'tabular-nums',color:'#C3261C'}}>
+                          <td style={{padding:'9px 14px',borderBottom:'1px solid #DCD7CE',textAlign:'right',fontFamily:'inherit',fontVariantNumeric:'tabular-nums',color:'var(--hk-accent)'}}>
                             {r.close?.cashSales?r.close.cashSales.toLocaleString()+'원':'—'}
                           </td>
                           <td style={{padding:'9px 14px',borderBottom:'1px solid #DCD7CE',fontSize:11,color:'#1D1B18',minWidth:160,lineHeight:1.5}}>

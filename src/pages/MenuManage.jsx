@@ -8,7 +8,7 @@ import { EVENTS, PRESETS, loadSound, saveSound, unlockAudio, audioReady, playEve
 
 // 사장님·매장 계정: QR 주문 받기 + 메뉴(가격·옵션·품절) 고치기
 // 주문은 orders 를 실시간으로 보고(onSnapshot) 새 주문이 오면 소리를 냄 — 포스에 이 화면을 띄워 두면 됨
-const T = { ink:'#1D1B18', sub:'#6E6A63', faint:'#A8A39A', rule:'#DCD7CE', soft:'#ECE8E1', chip:'#F3F1EC', red:'#C3261C', green:'#2E7D45', blue:'#2B5C9E', amber:'#B45309' }
+const T = { ink:'#1D1B18', sub:'#6E6A63', faint:'#A8A39A', rule:'#DCD7CE', soft:'#ECE8E1', chip:'#F3F1EC', red:'var(--hk-accent)', green:'#2E7D45', blue:'#2B5C9E', amber:'#B45309' }
 const num = { fontVariantNumeric:'tabular-nums' }
 const STATUS = { new:['새 주문', T.red], accepted:['접수함', T.blue], done:['완료', T.green], canceled:['취소', T.faint] }
 
@@ -191,7 +191,7 @@ function OrderCard({ o, onStatus }) {
   const phone = String(o.phone||'')
   const phoneFmt = phone.length === 11 ? `${phone.slice(0,3)}-${phone.slice(3,7)}-${phone.slice(7)}` : phone
   return (
-    <div style={{borderLeft:`5px solid ${color}`, background: o.status==='new' ? '#C3261C0D' : '#FFFFFF', border:`1px solid ${T.rule}`, borderLeftWidth:5, borderLeftColor:color,
+    <div style={{borderLeft:`5px solid ${color}`, background: o.status==='new' ? 'rgba(var(--hk-accent-rgb),0.051)' : '#FFFFFF', border:`1px solid ${T.rule}`, borderLeftWidth:5, borderLeftColor:color,
       borderRadius:'0 6px 6px 0', padding:'12px 14px', marginTop:10, opacity: o.status==='canceled' ? 0.6 : 1}}>
       <div style={{display:'flex', alignItems:'baseline', gap:10, flexWrap:'wrap'}}>
         <b style={{fontSize:20, color:T.red, ...num}}>{o.code}</b>

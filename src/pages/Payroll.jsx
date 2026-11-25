@@ -130,7 +130,7 @@ async function chainCarry(uid, month, delta) {
 
 const STATUS = {
   unconfirmed: { label:'미확정',   color:'#6E6A63', bg:'rgba(94,101,133,0.15)' },
-  confirmed:   { label:'확인대기', color:'#C3261C', bg:'rgba(195,38,28,0.15)' },
+  confirmed:   { label:'확인대기', color:'var(--hk-accent)', bg:'rgba(var(--hk-accent-rgb),0.15)' },
   checked:     { label:'직원확인', color:'#2E7D45', bg:'rgba(46,125,69,0.15)' },
   inquiry:     { label:'문의중',   color:'#B42318', bg:'rgba(180,35,24,0.15)' },
   paid:        { label:'지급완료', color:'#2B5C9E', bg:'rgba(43,92,158,0.15)' },
@@ -824,7 +824,7 @@ if(!isActive && !isRetired) return
             원천징수영수증
           </button>
           <button onClick={confirmAll} disabled={saving}
-            style={{background:'#C3261C',color:'#FFFFFF',border:'none',borderRadius:4,
+            style={{background:'var(--hk-accent)',color:'#FFFFFF',border:'none',borderRadius:4,
               padding:'8px 16px',fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
             전체 급여 확정
           </button>
@@ -980,7 +980,7 @@ if(!isActive && !isRetired) return
                     </div>
                     {status==='unconfirmed' && (
                       <button onClick={()=>confirmOne(emp.uid)} disabled={saving}
-                        style={{background:'#C3261C',color:'#FFFFFF',border:'none',borderRadius:4,
+                        style={{background:'var(--hk-accent)',color:'#FFFFFF',border:'none',borderRadius:4,
                           padding:'8px 14px',fontSize:11,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
                         급여 확정
                       </button>
@@ -1202,12 +1202,12 @@ if(!isActive && !isRetired) return
                           <div style={{fontSize:10,color:'#6E6A63',marginBottom:5,textAlign:'right'}}>
                             사장님 답변 · {p.inquiry.repliedAt?.slice(0,10)}
                           </div>
-                          <div style={{background:'rgba(195,38,28,0.08)',border:'1px solid rgba(195,38,28,0.2)',
+                          <div style={{background:'rgba(var(--hk-accent-rgb),0.08)',border:'1px solid rgba(var(--hk-accent-rgb),0.2)',
                             borderRadius:4,padding:'10px 14px',fontSize:12,color:'#1D1B18',lineHeight:1.7}}>
                             {p.inquiry.ownerReply}
                           </div>
                         </div>
-                        <div style={{width:30,height:30,borderRadius:'50%',background:'rgba(195,38,28,0.2)',
+                        <div style={{width:30,height:30,borderRadius:'50%',background:'rgba(var(--hk-accent-rgb),0.2)',
                           display:'flex',alignItems:'center',justifyContent:'center',fontSize:13,flexShrink:0}}></div>
                       </div>
                     )}
@@ -1219,7 +1219,7 @@ if(!isActive && !isRetired) return
                           style={{flex:1,background:'#F3F1EC',border:'1px solid #DCD7CE',borderRadius:4,
                             color:'#1D1B18',padding:'8px 12px',fontSize:12,outline:'none',fontFamily:'inherit'}}/>
                         <button onClick={()=>sendReply(emp.uid)} disabled={saving}
-                          style={{background:'#C3261C',color:'#FFFFFF',border:'none',borderRadius:4,
+                          style={{background:'var(--hk-accent)',color:'#FFFFFF',border:'none',borderRadius:4,
                             padding:'8px 16px',fontSize:11,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
                           전송
                         </button>

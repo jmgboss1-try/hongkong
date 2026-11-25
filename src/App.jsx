@@ -60,7 +60,7 @@ function PendingScreen() {
     <div style={{minHeight:'100vh',background:'#FAF9F6',display:'flex',alignItems:'center',justifyContent:'center',fontFamily:'Noto Sans KR, sans-serif'}}>
       <div style={{background:'#FFFFFF',border:'1px solid #DCD7CE',borderRadius:6,padding:'40px 36px',width:360,textAlign:'center'}}>
         <div style={{fontSize:40,marginBottom:16}}></div>
-        <div style={{fontSize:16,fontWeight:700,color:'#C3261C',marginBottom:8}}>승인 대기 중</div>
+        <div style={{fontSize:16,fontWeight:700,color:'var(--hk-accent)',marginBottom:8}}>승인 대기 중</div>
         <div style={{fontSize:12,color:'#6E6A63',lineHeight:2,marginBottom:24}}>
           사장님이 아직 계정을 승인하지 않았어요.<br/>승인 후 이용 가능합니다.
         </div>

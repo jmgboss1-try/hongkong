@@ -1,3 +1,5 @@
+/* 앱 강조색 (lib/dashTheme.js 가 기기에서 고른 테마로 덮어씀) */
+:root { --hk-accent: #C3261C; --hk-accent-rgb: 195,38,28; --hk-accent-soft: #F6DEDB; --hk-accent-mid: #E08A82; }
 :root {
   --text: #6b6375;
   --text-h: #08060d;

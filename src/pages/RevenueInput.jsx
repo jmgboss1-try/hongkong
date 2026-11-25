@@ -11,13 +11,13 @@ const DAYS_KR = ['일','월','화','수','목','금','토']
 const DELIVERY_PLATFORMS = [
   { key:'baemin',  label:'배달의민족', color:'#2E7D45', emoji:'' },
   { key:'coupang', label:'쿠팡이츠',   color:'#B42318', emoji:'' },
-  { key:'yogiyo',  label:'요기요',     color:'#C3261C', emoji:'' },
+  { key:'yogiyo',  label:'요기요',     color:'var(--hk-accent)', emoji:'' },
   { key:'ddangyeo',label:'땡겨요',     color:'#2B5C9E', emoji:'' },
 ]
 
 // 화면 색 — 주문전표·장부 디자인 (종이 흰색 바탕, 먹색 글씨, 강조는 짬뽕 빨강 하나, 영수증 같은 점선 줄)
 const T = { bg:'#FAF9F6', ink:'#1D1B18', sub:'#6E6A63', faint:'#A8A39A', rule:'#DCD7CE', strong:'#1D1B18',
-  accent:'#C3261C', onAccent:'#FFFFFF', accentSoft:'#F7E6E3', warn:'#8A5300', ok:'#2E6A3A', field:'#FFFFFF', fieldLine:'#CBC5BA', leader:true }
+  accent:'var(--hk-accent)', onAccent:'#FFFFFF', accentSoft:'#F7E6E3', warn:'#8A5300', ok:'#2E6A3A', field:'#FFFFFF', fieldLine:'#CBC5BA', leader:true }
 const won = n => (n || 0).toLocaleString('ko-KR')
 
 

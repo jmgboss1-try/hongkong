@@ -259,7 +259,7 @@ export function PhoneFileSend({ sid }) {
         <>
           <button disabled={busy} onClick={()=>inputRef.current?.click()}
             style={{width:'100%',border:'none',borderRadius:6,padding:'20px 0',fontSize:18,fontWeight:800,
-              cursor:'pointer',fontFamily:'inherit',background:'#C3261C',color:'#FFFFFF',opacity:busy?0.6:1}}>
+              cursor:'pointer',fontFamily:'inherit',background:'var(--hk-accent)',color:'#FFFFFF',opacity:busy?0.6:1}}>
             파일 고르기
           </button>
           <div style={{fontSize:12,color:'#6E6A63',marginTop:8,marginBottom:18}}>

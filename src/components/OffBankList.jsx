@@ -4,7 +4,7 @@ import { doc, getDoc, setDoc } from 'firebase/firestore'
 import { parseTxKey, currentClass, classLabel } from '../lib/bankReclass'
 
 const wonFmt = n => (n||0).toLocaleString('ko-KR')
-const T = { ink:'#1D1B18', sub:'#6E6A63', faint:'#A8A39A', rule:'#DCD7CE', soft:'#ECE8E1', accent:'#C3261C', red:'#B42318', green:'#2E7D45', blue:'#2B5C9E', amber:'#B45309' }
+const T = { ink:'#1D1B18', sub:'#6E6A63', faint:'#A8A39A', rule:'#DCD7CE', soft:'#ECE8E1', accent:'var(--hk-accent)', red:'#B42318', green:'#2E7D45', blue:'#2B5C9E', amber:'#B45309' }
 const num = { fontVariantNumeric:'tabular-nums' }
 const md = d => d && d.length >= 10 ? `${+d.slice(5,7)}/${+d.slice(8,10)}` : d
 const dayDiff = (a, b) => Math.round((new Date(a) - new Date(b)) / 86400000)

@@ -20,7 +20,7 @@ import StoreLifeSettings from '../components/StoreLifeSettings'
 //  - 손님 수는 오늘 매출과 시간대(점심·저녁 바쁜 시간)로 정함. 배달이 많으면 배달 봉투가 쌓임
 // attendance·revenue·checklist는 실시간(onSnapshot)으로 받아서 포스에 띄워 두면 저절로 바뀜
 
-const T = { ink:'#1D1B18', sub:'#6E6A63', faint:'#A8A39A', rule:'#DCD7CE', soft:'#ECE8E1', accent:'#C3261C', red:'#B42318', green:'#2E7D45', blue:'#2B5C9E', amber:'#B45309' }
+const T = { ink:'#1D1B18', sub:'#6E6A63', faint:'#A8A39A', rule:'#DCD7CE', soft:'#ECE8E1', accent:'var(--hk-accent)', red:'#B42318', green:'#2E7D45', blue:'#2B5C9E', amber:'#B45309' }
 const num = { fontVariantNumeric:'tabular-nums' }
 const W = MAP_W, H = MAP_H, SIZE = 36        // 그림 크기, 캐릭터 크기
 const SPEED = 120                              // 걷는 빠르기 (그림 점/초)

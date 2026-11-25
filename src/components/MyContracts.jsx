@@ -6,7 +6,7 @@ import { KIND_LABELS, loadContracts, signContract } from '../lib/contracts'
 import { loadMyPrivate } from '../lib/privateInfo'
 
 // 내 급여 → 근로계약서 (직원): 사장님이 보낸 계약서를 읽고 주소·연락처를 적은 뒤 손가락으로 서명. 서명한 계약서는 언제든 인쇄·PDF
-const T = { ink:'#1D1B18', sub:'#6E6A63', rule:'#DCD7CE', soft:'#ECE8E1', accent:'#C3261C', green:'#2E7D45', amber:'#B45309' }
+const T = { ink:'#1D1B18', sub:'#6E6A63', rule:'#DCD7CE', soft:'#ECE8E1', accent:'var(--hk-accent)', green:'#2E7D45', amber:'#B45309' }
 const btn = primary => ({ fontFamily:'inherit', fontSize:14, fontWeight:700, padding:'9px 16px', borderRadius:4, cursor:'pointer',
   border: primary ? 'none' : `1px solid ${T.rule}`, background: primary ? T.accent : '#FFFFFF', color: primary ? '#FFFFFF' : T.ink })
 const inp = { fontFamily:'inherit', fontSize:15, padding:'9px 10px', borderRadius:4, border:`1px solid ${T.rule}`, background:'#FFFFFF', color:T.ink, boxSizing:'border-box', width:'100%' }

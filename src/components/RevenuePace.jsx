@@ -7,7 +7,7 @@ import { monthLabels, monthScheme } from '../lib/revenueChannels'
 // 지난달 같은 기간과 비교 (대시보드·매출관리)
 //  이번 달 1~N일 vs 지난달 1~N일 (N = 오늘, 오늘 마감이 아직 없으면 어제. 지난 달을 보면 그 달 끝까지)
 //  영업일(마감 매출이 있는 날) 하루 평균, 이 속도면 월말 예상(남은 날 중 일요일·임시휴무 뺀 날 × 하루 평균), 누적 그래프
-const T = { ink:'#1D1B18', sub:'#6E6A63', faint:'#A8A39A', rule:'#DCD7CE', accent:'#C3261C', red:'#B42318', green:'#2E7D45', field:'#F3F1EC' }
+const T = { ink:'#1D1B18', sub:'#6E6A63', faint:'#A8A39A', rule:'#DCD7CE', accent:'var(--hk-accent)', red:'#B42318', green:'#2E7D45', field:'#F3F1EC' }
 const num = { fontVariantNumeric:'tabular-nums' }
 const pad = n => String(n).padStart(2, '0')
 const won = n => Math.round(n || 0).toLocaleString('ko-KR')

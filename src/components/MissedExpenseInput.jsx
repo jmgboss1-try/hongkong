@@ -127,7 +127,7 @@ export default function MissedExpenseInput({ curMonth, onSaved }) {
             onKeyDown={e=>e.key==='Enter' && save()}
             style={{...inputStyle,width:150,textAlign:'right',fontVariantNumeric:'tabular-nums'}}/>
           <button onClick={save} disabled={saving}
-            style={{background:'#C3261C',color:'#FFFFFF',border:'none',borderRadius:4,padding:'8px 18px',
+            style={{background:'var(--hk-accent)',color:'#FFFFFF',border:'none',borderRadius:4,padding:'8px 18px',
               fontSize:14,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
             {saving ? '저장 중...' : '지출 추가'}
           </button>

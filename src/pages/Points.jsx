@@ -7,7 +7,7 @@ import { DEFAULT_POINT_CONFIG, loadPointConfig, loadShop, loadPersonal, loadPoin
 
 // 포인트 (직원·사장님): 내 포인트 / 포인트 상점 / 교환 이력(누가 무엇을 교환했는지만 공개)
 // 사장님은 신청 처리(코드·이미지 넣고 승인, 직접 전달, 거절), 상점 관리, 직원 포인트(조정), 설정
-const T = { ink:'#1D1B18', sub:'#6E6A63', faint:'#A8A39A', rule:'#DCD7CE', soft:'#ECE8E1', chip:'#F3F1EC', paper:'#FAF9F6', accent:'#C3261C', green:'#2E7D45', red:'#B42318', blue:'#2B5C9E', amber:'#B45309' }
+const T = { ink:'#1D1B18', sub:'#6E6A63', faint:'#A8A39A', rule:'#DCD7CE', soft:'#ECE8E1', chip:'#F3F1EC', paper:'#FAF9F6', accent:'var(--hk-accent)', green:'#2E7D45', red:'#B42318', blue:'#2B5C9E', amber:'#B45309' }
 const num = { fontVariantNumeric:'tabular-nums' }
 const P = n => `${(+n || 0).toLocaleString('ko-KR')}P`
 const sign = n => (n > 0 ? '+' : n < 0 ? '−' : '') + Math.abs(n).toLocaleString('ko-KR')

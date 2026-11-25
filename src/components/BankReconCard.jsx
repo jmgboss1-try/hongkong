@@ -7,7 +7,7 @@ import OffBankList from './OffBankList'
 
 const wonFmt = n => (n||0).toLocaleString('ko-KR')
 const sign = n => n > 0 ? `+${wonFmt(n)}` : n < 0 ? `−${wonFmt(-n)}` : '0'
-const T = { ink:'#1D1B18', sub:'#6E6A63', faint:'#A8A39A', rule:'#DCD7CE', soft:'#ECE8E1', accent:'#C3261C', red:'#B42318', green:'#2E7D45', blue:'#2B5C9E' }
+const T = { ink:'#1D1B18', sub:'#6E6A63', faint:'#A8A39A', rule:'#DCD7CE', soft:'#ECE8E1', accent:'var(--hk-accent)', red:'#B42318', green:'#2E7D45', blue:'#2B5C9E' }
 const num = { fontVariantNumeric:'tabular-nums' }
 const md = d => d ? `${+d.slice(5,7)}/${+d.slice(8,10)}` : ''
 
@@ -174,7 +174,7 @@ export default function BankReconCard({ ym, data, categories, onChanged }) {
       )}
 
       {b && unhandled.length > 0 && (
-        <div style={{marginTop:16, borderLeft:`4px solid ${T.accent}`, background:'#C3261C0D', padding:'10px 14px', borderRadius:'0 4px 4px 0'}}>
+        <div style={{marginTop:16, borderLeft:`4px solid ${T.accent}`, background:'rgba(var(--hk-accent-rgb),0.051)', padding:'10px 14px', borderRadius:'0 4px 4px 0'}}>
           <div style={{display:'flex', justifyContent:'space-between', alignItems:'baseline', gap:8, flexWrap:'wrap'}}>
             <span style={{fontSize:14, fontWeight:800, color:T.accent}}>아직 정리 안 된 출금 {unhandled.length}건</span>
             <span style={{fontSize:14, fontWeight:700, ...num}}>{wonFmt(unhandled.reduce((a,t)=>a+t.out,0))}원</span>

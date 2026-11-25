@@ -159,7 +159,7 @@ export default function SubstituteBoard() {
           <div style={{fontSize:12,color:'#6E6A63',marginTop:2}}>대타 요청 및 지원 현황</div>
         </div>
         <button onClick={()=>setShowForm(v=>!v)}
-          style={{background:'#C3261C',color:'#FFFFFF',border:'none',borderRadius:4,
+          style={{background:'var(--hk-accent)',color:'#FFFFFF',border:'none',borderRadius:4,
             padding:'8px 16px',fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
           + 대타 요청
         </button>
@@ -167,8 +167,8 @@ export default function SubstituteBoard() {
 
       {/* 요청 등록 폼 */}
       {showForm && (
-        <div style={{background:'#FFFFFF',border:'1px solid #C3261C',borderRadius:6,marginBottom:18,padding:18}}>
-          <div style={{fontSize:13,fontWeight:600,color:'#C3261C',marginBottom:14}}>+ 대타 요청 등록</div>
+        <div style={{background:'#FFFFFF',border:'1px solid var(--hk-accent)',borderRadius:6,marginBottom:18,padding:18}}>
+          <div style={{fontSize:13,fontWeight:600,color:'var(--hk-accent)',marginBottom:14}}>+ 대타 요청 등록</div>
           <div style={{display:'flex',flexDirection:'column',gap:12}}>
             {/* 요청자 토글 */}
             <div>
@@ -178,7 +178,7 @@ export default function SubstituteBoard() {
                   <button key={e.uid} onClick={()=>setForm(f=>({...f,requesterUid:e.uid}))}
                     style={{padding:'7px 14px',borderRadius:4,border:'none',fontSize:12,fontWeight:600,
                       cursor:'pointer',fontFamily:'inherit',
-                      background:form.requesterUid===e.uid?'#C3261C':'#F3F1EC',
+                      background:form.requesterUid===e.uid?'var(--hk-accent)':'#F3F1EC',
                       color:form.requesterUid===e.uid?'#FFFFFF':'#6E6A63'}}>
                     {e.name}
                   </button>
@@ -223,7 +223,7 @@ export default function SubstituteBoard() {
           </div>
           <div style={{display:'flex',gap:8,marginTop:16}}>
             <button onClick={addRequest} disabled={saving}
-              style={{background:'#C3261C',color:'#FFFFFF',border:'none',borderRadius:4,padding:'9px 20px',
+              style={{background:'var(--hk-accent)',color:'#FFFFFF',border:'none',borderRadius:4,padding:'9px 20px',
                 fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
               {saving?'등록 중...':'등록'}
             </button>
@@ -254,12 +254,12 @@ export default function SubstituteBoard() {
                   const isToday = ds === today
                   return (
                     <div key={di} style={{
-                      background: isToday ? 'rgba(195,38,28,0.08)' : '#F3F1EC',
-                      border: isToday ? '1px solid rgba(195,38,28,0.4)' : '1px solid #DCD7CE',
+                      background: isToday ? 'rgba(var(--hk-accent-rgb),0.08)' : '#F3F1EC',
+                      border: isToday ? '1px solid rgba(var(--hk-accent-rgb),0.4)' : '1px solid #DCD7CE',
                       borderRadius:4,padding:'8px 6px',minHeight:70,
                     }}>
                       <div style={{fontSize:10,fontWeight:700,marginBottom:5,textAlign:'center',
-                        color: di===0?'#B42318':di===6?'#2B5C9E':isToday?'#C3261C':'#6E6A63'}}>
+                        color: di===0?'#B42318':di===6?'#2B5C9E':isToday?'var(--hk-accent)':'#6E6A63'}}>
                         {d.getMonth()+1}/{d.getDate()}<span style={{fontWeight:400}}> ({DAYS_KR[di]})</span>
                       </div>
                       <div style={{display:'flex',flexDirection:'column',gap:3}}>
@@ -307,7 +307,7 @@ export default function SubstituteBoard() {
                         <div style={{fontSize:14,fontWeight:700,color:'#1D1B18'}}>
                           {nameOf(r.requesterUid)} <span style={{color:'#6E6A63',fontWeight:400}}>대타 구함</span>
                         </div>
-                        <div style={{fontSize:11,color:'#C3261C',marginTop:3,fontWeight:600}}>
+                        <div style={{fontSize:11,color:'var(--hk-accent)',marginTop:3,fontWeight:600}}>
                           {dateLabel(r.date)} · {timeLabel(r)}
                         </div>
                         {r.reason && <div style={{fontSize:10,color:'#6E6A63',marginTop:3}}>사유: {r.reason}</div>}
@@ -379,7 +379,7 @@ export default function SubstituteBoard() {
                         <span style={{color:'#2E7D45'}}>{nameOf(r.confirmedUid)}</span>
                         <span style={{color:'#6E6A63',fontWeight:400}}> 대타 확정</span>
                       </div>
-                      <div style={{fontSize:11,color:'#C3261C',marginTop:3,fontWeight:600}}>
+                      <div style={{fontSize:11,color:'var(--hk-accent)',marginTop:3,fontWeight:600}}>
                         {dateLabel(r.date)} · {timeLabel(r)}
                       </div>
                     </div>

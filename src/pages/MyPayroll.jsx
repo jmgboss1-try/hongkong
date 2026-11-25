@@ -138,7 +138,7 @@ export default function MyPayroll() {
             <div style={{padding:'16px 20px',display:'grid',gridTemplateColumns:'repeat(3,1fr)',
               gap:12,borderBottom:'1px solid #DCD7CE'}}>
               {[
-                {label:'총 근무시간', val:`${p.totalHours}h ${p.totalMins>0?p.totalMins+'m':''}`, color:'#C3261C'},
+                {label:'총 근무시간', val:`${p.totalHours}h ${p.totalMins>0?p.totalMins+'m':''}`, color:'var(--hk-accent)'},
                 {label:'기본급',      val:`${(p.basePay||0).toLocaleString()}원`,                 color:'#1D1B18'},
                 {label:'주휴수당',    val:`${(p.weeklyHoliday||0).toLocaleString()}원`,           color:'#2B5C9E'},
               ].map(k=>(
@@ -153,7 +153,7 @@ export default function MyPayroll() {
             <div style={{padding:'16px 20px',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
               <div>
                 <div style={{fontSize:11,color:'#6E6A63',marginBottom:5}}>이달 월급</div>
-                <div style={{fontSize:26,fontWeight:700,color:'#C3261C',fontFamily:'inherit',fontVariantNumeric:'tabular-nums'}}>
+                <div style={{fontSize:26,fontWeight:700,color:'var(--hk-accent)',fontFamily:'inherit',fontVariantNumeric:'tabular-nums'}}>
                   {(p.totalPay||0).toLocaleString()}원
                 </div>
               </div>
@@ -221,12 +221,12 @@ export default function MyPayroll() {
                       <div style={{fontSize:10,color:'#6E6A63',marginBottom:5,textAlign:'right'}}>
                         사장님 답변 · {p.inquiry.repliedAt?.slice(0,10)}
                       </div>
-                      <div style={{background:'rgba(195,38,28,0.08)',border:'1px solid rgba(195,38,28,0.2)',
+                      <div style={{background:'rgba(var(--hk-accent-rgb),0.08)',border:'1px solid rgba(var(--hk-accent-rgb),0.2)',
                         borderRadius:4,padding:'10px 14px',fontSize:12,color:'#1D1B18',lineHeight:1.7}}>
                         {p.inquiry.ownerReply}
                       </div>
                     </div>
-                    <div style={{width:30,height:30,borderRadius:'50%',background:'rgba(195,38,28,0.2)',
+                    <div style={{width:30,height:30,borderRadius:'50%',background:'rgba(var(--hk-accent-rgb),0.2)',
                       display:'flex',alignItems:'center',justifyContent:'center',fontSize:13,flexShrink:0}}></div>
                   </div>
                 ) : (

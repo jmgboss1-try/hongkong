@@ -4,7 +4,7 @@ import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, ReferenceLin
 import { discountGoal, goalMonths, isGoalEvent, loadSalesEvents, loadSalesMonths, OPEN_END, todayStr } from '../lib/salesStats'
 
 // 할인 목표 (건당 할인 일정): 매출분석의 카드(GoalCard)와 대시보드 한 줄(GoalLine)
-const T = { ink:'#1D1B18', sub:'#6E6A63', faint:'#A8A39A', rule:'#DCD7CE', soft:'#ECE8E1', accent:'#C3261C', green:'#2E7D45', red:'#B42318' }
+const T = { ink:'#1D1B18', sub:'#6E6A63', faint:'#A8A39A', rule:'#DCD7CE', soft:'#ECE8E1', accent:'var(--hk-accent)', green:'#2E7D45', red:'#B42318' }
 const num = { fontVariantNumeric:'tabular-nums' }
 const won = n => n == null || !isFinite(n) ? '—' : Math.round(n).toLocaleString('ko-KR')
 const one = n => n == null || !isFinite(n) ? '—' : (Math.round(n * 10) / 10).toLocaleString('ko-KR')

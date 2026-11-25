@@ -4,7 +4,7 @@ import { doc, getDoc, setDoc } from 'firebase/firestore'
 import { prevYmOf, monthNum, parseAmount } from '../lib/rewards'
 import { Roulette } from './RewardGame'
 
-const T = { ink:'#1D1B18', sub:'#6E6A63', accent:'#C3261C', green:'#2E7D45' }
+const T = { ink:'#1D1B18', sub:'#6E6A63', accent:'var(--hk-accent)', green:'#2E7D45' }
 
 // 직원 내 기록 맨 위: 지난달 개근 포상 룰렛 (사장님이 '각자 룰렛'으로 열었을 때, 한 번만 돌릴 수 있음)
 export default function MyRewardSpin({ uid, name }) {
@@ -40,7 +40,7 @@ export default function MyRewardSpin({ uid, name }) {
     } catch(e) { console.error(e); setErr('결과를 저장하지 못했어요. 사장님께 결과를 알려 주세요: ' + prize) }
   }
 
-  const box = { borderLeft:`4px solid ${T.accent}`, background:'#C3261C0D', borderRadius:'0 4px 4px 0', padding:'14px 16px', marginBottom:20 }
+  const box = { borderLeft:`4px solid ${T.accent}`, background:'rgba(var(--hk-accent-rgb),0.051)', borderRadius:'0 4px 4px 0', padding:'14px 16px', marginBottom:20 }
   if (mine) return (
     <section style={{...box, borderLeftColor:T.green, background:'#2E7D450F'}}>
       <div style={{fontSize:15, fontWeight:800, color:T.green}}>{m}월 개근 포상</div>

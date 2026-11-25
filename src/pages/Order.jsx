@@ -9,7 +9,7 @@ const URGENCY = {
 }
 
 const STATUS = {
-  pending:  { label:'대기중',   color:'#C3261C', bg:'rgba(195,38,28,0.15)'  },
+  pending:  { label:'대기중',   color:'var(--hk-accent)', bg:'rgba(var(--hk-accent-rgb),0.15)'  },
   checked:  { label:'확인완료', color:'#2B5C9E', bg:'rgba(43,92,158,0.15)' },
   done:     { label:'완료',     color:'#2E7D45', bg:'rgba(46,125,69,0.15)'  },
 }
@@ -124,7 +124,7 @@ export default function Order() {
       {/* 요약 카드 */}
       <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:14,marginBottom:20}}>
         {[
-          {label:'대기중 요청', val:pendingCount, color:'#C3261C'},
+          {label:'대기중 요청', val:pendingCount, color:'var(--hk-accent)'},
           {label:'긴급 요청', val:urgentCount, color:'#B42318'},
           {label:'전체 요청', val:orders.length, color:'#2B5C9E'},
         ].map(k=>(
@@ -145,7 +145,7 @@ export default function Order() {
         ].map(t=>(
           <button key={t.key} onClick={()=>setActiveTab(t.key)}
             style={{padding:'9px 18px',borderRadius:4,border:'none',fontSize:13,fontWeight:600,cursor:'pointer',fontFamily:'inherit',
-              background:activeTab===t.key?'#C3261C':'#F3F1EC',
+              background:activeTab===t.key?'var(--hk-accent)':'#F3F1EC',
               color:activeTab===t.key?'#FFFFFF':'#6E6A63'}}>
             {t.label}
           </button>
@@ -160,7 +160,7 @@ export default function Order() {
             {[['all','전체'],['pending','대기중'],['checked','확인완료'],['done','완료']].map(([key,label])=>(
               <button key={key} onClick={()=>setFilterStatus(key)}
                 style={{padding:'5px 12px',borderRadius:6,border:'none',fontSize:11,fontWeight:600,cursor:'pointer',fontFamily:'inherit',
-                  background:filterStatus===key?'#C3261C':'#F3F1EC',color:filterStatus===key?'#FFFFFF':'#6E6A63'}}>
+                  background:filterStatus===key?'var(--hk-accent)':'#F3F1EC',color:filterStatus===key?'#FFFFFF':'#6E6A63'}}>
                 {label}
               </button>
             ))}
@@ -190,7 +190,7 @@ export default function Order() {
                         <span style={{fontSize:10,color:'#6E6A63'}}>{timeAgo(o.createdAt)}</span>
                       </div>
                       <div style={{fontSize:15,fontWeight:700,color:'#1D1B18',marginBottom:4}}>
-                        {o.itemName} <span style={{fontSize:13,color:'#C3261C',fontFamily:'inherit',fontVariantNumeric:'tabular-nums'}}>{o.qty}{o.unit}</span>
+                        {o.itemName} <span style={{fontSize:13,color:'var(--hk-accent)',fontFamily:'inherit',fontVariantNumeric:'tabular-nums'}}>{o.qty}{o.unit}</span>
                       </div>
                       {o.memo && <div style={{fontSize:12,color:'#6E6A63',marginBottom:4}}>{o.memo}</div>}
                       <div style={{fontSize:11,color:'#6E6A63'}}>요청자: {o.authorName}</div>
@@ -250,7 +250,7 @@ export default function Order() {
                 {presets.map(p=>(
                   <button key={p.id} onClick={()=>{setSelPreset(p.name);setCustomItem('')}}
                     style={{padding:'6px 12px',borderRadius:6,border:'none',fontSize:11,fontWeight:600,cursor:'pointer',fontFamily:'inherit',
-                      background:selPreset===p.name?'#C3261C':'#F3F1EC',color:selPreset===p.name?'#FFFFFF':'#6E6A63'}}>
+                      background:selPreset===p.name?'var(--hk-accent)':'#F3F1EC',color:selPreset===p.name?'#FFFFFF':'#6E6A63'}}>
                     {p.name}
                   </button>
                 ))}
@@ -295,7 +295,7 @@ export default function Order() {
             </div>
 
             <button onClick={addOrder}
-              style={{background:'#C3261C',color:'#FFFFFF',border:'none',borderRadius:4,
+              style={{background:'var(--hk-accent)',color:'#FFFFFF',border:'none',borderRadius:4,
                 padding:'12px',fontSize:13,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
               요청 등록
             </button>
@@ -324,7 +324,7 @@ export default function Order() {
                     padding:'8px 10px',fontSize:12,outline:'none',width:'100%',fontFamily:'inherit'}}/>
               </div>
               <button onClick={addPreset}
-                style={{background:'#C3261C',color:'#FFFFFF',border:'none',borderRadius:4,
+                style={{background:'var(--hk-accent)',color:'#FFFFFF',border:'none',borderRadius:4,
                   padding:'9px 16px',fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'inherit',whiteSpace:'nowrap'}}>
                 추가
               </button>

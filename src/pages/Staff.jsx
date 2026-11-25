@@ -9,7 +9,7 @@ import { saveUser } from '../lib/privateInfo'
 
 const pad = n => String(n).padStart(2,'0')
 const DAYS_KR = ['일','월','화','수','목','금','토']
-const T = { ink:'#1D1B18', sub:'#6E6A63', faint:'#A8A39A', rule:'#DCD7CE', soft:'#ECE8E1', accent:'#C3261C', red:'#B42318', green:'#2E7D45', blue:'#2B5C9E', amber:'#B45309', purple:'#6B4FA0' }
+const T = { ink:'#1D1B18', sub:'#6E6A63', faint:'#A8A39A', rule:'#DCD7CE', soft:'#ECE8E1', accent:'var(--hk-accent)', red:'#B42318', green:'#2E7D45', blue:'#2B5C9E', amber:'#B45309', purple:'#6B4FA0' }
 const num = { fontVariantNumeric:'tabular-nums' }
 const dateStr = d => `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`
 const ymOfDate = d => `${d.getFullYear()}-${pad(d.getMonth()+1)}`
@@ -408,7 +408,7 @@ export default function Staff() {
                           ) :
                           <td key={c.ds} onClick={()=>isOwner && !c.closed && setCellEdit({ uid:u.uid, ds:c.ds, start:c.planned?.start || '', end:c.planned?.end || '' })}
                             title={isOwner && !c.closed ? '눌러서 이날 시간 바꾸기' : undefined}
-                            style={{...td, cursor: isOwner && !c.closed ? 'pointer' : 'default', background: c.closed ? '#F3F1EC' : c.today ? '#C3261C08' : undefined}}>
+                            style={{...td, cursor: isOwner && !c.closed ? 'pointer' : 'default', background: c.closed ? '#F3F1EC' : c.today ? 'rgba(var(--hk-accent-rgb),0.031)' : undefined}}>
                             {c.override?.off && !c.closed && !c.rec?.in && <div style={{color:T.faint}}>휴무</div>}
                             {c.planned && !c.closed && (
                               <div style={{color: c.gaveAway ? T.faint : c.override && !c.rec?.in ? T.blue : T.ink, textDecoration: c.gaveAway ? 'line-through' : 'none', fontWeight:600}}>{c.planned.start}~{c.planned.end||''}{c.planned.cut ? ' (마감)' : ''}</div>
@@ -455,7 +455,7 @@ export default function Staff() {
                       {shiftsByDay.map((l,i) => {
                         const n = countAt(l, h)
                         return <td key={i} style={{...td, padding:'4px 8px', fontWeight:700, color: n/maxCount > 0.6 ? '#FFFFFF' : T.ink,
-                          background: n ? `rgba(195,38,28,${0.12 + 0.68*n/maxCount})` : 'transparent'}}>{n || ''}</td>
+                          background: n ? `rgba(var(--hk-accent-rgb),${0.12 + 0.68*n/maxCount})` : 'transparent'}}>{n || ''}</td>
                       })}
                     </tr>
                   ))}

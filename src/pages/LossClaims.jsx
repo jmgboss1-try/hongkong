@@ -227,10 +227,10 @@ function Timeline({ r, editable, saving, onAdd, onDelete, onNextCheck }) {
             <input type="number" value={ev.amount} onChange={e=>setEv(v=>({...v,amount:e.target.value}))}
               placeholder="금액(선택)" style={{...inputStyle,width:110}}/>
             <button type="button" onClick={()=>setShowPhotos(v=>!v)}
-              style={smallBtn(showPhotos||images.length?'rgba(195,38,28,0.12)':'transparent','#C3261C','1px solid rgba(195,38,28,0.4)')}>
+              style={smallBtn(showPhotos||images.length?'rgba(var(--hk-accent-rgb),0.12)':'transparent','var(--hk-accent)','1px solid rgba(var(--hk-accent-rgb),0.4)')}>
               사진{images.length?` ${images.length}`:''}
             </button>
-            <button onClick={add} disabled={saving} style={smallBtn('#C3261C','#FFFFFF')}>+ 기록</button>
+            <button onClick={add} disabled={saving} style={smallBtn('var(--hk-accent)','#FFFFFF')}>+ 기록</button>
           </div>
           {showPhotos && (
             <div style={{marginTop:8}}>
@@ -368,7 +368,7 @@ export default function LossClaims() {
           <div style={{fontSize:12,color:'#6E6A63',marginTop:2}}>배달 사고 등록 → 보상 받으면 금액만 입력</div>
         </div>
         <button onClick={()=>{ setShowForm(v=>!v); setForm(emptyForm()) }}
-          style={{background:'#C3261C',color:'#FFFFFF',border:'none',borderRadius:4,
+          style={{background:'var(--hk-accent)',color:'#FFFFFF',border:'none',borderRadius:4,
             padding:'8px 16px',fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
           {showForm ? '닫기' : '+ 사고 등록'}
         </button>
@@ -377,7 +377,7 @@ export default function LossClaims() {
       {/* 요약 */}
       <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(150px,1fr))',gap:12,marginBottom:18}}>
         {[
-          { label:'진행중', val:`${openList.length}건`, color:'#C3261C' },
+          { label:'진행중', val:`${openList.length}건`, color:'var(--hk-accent)' },
           { label:'진행중 손실 금액', val:`${wonFmt(openLoss)}원`, color:'#B42318' },
           { label:'지금까지 받은 보상', val:`${wonFmt(paidTotal)}원`, color:'#2E7D45' },
           ...(dueCount>0 ? [{ label:'오늘 다시 확인할 건', val:`${dueCount}건`, color:'#B42318' }] : []),
@@ -392,10 +392,10 @@ export default function LossClaims() {
 
       {/* 등록 폼 */}
       {showForm && (
-        <div style={{background:'#FFFFFF',border:'1px solid #C3261C',borderRadius:6,marginBottom:18,padding:18}}>
+        <div style={{background:'#FFFFFF',border:'1px solid var(--hk-accent)',borderRadius:6,marginBottom:18,padding:18}}>
           <ClaimForm value={form} onChange={setForm}/>
           <button onClick={addRecord} disabled={saving}
-            style={{marginTop:16,background:'#C3261C',color:'#FFFFFF',border:'none',borderRadius:4,padding:'9px 22px',
+            style={{marginTop:16,background:'var(--hk-accent)',color:'#FFFFFF',border:'none',borderRadius:4,padding:'9px 22px',
               fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
             {saving?'등록 중...':'등록'}
           </button>
@@ -407,7 +407,7 @@ export default function LossClaims() {
         {[['open',`진행중 (${openList.length})`],['done',`완료 (${doneList.length})`]].map(([key,label])=>(
           <button key={key} onClick={()=>setTab(key)}
             style={{padding:'7px 14px',borderRadius:4,border:'none',fontSize:12,fontWeight:600,cursor:'pointer',fontFamily:'inherit',
-              background:tab===key?'#C3261C':'#F3F1EC',color:tab===key?'#FFFFFF':'#6E6A63'}}>
+              background:tab===key?'var(--hk-accent)':'#F3F1EC',color:tab===key?'#FFFFFF':'#6E6A63'}}>
             {label}
           </button>
         ))}
@@ -434,10 +434,10 @@ export default function LossClaims() {
             const tlOpen = !!openTimeline[r.id]
 
             if(editId === r.id) return (
-              <div key={r.id} style={{background:'#FFFFFF',border:'1px solid #C3261C',borderRadius:6,padding:18}}>
+              <div key={r.id} style={{background:'#FFFFFF',border:'1px solid var(--hk-accent)',borderRadius:6,padding:18}}>
                 <ClaimForm value={editForm} onChange={setEditForm}/>
                 <div style={{display:'flex',gap:8,marginTop:16}}>
-                  <button onClick={saveEdit} disabled={saving} style={smallBtn('#C3261C','#FFFFFF')}>{saving?'저장 중...':'저장'}</button>
+                  <button onClick={saveEdit} disabled={saving} style={smallBtn('var(--hk-accent)','#FFFFFF')}>{saving?'저장 중...':'저장'}</button>
                   <button onClick={()=>{setEditId(null);setEditForm(null)}} style={smallBtn('#F3F1EC','#6E6A63','1px solid #DCD7CE')}>취소</button>
                 </div>
               </div>
@@ -519,7 +519,7 @@ export default function LossClaims() {
                           onKeyDown={e=>e.key==='Enter' && saveAction()} style={inputStyle}/>
                       </div>
                     )}
-                    <button onClick={saveAction} disabled={saving} style={smallBtn('#C3261C','#FFFFFF')}>{saving?'저장 중...':'완료'}</button>
+                    <button onClick={saveAction} disabled={saving} style={smallBtn('var(--hk-accent)','#FFFFFF')}>{saving?'저장 중...':'완료'}</button>
                     <button onClick={()=>setAction(null)} style={smallBtn('transparent','#6E6A63','1px solid #DCD7CE')}>취소</button>
                   </div>
                 )}

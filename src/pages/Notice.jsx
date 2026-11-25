@@ -153,7 +153,7 @@ export default function Notice() {
       <PhotoPicker images={editForm.images} onChange={v=>setEditForm(f=>({...f, images:v}))}/>
       <div style={{display:'flex',gap:8}}>
         <button onClick={()=>saveText(type, id)} disabled={editSaving}
-          style={{background:'#C3261C',color:'#FFFFFF',border:'none',borderRadius:4,padding:'6px 16px',fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
+          style={{background:'var(--hk-accent)',color:'#FFFFFF',border:'none',borderRadius:4,padding:'6px 16px',fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
           {editSaving ? '저장 중...' : '수정 저장'}
         </button>
         <button onClick={()=>setEditTextId(null)}
@@ -231,7 +231,7 @@ export default function Notice() {
           <button key={t.key} onClick={()=>{setActiveTab(t.key);markRead(t.key)}}
             style={{padding:'9px 18px',borderRadius:4,border:'none',fontSize:13,fontWeight:600,cursor:'pointer',fontFamily:'inherit',
               position:'relative',
-              background:activeTab===t.key?'#C3261C':'#F3F1EC',
+              background:activeTab===t.key?'var(--hk-accent)':'#F3F1EC',
               color:activeTab===t.key?'#FFFFFF':'#6E6A63'}}>
             {t.label}
             {t.count>0 && (
@@ -249,8 +249,8 @@ export default function Notice() {
         <div>
           {/* 사장만 작성 가능 */}
           {isOwner && (
-            <div style={{background:'#FFFFFF',border:'1px solid #C3261C',borderRadius:6,padding:'18px',marginBottom:18}}>
-              <div style={{fontSize:13,fontWeight:600,color:'#C3261C',marginBottom:12}}>공지 작성</div>
+            <div style={{background:'#FFFFFF',border:'1px solid var(--hk-accent)',borderRadius:6,padding:'18px',marginBottom:18}}>
+              <div style={{fontSize:13,fontWeight:600,color:'var(--hk-accent)',marginBottom:12}}>공지 작성</div>
               <textarea value={newNotice} onChange={e=>setNewNotice(e.target.value)}
                 placeholder="공지사항을 입력하세요..."
                 rows={3}
@@ -270,7 +270,7 @@ export default function Notice() {
                 )}
               </div>
               <button onClick={addNotice}
-                style={{background:'#C3261C',color:'#FFFFFF',border:'none',borderRadius:4,
+                style={{background:'var(--hk-accent)',color:'#FFFFFF',border:'none',borderRadius:4,
                   padding:'8px 20px',fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
                 공지 등록
               </button>
@@ -286,10 +286,10 @@ export default function Notice() {
                 const editing = editAlertId === 'notice_'+n.id
                 return (
                 <div key={n.id} style={{background:'#FFFFFF',border:'1px solid #DCD7CE',borderRadius:6,padding:'18px',
-                  borderLeft: n.createdAt>lastRead?'4px solid #C3261C':'4px solid #DCD7CE'}}>
+                  borderLeft: n.createdAt>lastRead?'4px solid var(--hk-accent)':'4px solid #DCD7CE'}}>
                   <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:10}}>
                     <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}>
-                      <span style={{fontSize:11,fontWeight:700,color:'#C3261C'}}>사장</span>
+                      <span style={{fontSize:11,fontWeight:700,color:'var(--hk-accent)'}}>사장</span>
                       {n.createdAt>lastRead && (
                         <span style={{background:'#B42318',color:'#fff',fontSize:9,fontWeight:700,
                           padding:'2px 6px',borderRadius:999}}>NEW</span>
@@ -379,7 +379,7 @@ export default function Notice() {
               )}
             </div>
             <button onClick={addMemo}
-              style={{background:'#C3261C',color:'#FFFFFF',border:'none',borderRadius:4,
+              style={{background:'var(--hk-accent)',color:'#FFFFFF',border:'none',borderRadius:4,
                 padding:'8px 20px',fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
               메모 등록
             </button>

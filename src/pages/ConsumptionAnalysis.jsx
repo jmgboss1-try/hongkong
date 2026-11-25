@@ -172,7 +172,7 @@ export default function ConsumptionAnalysis() {
           </div>
         </div>
         <button onClick={() => setShowForm(v => !v)}
-          style={{background:'#C3261C',color:'#FFFFFF',border:'none',borderRadius:4,
+          style={{background:'var(--hk-accent)',color:'#FFFFFF',border:'none',borderRadius:4,
             padding:'8px 16px',fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
           + 소비 기록
         </button>
@@ -180,9 +180,9 @@ export default function ConsumptionAnalysis() {
 
       {/* 입력 폼 */}
       {showForm && (
-        <div style={{background:'#FFFFFF',border:'1px solid #C3261C',borderRadius:6,
+        <div style={{background:'#FFFFFF',border:'1px solid var(--hk-accent)',borderRadius:6,
           marginBottom:18,padding:18}}>
-          <div style={{fontSize:13,fontWeight:600,color:'#C3261C',marginBottom:16}}>
+          <div style={{fontSize:13,fontWeight:600,color:'var(--hk-accent)',marginBottom:16}}>
             소비 기록 입력
           </div>
 
@@ -204,7 +204,7 @@ export default function ConsumptionAnalysis() {
                   <button key={t} onClick={()=>setF('tag',t)}
                     style={{padding:'5px 12px',borderRadius:6,border:'none',fontSize:11,
                       fontWeight:600,cursor:'pointer',fontFamily:'inherit',
-                      background: form.tag===t ? '#C3261C' : '#F3F1EC',
+                      background: form.tag===t ? 'var(--hk-accent)' : '#F3F1EC',
                       color: form.tag===t ? '#FFFFFF' : '#6E6A63',
                       outline: form.tag===t ? 'none' : '1px solid #DCD7CE'}}>
                     {t}
@@ -235,7 +235,7 @@ export default function ConsumptionAnalysis() {
             <div>
               <label style={{fontSize:10,color:'#6E6A63',display:'block',marginBottom:4}}>
                 기간 매출 (원)
-                {fetchingRevenue && <span style={{marginLeft:6,color:'#C3261C'}}>불러오는 중...</span>}
+                {fetchingRevenue && <span style={{marginLeft:6,color:'var(--hk-accent)'}}>불러오는 중...</span>}
                 {!fetchingRevenue && form.revenue && <span style={{marginLeft:6,color:'#2E7D45'}}>자동연동</span>}
               </label>
               <input type="number" value={form.revenue} onChange={e=>setF('revenue',e.target.value)}
@@ -284,7 +284,7 @@ export default function ConsumptionAnalysis() {
 
           <div style={{display:'flex',gap:8}}>
             <button onClick={saveRecord} disabled={saving}
-              style={{background:'#C3261C',color:'#FFFFFF',border:'none',borderRadius:4,
+              style={{background:'var(--hk-accent)',color:'#FFFFFF',border:'none',borderRadius:4,
                 padding:'9px 20px',fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
               {saving ? '저장 중...' : '저 장'}
             </button>
@@ -421,7 +421,7 @@ export default function ConsumptionAnalysis() {
                         <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:6,flexWrap:'wrap'}}>
                           <span style={{fontSize:14,fontWeight:700,color:'#1D1B18'}}>{r.label}</span>
                           <span style={{fontSize:10,fontWeight:600,padding:'2px 8px',borderRadius:4,
-                            background:'rgba(195,38,28,0.15)',color:'#C3261C'}}>{r.tag}</span>
+                            background:'rgba(var(--hk-accent-rgb),0.15)',color:'var(--hk-accent)'}}>{r.tag}</span>
                           <span style={{fontSize:10,color:'#6E6A63'}}>
                             {r.startDate} ~ {r.endDate} ({days}일)
                           </span>

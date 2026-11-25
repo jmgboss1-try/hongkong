@@ -6,7 +6,7 @@ import ClockAvatar from '../components/ClockAvatar'
 import { DEFAULT_RADIUS, ymOf, ddOf, hm, toDate, planFor, breakForShift, calcRecord, applyRecord, distanceM, getPosition } from '../lib/attendance'
 
 const DAYS_KR = ['일','월','화','수','목','금','토']
-const T = { ink:'#1D1B18', sub:'#6E6A63', rule:'#DCD7CE', accent:'#C3261C', red:'#B42318', green:'#2E7D45', blue:'#2B5C9E', amber:'#B45309' }
+const T = { ink:'#1D1B18', sub:'#6E6A63', rule:'#DCD7CE', accent:'var(--hk-accent)', red:'#B42318', green:'#2E7D45', blue:'#2B5C9E', amber:'#B45309' }
 
 // 매장 입구 NFC 태그가 여는 페이지 (/clock). 열리면 위치를 확인하고 바로 출근 또는 퇴근을 찍음
 //  - 오늘 출근 기록이 없으면 출근, 출근만 있으면 퇴근 (출근 2분 안에 다시 대면 실수로 보고 안 찍음)

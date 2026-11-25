@@ -3,7 +3,8 @@ import RevenuePace from '../components/RevenuePace'
 import { GoalLine } from '../components/DiscountGoal'
 import EarlySales from '../components/EarlySales'
 import BentoBoard from '../components/BentoBoard'
-import { THEMES } from '../lib/dashTheme'
+import { useTheme } from '../lib/dashTheme'
+import ThemeDots from '../components/ThemeDots'
 import RewardPrompt from '../components/RewardPrompt'
 import { db } from '../firebase'
 import { doc, getDoc, getDocs, collection } from 'firebase/firestore'
@@ -37,12 +38,12 @@ const wonK   = n => n>=10000 ? (n/10000).toFixed(0)+'만' : n.toLocaleString()
 const pct = (a,b) => b>0 ? Math.round(a/b*100) : 0
 
 const CHANNELS = [
-  { key:'total',    label:'전체',      color:'#C3261C' },
+  { key:'total',    label:'전체',      color:'var(--hk-accent)' },
   { key:'kiosk',    label:'키오스크',  color:'#2B5C9E' },
   { key:'del',      label:'배달 합계', color:'#2E7D45' },
   { key:'baemin',   label:'배달의민족',color:'#2E7D45' },
   { key:'coupang',  label:'쿠팡이츠',  color:'#B42318' },
-  { key:'yogiyo',   label:'요기요',    color:'#C3261C' },
+  { key:'yogiyo',   label:'요기요',    color:'var(--hk-accent)' },
   { key:'ddangyeo', label:'땡겨요',    color:'#6B4FA0' },
   { key:'pos',      label:'포스',      color:'#B45309' },
 ]
@@ -111,9 +112,8 @@ export default function Dashboard() {
   // 보기 방식(카드형/장부형)과 카드형 강조색은 기기마다 기억
   const lsGet = (k, d) => { try { return localStorage.getItem(k) || d } catch { return d } }
   const [view, setViewState] = useState(() => lsGet('dash.view', 'bento'))
-  const [theme, setThemeState] = useState(() => lsGet('dash.theme', 'red'))
+  const theme = useTheme()
   const setView = v => { setViewState(v); try { localStorage.setItem('dash.view', v) } catch { /* 저장 못 해도 됨 */ } }
-  const setTheme = v => { setThemeState(v); try { localStorage.setItem('dash.theme', v) } catch { /* 저장 못 해도 됨 */ } }
 
   useEffect(() => { load() }, [curMonth])
   useEffect(() => {
@@ -358,7 +358,7 @@ export default function Dashboard() {
   const ch = channels.find(c=>c.key===chartChannel)
   const won = n => (n||0).toLocaleString('ko-KR')
   const num = { fontVariantNumeric:'tabular-nums' }
-  const T = { ink:'#1D1B18', sub:'#6E6A63', faint:'#A8A39A', rule:'#DCD7CE', accent:'#C3261C', red:'#B42318', green:'#2E7D45', field:'#FFFFFF' }
+  const T = { ink:'#1D1B18', sub:'#6E6A63', faint:'#A8A39A', rule:'#DCD7CE', accent:'var(--hk-accent)', red:'#B42318', green:'#2E7D45', field:'#FFFFFF' }
   const monthIdx = monthOpts.indexOf(curMonth)
   const SECS = ['재료비','관리비','인건비','기타']
 
@@ -397,15 +397,7 @@ export default function Dashboard() {
             {textTab(view==='bento', '카드형', ()=>setView('bento'), 'v-bento')}
             {textTab(view==='ledger', '장부형', ()=>setView('ledger'), 'v-ledger')}
           </div>
-          {view === 'bento' && (
-            <div role="group" aria-label="강조색" style={{display:'flex', gap:5, marginRight:8}}>
-              {Object.entries(THEMES).map(([k, t]) => (
-                <button key={k} type="button" title={t.name} aria-label={`강조색 ${t.name}`} aria-pressed={theme===k} onClick={()=>setTheme(k)}
-                  style={{width:20, height:20, borderRadius:10, background:t.accent, cursor:'pointer', padding:0,
-                    border: theme===k ? `2px solid ${T.ink}` : '2px solid #FFFFFF', boxShadow:`0 0 0 1px ${T.rule}`}}/>
-              ))}
-            </div>
-          )}
+          {view === 'bento' && <ThemeDots style={{marginRight:8}}/>}
           <button type="button" aria-label="이전 달" disabled={monthIdx<=0} onClick={()=>setCurMonth(monthOpts[monthIdx-1])}
             style={{background:'none', border:`1px solid ${T.rule}`, borderRadius:4, padding:'6px 10px', cursor:'pointer', fontFamily:'inherit', color:T.ink}}>이전</button>
           <select value={curMonth} onChange={e=>setCurMonth(e.target.value)} aria-label="달 고르기"

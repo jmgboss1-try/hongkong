@@ -5,7 +5,7 @@ import { prevYmOf, monthNum, loadEligible, rewardResults, addRewardBonuses, addR
 import { loadPointConfig } from '../lib/points'
 import RewardGame from './RewardGame'
 
-const T = { ink:'#1D1B18', sub:'#6E6A63', rule:'#DCD7CE', soft:'#ECE8E1', accent:'#C3261C', red:'#B42318', green:'#2E7D45', blue:'#2B5C9E', amber:'#B45309' }
+const T = { ink:'#1D1B18', sub:'#6E6A63', rule:'#DCD7CE', soft:'#ECE8E1', accent:'var(--hk-accent)', red:'#B42318', green:'#2E7D45', blue:'#2B5C9E', amber:'#B45309' }
 const won = n => (n||0).toLocaleString('ko-KR')
 
 function Btn({ children, onClick, kind = 'plain', disabled }) {
@@ -77,7 +77,7 @@ export default function RewardPrompt() {
   if (rw?.status === 'skip') return null
   if (rw && rw.status !== 'open' && !unpaid.length) return null // 끝났고 다 지급함
 
-  const box = { borderLeft:`4px solid ${T.accent}`, background:'#C3261C0D', borderRadius:'0 4px 4px 0', padding:'12px 14px', marginBottom:20 }
+  const box = { borderLeft:`4px solid ${T.accent}`, background:'rgba(var(--hk-accent-rgb),0.051)', borderRadius:'0 4px 4px 0', padding:'12px 14px', marginBottom:20 }
   return (
     <section style={box}>
       {!rw ? (

@@ -5,7 +5,7 @@ import { LINE_DEFS, DEFAULT_LINES, FREQ_DEFS, FREQ_LABELS, TONES, DEFAULT_LIFE }
 
 // 우리 매장 '매장 장면 설정' (사장님만): 손님·직원 대사, 일이 얼마나 자주 생기나, 키오스크/포스 주문 비율, 사장님 기본 반응
 // rewards/storeLife 에 저장 (매장계정·직원이 읽을 수 있는 곳이라 규칙을 안 바꿔도 됨)
-const T = { ink:'#1D1B18', sub:'#6E6A63', rule:'#DCD7CE', soft:'#ECE8E1', chip:'#F3F1EC', accent:'#C3261C', green:'#2E7D45' }
+const T = { ink:'#1D1B18', sub:'#6E6A63', rule:'#DCD7CE', soft:'#ECE8E1', chip:'#F3F1EC', accent:'var(--hk-accent)', green:'#2E7D45' }
 const sel = { fontFamily:'inherit', fontSize:13, padding:'5px 8px', borderRadius:4, border:`1px solid ${T.rule}`, background:'#FFFFFF', color:T.ink }
 const btn = (primary) => ({ fontFamily:'inherit', fontSize:13, fontWeight:700, padding:'7px 14px', borderRadius:4, cursor:'pointer',
   border: primary ? 'none' : `1px solid ${T.rule}`, background: primary ? T.accent : '#FFFFFF', color: primary ? '#FFFFFF' : T.ink })

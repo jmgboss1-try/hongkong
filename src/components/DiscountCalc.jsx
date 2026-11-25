@@ -5,7 +5,7 @@ import { useState } from 'react'
 //  건당 d원 할인하면 건당 이익 = 객단가 × 이익률 − d  →  같은 이익을 내려면 주문 = 지금 이익 ÷ (할인 후 건당 이익)
 //  가정: 할인해도 객단가는 그대로, 할인은 가게가 전부 부담. 이익률은 배달앱 수수료·재료비·포장비를 뺀 뒤 남는 비율
 //  base / cmp: [{ key, label, short, color, ordersPerDay, aov, ordN }] (위에서 고른 기간 / 비교할 예전 기간)
-const T = { ink:'#1D1B18', sub:'#6E6A63', faint:'#A8A39A', rule:'#DCD7CE', soft:'#ECE8E1', accent:'#C3261C', green:'#2E7D45', red:'#B42318', field:'#F3F1EC' }
+const T = { ink:'#1D1B18', sub:'#6E6A63', faint:'#A8A39A', rule:'#DCD7CE', soft:'#ECE8E1', accent:'var(--hk-accent)', green:'#2E7D45', red:'#B42318', field:'#F3F1EC' }
 const num = { fontVariantNumeric:'tabular-nums' }
 const won = n => n == null || !isFinite(n) ? '—' : Math.round(n).toLocaleString('ko-KR')
 const one = n => n == null || !isFinite(n) ? '—' : (Math.round(n * 10) / 10).toLocaleString('ko-KR')
@@ -135,7 +135,7 @@ export default function DiscountCalc({ base, baseLabel, cmp, cmpRange, setCmpRan
                   const x = breakEven({ orders, aov, margin, discount: d })
                   const on = d === discount
                   return (
-                    <tr key={d} onClick={() => set({ discount: String(d) })} style={{borderTop:`1px solid ${T.soft}`, cursor:'pointer', background: on ? '#FBEDEC' : 'transparent', fontWeight: on ? 700 : 400}}>
+                    <tr key={d} onClick={() => set({ discount: String(d) })} style={{borderTop:`1px solid ${T.soft}`, cursor:'pointer', background: on ? 'rgba(var(--hk-accent-rgb),0.08)' : 'transparent', fontWeight: on ? 700 : 400}}>
                       <td style={{padding:'6px'}}>{won(d)}원</td>
                       {x.impossible
                         ? <td colSpan={3} style={{padding:'6px', textAlign:'right', color:T.red}}>건당 이익보다 커서 늘 손해</td>

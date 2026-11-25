@@ -88,7 +88,7 @@ function SetPasswordBox({ m }) {
             <input value={pw} onChange={e=>setPw(e.target.value.trim())} placeholder="새 비밀번호 (6자 이상)" autoComplete="off"
               style={{flex:1,minWidth:140,background:'#F3F1EC',border:'1px solid #DCD7CE',borderRadius:4,color:'#1D1B18',padding:'7px 10px',fontSize:12,outline:'none',fontFamily:'inherit'}}/>
             <button type="button" onClick={submit} disabled={busy}
-              style={{background:'#C3261C',color:'#FFFFFF',border:'none',borderRadius:4,padding:'7px 14px',fontSize:11,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
+              style={{background:'var(--hk-accent)',color:'#FFFFFF',border:'none',borderRadius:4,padding:'7px 14px',fontSize:11,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
               {busy ? '바꾸는 중...' : '바꾸기'}
             </button>
             <button type="button" onClick={()=>{ setOpen(false); setPw(''); setMsg(null) }}
@@ -147,10 +147,10 @@ function MemberCard({ m, onEdit, onRetire }) {
               </div>
             ))}
           </div>
-          <div style={{background:'rgba(195,38,28,0.08)',border:'1px solid rgba(195,38,28,0.2)',borderRadius:4,padding:'12px 14px',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+          <div style={{background:'rgba(var(--hk-accent-rgb),0.08)',border:'1px solid rgba(var(--hk-accent-rgb),0.2)',borderRadius:4,padding:'12px 14px',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
             <div>
               <div style={{fontSize:10,color:'#6E6A63',marginBottom:3}}>예상 퇴직금 (현재 기준)</div>
-              <div style={{fontSize:16,fontWeight:700,color:'#C3261C',fontFamily:'inherit',fontVariantNumeric:'tabular-nums'}}>
+              <div style={{fontSize:16,fontWeight:700,color:'var(--hk-accent)',fontFamily:'inherit',fontVariantNumeric:'tabular-nums'}}>
                 {severance > 0 ? severance.toLocaleString()+'원' : '1년 미만 (해당없음)'}
               </div>
             </div>
@@ -161,7 +161,7 @@ function MemberCard({ m, onEdit, onRetire }) {
           <SetPasswordBox m={m}/>
           <div style={{display:'flex',gap:8}}>
             <button onClick={()=>onEdit(m)}
-              style={{background:'#C3261C',color:'#FFFFFF',border:'none',borderRadius:4,padding:'8px 16px',fontSize:11,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
+              style={{background:'var(--hk-accent)',color:'#FFFFFF',border:'none',borderRadius:4,padding:'8px 16px',fontSize:11,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
               정보 수정
             </button>
             <button onClick={()=>onRetire(m)}
@@ -226,7 +226,7 @@ function RetiredCard({ m, onRestore }) {
           <div style={{background:'rgba(94,101,133,0.08)',border:'1px solid rgba(94,101,133,0.2)',borderRadius:4,padding:'12px 14px',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
             <div>
               <div style={{fontSize:10,color:'#6E6A63',marginBottom:3}}>퇴직금 (퇴사일 기준)</div>
-              <div style={{fontSize:16,fontWeight:700,color:'#C3261C',fontFamily:'inherit',fontVariantNumeric:'tabular-nums'}}>
+              <div style={{fontSize:16,fontWeight:700,color:'var(--hk-accent)',fontFamily:'inherit',fontVariantNumeric:'tabular-nums'}}>
                 {severance > 0 ? severance.toLocaleString()+'원' : '1년 미만 (해당없음)'}
               </div>
             </div>
@@ -444,7 +444,7 @@ export default function Members() {
           <div style={{fontSize:12,color:'#6E6A63',marginTop:2}}>사장 전용 — 승인된 직원 정보</div>
         </div>
         <button onClick={()=>{ setShowAddForm(v=>!v); setAddForm({payType:'hourly',employType:'part',workDays:[1,2,3,4,5]}) }}
-          style={{background:'#C3261C',color:'#FFFFFF',border:'none',borderRadius:4,
+          style={{background:'var(--hk-accent)',color:'#FFFFFF',border:'none',borderRadius:4,
             padding:'8px 16px',fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
           + 직원 추가
         </button>
@@ -454,7 +454,7 @@ export default function Members() {
       <div style={{background:'#FFFFFF',border:'1px solid #DCD7CE',borderRadius:6,padding:'18px 20px',marginBottom:18,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
         <div>
           <div style={{fontSize:11,color:'#6E6A63',marginBottom:4}}>전체 예상 퇴직금 합계</div>
-          <div style={{fontSize:22,fontWeight:700,color:'#C3261C',fontFamily:'inherit',fontVariantNumeric:'tabular-nums'}}>{totalSeverance.toLocaleString()}원</div>
+          <div style={{fontSize:22,fontWeight:700,color:'var(--hk-accent)',fontFamily:'inherit',fontVariantNumeric:'tabular-nums'}}>{totalSeverance.toLocaleString()}원</div>
         </div>
         <div style={{fontSize:11,color:'#6E6A63'}}>재직 {members.length}명 · 퇴직 {retired.length}명</div>
       </div>
@@ -571,9 +571,9 @@ export default function Members() {
                   padding:'8px 10px',fontSize:12,outline:'none',width:'100%',fontFamily:'inherit'}}/>
             </div>
             {retireForm.leaveDate && (
-              <div style={{background:'rgba(195,38,28,0.08)',border:'1px solid rgba(195,38,28,0.2)',borderRadius:4,padding:'12px 14px'}}>
+              <div style={{background:'rgba(var(--hk-accent-rgb),0.08)',border:'1px solid rgba(var(--hk-accent-rgb),0.2)',borderRadius:4,padding:'12px 14px'}}>
                 <div style={{fontSize:11,color:'#6E6A63',marginBottom:4}}>퇴직금 (퇴사일 기준)</div>
-                <div style={{fontSize:16,fontWeight:700,color:'#C3261C',fontFamily:'inherit',fontVariantNumeric:'tabular-nums'}}>
+                <div style={{fontSize:16,fontWeight:700,color:'var(--hk-accent)',fontFamily:'inherit',fontVariantNumeric:'tabular-nums'}}>
                   {calcSeverance(retireForm.joinDate, retireForm.leaveDate, retireForm.wage||10030, retireForm.avgHours||8).toLocaleString()}원
                 </div>
                 <div style={{fontSize:10,color:'#6E6A63',marginTop:4}}>
@@ -599,8 +599,8 @@ export default function Members() {
 
       {/* 수정 폼 */}
       {showForm && (
-        <div style={{background:'#FFFFFF',border:'1px solid #C3261C',borderRadius:6,marginBottom:18}}>
-          <div style={{padding:'14px 18px',borderBottom:'1px solid #DCD7CE',fontSize:13,fontWeight:600,color:'#C3261C',display:'flex',justifyContent:'space-between'}}>
+        <div style={{background:'#FFFFFF',border:'1px solid var(--hk-accent)',borderRadius:6,marginBottom:18}}>
+          <div style={{padding:'14px 18px',borderBottom:'1px solid #DCD7CE',fontSize:13,fontWeight:600,color:'var(--hk-accent)',display:'flex',justifyContent:'space-between'}}>
             <span>{form.name} 정보 수정</span>
             <button onClick={()=>setShowForm(false)}
               style={{background:'transparent',border:'none',color:'#6E6A63',fontSize:18,cursor:'pointer'}}>✕</button>
@@ -641,9 +641,9 @@ export default function Members() {
                 return (
                   <div key={opt.key} onClick={()=>setF('role', opt.key)}
                     style={{flex:1,minWidth:140,padding:'10px 14px',borderRadius:4,cursor:'pointer',
-                      background:selected?'rgba(195,38,28,0.12)':'#F3F1EC',
-                      border:selected?'1px solid #C3261C':'1px solid #DCD7CE'}}>
-                    <div style={{fontSize:12,fontWeight:600,color:selected?'#C3261C':'#6E6A63',marginBottom:3}}>{opt.label}</div>
+                      background:selected?'rgba(var(--hk-accent-rgb),0.12)':'#F3F1EC',
+                      border:selected?'1px solid var(--hk-accent)':'1px solid #DCD7CE'}}>
+                    <div style={{fontSize:12,fontWeight:600,color:selected?'var(--hk-accent)':'#6E6A63',marginBottom:3}}>{opt.label}</div>
                     <div style={{fontSize:10,color:'#6E6A63'}}>{opt.desc}</div>
                   </div>
                 )
@@ -664,9 +664,9 @@ export default function Members() {
                 return (
                   <div key={opt.key} onClick={()=>setF('payType', opt.key)}
                     style={{flex:1,padding:'10px 14px',borderRadius:4,cursor:'pointer',
-                      background:selected?'rgba(195,38,28,0.12)':'#F3F1EC',
-                      border:selected?'1px solid #C3261C':'1px solid #DCD7CE'}}>
-                    <div style={{fontSize:12,fontWeight:600,color:selected?'#C3261C':'#6E6A63',marginBottom:3}}>{opt.label}</div>
+                      background:selected?'rgba(var(--hk-accent-rgb),0.12)':'#F3F1EC',
+                      border:selected?'1px solid var(--hk-accent)':'1px solid #DCD7CE'}}>
+                    <div style={{fontSize:12,fontWeight:600,color:selected?'var(--hk-accent)':'#6E6A63',marginBottom:3}}>{opt.label}</div>
                     <div style={{fontSize:10,color:'#6E6A63'}}>{opt.desc}</div>
                   </div>
                 )
@@ -684,10 +684,10 @@ export default function Members() {
                 const checked = workDays.includes(idx)
                 return (
                   <label key={day} style={{display:'flex',alignItems:'center',gap:4,cursor:'pointer',
-                    background:checked?'rgba(195,38,28,0.15)':'#F3F1EC',
-                    border:checked?'1px solid #C3261C':'1px solid #DCD7CE',
+                    background:checked?'rgba(var(--hk-accent-rgb),0.15)':'#F3F1EC',
+                    border:checked?'1px solid var(--hk-accent)':'1px solid #DCD7CE',
                     borderRadius:6,padding:'6px 10px',fontSize:12,fontWeight:600,
-                    color:checked?'#C3261C':'#6E6A63',transition:'.15s'}}>
+                    color:checked?'var(--hk-accent)':'#6E6A63',transition:'.15s'}}>
                     <input type="checkbox" checked={checked} style={{display:'none'}}
                       onChange={()=>{
                         const current = form.workDays || [1,2,3,4,5]
@@ -730,7 +730,7 @@ export default function Members() {
                 return (
                   <button key={p.id} type="button" onClick={toggle}
                     style={{fontFamily:'inherit',fontSize:12,padding:'6px 10px',borderRadius:4,cursor:'pointer',
-                      border:on?'1px solid #C3261C':'1px solid #DCD7CE',background:on?'rgba(195,38,28,0.12)':'#F3F1EC',color:on?'#C3261C':'#6E6A63',fontWeight:on?700:500}}>
+                      border:on?'1px solid var(--hk-accent)':'1px solid #DCD7CE',background:on?'rgba(var(--hk-accent-rgb),0.12)':'#F3F1EC',color:on?'var(--hk-accent)':'#6E6A63',fontWeight:on?700:500}}>
                     {p.label}
                   </button>
                 )
@@ -790,9 +790,9 @@ export default function Members() {
                 return (
                   <div key={opt.key} onClick={()=>setF('holidayBase', opt.key)}
                     style={{flex:1,padding:'10px 14px',borderRadius:4,cursor:'pointer',
-                      background:selected?'rgba(195,38,28,0.12)':'#F3F1EC',
-                      border:selected?'1px solid #C3261C':'1px solid #DCD7CE'}}>
-                    <div style={{fontSize:12,fontWeight:600,color:selected?'#C3261C':'#6E6A63',marginBottom:3}}>{opt.label}</div>
+                      background:selected?'rgba(var(--hk-accent-rgb),0.12)':'#F3F1EC',
+                      border:selected?'1px solid var(--hk-accent)':'1px solid #DCD7CE'}}>
+                    <div style={{fontSize:12,fontWeight:600,color:selected?'var(--hk-accent)':'#6E6A63',marginBottom:3}}>{opt.label}</div>
                     <div style={{fontSize:10,color:'#6E6A63'}}>{opt.desc}</div>
                   </div>
                 )
@@ -813,9 +813,9 @@ export default function Members() {
                 return (
                   <div key={opt.key} onClick={()=>setF('employType', opt.key)}
                     style={{flex:1,padding:'10px 14px',borderRadius:4,cursor:'pointer',
-                      background:selected?'rgba(195,38,28,0.12)':'#F3F1EC',
-                      border:selected?'1px solid #C3261C':'1px solid #DCD7CE',minWidth:100}}>
-                    <div style={{fontSize:12,fontWeight:600,color:selected?'#C3261C':'#6E6A63',marginBottom:3}}>{opt.label}</div>
+                      background:selected?'rgba(var(--hk-accent-rgb),0.12)':'#F3F1EC',
+                      border:selected?'1px solid var(--hk-accent)':'1px solid #DCD7CE',minWidth:100}}>
+                    <div style={{fontSize:12,fontWeight:600,color:selected?'var(--hk-accent)':'#6E6A63',marginBottom:3}}>{opt.label}</div>
                     <div style={{fontSize:10,color:'#6E6A63'}}>{opt.desc}</div>
                   </div>
                 )
@@ -850,7 +850,7 @@ export default function Members() {
 
           <div style={{padding:'0 18px 18px',display:'flex',gap:8}}>
             <button onClick={save} disabled={saving}
-              style={{background:'#C3261C',color:'#FFFFFF',border:'none',borderRadius:4,padding:'9px 20px',fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
+              style={{background:'var(--hk-accent)',color:'#FFFFFF',border:'none',borderRadius:4,padding:'9px 20px',fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
               {saving?'저장 중...':'저 장'}
             </button>
             <button onClick={()=>setShowForm(false)}

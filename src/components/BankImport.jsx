@@ -580,7 +580,7 @@ export default function BankImport({ categories, onSaved }) {
             placeholder="PDF 비밀번호" autoComplete="off"
             style={{...selStyle,padding:'8px 10px',fontSize:12,width:180}}/>
           <button onClick={()=>handleFile(pwFile, password)} disabled={busy||!password}
-            style={{background:'#C3261C',color:'#FFFFFF',border:'none',borderRadius:4,padding:'8px 16px',
+            style={{background:'var(--hk-accent)',color:'#FFFFFF',border:'none',borderRadius:4,padding:'8px 16px',
               fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>열기</button>
           <span style={{fontSize:10,color:'#6E6A63'}}>비밀번호는 이 화면에서 파일을 여는 데만 쓰고 저장하지 않아요</span>
         </div>
@@ -601,7 +601,7 @@ export default function BankImport({ categories, onSaved }) {
             )
           })()}
           {pickedOut.length + depChanged.length + nonOpIn.length > 0 && (
-            <div style={{fontSize:11,marginBottom:12,padding:'8px 12px',borderRadius:4,background:'rgba(195,38,28,0.08)',color:'#C3261C'}}>
+            <div style={{fontSize:11,marginBottom:12,padding:'8px 12px',borderRadius:4,background:'rgba(var(--hk-accent-rgb),0.08)',color:'var(--hk-accent)'}}>
               아직 저장 전이에요. 카테고리를 고른 뒤 맨 아래 <b>"지출관리에 반영"</b>을 눌러야 지출관리에 들어가요. 다 못 골라도 고른 것만 먼저 반영할 수 있어요.
             </div>
           )}
@@ -629,7 +629,7 @@ export default function BankImport({ categories, onSaved }) {
                     <div style={{display:'flex',gap:16,flexWrap:'wrap',fontSize:12,marginBottom:8}}>
                       <span style={{color:'#6E6A63'}}>지금 적힌 합계 <b style={{color:'#1D1B18',fontFamily:'inherit',fontVariantNumeric:'tabular-nums'}}>{wonFmt(curSum)}원</b></span>
                       <span style={{color:'#6E6A63'}}>PDF 기준 합계 <b style={{color:'#2E7D45',fontFamily:'inherit',fontVariantNumeric:'tabular-nums'}}>{wonFmt(pdfSum)}원</b></span>
-                      <span style={{color: depChanged.length ? '#C3261C' : '#2E7D45'}}>{depChanged.length ? `${depChanged.length}일 금액이 달라요` : '모든 날짜가 일치해요'}</span>
+                      <span style={{color: depChanged.length ? 'var(--hk-accent)' : '#2E7D45'}}>{depChanged.length ? `${depChanged.length}일 금액이 달라요` : '모든 날짜가 일치해요'}</span>
                     </div>
                     <div style={{maxHeight:240,overflowY:'auto',border:'1px solid #DCD7CE',borderRadius:4,marginBottom:8}}>
                       <table style={{width:'100%',borderCollapse:'collapse',fontSize:11}}>
@@ -640,12 +640,12 @@ export default function BankImport({ categories, onSaved }) {
                           {shownDays.map(d=>{
                             const diff = d.pdf - d.cur
                             return (
-                              <tr key={d.date} style={{background: diff ? 'rgba(195,38,28,0.06)' : 'transparent'}}>
+                              <tr key={d.date} style={{background: diff ? 'rgba(var(--hk-accent-rgb),0.06)' : 'transparent'}}>
                                 <td style={{padding:'5px 10px',borderTop:'1px solid #DCD7CE',color:'#1D1B18'}}>{+d.date.slice(5,7)}/{+d.date.slice(8)}</td>
                                 <td style={{padding:'5px 10px',borderTop:'1px solid #DCD7CE',textAlign:'right',fontFamily:'inherit',fontVariantNumeric:'tabular-nums',color:'#6E6A63'}}>{d.cur?wonFmt(d.cur):'—'}</td>
                                 <td style={{padding:'5px 10px',borderTop:'1px solid #DCD7CE',textAlign:'right',fontFamily:'inherit',fontVariantNumeric:'tabular-nums',color:'#2E7D45'}}>{wonFmt(d.pdf)}</td>
                                 <td style={{padding:'5px 10px',borderTop:'1px solid #DCD7CE',textAlign:'right',fontFamily:'inherit',fontVariantNumeric:'tabular-nums',
-                                  color: diff>0 ? '#C3261C' : diff<0 ? '#B42318' : '#6E6A63'}}>{diff ? `${diff>0?'+':''}${wonFmt(diff)}` : '일치'}</td>
+                                  color: diff>0 ? 'var(--hk-accent)' : diff<0 ? '#B42318' : '#6E6A63'}}>{diff ? `${diff>0?'+':''}${wonFmt(diff)}` : '일치'}</td>
                               </tr>
                             )
                           })}

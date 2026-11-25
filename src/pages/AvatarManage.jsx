@@ -5,7 +5,7 @@ import Avatar from '../components/Avatar'
 import { AVATAR_CSS, defaultLook } from '../lib/avatar'
 import { ITEM_GROUPS, TIERS, WHENS, LINE_POS, itemKey, tierOf, defaultTier, loadAvatarRules, perfectStreaks, tenureMonths, canUse, linesOf, lineEveryOf } from '../lib/avatarRules'
 
-const T = { ink:'#1D1B18', sub:'#6E6A63', faint:'#A8A39A', rule:'#DCD7CE', soft:'#ECE8E1', chip:'#F3F1EC', accent:'#C3261C', green:'#2E7D45', red:'#B42318', blue:'#2B5C9E', amber:'#B45309' }
+const T = { ink:'#1D1B18', sub:'#6E6A63', faint:'#A8A39A', rule:'#DCD7CE', soft:'#ECE8E1', chip:'#F3F1EC', accent:'var(--hk-accent)', green:'#2E7D45', red:'#B42318', blue:'#2B5C9E', amber:'#B45309' }
 const num = { fontVariantNumeric:'tabular-nums' }
 
 // 이 아이템을 입은 모습 (미리보기용)

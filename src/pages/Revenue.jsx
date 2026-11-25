@@ -15,7 +15,7 @@ const SPLIT_FROM = '2025-05'
 const DELIVERY_PLATFORMS = [
   { key:'baemin',   label:'배달의민족', color:'#2E7D45' },
   { key:'coupang',  label:'쿠팡이츠',   color:'#B42318' },
-  { key:'yogiyo',   label:'요기요',     color:'#C3261C' },
+  { key:'yogiyo',   label:'요기요',     color:'var(--hk-accent)' },
   { key:'ddangyeo', label:'땡겨요',     color:'#2B5C9E' },
 ]
 
@@ -287,7 +287,7 @@ export default function Revenue() {
   }).sort()
 
   const activeType = editDay ? editType : inputType
-  const TYPE_COLORS = { early:'#B45309', morning:'#C3261C', middle:'#6B4FA0', close:'#2B5C9E' }
+  const TYPE_COLORS = { early:'#B45309', morning:'var(--hk-accent)', middle:'#6B4FA0', close:'#2B5C9E' }
 
   const now = new Date()
   const curYM = `${now.getFullYear()}-${pad(now.getMonth()+1)}`
@@ -305,7 +305,7 @@ export default function Revenue() {
   const [showChannelDetail, setShowChannelDetail] = useState(true)
 
   // ── 장부 화면 조각 (지출관리·대시보드와 같은 모양). 함수로 그려야 입력칸 포커스가 안 빠짐 ──
-  const T = { ink:'#1D1B18', sub:'#6E6A63', faint:'#A8A39A', rule:'#DCD7CE', soft:'#ECE8E1', accent:'#C3261C',
+  const T = { ink:'#1D1B18', sub:'#6E6A63', faint:'#A8A39A', rule:'#DCD7CE', soft:'#ECE8E1', accent:'var(--hk-accent)',
     red:'#B42318', green:'#2E7D45', blue:'#2B5C9E', purple:'#6B4FA0' }
   const num = { fontVariantNumeric:'tabular-nums' }
   const won = n => (n||0).toLocaleString('ko-KR')

@@ -8,7 +8,7 @@ import { doc, getDoc, setDoc } from 'firebase/firestore'
 //  설정 revenue/_early = { start, marginDel(배달 이익률 %), marginHall(홀·기타 이익률 %), days(얼리 여는 요일), costOn, wage, hours }
 //    인건비는 사장님이 일찍 나오는 시간을 최저시급으로 친 가상 비용 (지출로는 안 적음), 얼리 여는 날마다 셈
 //  '정말 늘었나': 얼리 시작 전 4주의 얼리 요일 하루 평균 매출 vs 시작 뒤 얼리 요일 하루 평균 매출
-const T = { ink:'#1D1B18', sub:'#6E6A63', faint:'#A8A39A', rule:'#DCD7CE', soft:'#ECE8E1', accent:'#C3261C', green:'#2E7D45', red:'#B42318', amber:'#B45309', field:'#F3F1EC' }
+const T = { ink:'#1D1B18', sub:'#6E6A63', faint:'#A8A39A', rule:'#DCD7CE', soft:'#ECE8E1', accent:'var(--hk-accent)', green:'#2E7D45', red:'#B42318', amber:'#B45309', field:'#F3F1EC' }
 const num = { fontVariantNumeric:'tabular-nums' }
 const won = n => n == null || !isFinite(n) ? '—' : Math.round(n).toLocaleString('ko-KR')
 const man = n => n == null || !isFinite(n) ? '—' : `${(Math.round(n / 1000) / 10).toLocaleString('ko-KR')}만원`

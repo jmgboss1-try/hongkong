@@ -161,8 +161,8 @@ export default function Prepaid() {
     return (
       <div key={v.id} onClick={()=>setSelectedId(isSel ? null : v.id)}
         style={{
-          background: isSel ? 'rgba(195,38,28,0.10)' : '#F3F1EC',
-          border: isSel ? '1.5px solid #C3261C' : low ? '1px solid rgba(180,35,24,0.5)' : '1px solid #DCD7CE',
+          background: isSel ? 'rgba(var(--hk-accent-rgb),0.10)' : '#F3F1EC',
+          border: isSel ? '1.5px solid var(--hk-accent)' : low ? '1px solid rgba(180,35,24,0.5)' : '1px solid #DCD7CE',
           borderRadius:6,padding:'12px 14px',cursor:'pointer',opacity: v.archived ? 0.6 : 1,
         }}>
         <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',gap:8}}>
@@ -201,8 +201,8 @@ export default function Prepaid() {
 
       {/* 업체 추가/수정 폼 */}
       {showVendorForm && (
-        <div style={{background:'#FFFFFF',border:'1px solid #C3261C',borderRadius:6,padding:18,marginBottom:18}}>
-          <div style={{fontSize:13,fontWeight:600,color:'#C3261C',marginBottom:12}}>
+        <div style={{background:'#FFFFFF',border:'1px solid var(--hk-accent)',borderRadius:6,padding:18,marginBottom:18}}>
+          <div style={{fontSize:13,fontWeight:600,color:'var(--hk-accent)',marginBottom:12}}>
             {vendorEditId ? '업체 정보 수정' : '새 업체 추가'}
           </div>
           <div style={{display:'flex',gap:8,flexWrap:'wrap',marginBottom:8}}>
@@ -221,7 +221,7 @@ export default function Prepaid() {
           </div>
           <div style={{display:'flex',gap:8}}>
             <button onClick={submitVendor} disabled={saving}
-              style={{background:'#C3261C',color:'#FFFFFF',border:'none',borderRadius:4,padding:'8px 18px',fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
+              style={{background:'var(--hk-accent)',color:'#FFFFFF',border:'none',borderRadius:4,padding:'8px 18px',fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
               저장
             </button>
             <button onClick={()=>{setShowVendorForm(false);setVendorEditId(null)}}
@@ -240,7 +240,7 @@ export default function Prepaid() {
           <div style={{display:'flex',gap:10,flexWrap:'wrap',marginBottom:18}}>
             <div style={{background:'#FFFFFF',border:'1px solid #DCD7CE',borderRadius:6,padding:'12px 18px'}}>
               <div style={{fontSize:10,color:'#6E6A63',marginBottom:2}}>전체 선결제 잔액</div>
-              <div style={{fontSize:20,fontWeight:800,color:'#C3261C'}}>{wonFmt(totalBalance)}<span style={{fontSize:11,fontWeight:400,color:'#6E6A63'}}> 원</span></div>
+              <div style={{fontSize:20,fontWeight:800,color:'var(--hk-accent)'}}>{wonFmt(totalBalance)}<span style={{fontSize:11,fontWeight:400,color:'#6E6A63'}}> 원</span></div>
             </div>
             <div style={{background:'#FFFFFF',border:'1px solid #DCD7CE',borderRadius:6,padding:'12px 18px'}}>
               <div style={{fontSize:10,color:'#6E6A63',marginBottom:2}}>관리 중인 업체</div>
@@ -270,7 +270,7 @@ export default function Prepaid() {
             <div style={{background:'#FFFFFF',border:'1px solid #DCD7CE',borderRadius:6,padding:18,marginBottom:18}}>
               <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',gap:10,flexWrap:'wrap',marginBottom:14}}>
                 <div>
-                  <div style={{fontSize:15,fontWeight:800,color:'#C3261C'}}>{selected.name}</div>
+                  <div style={{fontSize:15,fontWeight:800,color:'var(--hk-accent)'}}>{selected.name}</div>
                   {(selected.contact||selected.memo) && (
                     <div style={{fontSize:11,color:'#6E6A63',marginTop:3,lineHeight:1.6}}>
                       {selected.contact && <span>{selected.contact}</span>}
@@ -320,7 +320,7 @@ export default function Prepaid() {
                   <input value={entryForm.memo} onChange={e=>setEntryForm(f=>({...f,memo:e.target.value}))}
                     placeholder="메모 (선택)" style={{...inputStyle,flex:1,minWidth:120}}/>
                   <button onClick={addEntry} disabled={saving}
-                    style={{background:'#C3261C',color:'#FFFFFF',border:'none',borderRadius:4,padding:'8px 16px',fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'inherit',whiteSpace:'nowrap'}}>
+                    style={{background:'var(--hk-accent)',color:'#FFFFFF',border:'none',borderRadius:4,padding:'8px 16px',fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'inherit',whiteSpace:'nowrap'}}>
                     기록
                   </button>
                 </div>
@@ -357,7 +357,7 @@ export default function Prepaid() {
                                   <input type="number" value={editEntryForm.amount} onChange={ev=>setEditEntryForm(f=>({...f,amount:ev.target.value}))} style={{...inputStyle,width:100}}/>
                                   <input value={editEntryForm.memo} onChange={ev=>setEditEntryForm(f=>({...f,memo:ev.target.value}))} placeholder="메모" style={{...inputStyle,flex:1,minWidth:100}}/>
                                   <button onClick={saveEditEntry} disabled={saving}
-                                    style={{background:'#C3261C',color:'#FFFFFF',border:'none',borderRadius:5,padding:'6px 12px',fontSize:11,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>저장</button>
+                                    style={{background:'var(--hk-accent)',color:'#FFFFFF',border:'none',borderRadius:5,padding:'6px 12px',fontSize:11,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>저장</button>
                                   <button onClick={()=>{setEditEntryId(null);setEditEntryForm(null)}}
                                     style={{background:'transparent',border:'1px solid #DCD7CE',color:'#6E6A63',borderRadius:5,padding:'6px 12px',fontSize:11,cursor:'pointer',fontFamily:'inherit'}}>취소</button>
                                 </div>

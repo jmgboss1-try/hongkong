@@ -345,7 +345,7 @@ export default function Checklist() {
         <PhotoPicker images={photoEditImages} onChange={setPhotoEditImages} max={3}/>
         <div style={{display:'flex',gap:8}}>
           <button onClick={saveItemPhotos} disabled={saving}
-            style={{background:'#C3261C',color:'#FFFFFF',border:'none',borderRadius:5,padding:'6px 14px',fontSize:11,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>사진 저장</button>
+            style={{background:'var(--hk-accent)',color:'#FFFFFF',border:'none',borderRadius:5,padding:'6px 14px',fontSize:11,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>사진 저장</button>
           <button onClick={()=>{setPhotoEditId(null);setPhotoEditImages([])}}
             style={{background:'transparent',border:'1px solid #DCD7CE',color:'#6E6A63',borderRadius:5,padding:'6px 14px',fontSize:11,cursor:'pointer',fontFamily:'inherit'}}>취소</button>
         </div>
@@ -477,8 +477,8 @@ export default function Checklist() {
         <button onClick={()=>toggleCheck(date, item.id+'_am')}
           style={{
             display:'flex',alignItems:'center',gap:4,border:'none',cursor:'pointer',
-            background: amDone ? 'rgba(195,38,28,0.18)' : '#FAF9F6',
-            color: amDone ? '#C3261C' : '#6E6A63',
+            background: amDone ? 'rgba(var(--hk-accent-rgb),0.18)' : '#FAF9F6',
+            color: amDone ? 'var(--hk-accent)' : '#6E6A63',
             borderRadius:6,padding:'4px 8px',fontSize:10,fontWeight:700,fontFamily:'inherit'
           }}>
           {amDone ? '✓' : '○'} 오전
@@ -530,7 +530,7 @@ export default function Checklist() {
             textDecoration: done ? 'line-through' : 'none',
           }}>
             {item.label}
-            <span style={{fontSize:big?11:10,color:'#C3261C',marginLeft:6,fontWeight:700}}>({item.time})</span>
+            <span style={{fontSize:big?11:10,color:'var(--hk-accent)',marginLeft:6,fontWeight:700}}>({item.time})</span>
             {intervalLabel(item.interval) && (
               <span style={{fontSize:big?10:9,color:'#6B4FA0',marginLeft:5,fontWeight:700}}>{intervalLabel(item.interval)}</span>
             )}
@@ -563,7 +563,7 @@ export default function Checklist() {
         </div>
         <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
           <button onClick={()=>setShowManage(v=>!v)}
-            style={{background: showManage ? '#C3261C' : '#F3F1EC',border:'1px solid #DCD7CE',
+            style={{background: showManage ? 'var(--hk-accent)' : '#F3F1EC',border:'1px solid #DCD7CE',
               color: showManage ? '#FFFFFF' : '#1D1B18',borderRadius:4,
               padding:'8px 14px',fontSize:12,fontWeight:showManage?700:400,cursor:'pointer',fontFamily:'inherit'}}>
             항목 관리
@@ -623,8 +623,8 @@ export default function Checklist() {
 
       {/* 항목 관리 패널 */}
       {showManage && (
-        <div style={{background:'#FFFFFF',border:'1px solid #C3261C',borderRadius:6,padding:18,marginBottom:18}}>
-          <div style={{fontSize:13,fontWeight:600,color:'#C3261C',marginBottom:16}}>체크리스트 항목 관리</div>
+        <div style={{background:'#FFFFFF',border:'1px solid var(--hk-accent)',borderRadius:6,padding:18,marginBottom:18}}>
+          <div style={{fontSize:13,fontWeight:600,color:'var(--hk-accent)',marginBottom:16}}>체크리스트 항목 관리</div>
 
           <div style={{marginBottom:20}}>
             <div style={{fontSize:11,color:'#6E6A63',fontWeight:600,marginBottom:8}}>
@@ -640,7 +640,7 @@ export default function Checklist() {
                       <input value={editItemForm.label} onChange={e=>setEditItemForm(f=>({...f,label:e.target.value}))}
                         style={{...inputStyle,flex:1}}/>
                       <button onClick={saveEditItem} disabled={saving}
-                        style={{background:'#C3261C',color:'#FFFFFF',border:'none',borderRadius:5,padding:'5px 10px',fontSize:11,cursor:'pointer',fontFamily:'inherit'}}>저장</button>
+                        style={{background:'var(--hk-accent)',color:'#FFFFFF',border:'none',borderRadius:5,padding:'5px 10px',fontSize:11,cursor:'pointer',fontFamily:'inherit'}}>저장</button>
                       <button onClick={()=>{setEditItemId(null);setEditItemForm(null)}}
                         style={{background:'transparent',border:'none',color:'#6E6A63',fontSize:12,cursor:'pointer'}}>✕</button>
                     </>
@@ -712,7 +712,7 @@ export default function Checklist() {
                       </div>
                       <div style={{display:'flex',gap:8}}>
                         <button onClick={saveEditItem} disabled={saving}
-                          style={{background:'#C3261C',color:'#FFFFFF',border:'none',borderRadius:5,padding:'6px 14px',fontSize:11,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>저장</button>
+                          style={{background:'var(--hk-accent)',color:'#FFFFFF',border:'none',borderRadius:5,padding:'6px 14px',fontSize:11,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>저장</button>
                         <button onClick={()=>{setEditItemId(null);setEditItemForm(null)}}
                           style={{background:'transparent',border:'1px solid #DCD7CE',color:'#6E6A63',borderRadius:5,padding:'6px 14px',fontSize:11,cursor:'pointer',fontFamily:'inherit'}}>취소</button>
                       </div>
@@ -731,7 +731,7 @@ export default function Checklist() {
                         )}
                       </div>
                       <span style={{fontSize:11,color:'#2B5C9E',fontWeight:600}}>{DOW_LABELS[item.dow]}요일</span>
-                      <span style={{fontSize:11,color:'#C3261C',fontWeight:600}}>{item.time}</span>
+                      <span style={{fontSize:11,color:'var(--hk-accent)',fontWeight:600}}>{item.time}</span>
                       <button onClick={()=>startEditPhotos(item)}
                         style={{background:'transparent',border:'none',color: item.photoCount>0 ? '#2B5C9E' : '#6E6A63',fontSize:12,cursor:'pointer',padding:0}}>사진{item.photoCount>0 ? ` ${item.photoCount}` : ''}</button>
                       <button onClick={()=>startEditItem(item,'weekly')}
@@ -897,18 +897,18 @@ export default function Checklist() {
           )}
 
           {/* 오늘 할 일 (강조) */}
-          <div style={{background:'linear-gradient(135deg,rgba(195,38,28,0.10),rgba(195,38,28,0.02))',
-            border:'2px solid #C3261C',borderRadius:6,padding:20,marginBottom:24,
-            boxShadow:'0 0 30px rgba(195,38,28,0.08)'}}>
+          <div style={{background:'linear-gradient(135deg,rgba(var(--hk-accent-rgb),0.10),rgba(var(--hk-accent-rgb),0.02))',
+            border:'2px solid var(--hk-accent)',borderRadius:6,padding:20,marginBottom:24,
+            boxShadow:'0 0 30px rgba(var(--hk-accent-rgb),0.08)'}}>
             <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:16,flexWrap:'wrap',gap:8}}>
               <div>
-                <div style={{fontSize:16,fontWeight:800,color:'#C3261C'}}>
+                <div style={{fontSize:16,fontWeight:800,color:'var(--hk-accent)'}}>
                   오늘 ({DAYS_KR[todayDow]}) 할 일
                 </div>
                 <div style={{fontSize:11,color:'#6E6A63',marginTop:2}}>{today}</div>
               </div>
               <div style={{background:'#F3F1EC',borderRadius:4,padding:'8px 14px'}}>
-                <span style={{fontSize:16,fontWeight:800,color: todayDoneCount===todayTotalCount ? '#2E7D45' : '#C3261C'}}>
+                <span style={{fontSize:16,fontWeight:800,color: todayDoneCount===todayTotalCount ? '#2E7D45' : 'var(--hk-accent)'}}>
                   {todayDoneCount}
                 </span>
                 <span style={{fontSize:13,color:'#6E6A63'}}> / {todayTotalCount}</span>
@@ -963,13 +963,13 @@ export default function Checklist() {
                     style={{
                     padding:'12px 8px',cursor: isClosed?'default':'pointer',
                     borderRight: dow<6 ? '1px solid #F3F1EC' : 'none',
-                    background: isClosed ? 'rgba(94,101,133,0.04)' : expandedDow===dow ? 'rgba(195,38,28,0.12)' : isToday ? 'rgba(195,38,28,0.06)' : 'transparent',
-                    outline: expandedDow===dow ? '1px solid rgba(195,38,28,0.5)' : 'none',
+                    background: isClosed ? 'rgba(94,101,133,0.04)' : expandedDow===dow ? 'rgba(var(--hk-accent-rgb),0.12)' : isToday ? 'rgba(var(--hk-accent-rgb),0.06)' : 'transparent',
+                    outline: expandedDow===dow ? '1px solid rgba(var(--hk-accent-rgb),0.5)' : 'none',
                     opacity: isClosed ? 0.5 : 1,
                   }}>
                     <div style={{textAlign:'center',marginBottom:8}}>
                       <div style={{fontSize:11,fontWeight:800,
-                        color: isToday ? '#C3261C' : dow===0?'#B42318':dow===6?'#2B5C9E':'#1D1B18'}}>
+                        color: isToday ? 'var(--hk-accent)' : dow===0?'#B42318':dow===6?'#2B5C9E':'#1D1B18'}}>
                         {dayName}
                       </div>
                       <div style={{fontSize:9,color:'#6E6A63',marginTop:2}}>{+date.split('-')[2]}일</div>
@@ -1009,8 +1009,8 @@ export default function Checklist() {
             </div>
 
             {expandedDow !== null && (
-              <div style={{borderTop:'1px solid #DCD7CE',padding:16,background:'rgba(195,38,28,0.03)'}}>
-                <div style={{fontSize:12,fontWeight:700,color:'#C3261C',marginBottom:10}}>
+              <div style={{borderTop:'1px solid #DCD7CE',padding:16,background:'rgba(var(--hk-accent-rgb),0.03)'}}>
+                <div style={{fontSize:12,fontWeight:700,color:'var(--hk-accent)',marginBottom:10}}>
                   {DAYS_KR[expandedDow]}요일 ({+dateOfDow(expandedDow).split('-')[2]}일) 전체 할 일
                 </div>
                 <div style={{fontSize:10,color:'#6E6A63',fontWeight:600,marginBottom:6}}>매일 항목</div>

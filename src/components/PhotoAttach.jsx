@@ -44,7 +44,7 @@ export function Lightbox({ images, label, onClose }) {
       <div onClick={e=>e.stopPropagation()}
         style={{maxWidth:720,margin:'0 auto',display:'flex',flexDirection:'column',gap:12}}>
         <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
-          <span style={{fontSize:14,fontWeight:700,color:'#C3261C'}}>{label || '사진'}</span>
+          <span style={{fontSize:14,fontWeight:700,color:'var(--hk-accent)'}}>{label || '사진'}</span>
           <button onClick={onClose}
             style={{background:'#F3F1EC',border:'1px solid #DCD7CE',color:'#1D1B18',borderRadius:4,
               padding:'6px 14px',fontSize:12,cursor:'pointer',fontFamily:'inherit'}}>닫기 ✕</button>
@@ -137,9 +137,9 @@ export function PhoneReceiveModal({ onAdd, onClose, attachedText, title = '폰�
       style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.8)',zIndex:1000,
         display:'flex',alignItems:'center',justifyContent:'center',padding:16}}>
       <div onClick={e=>e.stopPropagation()}
-        style={{background:'#FFFFFF',border:'1px solid #C3261C',borderRadius:6,padding:22,
+        style={{background:'#FFFFFF',border:'1px solid var(--hk-accent)',borderRadius:6,padding:22,
           maxWidth:340,width:'100%',textAlign:'center'}}>
-        <div style={{fontSize:15,fontWeight:800,color:'#C3261C',marginBottom:4}}>{title}</div>
+        <div style={{fontSize:15,fontWeight:800,color:'var(--hk-accent)',marginBottom:4}}>{title}</div>
         <div style={{fontSize:11,color:'#6E6A63',marginBottom:14}}>폰 카메라로 아래 QR을 찍어보세요 (10분간 유효)</div>
         {status==='creating' && <div style={{color:'#6E6A63',fontSize:12,padding:'60px 0'}}>QR 만드는 중...</div>}
         {status==='error' && (
@@ -161,7 +161,7 @@ export function PhoneReceiveModal({ onAdd, onClose, attachedText, title = '폰�
           </>
         )}
         <button onClick={onClose}
-          style={{marginTop:16,background:'#C3261C',color:'#FFFFFF',border:'none',borderRadius:4,
+          style={{marginTop:16,background:'var(--hk-accent)',color:'#FFFFFF',border:'none',borderRadius:4,
             padding:'9px 28px',fontSize:13,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
           완료
         </button>
@@ -227,7 +227,7 @@ export function PhotoPicker({ images, onChange, max = 4 }) {
       <div style={{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap'}}>
         <button type="button" style={btn} disabled={busy||images.length>=max} onClick={()=>camRef.current?.click()}>촬영</button>
         <button type="button" style={btn} disabled={busy||images.length>=max} onClick={()=>galRef.current?.click()}>앨범에서 선택</button>
-        <button type="button" style={{...btn,borderColor:'rgba(195,38,28,0.5)',color:'#C3261C'}}
+        <button type="button" style={{...btn,borderColor:'rgba(var(--hk-accent-rgb),0.5)',color:'var(--hk-accent)'}}
           disabled={busy||images.length>=max} onClick={()=>setPhoneOpen(true)}>폰에서 받기</button>
         <span style={{fontSize:10,color:'#6E6A63'}}>
           {busy ? '사진 처리 중...' : `${images.length}/${max}장 · 자동으로 용량이 줄어들어요`}

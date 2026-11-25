@@ -6,7 +6,7 @@ import { lookOf, defaultLook, AVATAR_CSS } from '../lib/avatar'
 import { dayStatus } from '../lib/attendance'
 import { loadAvatarRules, perfectStreaks, tenureMonths, canUse, allowedLook, linesFor, linesOf, ITEM_GROUPS, itemKey, tierOf } from '../lib/avatarRules'
 
-const T = { ink:'#1D1B18', sub:'#6E6A63', rule:'#DCD7CE', accent:'#C3261C', red:'#B42318', amber:'#B45309' }
+const T = { ink:'#1D1B18', sub:'#6E6A63', rule:'#DCD7CE', accent:'var(--hk-accent)', red:'#B42318', amber:'#B45309' }
 const hashOf = s => { let h = 7; for (const ch of String(s)) h = (h * 31 + ch.charCodeAt(0)) >>> 0; return h }
 
 // 출퇴근 화면: 내 아바타가 출근·지각·퇴근 대사를 말하고, 개근·근속으로 새로 열린 아이템·대사를 알려 줌

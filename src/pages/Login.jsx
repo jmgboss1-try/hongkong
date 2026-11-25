@@ -1,3 +1,4 @@
+import ThemeDots from '../components/ThemeDots'
 import { useState } from 'react'
 import { auth, db } from '../firebase'
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword, sendPasswordResetEmail } from 'firebase/auth'
@@ -69,7 +70,7 @@ export default function Login() {
 
   const inputStyle = {
     background:'#F3F1EC', border:'1px solid #DCD7CE', borderRadius:4,
-    color:'#1D1B18', padding:'10px 12px', fontSize:13, outline:'none', width:'100%'
+    color:'#1D1B18', padding:'10px 12px', fontSize:13, outline:'none', width:'100%', boxSizing:'border-box'
   }
 
   return (
@@ -77,7 +78,7 @@ export default function Login() {
       <div style={{background:'#FFFFFF', border:'1px solid #DCD7CE', borderRadius:6, padding:'40px 36px', width:380}}>
         <div style={{textAlign:'center', marginBottom:28}}>
           <div style={{fontSize:28, marginBottom:6}}></div>
-          <div style={{fontSize:18, fontWeight:700, color:'#C3261C'}}>홍콩반점 중앙대점</div>
+          <div style={{fontSize:18, fontWeight:700, color:'var(--hk-accent)'}}>홍콩반점 중앙대점</div>
           <div style={{fontSize:11, color:'#6E6A63', marginTop:4, letterSpacing:1}}>STORE MANAGEMENT</div>
         </div>
 
@@ -86,7 +87,7 @@ export default function Login() {
           {[['login','로그인'],['register','회원가입']].map(([m,label])=>(
             <button key={m} onClick={()=>{setMode(m);setError('');setResetMsg('');setDone(false)}}
               style={{flex:1, padding:'9px', fontSize:12, fontWeight:600, border:'none', cursor:'pointer', fontFamily:'inherit',
-                background: mode===m ? '#C3261C' : 'transparent',
+                background: mode===m ? 'var(--hk-accent)' : 'transparent',
                 color: mode===m ? '#FFFFFF' : '#6E6A63'}}>
               {label}
             </button>
@@ -102,7 +103,7 @@ export default function Login() {
               승인이 완료되면 알려드릴게요.
             </div>
             <button onClick={()=>{setMode('login');setDone(false);setEmail('');setPassword('');setName('')}}
-              style={{marginTop:20, background:'#C3261C', color:'#FFFFFF', border:'none', borderRadius:4, padding:'10px 24px', fontSize:12, fontWeight:700, cursor:'pointer', fontFamily:'inherit'}}>
+              style={{marginTop:20, background:'var(--hk-accent)', color:'#FFFFFF', border:'none', borderRadius:4, padding:'10px 24px', fontSize:12, fontWeight:700, cursor:'pointer', fontFamily:'inherit'}}>
               로그인 화면으로
             </button>
           </div>
@@ -131,7 +132,7 @@ export default function Login() {
             {resetMsg && <div style={{fontSize:12, color:'#2E7D45', textAlign:'center', lineHeight:1.6}}>{resetMsg}</div>}
 
             <button type="submit" disabled={loading}
-              style={{background:'#C3261C', color:'#FFFFFF', border:'none', borderRadius:4, padding:'11px', fontSize:13, fontWeight:700, cursor:'pointer', marginTop:6, fontFamily:'inherit'}}>
+              style={{background:'var(--hk-accent)', color:'#FFFFFF', border:'none', borderRadius:4, padding:'11px', fontSize:13, fontWeight:700, cursor:'pointer', marginTop:6, fontFamily:'inherit'}}>
               {loading ? '처리 중...' : mode==='login' ? '로그인' : '가입 신청'}
             </button>
             {mode==='login' && (
@@ -148,9 +149,11 @@ export default function Login() {
           <div style={{fontSize:11, color:'#6E6A63', textAlign:'center', marginTop:20, lineHeight:1.8}}>
             아이디(가입한 이메일)를 잊었으면 사장님께 물어보세요.<br/>
             계정이 없으신가요?<br/>
-            <span style={{color:'#C3261C', cursor:'pointer'}} onClick={()=>setMode('register')}>회원가입 신청하기</span>
+            <span style={{color:'var(--hk-accent)', cursor:'pointer'}} onClick={()=>setMode('register')}>회원가입 신청하기</span>
           </div>
         )}
+        {/* 이 기기에서 고른 색 테마 (로그인 전에도 바꿀 수 있음) */}
+        <ThemeDots size={18} style={{justifyContent:'center', marginTop:18}}/>
       </div>
     </div>
   )

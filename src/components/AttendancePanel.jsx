@@ -10,7 +10,7 @@ import RewardPrompt from './RewardPrompt'
 const earlyChoice = rec => typeof rec?.earlyAllow === 'number' ? String(rec.earlyAllow) : rec?.earlyOk === true ? 'all' : rec?.earlyOk === false ? 'no' : ''
 
 const DAYS_KR = ['일','월','화','수','목','금','토']
-const T = { ink:'#1D1B18', sub:'#6E6A63', faint:'#A8A39A', rule:'#DCD7CE', soft:'#ECE8E1', accent:'#C3261C', red:'#B42318', green:'#2E7D45', blue:'#2B5C9E', amber:'#B45309' }
+const T = { ink:'#1D1B18', sub:'#6E6A63', faint:'#A8A39A', rule:'#DCD7CE', soft:'#ECE8E1', accent:'var(--hk-accent)', red:'#B42318', green:'#2E7D45', blue:'#2B5C9E', amber:'#B45309' }
 const num = { fontVariantNumeric:'tabular-nums' }
 
 function Btn({ children, onClick, kind = 'plain', disabled }) {
