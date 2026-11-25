@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { db, auth } from '../firebase'
 import { compressImage, PhoneReceiveModal } from '../components/PhotoAttach'
 import { doc, getDoc, setDoc } from 'firebase/firestore'
@@ -29,6 +29,45 @@ const fieldKey = (session, base) => {
   return p + base.charAt(0).toUpperCase() + base.slice(1)
 }
 
+// ── 움직임 ── (움직임 줄이기 설정이면 모두 꺼짐)
+//  합계 숫자는 바뀔 때 굴러가듯 올라가고, 저장하면 가운데에 '저장 완료' 도장이 찍힌 뒤 위 진행 단계에 체크가 들어감
+const reduceMotion = () => typeof window !== 'undefined' && !!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+function useCountUp(value, ms = 320) {
+  const [v, setV] = useState(value)
+  const from = useRef(value)
+  useEffect(() => {
+    const dur = reduceMotion() ? 1 : ms
+    const start = performance.now(), a = from.current, b = value
+    let raf
+    const step = t => {
+      const k = Math.min(1, (t - start) / dur), e = 1 - Math.pow(1 - k, 3)
+      const cur = Math.round(a + (b - a) * e)
+      from.current = cur
+      setV(cur)
+      if (k < 1) raf = requestAnimationFrame(step)
+    }
+    raf = requestAnimationFrame(step)
+    return () => cancelAnimationFrame(raf)
+  }, [value, ms])
+  return v
+}
+function Count({ value, ms }) { return <>{won(useCountUp(value, ms))}</> }
+const RI_CSS = `@keyframes riIn { from { opacity:0; transform: translateY(8px) } to { opacity:1; transform:none } }
+@keyframes riPop { 0% { transform: scale(.3) } 60% { transform: scale(1.25) } 100% { transform: scale(1) } }
+@keyframes riPulse { 0% { box-shadow: 0 0 0 0 rgba(var(--hk-accent-rgb), .45) } 100% { box-shadow: 0 0 0 10px rgba(var(--hk-accent-rgb), 0) } }
+@keyframes riFade { 0% { opacity:0 } 12% { opacity:1 } 82% { opacity:1 } 100% { opacity:0 } }
+@keyframes riStamp { 0% { opacity:0; transform: scale(1.8) rotate(-8deg) } 55% { opacity:1; transform: scale(.94) rotate(-3deg) } 75% { transform: scale(1.03) rotate(-3deg) } 100% { opacity:1; transform: scale(1) rotate(-3deg) } }
+@keyframes riDraw { to { stroke-dashoffset: 0 } }
+.ri-in { animation: riIn .3s ease-out both }
+.ri-pop { animation: riPop .36s cubic-bezier(.3,1.6,.5,1) both }
+.ri-pulse { animation: riPulse 1.4s ease-out infinite }
+.ri-stamp-wrap { animation: riFade 1.9s ease both }
+.ri-stamp { animation: riStamp .5s cubic-bezier(.2,.9,.3,1.2) both }
+.ri-check { stroke-dasharray: 60; stroke-dashoffset: 60; animation: riDraw .4s .25s ease-out forwards }
+.ri-bar { transition: transform .32s cubic-bezier(.4,0,.2,1) }
+.ri-line { transition: width .5s cubic-bezier(.4,0,.2,1) .1s }
+@media (prefers-reduced-motion: reduce) { .ri-in, .ri-pop, .ri-pulse, .ri-stamp, .ri-stamp-wrap { animation: none } .ri-check { animation: none; stroke-dashoffset: 0 } .ri-bar, .ri-line { transition: none } }`
+
 export default function RevenueInput() {
   const { userData } = useAuth()
   const now = new Date()
@@ -44,6 +83,7 @@ export default function RevenueInput() {
   const [data, setData] = useState({})
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [stamp, setStamp] = useState(null)   // 저장 완료 도장 {id, label, amount}
 
   const [kiosk, setKiosk] = useState('')
   const [pos, setPos]     = useState('')
@@ -175,7 +215,9 @@ export default function RevenueInput() {
       await setDoc(doc(db,'revenue',today), { [targetDD]: newRow }, { merge:true })
       setData({ ...latest, [targetDD]: newRow })
       const label = (targetDD !== todayDD ? `${+targetDD}일 ` : '') + sessionInfo[activeSession].label
-      alert(`${label} 매출을 저장했어요`)
+      const id = Date.now()
+      setStamp({ id, label, amount: kioskVal + delSum + posVal })
+      setTimeout(() => setStamp(s => s?.id === id ? null : s), 1900)
     } catch(e) { console.error(e) }
     setSaving(false)
   }
@@ -273,40 +315,81 @@ export default function RevenueInput() {
           </div>
         )}
 
-        {/* 오늘 현황 */}
-        <div style={{display:'grid', gridTemplateColumns:'1fr 1fr 1fr 1.3fr', borderBottom:`1px solid ${T.rule}`, marginBottom:22}}>
-          {summary.map((k,i) => (
-            <div key={k.key} style={{padding:'12px 0 12px', paddingLeft: i ? 14 : 0, borderLeft: i ? `1px solid ${T.rule}` : 'none'}}>
-              <div style={{fontSize:12, color:T.sub}}>{k.label}</div>
-              <div style={{fontSize: k.key==='close' ? 20 : 17, fontWeight:700, marginTop:3, color: k.filled ? T.ink : T.faint, ...num}}>
-                {k.filled ? won(k.val) : '미입력'}
-              </div>
-              {k.by && <div style={{fontSize:11, color:T.sub, marginTop:2}}>{k.by}</div>}
-            </div>
-          ))}
-        </div>
-
-        {/* 오전 · 미들 · 마감 */}
-        <div role="tablist" style={{display:'flex', gap:22, borderBottom:`1px solid ${T.rule}`, marginBottom:18}}>
-          {Object.entries(sessionInfo).map(([key,s]) => {
-            const on = activeSession===key
-            const done = (key==='early'&&hasEarly)||(key==='morning'&&hasMorning)||(key==='middle'&&hasMiddle)||(key==='close'&&hasClose)
+        {/* 오늘 진행: 얼리 → 오전 → 미들 → 마감. 적은 단계는 초록 체크, 지금 탭은 강조색으로 깜박임 */}
+        <div style={{display:'grid', gridTemplateColumns:'repeat(4, minmax(0, 1fr))', margin:'18px 0 20px'}}>
+          {summary.map((k,i) => {
+            const on = activeSession === k.key
+            const nextFilled = summary[i+1]?.filled
             return (
-              <button key={key} role="tab" aria-selected={on} onClick={()=>setActiveSession(key)}
-                style={{background:'none', border:'none', padding:'10px 0', marginBottom:-1, cursor:'pointer', fontFamily:'inherit',
-                  fontSize:16, fontWeight: on ? 800 : 500, color: on ? T.ink : T.sub,
-                  borderBottom:`3px solid ${on ? T.accent : 'transparent'}`}}>
-                {s.label}
-                {done && <span style={{fontSize:11, fontWeight:600, color:T.ok, marginLeft:6}}>입력됨</span>}
+              <button key={k.key} type="button" onClick={()=>setActiveSession(k.key)} aria-label={`${k.label} ${k.filled ? '입력됨' : '미입력'}`}
+                style={{position:'relative', background:'none', border:'none', padding:0, cursor:'pointer', fontFamily:'inherit', textAlign:'center', color:T.ink, minWidth:0}}>
+                {i < summary.length - 1 && (
+                  <span aria-hidden="true" style={{position:'absolute', top:13, left:'calc(50% + 17px)', right:'calc(-50% + 17px)', height:3, borderRadius:2, background:T.rule}}>
+                    <span className="ri-line" style={{display:'block', height:'100%', borderRadius:2, background:'#2E7D45', width: k.filled && nextFilled ? '100%' : k.filled ? '35%' : '0%'}}/>
+                  </span>
+                )}
+                <span key={k.filled ? 'y' : 'n'} className={k.filled ? 'ri-pop' : on ? 'ri-pulse' : undefined}
+                  style={{position:'relative', zIndex:1, width:28, height:28, borderRadius:14, margin:'0 auto', display:'grid', placeItems:'center',
+                    background: k.filled ? '#2E7D45' : '#FFFFFF', border: k.filled ? 'none' : `2px solid ${on ? T.accent : T.fieldLine}`,
+                    color:'#FFFFFF', fontSize:14, fontWeight:900}}>
+                  {k.filled ? '✓' : <span style={{width:8, height:8, borderRadius:4, background: on ? T.accent : 'transparent'}}/>}
+                </span>
+                <div style={{fontSize:12, color: on ? T.ink : T.sub, fontWeight: on ? 800 : 500, marginTop:6, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis'}}>{k.key==='close' ? '마감' : k.label}</div>
+                <div style={{fontSize: k.key==='close' ? 15 : 13, fontWeight:700, marginTop:1, color: k.filled ? T.ink : T.faint, ...num}}>
+                  {k.filled ? <Count value={k.val} ms={600}/> : '미입력'}
+                </div>
+                {k.by && <div style={{fontSize:11, color:T.sub, marginTop:1, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis'}}>{k.by}</div>}
               </button>
             )
           })}
         </div>
 
+        {/* 오전 · 미들 · 마감 탭 — 밑줄이 미끄러지듯 옮겨감 */}
+        {(() => {
+          const keys = Object.keys(sessionInfo), idx = Math.max(0, keys.indexOf(activeSession))
+          return (
+            <div role="tablist" style={{position:'relative', display:'grid', gridTemplateColumns:`repeat(${keys.length}, minmax(0, 1fr))`, borderBottom:`1px solid ${T.rule}`, marginBottom:18}}>
+              {keys.map(key => {
+                const s = sessionInfo[key], on = activeSession===key
+                const done = (key==='early'&&hasEarly)||(key==='morning'&&hasMorning)||(key==='middle'&&hasMiddle)||(key==='close'&&hasClose)
+                return (
+                  <button key={key} role="tab" aria-selected={on} onClick={()=>setActiveSession(key)}
+                    style={{background:'none', border:'none', padding:'10px 0 12px', cursor:'pointer', fontFamily:'inherit',
+                      fontSize:16, fontWeight: on ? 800 : 500, color: on ? T.ink : T.sub, transition:'color .2s'}}>
+                    {s.label}
+                    {done && <span style={{fontSize:11, fontWeight:600, color:T.ok, marginLeft:4}}>✓</span>}
+                  </button>
+                )
+              })}
+              <span aria-hidden="true" className="ri-bar" style={{position:'absolute', left:0, bottom:-1, height:3, width:`${100 / keys.length}%`,
+                transform:`translateX(${idx * 100}%)`, display:'flex', justifyContent:'center'}}>
+                <span style={{width:'60%', height:'100%', borderRadius:2, background:T.accent}}/>
+              </span>
+            </div>
+          )
+        })()}
+        <style>{RI_CSS}</style>
+
+        {/* 저장 완료 도장 */}
+        {stamp && (
+          <div key={stamp.id} className="ri-stamp-wrap" onClick={()=>setStamp(null)} role="status"
+            style={{position:'fixed', inset:0, zIndex:1000, display:'grid', placeItems:'center', background:'rgba(250,249,246,.55)', cursor:'pointer'}}>
+            <div className="ri-stamp" style={{background:'#FFFFFF', border:`3px solid ${T.accent}`, borderRadius:16, padding:'22px 30px', textAlign:'center',
+              boxShadow:'0 20px 50px rgba(29,27,24,.18)', minWidth:220}}>
+              <svg width="56" height="56" viewBox="0 0 56 56" aria-hidden="true" style={{display:'block', margin:'0 auto 8px'}}>
+                <circle cx="28" cy="28" r="26" fill={T.accent}/>
+                <path className="ri-check" d="M16 29 l8 8 l16 -17" fill="none" stroke="#FFFFFF" strokeWidth="5" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+              <div style={{fontSize:15, fontWeight:800, color:T.accent}}>{stamp.label} 매출 저장 완료</div>
+              <div style={{fontSize:28, fontWeight:800, letterSpacing:'-0.02em', marginTop:4, color:T.ink, ...num}}><Count value={stamp.amount} ms={700}/><span style={{fontSize:15, marginLeft:2}}>원</span></div>
+            </div>
+          </div>
+        )}
+
         {loading ? (
           <div style={{color:T.sub, padding:'40px 0'}}>불러오는 중...</div>
         ) : (
-          <section>
+          <section key={activeSession} className="ri-in">
             <p style={{fontSize:13, color:T.sub, margin:'0 0 14px', lineHeight:1.6}}>
               {si.hint}
               {activeSession==='morning' && hasEarly && <> · 얼리({won(earlySum)}원)는 오전 매출에서 자동으로 빠져서 보여요</>}
@@ -413,7 +496,7 @@ export default function RevenueInput() {
             <div style={{marginTop:10, paddingTop:12, borderTop: T.leader ? `3px double ${T.strong}` : `1px solid ${T.strong}`}}>
               <div style={{display:'flex', justifyContent:'space-between', alignItems:'baseline'}}>
                 <span style={{fontSize:15, fontWeight:700}}>{activeSession==='middle' ? '입력한 누적 금액' : '합계'}</span>
-                <span style={{fontSize:32, fontWeight:800, letterSpacing:'-0.02em', ...num}}>{won(subtotal)}<span style={{fontSize:16, fontWeight:600, marginLeft:2}}>원</span></span>
+                <span style={{fontSize:32, fontWeight:800, letterSpacing:'-0.02em', ...num}}><Count value={subtotal}/><span style={{fontSize:16, fontWeight:600, marginLeft:2}}>원</span></span>
               </div>
               {activeSession==='middle' && (
                 <div style={{display:'flex', justifyContent:'space-between', alignItems:'baseline', marginTop:4, color:T.sub}}>

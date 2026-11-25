@@ -1034,17 +1034,31 @@ export default function Checklist() {
             })() : (
               !todayDoneSlots.length
                 ? <div style={{textAlign:'center',padding:'24px 12px',fontSize:13,color:'#6E6A63'}}>아직 끝낸 일이 없어요</div>
-                : <div style={{display:'flex',flexDirection:'column',gap:6}}>
-                    {todayDoneSlots.map(x => (
-                      <div key={x.key} className="ck-in" style={{display:'flex',alignItems:'center',gap:10,padding:'9px 12px',borderRadius:6,
-                        background:'rgba(46,125,69,0.08)',border:'1px solid rgba(46,125,69,0.25)'}}>
-                        <span style={{width:20,height:20,borderRadius:10,background:'#2E7D45',color:'#FFFFFF',display:'grid',placeItems:'center',fontSize:12,fontWeight:900,flexShrink:0}}>✓</span>
-                        <span style={{flex:1,fontSize:13,color:'#6E6A63',textDecoration:'line-through'}}>{x.item.label}</span>
-                        <span style={{fontSize:11,fontWeight:700,color: x.time==='오전' ? 'var(--hk-accent)' : '#2B5C9E'}}>{x.time}</span>
-                        <button type="button" onClick={()=>toggleCheck(today, x.key, false)}
-                          style={{background:'#FFFFFF',border:'1px solid #DCD7CE',borderRadius:4,padding:'4px 9px',fontSize:11,color:'#6E6A63',cursor:'pointer',fontFamily:'inherit'}}>되돌리기</button>
-                      </div>
-                    ))}
+                : <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit, minmax(min(100%, 260px), 1fr))',gap:'14px 16px'}}>
+                    {['오전','오후'].map(t => {
+                      const list = todayDoneSlots.filter(x => x.time===t)
+                      const color = t==='오전' ? 'var(--hk-accent)' : '#2B5C9E'
+                      return (
+                        <div key={t}>
+                          <div style={{display:'flex',alignItems:'baseline',gap:6,padding:'0 2px 6px',marginBottom:6,borderBottom:`2px solid ${color}`}}>
+                            <span style={{fontSize:14,fontWeight:800,color}}>{t}</span>
+                            <span style={{fontSize:12,color:'#6E6A63',fontVariantNumeric:'tabular-nums'}}>{list.length} / {todaySlots.filter(x=>x.time===t).length} 끝</span>
+                          </div>
+                          {!list.length ? <div style={{fontSize:12,color:'#A8A39A',padding:'6px 2px'}}>아직 없어요</div>
+                            : <div style={{display:'flex',flexDirection:'column',gap:6}}>
+                                {list.map(x => (
+                                  <div key={x.key} className="ck-in" style={{display:'flex',alignItems:'center',gap:10,padding:'9px 12px',borderRadius:6,
+                                    background:'rgba(46,125,69,0.08)',border:'1px solid rgba(46,125,69,0.25)'}}>
+                                    <span style={{width:20,height:20,borderRadius:10,background:'#2E7D45',color:'#FFFFFF',display:'grid',placeItems:'center',fontSize:12,fontWeight:900,flexShrink:0}}>✓</span>
+                                    <span style={{flex:1,minWidth:0,fontSize:13,color:'#6E6A63',textDecoration:'line-through'}}>{x.item.label}</span>
+                                    <button type="button" onClick={()=>toggleCheck(today, x.key, false)}
+                                      style={{background:'#FFFFFF',border:'1px solid #DCD7CE',borderRadius:4,padding:'4px 9px',fontSize:11,color:'#6E6A63',cursor:'pointer',fontFamily:'inherit',flexShrink:0}}>되돌리기</button>
+                                  </div>
+                                ))}
+                              </div>}
+                        </div>
+                      )
+                    })}
                   </div>
             )}
             <style>{CK_CSS}</style>
