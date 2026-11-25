@@ -8,6 +8,7 @@ import { migratePrivacy } from '../lib/privateInfo'
 import { PhoneFileReceiveModal } from './PhoneFileTransfer'
 import NavIcon from './NavIcon'
 import ThemeDots from './ThemeDots'
+import { useView, setView } from '../lib/dashTheme'
 import OrderAlert from './OrderAlert'
 import { NAV_GROUPS, navGroupOf } from '../lib/nav'
 
@@ -22,6 +23,7 @@ export default function Layout({ children }) {
   const navigate = useNavigate()
   const location = useLocation()
   const { user, isOwner, isStore, isInvestor, isLegend, userData } = useAuth()
+  const view = useView()   // 카드형/장부형 (앱 전체, 기기마다)
   // 예전 자료의 주민번호·시급 등을 개인 문서로, 급여를 사람별 복사본으로 한 번 옮김 (사장님 계정에서만)
   useEffect(() => { if (isOwner) migratePrivacy() }, [isOwner])
   useEffect(() => {
@@ -230,6 +232,7 @@ export default function Layout({ children }) {
             {[
               ...((isOwner || isStore) ? [['_file', '폰에서 파일 받기', ()=>setFileOpen(true)]] : []),
               ['_order', '탭 순서 바꾸기', ()=>setEditOrder(menus.map(m=>m.path))],
+              view === 'card' ? ['_ledger', '장부형으로 보기', ()=>setView('ledger')] : ['_cards', '카드형으로 보기', ()=>setView('card')],
               [narrowNav ? '_expand' : '_collapse', narrowNav ? '이름 보기' : '아이콘만 보기', toggleWide],
               ['_logout', '로그아웃', handleLogout],
             ].map(([icon, label, fn]) => (
@@ -280,6 +283,14 @@ export default function Layout({ children }) {
             {menuList(path=>{navigate(path);setSideOpen(false)}, false)}
             <div style={{padding:'16px 18px', borderTop:'1px solid #DCD7CE', marginTop:8}}>
               <ThemeDots size={22} label style={{marginBottom:12}}/>
+              <div role="group" aria-label="화면 모양" style={{display:'flex', gap:6, marginBottom:12}}>
+                {[['card','카드형'],['ledger','장부형']].map(([v, l]) => (
+                  <button key={v} type="button" aria-pressed={view===v} onClick={()=>setView(v)}
+                    style={{flex:1, padding:'8px', fontSize:12, fontWeight:700, fontFamily:'inherit', cursor:'pointer', borderRadius:6,
+                      border: view===v ? '1px solid var(--hk-accent)' : '1px solid #DCD7CE',
+                      background: view===v ? 'var(--hk-accent)' : '#FFFFFF', color: view===v ? '#FFFFFF' : '#6E6A63'}}>{l}</button>
+                ))}
+              </div>
               {editButton}
               <button onClick={handleLogout} style={{width:'100%', background:'#F3F1EC', border:'1px solid #DCD7CE', borderRadius:6, color:'#6E6A63', padding:'8px', fontSize:12, cursor:'pointer', fontFamily:'inherit'}}>
                 로그아웃

@@ -3,7 +3,7 @@ import RevenuePace from '../components/RevenuePace'
 import { GoalLine } from '../components/DiscountGoal'
 import EarlySales from '../components/EarlySales'
 import BentoBoard from '../components/BentoBoard'
-import { useTheme } from '../lib/dashTheme'
+import { useTheme, useView, setView } from '../lib/dashTheme'
 import ThemeDots from '../components/ThemeDots'
 import RewardPrompt from '../components/RewardPrompt'
 import { db } from '../firebase'
@@ -110,10 +110,8 @@ export default function Dashboard() {
   const [compareSummary, setCompareSummary] = useState(null)  // {curTotal, prevTotal, diffPct}
   const [revDoc, setRevDoc] = useState({})                     // 이 달 revenue 문서 (카드형 보기의 날짜별 막대)
   // 보기 방식(카드형/장부형)과 카드형 강조색은 기기마다 기억
-  const lsGet = (k, d) => { try { return localStorage.getItem(k) || d } catch { return d } }
-  const [view, setViewState] = useState(() => lsGet('dash.view', 'bento'))
+  const view = useView() === 'card' ? 'bento' : 'ledger'   // 앱 전체 보기 방식 (카드형이면 모든 탭이 카드 모양)
   const theme = useTheme()
-  const setView = v => { setViewState(v); try { localStorage.setItem('dash.view', v) } catch { /* 저장 못 해도 됨 */ } }
 
   useEffect(() => { load() }, [curMonth])
   useEffect(() => {
@@ -394,7 +392,7 @@ export default function Dashboard() {
         <h1 style={{fontSize:24, fontWeight:800, margin:0, letterSpacing:'-0.01em', fontFamily:'inherit', color:T.ink}}>{mLabel(curMonth)} {view === 'bento' ? '한눈에' : '장부'}</h1>
         <div style={{display:'flex', alignItems:'center', gap:6, flexWrap:'wrap'}}>
           <div role="group" aria-label="보기 방식" style={{display:'flex', gap:12, marginRight:8}}>
-            {textTab(view==='bento', '카드형', ()=>setView('bento'), 'v-bento')}
+            {textTab(view==='bento', '카드형', ()=>setView('card'), 'v-bento')}
             {textTab(view==='ledger', '장부형', ()=>setView('ledger'), 'v-ledger')}
           </div>
           {view === 'bento' && <ThemeDots style={{marginRight:8}}/>}
