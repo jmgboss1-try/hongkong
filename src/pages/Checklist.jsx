@@ -11,6 +11,9 @@ import { Grid } from '@astryxdesign/core/Grid'
 import { List, ListItem } from '@astryxdesign/core/List'
 import { StatusDot } from '@astryxdesign/core/StatusDot'
 import { TabList, Tab } from '@astryxdesign/core/TabList'
+import { TextInput } from '@astryxdesign/core/TextInput'
+import { DateInput } from '@astryxdesign/core/DateInput'
+import { Selector } from '@astryxdesign/core/Selector'
 import { AstryxPage, Legacy, PageHeader, LedgerCard } from '../astryx/AstryxPage'
 import { prevYmOf, monthNum, rewardResults } from '../lib/rewards'
 import { db } from '../firebase'
@@ -90,7 +93,7 @@ function NextDates({ item }) {
     if(d.getDay()===item.dow && isBiweeklyActive(item, ds)) out.push(`${d.getMonth()+1}/${d.getDate()}`)
     d.setDate(d.getDate()+1)
   }
-  return <span style={{fontSize:10,color:'#6B4FA0'}}>다음: {out.join(', ') || '—'}</span>
+  return <Text type="supporting" color="secondary">다음: {out.join(', ') || '—'}</Text>
 }
 
 // 오늘부터 daysAhead일 후까지(당일 포함) 그 항목이 실제로 발생하는 날짜를 찾아서 반환. 없으면 null.
@@ -495,10 +498,6 @@ export default function Checklist() {
   const historyDailyDone = dailyDoneCount(historyDate)
   const historyWeeklyDone = historyWeekly.filter(it=>isChecked(historyDate, it.id)).length
 
-  const inputStyle = {
-    background:'#F3F1EC',border:'1px solid #DCD7CE',borderRadius:4,color:'#1D1B18',
-    padding:'8px 10px',fontSize:12,outline:'none',fontFamily:'inherit'
-  }
 
   // 매일 항목 1개 = 오전/오후 체크박스 2개 나란히
   function DailyRow(item, date, big=false) {
@@ -634,6 +633,31 @@ export default function Checklist() {
     )
   }
 
+  const photoPanel = item => { const pp = ItemPhotoPanel(item); return pp ? <Legacy>{pp}</Legacy> : null }
+  const itemButtons = (item, kind) => (
+    <HStack gap={1}>
+      <Button size="sm" variant="ghost" label={`사진${item.photoCount>0 ? ` ${item.photoCount}` : ''}`} onClick={()=>startEditPhotos(item)}/>
+      <Button size="sm" variant="ghost" label="수정" onClick={()=>startEditItem(item, kind)}/>
+      <Button size="sm" variant="ghost" label="삭제" onClick={()=>deleteItem(item.id, kind)}/>
+    </HStack>
+  )
+  // 요일 항목 입력칸 (추가·수정 같이 씀)
+  const weeklyFields = (f, setF, baseDate, isNew) => <>
+    <HStack gap={2} vAlign="end" wrap="wrap">
+      <TextInput label="항목 이름" placeholder={isNew ? '예: 냉장고 성애제거' : undefined} value={f.label} onChange={v=>setF(x=>({...x,label:v}))}/>
+      <Selector label="요일" value={String(f.dow)} onChange={v=>v != null && setF(x=>({...x,dow:v}))} options={DOW_LABELS.map((d,i)=>({ value:String(i), label:`${d}요일` }))}/>
+      <Selector label="때" value={f.time} onChange={v=>v && setF(x=>({...x,time:v}))} options={[{ value:'오전', label:'오전' }, { value:'오후', label:'오후' }]}/>
+      <Selector label="주기" value={f.interval||'weekly'} onChange={v=>v && setF(x=>({...x,interval:v}))} options={INTERVALS.map(o=>({ value:o.v, label:o.label }))}/>
+      {weeksOf(f.interval) > 1 && <DateInput label="기준일" value={baseDate} onChange={v=>v && setF(x=>({...x,baseDate:v}))}/>}
+    </HStack>
+    {weeksOf(f.interval) > 1 && <NextDates item={{...f, dow:+f.dow, baseDate}}/>}
+    <HStack gap={2} vAlign="end" wrap="wrap">
+      <Selector label="알림 받을 사람" isOptional value={f.alertUid||''} onChange={v=>setF(x=>({...x,alertUid:v||''}))}
+        options={[{ value:'', label:'담당자 없음' }, ...employees.map(e=>({ value:e.uid, label:e.name }))]}/>
+      <TextInput label="알림 문구" isOptional placeholder="예: 1시간 일찍 출근" value={f.alertMsg||''} onChange={v=>setF(x=>({...x,alertMsg:v}))}/>
+    </HStack>
+  </>
+
   return (
     <AstryxPage>
     <VStack gap={5}>
@@ -643,255 +667,120 @@ export default function Checklist() {
         <Button label="지난 기록 보기" onClick={()=>{ setShowHistory(v=>!v); setHistoryDate(today) }}/>
       </>}/>
 
-      <Legacy>
-      {/* 임시휴무 설정 패널 */}
+      {/* 임시휴무 설정 */}
       {showHolidayManage && (
-        <div style={{background:'#FFFFFF',border:'1px solid rgba(180,35,24,0.4)',borderRadius:6,padding:18,marginBottom:18}}>
-          <div style={{fontSize:13,fontWeight:600,color:'#B42318',marginBottom:4}}>임시휴무 설정</div>
-          <div style={{fontSize:11,color:'#6E6A63',marginBottom:16}}>추석·설 연휴처럼 매장 문을 닫는 기간을 등록하면, 그 기간엔 일요일과 동일하게 체크리스트가 쉬어요.</div>
-          <div style={{display:'flex',flexDirection:'column',gap:6,marginBottom:14}}>
-            {holidays.length===0 && (
-              <div style={{fontSize:11,color:'#6E6A63'}}>등록된 임시휴무가 없습니다</div>
-            )}
-            {holidays.slice().sort((a,b)=>a.startDate.localeCompare(b.startDate)).map(h=>(
-              <div key={h.id} style={{background:'#F3F1EC',borderRadius:4,padding:'8px 10px',
-                display:'flex',alignItems:'center',gap:8}}>
-                <span style={{flex:1,fontSize:12,color:'#1D1B18'}}>
-                  {h.startDate} ~ {h.endDate}
-                  <span style={{color:'#B42318',marginLeft:8,fontWeight:600}}>{h.reason}</span>
-                </span>
-                <button onClick={()=>deleteHoliday(h.id)}
-                  style={{background:'transparent',border:'none',color:'#B42318',fontSize:12,cursor:'pointer',padding:0}}>삭제</button>
-              </div>
-            ))}
-          </div>
-          <div style={{display:'flex',gap:8,flexWrap:'wrap',alignItems:'center'}}>
-            <span style={{fontSize:10,color:'#6E6A63'}}>시작일</span>
-            <input type="date" value={newHoliday.startDate}
-              onChange={e=>setNewHoliday(f=>({...f,startDate:e.target.value}))} style={inputStyle}/>
-            <span style={{fontSize:10,color:'#6E6A63'}}>종료일</span>
-            <input type="date" value={newHoliday.endDate}
-              onChange={e=>setNewHoliday(f=>({...f,endDate:e.target.value}))} style={inputStyle}/>
-            <input value={newHoliday.reason} onChange={e=>setNewHoliday(f=>({...f,reason:e.target.value}))}
-              placeholder="사유 (예: 추석 연휴)" style={{...inputStyle,flex:1,minWidth:140}}/>
-            <button onClick={addHoliday} disabled={saving}
-              style={{background:'#B42318',color:'#FFFFFF',border:'none',borderRadius:4,
-                padding:'8px 16px',fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'inherit',whiteSpace:'nowrap'}}>
-              + 등록
-            </button>
-          </div>
-        </div>
+        <LedgerCard title="임시휴무 설정">
+          <Text type="supporting" color="secondary">추석·설 연휴처럼 매장 문을 닫는 기간을 등록하면, 그 기간엔 일요일과 동일하게 체크리스트가 쉬어요.</Text>
+          {holidays.length===0 ? <Text color="secondary">등록된 임시휴무가 없습니다</Text> : (
+            <List hasDividers edge="flush">
+              {holidays.slice().sort((a,b)=>a.startDate.localeCompare(b.startDate)).map(h=>(
+                <ListItem key={h.id} label={<Text hasTabularNumbers>{h.startDate} ~ {h.endDate}</Text>} description={h.reason}
+                  endContent={<Button size="sm" variant="ghost" label="삭제" onClick={()=>deleteHoliday(h.id)}/>}/>
+              ))}
+            </List>
+          )}
+          <HStack gap={2} vAlign="end" wrap="wrap">
+            <DateInput label="시작일" value={newHoliday.startDate} onChange={v=>setNewHoliday(f=>({...f,startDate:v||''}))}/>
+            <DateInput label="종료일" value={newHoliday.endDate} onChange={v=>setNewHoliday(f=>({...f,endDate:v||''}))}/>
+            <TextInput label="사유" placeholder="예: 추석 연휴" value={newHoliday.reason} onChange={v=>setNewHoliday(f=>({...f,reason:v}))}/>
+            <Button variant="primary" label="+ 등록" isDisabled={saving} onClick={addHoliday}/>
+          </HStack>
+        </LedgerCard>
       )}
 
-      {/* 항목 관리 패널 */}
+      {/* 항목 관리 */}
       {showManage && (
-        <div style={{background:'#FFFFFF',border:'1px solid var(--hk-accent)',borderRadius:6,padding:18,marginBottom:18}}>
-          <div style={{fontSize:13,fontWeight:600,color:'var(--hk-accent)',marginBottom:16}}>체크리스트 항목 관리</div>
-
-          <div style={{marginBottom:20}}>
-            <div style={{fontSize:11,color:'#6E6A63',fontWeight:600,marginBottom:8}}>
-              매일 필수 항목 <span style={{color:'#A8A39A'}}>(오전·오후 각각 체크)</span>
-            </div>
-            <div style={{display:'flex',flexDirection:'column',gap:6,marginBottom:10}}>
+        <LedgerCard title="체크리스트 항목 관리">
+          <VStack gap={2}>
+            <Heading level={5}>매일 필수 항목</Heading>
+            <Text type="supporting" color="secondary">오전·오후 각각 체크</Text>
+            <List hasDividers edge="flush">
               {dailyItems.map(item=>(
-                <div key={item.id}>
-                <div style={{background:'#F3F1EC',borderRadius:4,padding:'7px 10px',
-                  display:'flex',alignItems:'center',gap:8}}>
-                  {editItemId===item.id ? (
-                    <>
-                      <input value={editItemForm.label} onChange={e=>setEditItemForm(f=>({...f,label:e.target.value}))}
-                        style={{...inputStyle,flex:1}}/>
-                      <button onClick={saveEditItem} disabled={saving}
-                        style={{background:'var(--hk-accent)',color:'#FFFFFF',border:'none',borderRadius:5,padding:'5px 10px',fontSize:11,cursor:'pointer',fontFamily:'inherit'}}>저장</button>
-                      <button onClick={()=>{setEditItemId(null);setEditItemForm(null)}}
-                        style={{background:'transparent',border:'none',color:'#6E6A63',fontSize:12,cursor:'pointer'}}>✕</button>
-                    </>
-                  ) : (
-                    <>
-                      <span style={{flex:1,fontSize:12,color:'#1D1B18'}}>{item.label}</span>
-                      <button onClick={()=>startEditPhotos(item)}
-                        style={{background:'transparent',border:'none',color: item.photoCount>0 ? '#2B5C9E' : '#6E6A63',fontSize:12,cursor:'pointer',padding:0}}>사진{item.photoCount>0 ? ` ${item.photoCount}` : ''}</button>
-                      <button onClick={()=>startEditItem(item,'daily')}
-                        style={{background:'transparent',border:'none',color:'#6E6A63',fontSize:12,cursor:'pointer',padding:0}}>수정</button>
-                      <button onClick={()=>deleteItem(item.id,'daily')}
-                        style={{background:'transparent',border:'none',color:'#B42318',fontSize:12,cursor:'pointer',padding:0}}>삭제</button>
-                    </>
-                  )}
-                </div>
-                {ItemPhotoPanel(item)}
-                </div>
+                <ListItem key={item.id} align="start"
+                  label={editItemId===item.id ? (
+                    <HStack gap={2} vAlign="end" wrap="wrap">
+                      <TextInput label="항목 이름" isLabelHidden value={editItemForm.label} onChange={v=>setEditItemForm(f=>({...f,label:v}))}/>
+                      <Button size="sm" variant="primary" label="저장" isDisabled={saving} onClick={saveEditItem}/>
+                      <Button size="sm" label="취소" onClick={()=>{setEditItemId(null);setEditItemForm(null)}}/>
+                    </HStack>
+                  ) : <Text>{item.label}</Text>}
+                  description={photoPanel(item)}
+                  endContent={editItemId!==item.id && itemButtons(item, 'daily')}/>
               ))}
-            </div>
-            <div style={{display:'flex',gap:8}}>
-              <input value={newDaily} onChange={e=>setNewDaily(e.target.value)}
-                placeholder="새 항목 이름 (예: 물수건 채우기)"
-                style={{...inputStyle,flex:1}}/>
-              <button onClick={addDailyItem} disabled={saving}
-                style={{background:'#2E7D45',color:'#FFFFFF',border:'none',borderRadius:4,
-                  padding:'8px 16px',fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'inherit',whiteSpace:'nowrap'}}>
-                + 추가
-              </button>
-            </div>
-          </div>
+            </List>
+            <HStack gap={2} vAlign="end">
+              <TextInput label="새 항목" isLabelHidden placeholder="새 항목 이름 (예: 물수건 채우기)" value={newDaily} onChange={v=>setNewDaily(v)}/>
+              <Button variant="primary" label="+ 추가" isDisabled={saving} onClick={addDailyItem}/>
+            </HStack>
+          </VStack>
 
-          <div>
-            <div style={{fontSize:11,color:'#6E6A63',fontWeight:600,marginBottom:8}}>요일별 필수 항목</div>
-            <div style={{display:'flex',flexDirection:'column',gap:6,marginBottom:10}}>
+          <VStack gap={2}>
+            <Heading level={5}>요일별 필수 항목</Heading>
+            <List hasDividers edge="flush">
               {weeklyItems.map(item=>(
-                <div key={item.id}>
-                <div style={{background:'#F3F1EC',borderRadius:4,padding:'7px 10px',
-                  display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}>
-                  {editItemId===item.id ? (
-                    <div style={{display:'flex',flexDirection:'column',gap:8,width:'100%'}}>
-                      <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
-                        <input value={editItemForm.label} onChange={e=>setEditItemForm(f=>({...f,label:e.target.value}))}
-                          style={{...inputStyle,width:140}}/>
-                        <select value={editItemForm.dow} onChange={e=>setEditItemForm(f=>({...f,dow:e.target.value}))} style={inputStyle}>
-                          {DOW_LABELS.map((d,i)=><option key={i} value={i}>{d}요일</option>)}
-                        </select>
-                        <select value={editItemForm.time} onChange={e=>setEditItemForm(f=>({...f,time:e.target.value}))} style={inputStyle}>
-                          <option value="오전">오전</option>
-                          <option value="오후">오후</option>
-                        </select>
-                        <select value={editItemForm.interval||'weekly'} onChange={e=>setEditItemForm(f=>({...f,interval:e.target.value}))} style={inputStyle}>
-                          {INTERVALS.map(o=><option key={o.v} value={o.v}>{o.label}</option>)}
-                        </select>
-                        {weeksOf(editItemForm.interval) > 1 && (<>
-                          <span style={{fontSize:10,color:'#6E6A63'}}>기준일</span>
-                          <input type="date" value={editItemForm.baseDate||todayStr()}
-                            onChange={e=>setEditItemForm(f=>({...f,baseDate:e.target.value}))} style={inputStyle}/>
-                          <NextDates item={{...editItemForm, dow:+editItemForm.dow, baseDate:editItemForm.baseDate||todayStr()}}/>
-                        </>)}
-                      </div>
-                      <div style={{display:'flex',gap:8,flexWrap:'wrap',alignItems:'center'}}>
-                        <span style={{fontSize:10,color:'#6E6A63'}}>알림(선택):</span>
-                        <select value={editItemForm.alertUid||''} onChange={e=>setEditItemForm(f=>({...f,alertUid:e.target.value}))} style={inputStyle}>
-                          <option value="">담당자 없음</option>
-                          {employees.map(e=><option key={e.uid} value={e.uid}>{e.name}</option>)}
-                        </select>
-                        <input value={editItemForm.alertMsg||''} onChange={e=>setEditItemForm(f=>({...f,alertMsg:e.target.value}))}
-                          placeholder="알림 문구 (예: 1시간 일찍 출근)" style={{...inputStyle,flex:1,minWidth:140}}/>
-                      </div>
-                      <div style={{display:'flex',gap:8}}>
-                        <button onClick={saveEditItem} disabled={saving}
-                          style={{background:'var(--hk-accent)',color:'#FFFFFF',border:'none',borderRadius:5,padding:'6px 14px',fontSize:11,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>저장</button>
-                        <button onClick={()=>{setEditItemId(null);setEditItemForm(null)}}
-                          style={{background:'transparent',border:'1px solid #DCD7CE',color:'#6E6A63',borderRadius:5,padding:'6px 14px',fontSize:11,cursor:'pointer',fontFamily:'inherit'}}>취소</button>
-                      </div>
-                    </div>
+                <ListItem key={item.id} align="start"
+                  label={editItemId===item.id ? (
+                    <VStack gap={2}>
+                      {weeklyFields(editItemForm, setEditItemForm, editItemForm.baseDate||todayStr())}
+                      <HStack gap={2}>
+                        <Button size="sm" variant="primary" label="저장" isDisabled={saving} onClick={saveEditItem}/>
+                        <Button size="sm" label="취소" onClick={()=>{setEditItemId(null);setEditItemForm(null)}}/>
+                      </HStack>
+                    </VStack>
                   ) : (
-                    <>
-                      <div style={{flex:1}}>
-                        <div style={{fontSize:12,color:'#1D1B18'}}>
-                          {item.label}
-                          {intervalLabel(item.interval) && <span style={{fontSize:10,color:'#6B4FA0',marginLeft:6,fontWeight:700}}>{intervalLabel(item.interval)}</span>}
-                        </div>
-                        {(item.alertUid||item.alertMsg) && (
-                          <div style={{fontSize:10,color:'#B42318',marginTop:2}}>
-                            {item.alertUid && alertNameOf(item.alertUid) ? `${alertNameOf(item.alertUid)}님 ` : ''}{item.alertMsg||'일찍 출근 필요'}
-                          </div>
-                        )}
-                      </div>
-                      <span style={{fontSize:11,color:'#2B5C9E',fontWeight:600}}>{DOW_LABELS[item.dow]}요일</span>
-                      <span style={{fontSize:11,color:'var(--hk-accent)',fontWeight:600}}>{item.time}</span>
-                      <button onClick={()=>startEditPhotos(item)}
-                        style={{background:'transparent',border:'none',color: item.photoCount>0 ? '#2B5C9E' : '#6E6A63',fontSize:12,cursor:'pointer',padding:0}}>사진{item.photoCount>0 ? ` ${item.photoCount}` : ''}</button>
-                      <button onClick={()=>startEditItem(item,'weekly')}
-                        style={{background:'transparent',border:'none',color:'#6E6A63',fontSize:12,cursor:'pointer',padding:0}}>수정</button>
-                      <button onClick={()=>deleteItem(item.id,'weekly')}
-                        style={{background:'transparent',border:'none',color:'#B42318',fontSize:12,cursor:'pointer',padding:0}}>삭제</button>
-                    </>
+                    <HStack gap={2} vAlign="center" wrap="wrap">
+                      <Text>{item.label}</Text>
+                      {intervalLabel(item.interval) && <Badge variant="purple" label={intervalLabel(item.interval)}/>}
+                      <Badge variant="blue" label={`${DOW_LABELS[item.dow]}요일`}/>
+                      <Badge label={item.time}/>
+                    </HStack>
                   )}
-                </div>
-                {ItemPhotoPanel(item)}
-                </div>
+                  description={<>
+                    {editItemId!==item.id && (item.alertUid||item.alertMsg) && (
+                      <Text type="supporting" color="accent">{item.alertUid && alertNameOf(item.alertUid) ? `${alertNameOf(item.alertUid)}님 ` : ''}{item.alertMsg||'일찍 출근 필요'}</Text>
+                    )}
+                    {photoPanel(item)}
+                  </>}
+                  endContent={editItemId!==item.id && itemButtons(item, 'weekly')}/>
               ))}
-            </div>
-            <div style={{display:'flex',flexDirection:'column',gap:8}}>
-              <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
-                <input value={newWeekly.label} onChange={e=>setNewWeekly(f=>({...f,label:e.target.value}))}
-                  placeholder="새 항목 이름 (예: 냉장고 성애제거)"
-                  style={{...inputStyle,flex:1,minWidth:120}}/>
-                <select value={newWeekly.dow} onChange={e=>setNewWeekly(f=>({...f,dow:e.target.value}))} style={inputStyle}>
-                  {DOW_LABELS.map((d,i)=><option key={i} value={i}>{d}요일</option>)}
-                </select>
-                <select value={newWeekly.time} onChange={e=>setNewWeekly(f=>({...f,time:e.target.value}))} style={inputStyle}>
-                  <option value="오전">오전</option>
-                  <option value="오후">오후</option>
-                </select>
-                <select value={newWeekly.interval} onChange={e=>setNewWeekly(f=>({...f,interval:e.target.value}))} style={inputStyle}>
-                  {INTERVALS.map(o=><option key={o.v} value={o.v}>{o.label}</option>)}
-                </select>
-                {weeksOf(newWeekly.interval) > 1 && (
-                  <div style={{display:'flex',alignItems:'center',gap:6,flexWrap:'wrap'}}>
-                    <span style={{fontSize:10,color:'#6E6A63'}}>기준일</span>
-                    <input type="date" value={newWeekly.baseDate}
-                      onChange={e=>setNewWeekly(f=>({...f,baseDate:e.target.value}))} style={inputStyle}/>
-                    <NextDates item={{...newWeekly, dow:+newWeekly.dow}}/>
-                  </div>
-                )}
-              </div>
-              <div style={{display:'flex',gap:8,flexWrap:'wrap',alignItems:'center'}}>
-                <span style={{fontSize:10,color:'#6E6A63'}}>알림(선택):</span>
-                <select value={newWeekly.alertUid} onChange={e=>setNewWeekly(f=>({...f,alertUid:e.target.value}))} style={inputStyle}>
-                  <option value="">담당자 없음</option>
-                  {employees.map(e=><option key={e.uid} value={e.uid}>{e.name}</option>)}
-                </select>
-                <input value={newWeekly.alertMsg} onChange={e=>setNewWeekly(f=>({...f,alertMsg:e.target.value}))}
-                  placeholder="알림 문구 (예: 1시간 일찍 출근 필요)" style={{...inputStyle,flex:1,minWidth:160}}/>
-                <button onClick={addWeeklyItem} disabled={saving}
-                  style={{background:'#2E7D45',color:'#FFFFFF',border:'none',borderRadius:4,
-                    padding:'8px 16px',fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'inherit',whiteSpace:'nowrap'}}>
-                  + 추가
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
+            </List>
+            <Card variant="muted" padding={3}>
+              <VStack gap={2}>
+                {weeklyFields(newWeekly, setNewWeekly, newWeekly.baseDate, true)}
+                <HStack><Button variant="primary" label="+ 추가" isDisabled={saving} onClick={addWeeklyItem}/></HStack>
+              </VStack>
+            </Card>
+          </VStack>
+        </LedgerCard>
       )}
 
-      {/* 지난 기록 조회 */}
+      {/* 지난 기록 조회 (체크 줄은 아직 예전 모양) */}
       {showHistory && (
-        <div style={{background:'#FFFFFF',border:'1px solid rgba(43,92,158,0.3)',borderRadius:6,
-          padding:16,marginBottom:18}}>
-          <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:14,flexWrap:'wrap'}}>
-            <span style={{fontSize:12,fontWeight:700,color:'#2B5C9E'}}>지난 기록 조회</span>
-            <input type="date" value={historyDate} max={today}
-              onChange={e=>setHistoryDate(e.target.value)}
-              style={{...inputStyle}}/>
-            <button onClick={()=>setShowHistory(false)}
-              style={{background:'transparent',border:'1px solid #DCD7CE',color:'#6E6A63',borderRadius:6,
-                padding:'5px 10px',fontSize:11,cursor:'pointer',fontFamily:'inherit'}}>
-              닫기
-            </button>
-          </div>
+        <LedgerCard title="지난 기록 조회" right={<Button size="sm" label="닫기" onClick={()=>setShowHistory(false)}/>}>
+          <HStack><DateInput label="날짜" isLabelHidden value={historyDate} onChange={v=>v && v <= today && setHistoryDate(v)}/></HStack>
           {historyClosed ? (
-            <div style={{fontSize:12,color:'#6E6A63',padding:'12px 0'}}>
-              {historyDow===CLOSED_DOW ? '일요일은 휴무일입니다' : `임시휴무일입니다 (${historyHolidayInfo?.reason||'임시휴무'})`}
-            </div>
+            <Text color="secondary">{historyDow===CLOSED_DOW ? '일요일은 휴무일입니다' : `임시휴무일입니다 (${historyHolidayInfo?.reason||'임시휴무'})`}</Text>
           ) : (
-            <>
-              <div style={{fontSize:11,color:'#6E6A63',marginBottom:10}}>
-                {historyDate} ({DAYS_KR[historyDow]}) — 매일 {historyDailyDone}/{dailyTotalSlots} · 요일 {historyWeeklyDone}/{historyWeekly.length}
-              </div>
-              <div style={{fontSize:10,color:'#6E6A63',fontWeight:600,marginBottom:6}}>매일 항목</div>
-              <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(240px,1fr))',gap:8,marginBottom:14}}>
-                {dailyItems.map(it=>DailyRow(it, historyDate))}
-              </div>
-              {historyWeekly.length>0 && (
-                <>
-                  <div style={{fontSize:10,color:'#6E6A63',fontWeight:600,marginBottom:6}}>요일별 항목</div>
+            <VStack gap={2}>
+              <Text type="supporting" color="secondary" hasTabularNumbers>{historyDate} ({DAYS_KR[historyDow]}) — 매일 {historyDailyDone}/{dailyTotalSlots} · 요일 {historyWeeklyDone}/{historyWeekly.length}</Text>
+              <Heading level={5}>매일 항목</Heading>
+              <Legacy>
+                <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(240px,1fr))',gap:8}}>
+                  {dailyItems.map(it=>DailyRow(it, historyDate))}
+                </div>
+              </Legacy>
+              {historyWeekly.length>0 && <>
+                <Heading level={5}>요일별 항목</Heading>
+                <Legacy>
                   <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(220px,1fr))',gap:8}}>
                     {historyWeekly.map(it=>WeeklyRow(it, historyDate))}
                   </div>
-                </>
-              )}
-            </>
+                </Legacy>
+              </>}
+            </VStack>
           )}
-        </div>
+        </LedgerCard>
       )}
-
-      </Legacy>
 
       {/* 지난달 개근 직원과 포상 결과 */}
       {reward?.eligible?.length > 0 && (
