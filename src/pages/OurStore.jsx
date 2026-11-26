@@ -1,4 +1,12 @@
 import { useEffect, useRef, useState } from 'react'
+import { VStack, HStack } from '@astryxdesign/core/Layout'
+import { Text } from '@astryxdesign/core/Text'
+import { Grid } from '@astryxdesign/core/Grid'
+import { Badge } from '@astryxdesign/core/Badge'
+import { Banner } from '@astryxdesign/core/Banner'
+import { Button } from '@astryxdesign/core/Button'
+import { List, ListItem } from '@astryxdesign/core/List'
+import { AstryxPage, Legacy, PageHeader, LedgerCard } from '../astryx/AstryxPage'
 import { db } from '../firebase'
 import { collection, doc, getDoc, getDocs, onSnapshot, setDoc } from 'firebase/firestore'
 import { calcGrade, useAuth } from '../AuthContext'
@@ -21,7 +29,6 @@ import StoreLifeSettings from '../components/StoreLifeSettings'
 // attendance·revenue·checklist는 실시간(onSnapshot)으로 받아서 포스에 띄워 두면 저절로 바뀜
 
 const T = { ink:'#1D1B18', sub:'#6E6A63', faint:'#A8A39A', rule:'#DCD7CE', soft:'#ECE8E1', accent:'var(--hk-accent)', red:'#B42318', green:'#2E7D45', blue:'#2B5C9E', amber:'#B45309' }
-const num = { fontVariantNumeric:'tabular-nums' }
 const W = MAP_W, H = MAP_H, SIZE = 36        // 그림 크기, 캐릭터 크기
 const SPEED = 120                              // 걷는 빠르기 (그림 점/초)
 // 같은 사람은 늘 같은 순서로 움직이게: uid로 만든 숫자
@@ -349,14 +356,15 @@ export default function OurStore() {
   }
   const stool = ([x, y]) => <rect key={`s${x}-${y}`} x={x-8} y={y-7} width="16" height="14" fill="#C9CBCE" stroke="#8D9297"/>
 
+  const onDuty = people.filter(p => p.state !== 'leaving' && !p.boss)
   return (
-    <div style={{maxWidth:1100}}>
-      <style>{AVATAR_CSS}</style>
-      <header style={{display:'flex', alignItems:'baseline', justifyContent:'space-between', gap:12, flexWrap:'wrap', paddingBottom:10, borderBottom:`3px double ${T.ink}`, marginBottom:16}}>
-        <h1 style={{fontSize:24, fontWeight:800, margin:0, fontFamily:'inherit', color:T.ink}}>우리 매장</h1>
-        <div style={{fontSize:14, color:T.sub, ...num}}>{now.getMonth()+1}월 {now.getDate()}일 {hm(now)} · 지금 {people.filter(p=>p.state!=='leaving' && !p.boss).length}명 근무 중</div>
-      </header>
+    <AstryxPage>
+    <VStack gap={4}>
+      <Legacy><style>{AVATAR_CSS}</style></Legacy>
+      <PageHeader title="우리 매장" sub={`${now.getMonth()+1}월 ${now.getDate()}일 ${hm(now)} · 지금 ${onDuty.length}명 근무 중`}/>
 
+      {/* 매장 그림 (픽셀 그림이라 예전 모양 그대로) */}
+      <Legacy>
       <div style={{background:'#2A211C', borderRadius:6, padding:8}}>
         <svg viewBox={`0 0 ${W} ${H}`} width="100%" role="img" aria-label="매장 안에서 일하는 직원들" style={{display:'block', shapeRendering:'crispEdges'}}>
           {/* 바닥: 홀은 진회색 타일, 주방은 밝은 타일 */}
@@ -464,69 +472,62 @@ export default function OurStore() {
         </svg>
       </div>
 
+      </Legacy>
+
       {/* 주방 실수: 사장님 화면에서 반응 고르기 (고르면 모든 화면에 같은 반응) */}
       {isOwner && mistake && actorP && (
-        <div style={{display:'flex', alignItems:'center', gap:8, flexWrap:'wrap', marginTop:10, padding:'10px 12px', border:`1.5px solid ${T.amber}`, background:'#FFF8EC', borderRadius:6}}>
-          <b style={{fontSize:14, color:T.amber}}>{actorP.label}님이 실수했어요</b>
-          <span style={{fontSize:12, color:T.sub}}>{mistake.chosen ? `고른 반응: ${TONES.find(x => x[0] === mistake.tone)?.[1]}` : mistake.phase === 'oops' ? `${Math.max(0, mistake.left)}초 안에 고르면 그렇게 말해요` : '기본 반응으로 말했어요'}</span>
-          <span style={{flex:1}}/>
-          {TONES.filter(([k]) => k !== 'random').map(([k, label]) => (
-            <button key={k} type="button" onClick={() => react(k)} disabled={mistake.phase !== 'oops'}
-              style={{fontFamily:'inherit', fontSize:13, fontWeight:700, padding:'6px 12px', borderRadius:4, cursor: mistake.phase === 'oops' ? 'pointer' : 'default',
-                border:`1px solid ${mistake.tone === k ? T.accent : T.rule}`, background: mistake.tone === k && mistake.chosen ? T.accent : '#FFFFFF', color: mistake.tone === k && mistake.chosen ? '#FFFFFF' : T.ink, opacity: mistake.phase === 'oops' || mistake.tone === k ? 1 : 0.5}}>{label}</button>
-          ))}
-        </div>
+        <Banner status="warning" title={`${actorP.label}님이 실수했어요`}
+          description={mistake.chosen ? `고른 반응: ${TONES.find(x => x[0] === mistake.tone)?.[1]}` : mistake.phase === 'oops' ? `${Math.max(0, mistake.left)}초 안에 고르면 그렇게 말해요` : '기본 반응으로 말했어요'}/>
       )}
-      <div style={{display:'flex', justifyContent:'flex-end', marginTop:8}}>
-        <button type="button" onClick={toggleVoice}
-          style={{fontFamily:'inherit', fontSize:12, padding:'5px 10px', borderRadius:4, border:`1px solid ${T.rule}`, background: voice ? T.ink : '#FFFFFF', color: voice ? '#FFFFFF' : T.sub, cursor:'pointer'}}>
-          배달 알림 목소리 {voice ? '켜짐' : '꺼짐'} (이 기기)
-        </button>
-      </div>
+      {isOwner && mistake && actorP && (
+        <HStack gap={2} wrap="wrap">
+          {TONES.filter(([k]) => k !== 'random').map(([k, label]) => (
+            <Button key={k} size="sm" variant={mistake.tone === k && mistake.chosen ? 'primary' : 'secondary'} label={label} isDisabled={mistake.phase !== 'oops'} onClick={() => react(k)}/>
+          ))}
+        </HStack>
+      )}
+      <HStack hAlign="end"><Button size="sm" variant={voice ? 'primary' : 'secondary'} label={`배달 알림 목소리 ${voice ? '켜짐' : '꺼짐'} (이 기기)`} onClick={toggleVoice}/></HStack>
 
-      {/* 아래: 글로 보는 지금 상황 */}
-      <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(min(100%, 300px), 1fr))', gap:'18px 32px', marginTop:18}}>
-        <section>
-          <h2 style={{fontSize:15, fontWeight:800, margin:'0 0 4px', fontFamily:'inherit', borderBottom:`2px solid ${T.ink}`, paddingBottom:4}}>근무 중</h2>
-          {people.filter(p => p.state !== 'leaving' && !p.boss).length === 0 && <div style={{fontSize:13, color:T.sub, padding:'6px 0'}}>지금 근무 중인 사람이 없어요</div>}
-          {people.filter(p => p.state !== 'leaving' && !p.boss).map(p => (
-            <div key={p.uid} style={{display:'flex', gap:8, alignItems:'baseline', fontSize:14, padding:'5px 0', borderBottom:`1px solid ${T.soft}`}}>
-              <b style={{minWidth:56}}>{p.label}</b>
-              <span style={{color:T.sub, fontSize:12}}>{(p.ps||[p.posKey]).map(k => POSITIONS.find(x=>x.id===k)?.label.split(' ')[0]).join('·')}</span>
-              <span style={{flex:1}}/>
-              <span style={{...num, fontSize:13, color: p.state==='rest' ? T.blue : p.late ? T.red : T.green}}>
-                {p.state === 'rest' ? `브레이크 ~${p.brEnd}` : `${hm(p.inD)} 출근${p.late ? ` (지각 ${p.late}분)` : ''}`}
-              </span>
-            </div>
-          ))}
-        </section>
-        <section>
-          <h2 style={{fontSize:15, fontWeight:800, margin:'0 0 4px', fontFamily:'inherit', borderBottom:`2px solid ${T.ink}`, paddingBottom:4}}>오늘</h2>
-          {[
-            ['체크리스트', ckTotal ? `${Math.min(todayChecks, ckTotal)} / ${ckTotal}${ckDone ? ' 다 끝냄' : ''}` : '—'],
-            ['오늘 매출', total ? `${total.toLocaleString('ko-KR')}원` : '아직 없음'],
-            ...waiting.map(w => [w.label, w.overdue ? `${w.plan.start} 출근인데 아직 안 옴` : `${w.plan.start} 출근 예정`]),
-          ].map(([k,v],i) => (
-            <div key={i} style={{display:'flex', gap:8, alignItems:'baseline', fontSize:14, padding:'5px 0', borderBottom:`1px solid ${T.soft}`}}>
-              <span style={{color:T.sub, minWidth:72}}>{k}</span><span style={{flex:1}}/>
-              <span style={{...num, color: String(v).includes('아직 안 옴') ? T.red : T.ink}}>{v}</span>
-            </div>
-          ))}
-        </section>
-      </div>
-      {/* 매장 장면 설정 (사장님만): 대사·빈도·주문 방법·사장님 반응 */}
-      {isOwner && <StoreLifeSettings raw={lifeRaw}/>}
-      {/* 사장님 캐릭터 꾸미기 (사장님 계정에서만) */}
+      {/* 글로 보는 지금 상황 */}
+      <Grid columns={{ minWidth: 300, max: 2, repeat: 'fit' }} gap={4}>
+        <LedgerCard title="근무 중">
+          {onDuty.length === 0 ? <Text color="secondary">지금 근무 중인 사람이 없어요</Text> : (
+            <List hasDividers edge="flush">
+              {onDuty.map(p => (
+                <ListItem key={p.uid} label={<Text weight="bold">{p.label}</Text>}
+                  description={(p.ps||[p.posKey]).map(k => POSITIONS.find(x=>x.id===k)?.label.split(' ')[0]).join('·')}
+                  endContent={p.state === 'rest' ? <Badge variant="info" label={`브레이크 ~${p.brEnd}`}/>
+                    : <HStack gap={1} vAlign="center"><Text hasTabularNumbers>{hm(p.inD)} 출근</Text>{p.late ? <Badge variant="error" label={`지각 ${p.late}분`}/> : null}</HStack>}/>
+              ))}
+            </List>
+          )}
+        </LedgerCard>
+        <LedgerCard title="오늘">
+          <List hasDividers edge="flush">
+            {[
+              ['체크리스트', ckTotal ? `${Math.min(todayChecks, ckTotal)} / ${ckTotal}${ckDone ? ' 다 끝냄' : ''}` : '—'],
+              ['오늘 매출', total ? `${total.toLocaleString('ko-KR')}원` : '아직 없음'],
+              ...waiting.map(w => [w.label, w.overdue ? `${w.plan.start} 출근인데 아직 안 옴` : `${w.plan.start} 출근 예정`]),
+            ].map(([k,v],i) => (
+              <ListItem key={i} label={<Text color="secondary">{k}</Text>} endContent={<Text hasTabularNumbers color={String(v).includes('아직 안 옴') ? 'accent' : 'primary'}>{v}</Text>}/>
+            ))}
+          </List>
+        </LedgerCard>
+      </Grid>
+
+      {/* 매장 장면 설정 (사장님만) · 사장님 캐릭터 꾸미기 */}
+      {isOwner && <Legacy><StoreLifeSettings raw={lifeRaw}/></Legacy>}
       {isOwner && user && (
-        <div style={{marginTop:22}}>
+        <Legacy>
           <AvatarEditor uid={user.uid} userData={owner?.uid === user.uid ? owner : userData} title="사장님 캐릭터" hint="늘 매장에 있어요. 주로 주방에 있다가 가끔 홀을 둘러봐요"
             onSaved={look => setOwner(o => o && o.uid === user.uid ? { ...o, avatar: look } : o)}/>
-        </div>
+        </Legacy>
       )}
 
-      <div style={{fontSize:12, color:T.sub, marginTop:12, lineHeight:1.7}}>
+      <Text type="supporting" color="secondary">
         캐릭터는 직원이 내 기록에서 꾸미고, 자리는 인원관리의 포지션으로 정해져요. 이번 달 개근 중인 직원은 옆이 반짝여요. 손님은 영업시간엔 늘 있고(점심·저녁엔 더 많이), 매출이 많으면 더 늘어요. 손님은 키오스크(가끔 포스)에서 주문하고 셀프바에서 반찬을 담아요. 홀 직원이 음식을 나르고(홀 직원이 없으면 카운터, 그다음 다른 직원), 손님은 다 먹으면 그릇을 퇴식구에 놓고 나가요.
-      </div>
-    </div>
+      </Text>
+    </VStack>
+    </AstryxPage>
   )
 }
