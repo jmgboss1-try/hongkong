@@ -1,8 +1,16 @@
 import { useEffect, useState } from 'react'
-import { VStack } from '@astryxdesign/core/Layout'
+import { VStack, HStack } from '@astryxdesign/core/Layout'
+import { Text, Heading } from '@astryxdesign/core/Text'
+import { Button } from '@astryxdesign/core/Button'
+import { TextInput } from '@astryxdesign/core/TextInput'
+import { Selector } from '@astryxdesign/core/Selector'
+import { Divider } from '@astryxdesign/core/Divider'
+import { Table } from '@astryxdesign/core/Table'
+import { EmptyState } from '@astryxdesign/core/EmptyState'
+import { SegmentedControl, SegmentedControlItem } from '@astryxdesign/core/SegmentedControl'
 import { Grid } from '@astryxdesign/core/Grid'
 import { Banner } from '@astryxdesign/core/Banner'
-import { AstryxPage, Legacy, PageHeader, MonthNav, LedgerCard, Ledger, LedgerRow } from '../astryx/AstryxPage'
+import { AstryxPage, PageHeader, MonthNav, LedgerCard, Ledger, LedgerRow } from '../astryx/AstryxPage'
 import CountUp from '../components/CountUp'
 import { db } from '../firebase'
 import { doc, getDoc, setDoc } from 'firebase/firestore'
@@ -67,11 +75,7 @@ export default function Revenue() {
     const [y,m] = ym.split('-').map(Number)
     return DAYS[new Date(y, m-1, +d).getDay()]
   }
-  const getDowColor = (ym, d) => {
-    const [y,m] = ym.split('-').map(Number)
-    const dow = new Date(y, m-1, +d).getDay()
-    return dow === 0 ? '#B42318' : dow === 6 ? '#2B5C9E' : '#1D1B18'
-  }
+
 
   async function load() {
     setLoading(true)
@@ -312,62 +316,7 @@ export default function Revenue() {
   // ── 장부 화면 조각 (지출관리·대시보드와 같은 모양). 함수로 그려야 입력칸 포커스가 안 빠짐 ──
   const T = { ink:'#1D1B18', sub:'#6E6A63', faint:'#A8A39A', rule:'#DCD7CE', soft:'#ECE8E1', accent:'var(--hk-accent)',
     red:'#B42318', green:'#2E7D45', blue:'#2B5C9E', purple:'#6B4FA0' }
-  const num = { fontVariantNumeric:'tabular-nums' }
   const won = n => (n||0).toLocaleString('ko-KR')
-  const field = extra => ({ background:'#FFFFFF', border:'1px solid #CBC5BA', borderRadius:4, color:T.ink, padding:'8px 10px',
-    fontSize:14, outline:'none', fontFamily:'inherit', boxSizing:'border-box', ...extra })
-  const money = (val, set, label) => (
-    <input type="text" inputMode="numeric" placeholder="0" aria-label={label}
-      value={val === '' || val == null ? '' : (+val).toLocaleString('ko-KR')}
-      onChange={e=>set(e.target.value.replace(/[^0-9]/g,''))}
-      style={field({ width:'min(160px, 40vw)', textAlign:'right', ...num })}/>
-  )
-  const leader = () => <span aria-hidden="true" style={{flex:1, borderBottom:`1px dotted ${T.faint}`, margin:'0 8px', minWidth:12, transform:'translateY(-4px)'}}/>
-  const line = (label, value, { strong, sub, color, note, key, text } = {}) => (
-    <div key={key||label} style={{display:'flex', alignItems:'baseline', padding: sub ? '3px 0 3px 14px' : '7px 0',
-      fontSize: strong ? 17 : sub ? 13 : 15, fontWeight: strong ? 800 : sub ? 400 : 600, color: sub ? T.sub : T.ink}}>
-      <span style={{whiteSpace:'nowrap'}}>{label}</span>
-      {note && <span style={{fontSize:12, color:T.sub, marginLeft:6, whiteSpace:'nowrap', fontWeight:400}}>{note}</span>}
-      {leader()}
-      <span style={{...num, whiteSpace:'nowrap', color: color || 'inherit'}}>{text ?? <CountUp value={value}/>}</span>
-    </div>
-  )
-  const inputRow = (label, control, note) => (
-    <div key={label} style={{display:'flex', alignItems:'center', padding:'5px 0', minHeight:44}}>
-      <span style={{fontSize:14, whiteSpace:'nowrap'}}>{label}</span>
-      {note && <span style={{fontSize:11, color:T.sub, marginLeft:6, whiteSpace:'nowrap'}}>{note}</span>}
-      {leader()}
-      {control}
-    </div>
-  )
-  const sectionTitle = (text, right, color) => (
-    <div style={{display:'flex', justifyContent:'space-between', alignItems:'baseline', gap:10, flexWrap:'wrap',
-      borderBottom:`2px solid ${T.ink}`, paddingBottom:6, marginBottom:6}}>
-      <h2 style={{fontSize:16, fontWeight:800, margin:0, fontFamily:'inherit', color: color || T.ink}}>{text}</h2>
-      {right && <div style={{display:'flex', alignItems:'center', gap:14, flexWrap:'wrap', fontSize:12, color:T.sub}}>{right}</div>}
-    </div>
-  )
-  const textTab = (on, label, onClick, color = T.accent) => (
-    <button key={label} type="button" onClick={onClick}
-      style={{background:'none', border:'none', padding:'4px 0', cursor:'pointer', fontFamily:'inherit', fontSize:13,
-        fontWeight: on ? 800 : 500, color: on ? T.ink : T.sub, borderBottom:`2px solid ${on ? color : 'transparent'}`}}>
-      {label}
-    </button>
-  )
-  const chip = (on, label, onClick) => (
-    <button type="button" onClick={onClick}
-      style={{fontFamily:'inherit', cursor:'pointer', borderRadius:4, whiteSpace:'nowrap', fontSize:12, padding:'6px 12px',
-        fontWeight: on ? 700 : 500, background: on ? T.accent : '#FFFFFF', color: on ? '#FFFFFF' : T.ink,
-        border: on ? 'none' : `1px solid ${T.rule}`}}>
-      {label}
-    </button>
-  )
-  const smallBtn = (label, onClick, danger) => (
-    <button type="button" onClick={onClick}
-      style={{background:'transparent', border:'none', color: danger ? T.red : T.sub, fontSize:12, cursor:'pointer',
-        padding: danger ? '0 0 0 6px' : '0 6px', fontFamily:'inherit'}}>{label}</button>
-  )
-
   // 이 달 요약: 배달앱별 합계(마감 기준), 영업일, 하루 평균, 최고 매출일
   const platTot = DELIVERY_PLATFORMS.map(p => ({ ...p, sum: activeDays.reduce((a,dd)=>a+(data[dd]?.[p.key]||0),0) }))
   const dayTotals = activeDays.map(dd => { const t = getTotal(data[dd]); return { dd, sum: t.kiosk+t.del+t.pos } }).filter(x=>x.sum>0)
@@ -376,6 +325,10 @@ export default function Revenue() {
   const yest = (()=>{ const y=new Date(); y.setDate(y.getDate()-1); return pad(y.getDate()) })()
   const typeLabel = t => t==='early' ? '얼리' : t==='morning' ? '오전' : t==='middle' ? '미들타임' : '마감'
 
+  // 금액 입력 (쉼표 찍어 보여주고 숫자만 받음)
+  const moneyIn = (label, val, set) => (
+    <TextInput label={label} value={val === '' || val == null ? '' : (+val).toLocaleString('ko-KR')} onChange={v => set(v.replace(/[^0-9]/g, ''))} inputMode="numeric" placeholder="0"/>
+  )
   // Astryx 장부 줄 (금액이 굴러가며 바뀜)
   const row = (label, value, o = {}) => <LedgerRow key={o.key || label} label={label} value={value} note={o.note} sub={o.sub} strong={o.strong} text={o.text}/>
 
@@ -416,213 +369,119 @@ export default function Revenue() {
       {/* 지난달 같은 기간과 비교 */}
       {!loading && <RevenuePace ym={curMonth}/>}
 
-      <Legacy>
-
       {/* 매출 입력 (사장만) */}
       {isOwner && (
-        <section style={{marginBottom:30}}>
-          {sectionTitle(
-            editDay ? `${+editDay}일 (${getDow(curMonth,editDay)}) ${typeLabel(editType)} 고치는 중` : '매출 입력',
-            editDay
-              ? <button type="button" onClick={cancelEdit} style={{background:'#FFFFFF', border:`1px solid ${T.rule}`, borderRadius:4, padding:'4px 10px', fontSize:12, cursor:'pointer', fontFamily:'inherit', color:T.ink}}>취소</button>
-              : isNewMonth && <>
-                  {textTab(inputType==='early', '얼리', ()=>setInputType('early'), TYPE_COLORS.early)}
-                  {textTab(inputType==='morning', '오전', ()=>setInputType('morning'), TYPE_COLORS.morning)}
-                  {textTab(inputType==='middle', '미들타임', ()=>setInputType('middle'), TYPE_COLORS.middle)}
-                  {textTab(inputType==='close', '마감', ()=>setInputType('close'), TYPE_COLORS.close)}
-                </>,
-            editDay ? T.accent : undefined)}
-
-          <div style={{paddingTop:8}}>
+        <LedgerCard title={editDay ? `${+editDay}일 (${getDow(curMonth,editDay)}) ${typeLabel(editType)} 고치는 중` : '매출 입력'}
+          right={editDay ? <Button size="sm" label="취소" onClick={cancelEdit}/> : isNewMonth && (
+            <SegmentedControl label="입력할 때" size="sm" value={inputType} onChange={setInputType}>
+              <SegmentedControlItem value="early" label="얼리"/>
+              <SegmentedControlItem value="morning" label="오전"/>
+              <SegmentedControlItem value="middle" label="미들타임"/>
+              <SegmentedControlItem value="close" label="마감"/>
+            </SegmentedControl>)}>
+          <VStack gap={3} maxWidth={560}>
             {!editDay && (
-              <div style={{display:'flex', gap:8, alignItems:'center', flexWrap:'wrap', marginBottom:10}}>
-                <span style={{fontSize:13, color:T.sub}}>날짜</span>
+              <HStack gap={2} vAlign="end" wrap="wrap">
                 {isThisMonth && <>
-                  {chip(day===pad(now.getDate()), `오늘 (${now.getDate()}일)`, ()=>setDay(pad(now.getDate())))}
-                  {chip(day===yest, `어제 (${+yest}일)`, ()=>setDay(yest))}
+                  <Button size="sm" variant={day===pad(now.getDate()) ? 'primary' : 'secondary'} label={`오늘 (${now.getDate()}일)`} onClick={()=>setDay(pad(now.getDate()))}/>
+                  <Button size="sm" variant={day===yest ? 'primary' : 'secondary'} label={`어제 (${+yest}일)`} onClick={()=>setDay(yest)}/>
                 </>}
-                <select value={day} onChange={e=>setDay(e.target.value)} aria-label="날짜" style={field({ fontSize:13 })}>
-                  {Array.from({length:days},(_,i)=>{
+                <Selector label="날짜" isLabelHidden size="sm" value={day} onChange={v => v && setDay(v)}
+                  options={Array.from({length:days},(_,i)=>{
                     const dd = pad(i+1)
                     const dup = isNewMonth ? isDuplicateNew(dd, inputType) : isDuplicateOld(dd)
-                    return <option key={i} value={dd}>{i+1}일 ({getDow(curMonth,dd)}){dup ? ' · 입력됨' : ''}</option>
-                  })}
-                </select>
-                {isNewMonth && inputType==='close' && <span style={{fontSize:12, color:T.sub}}>오후는 마감 − 오전 − 미들로 자동 계산돼요</span>}
-                {isNewMonth && inputType==='early' && <span style={{fontSize:12, color:T.sub}}>9:00~10:30 매출 (10시 30분에 POS에 쌓인 금액). 오전·마감은 지금처럼 9시부터 쌓인 금액으로 적어요</span>}
-              </div>
+                    return { value: dd, label: `${i+1}일 (${getDow(curMonth,dd)})${dup ? ' · 입력됨' : ''}` }
+                  })}/>
+              </HStack>
             )}
-            {activeType === 'middle' && (
-              <div style={{fontSize:12, color:T.purple, marginBottom:6, lineHeight:1.6}}>
-                POS·키오스크에 찍힌 <b>누적 금액 그대로</b> 적으세요. 오전 매출을 빼서 미들타임 매출만 저장돼요.
-              </div>
-            )}
+            {!editDay && isNewMonth && inputType==='close' && <Text type="supporting" color="secondary">오후는 마감 − 오전 − 미들로 자동 계산돼요</Text>}
+            {!editDay && isNewMonth && inputType==='early' && <Text type="supporting" color="secondary">9:00~10:30 매출 (10시 30분에 POS에 쌓인 금액). 오전·마감은 지금처럼 9시부터 쌓인 금액으로 적어요</Text>}
+            {activeType === 'middle' && <Banner status="info" title="POS·키오스크에 찍힌 누적 금액 그대로 적으세요" description="오전 매출을 빼서 미들타임 매출만 저장돼요."/>}
 
-            <div style={{maxWidth:520}}>
-              {inputRow(inCH.kiosk === '홀' ? `홀 (${HALL_HINT})` : '키오스크', money(kiosk, setKiosk, inCH.kiosk))}
-              {!showDelDetail
-                ? inputRow('배달', money(del, setDel, '배달'))
-                : <>
-                    <div style={{fontSize:12, fontWeight:700, color:T.sub, padding:'8px 0 2px', borderBottom:`1px solid ${T.rule}`}}>배달 (앱별)</div>
-                    {inputRow('배달의민족', money(baemin, setBaemin, '배달의민족'))}
-                    {inputRow('쿠팡이츠', money(coupang, setCoupang, '쿠팡이츠'))}
-                    {inputRow('요기요', money(yogiyo, setYogiyo, '요기요'))}
-                    {inputRow('땡겨요', money(ddangyeo, setDdangyeo, '땡겨요'))}
-                    {line('배달 합계', delTotal, { sub:true })}
-                  </>}
-              <button type="button" onClick={()=>setShowDelDetail(v=>!v)}
-                style={{background:'none', border:'none', borderBottom:`1px solid ${T.blue}`, color:T.blue, padding:0, fontSize:12, cursor:'pointer', fontFamily:'inherit', margin:'2px 0 4px'}}>
-                {showDelDetail ? '배달을 합계 하나로 입력' : '배달을 앱별로 입력'}
-              </button>
-              {inputRow(inCH.pos === '기타' ? `기타 (${ETC_HINT})` : '포스·현장', money(pos, setPos, inCH.pos))}
-              <div style={{borderTop:`3px double ${T.ink}`, marginTop:6, paddingTop:2}}>
-                {isMiddleActive
-                  ? line('미들타임 매출 (저장될 값)', pureMiddlePreview, { strong:true, color:T.purple })
-                  : line(`${+(editDay||day)}일 ${isNewMonth ? typeLabel(activeType) : ''} 합계`, (+kiosk||0)+(showDelDetail?delTotal:(+del||0))+(+pos||0), { strong:true })}
-              </div>
-            </div>
-            <button onClick={save} disabled={saving}
-              style={{marginTop:10, background:T.accent, color:'#FFFFFF', border:'none', borderRadius:4, padding:'8px 20px',
-                fontSize:13, fontWeight:700, cursor:'pointer', fontFamily:'inherit', opacity: saving ? 0.6 : 1}}>
-              {saving ? '저장 중...' : editDay ? '고친 내용 저장' : '저장'}
-            </button>
-          </div>
-        </section>
+            {moneyIn(inCH.kiosk === '홀' ? `홀 (${HALL_HINT})` : '키오스크', kiosk, setKiosk)}
+            {!showDelDetail ? moneyIn('배달', del, setDel) : <>
+              <Heading level={5}>배달 (앱별)</Heading>
+              {moneyIn('배달의민족', baemin, setBaemin)}
+              {moneyIn('쿠팡이츠', coupang, setCoupang)}
+              {moneyIn('요기요', yogiyo, setYogiyo)}
+              {moneyIn('땡겨요', ddangyeo, setDdangyeo)}
+              <LedgerRow label="배달 합계" value={delTotal} sub/>
+            </>}
+            <Button variant="ghost" size="sm" label={showDelDetail ? '배달을 합계 하나로 입력' : '배달을 앱별로 입력'} onClick={()=>setShowDelDetail(v=>!v)}/>
+            {moneyIn(inCH.pos === '기타' ? `기타 (${ETC_HINT})` : '포스·현장', pos, setPos)}
+            <Divider variant="strong"/>
+            {isMiddleActive
+              ? <LedgerRow label="미들타임 매출 (저장될 값)" value={pureMiddlePreview} strong/>
+              : <LedgerRow label={`${+(editDay||day)}일 ${isNewMonth ? typeLabel(activeType) : ''} 합계`} value={(+kiosk||0)+(showDelDetail?delTotal:(+del||0))+(+pos||0)} strong/>}
+            <Button variant="primary" label={saving ? '저장 중...' : editDay ? '고친 내용 저장' : '저장'} isLoading={saving} onClick={save}/>
+          </VStack>
+        </LedgerCard>
       )}
 
-      {/* 일별 매출 내역 */}
-      <section>
-        {sectionTitle('일별 매출 내역', <>
-          {textTab(showChannelDetail, '채널별', ()=>setShowChannelDetail(true))}
-          {textTab(!showChannelDetail, '합계만', ()=>setShowChannelDetail(false))}
-        </>)}
-        {loading ? <div style={{color:T.sub, padding:'30px 0'}}>불러오는 중...</div> : (
-          <div style={{overflowX:'auto'}}>
-            <table style={{width:'100%', borderCollapse:'collapse', fontSize:13, ...num}}>
-              <thead>
-                <tr>
-                  {['날짜', ...(isNewMonth ? ['구분'] : []), ...(showChannelDetail ? [CH.kiosk,'배달',CH.pos] : []), '합계', ...(isOwner ? [''] : [])].map((h,i)=>(
-                    <th key={h+i} style={{padding:'8px 12px', fontSize:12, fontWeight:600, color:T.sub, borderBottom:`1px solid ${T.ink}`,
-                      textAlign:['날짜','구분'].includes(h)?'left':'right', whiteSpace:'nowrap'}}>{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {activeDays.length === 0 && (
-                  <tr><td colSpan={isOwner?7:6} style={{padding:28, textAlign:'center', color:T.sub}}>입력된 매출이 없어요</td></tr>
-                )}
-                {activeDays.map(dd => {
-                  const r = data[dd]
-                  const dayCell = rowSpan => (
-                    <td rowSpan={rowSpan} style={{padding:'8px 12px', borderBottom:`1px solid ${T.rule}`, verticalAlign:'top', whiteSpace:'nowrap',
-                      color:getDowColor(curMonth,dd), fontWeight:600}}>{+dd}일 ({getDow(curMonth,dd)})</td>
-                  )
-                  // keys: 앱 → 필드 이름, 또는 앱 → 금액(숫자)
-                  const pv = (keys, k) => typeof keys[k] === 'number' ? keys[k] : (r[keys[k]]||0)
-                  const platLines = keys => DELIVERY_PLATFORMS.some(p=>pv(keys,p.key)!==0) && (
-                    <div style={{marginTop:2}}>
-                      {DELIVERY_PLATFORMS.filter(p=>pv(keys,p.key)!==0).map(p=>(
-                        <div key={p.key} style={{display:'flex', justifyContent:'space-between', gap:8, fontSize:11, lineHeight:1.5, color:T.sub}}>
-                          <span>{p.label}</span><span>{won(pv(keys,p.key))}</span>
-                        </div>
-                      ))}
-                    </div>
-                  )
-                  const td = (last, extra) => ({ padding:'7px 12px', borderBottom:`1px solid ${last ? T.rule : T.soft}`, textAlign:'right', whiteSpace:'nowrap', verticalAlign:'top', ...extra })
-
-                  if (!isNewMonth) {
-                    const t = getTotal(r)
-                    return (
-                      <tr key={dd}>
-                        {dayCell(1)}
-                        {showChannelDetail && <>
-                          <td style={td(true)}>{wonCell(t.kiosk)}</td>
-                          <td style={td(true)}>{wonCell(t.del)}{platLines({ baemin:'baemin', coupang:'coupang', yogiyo:'yogiyo', ddangyeo:'ddangyeo' })}</td>
-                          <td style={td(true)}>{wonCell(t.pos)}</td>
-                        </>}
-                        <td style={td(true, { fontWeight:700 })}>{won(t.kiosk+t.del+t.pos)}</td>
-                        {isOwner && <td style={td(true)}>{smallBtn('수정', ()=>startEdit(dd,'close'))}{smallBtn('삭제', ()=>delRow(dd,'close'), true)}</td>}
-                      </tr>
-                    )
-                  }
-
-                  const afternoon = getAfternoon(r)
-                  const mRec = getMorning(r), midRec = getMiddle(r), tRec = getTotal(r)
-                  const hasM = hasMorningData(dd), hasMid = hasMiddleData(dd), hasT = hasTotalData(dd), hasE = hasEarlyData(dd)
-                  const isNeg = afternoon && (afternoon.kiosk<0||afternoon.del<0||afternoon.pos<0)
-                  const rows = []
-                  if (hasE) rows.push({ id:'early', label:'얼리 9~10:30', color:TYPE_COLORS.early, v:getSession(r, 'early'), eType:'early',
-                    plat:{baemin:'earlyBaemin',coupang:'earlyCoupang',yogiyo:'earlyYogiyo',ddangyeo:'earlyDdangyeo'} })
-                  // 오전은 9시부터 쌓인 금액으로 저장돼 있어서, 얼리가 있으면 얼리를 뺀 10:30 이후 금액만 보여 줌 (저장값은 그대로)
-                  if (hasM) {
-                    const eRec = hasE ? getSession(r, 'early') : null
-                    const net = (k, e) => (r[k]||0) - (hasE ? (r[e]||0) : 0)
-                    rows.push({ id:'morning', label: hasE ? '오전 10:30~' : '오전', color:TYPE_COLORS.morning, eType:'morning',
-                      v: eRec ? { kiosk:mRec.kiosk-eRec.kiosk, del:mRec.del-eRec.del, pos:mRec.pos-eRec.pos } : mRec,
-                      plat:{ baemin:net('morningBaemin','earlyBaemin'), coupang:net('morningCoupang','earlyCoupang'), yogiyo:net('morningYogiyo','earlyYogiyo'), ddangyeo:net('morningDdangyeo','earlyDdangyeo') } })
-                  }
-                  if (hasMid) rows.push({ id:'middle', label:'미들', color:TYPE_COLORS.middle, v:midRec, eType:'middle',
-                    plat:{baemin:'middleBaemin',coupang:'middleCoupang',yogiyo:'middleYogiyo',ddangyeo:'middleDdangyeo'} })
-                  if ((hasM||hasMid) && hasT) {
-                    rows.push({ id:'afternoon', label: isNeg ? '오후 (오전+미들이 더 큼)' : '오후', auto:true, color: isNeg ? T.red : T.blue, v:afternoon })
-                    rows.push({ id:'total', label:'하루 합계', color:T.ink, v:tRec, eType:'close', strong:true,
-                      plat:{baemin:'baemin',coupang:'coupang',yogiyo:'yogiyo',ddangyeo:'ddangyeo'} })
-                  } else if (hasM||hasMid||hasE) {
-                    if (hasE && hasT) rows.push({ id:'total', label:'하루 합계', color:T.ink, v:tRec, eType:'close', strong:true,
-                      plat:{baemin:'baemin',coupang:'coupang',yogiyo:'yogiyo',ddangyeo:'ddangyeo'} })
-                    else rows.push({ id:'warn', label:'마감 미입력', color:T.red, v:null })
-                  } else if (hasT) {
-                    rows.push({ id:'total', label:'마감', color:T.ink, v:tRec, eType:'close', strong:true,
-                      plat:{baemin:'baemin',coupang:'coupang',yogiyo:'yogiyo',ddangyeo:'ddangyeo'} })
-                  }
-                  return rows.map((row, ri) => {
-                    const last = ri === rows.length-1
-                    const v = row.v
-                    const sum = v ? v.kiosk+v.del+v.pos : null
-                    return (
-                      <tr key={`${dd}-${row.id}`}>
-                        {ri === 0 && dayCell(rows.length)}
-                        <td style={td(last, { textAlign:'left', color:row.color, fontWeight: row.strong ? 700 : 600, fontSize:12 })}>
-                          {row.label}{row.auto && !isNeg && <span style={{fontSize:11, color:T.faint, marginLeft:4, fontWeight:400}}>자동</span>}
-                        </td>
-                        {showChannelDetail && <>
-                          <td style={td(last, { color: v && v.kiosk<0 ? T.red : undefined })}>{v ? wonCell(v.kiosk) : '—'}</td>
-                          <td style={td(last, { color: v && v.del<0 ? T.red : undefined })}>
-                            {v ? wonCell(v.del) : '—'}
-                            {row.plat && platLines(row.plat)}
-                          </td>
-                          <td style={td(last, { color: v && v.pos<0 ? T.red : undefined })}>{v ? wonCell(v.pos) : '—'}</td>
-                        </>}
-                        <td style={td(last, { fontWeight: row.strong ? 800 : 500, color: row.strong ? T.ink : row.color })}>{sum !== null ? won(sum) : '—'}</td>
-                        {isOwner && (
-                          <td style={td(last)}>
-                            {row.eType && <>{smallBtn('수정', ()=>startEdit(dd,row.eType))}{smallBtn('삭제', ()=>delRow(dd,row.eType), true)}</>}
-                          </td>
-                        )}
-                      </tr>
-                    )
-                  })
-                })}
-              </tbody>
-              <tfoot>
-                <tr style={{fontWeight:800}}>
-                  {(() => { const tf = { padding:'10px 12px', borderTop:`3px double ${T.ink}`, textAlign:'right', whiteSpace:'nowrap' }; return (<>
-                    <td colSpan={isNewMonth?2:1} style={{...tf, textAlign:'left'}}>합계</td>
-                    {showChannelDetail && <>
-                      <td style={tf}>{wonCell(tot.kiosk)}</td>
-                      <td style={tf}>{wonCell(tot.del)}</td>
-                      <td style={tf}>{wonCell(tot.pos)}</td>
-                    </>}
-                    <td style={{...tf, color:T.accent}}>{won(grand)}</td>
-                    {isOwner && <td style={tf}></td>}
-                  </>) })()}
-                </tr>
-              </tfoot>
-            </table>
-          </div>
-        )}
-      </section>
-      </Legacy>
+      {/* 일별 매출 내역 (하루에 여러 줄: 얼리·오전·미들·오후·하루 합계) */}
+      <LedgerCard title="일별 매출 내역" right={
+        <SegmentedControl label="보기" size="sm" value={showChannelDetail ? 'ch' : 'sum'} onChange={v => setShowChannelDetail(v === 'ch')}>
+          <SegmentedControlItem value="ch" label="채널별"/>
+          <SegmentedControlItem value="sum" label="합계만"/>
+        </SegmentedControl>}>
+        {loading ? <Text color="secondary">불러오는 중...</Text> : activeDays.length === 0 ? <EmptyState title="입력된 매출이 없어요" isCompact/> : (() => {
+          // 표에 넣을 줄 만들기: 날짜는 그날 첫 줄에만
+          const lines = []
+          for (const dd of activeDays) {
+            const r = data[dd]
+            const pv = (keys, k) => typeof keys[k] === 'number' ? keys[k] : (r[keys[k]]||0)
+            const plats = keys => keys ? DELIVERY_PLATFORMS.filter(p=>pv(keys,p.key)!==0).map(p => ({ label:p.label, v:pv(keys,p.key) })) : []
+            const rows = []
+            if (!isNewMonth) {
+              const t = getTotal(r)
+              rows.push({ id:'close', label:'마감', v:t, eType:'close', strong:true, plat:plats({ baemin:'baemin', coupang:'coupang', yogiyo:'yogiyo', ddangyeo:'ddangyeo' }) })
+            } else {
+              const afternoon = getAfternoon(r)
+              const mRec = getMorning(r), midRec = getMiddle(r), tRec = getTotal(r)
+              const hasM = hasMorningData(dd), hasMid = hasMiddleData(dd), hasT = hasTotalData(dd), hasE = hasEarlyData(dd)
+              const isNeg = afternoon && (afternoon.kiosk<0||afternoon.del<0||afternoon.pos<0)
+              const totalRow = label => ({ id:'total', label, v:tRec, eType:'close', strong:true, plat:plats({baemin:'baemin',coupang:'coupang',yogiyo:'yogiyo',ddangyeo:'ddangyeo'}) })
+              if (hasE) rows.push({ id:'early', label:'얼리 9~10:30', v:getSession(r, 'early'), eType:'early', plat:plats({baemin:'earlyBaemin',coupang:'earlyCoupang',yogiyo:'earlyYogiyo',ddangyeo:'earlyDdangyeo'}) })
+              // 오전은 9시부터 쌓인 금액으로 저장돼 있어서, 얼리가 있으면 얼리를 뺀 10:30 이후 금액만 보여 줌 (저장값은 그대로)
+              if (hasM) {
+                const eRec = hasE ? getSession(r, 'early') : null
+                const net = (k, e) => (r[k]||0) - (hasE ? (r[e]||0) : 0)
+                rows.push({ id:'morning', label: hasE ? '오전 10:30~' : '오전', eType:'morning',
+                  v: eRec ? { kiosk:mRec.kiosk-eRec.kiosk, del:mRec.del-eRec.del, pos:mRec.pos-eRec.pos } : mRec,
+                  plat:plats({ baemin:net('morningBaemin','earlyBaemin'), coupang:net('morningCoupang','earlyCoupang'), yogiyo:net('morningYogiyo','earlyYogiyo'), ddangyeo:net('morningDdangyeo','earlyDdangyeo') }) })
+              }
+              if (hasMid) rows.push({ id:'middle', label:'미들', v:midRec, eType:'middle', plat:plats({baemin:'middleBaemin',coupang:'middleCoupang',yogiyo:'middleYogiyo',ddangyeo:'middleDdangyeo'}) })
+              if ((hasM||hasMid) && hasT) {
+                rows.push({ id:'afternoon', label: isNeg ? '오후 (오전+미들이 더 큼)' : '오후 · 자동', v:afternoon, bad:isNeg })
+                rows.push(totalRow('하루 합계'))
+              } else if (hasM||hasMid||hasE) {
+                if (hasE && hasT) rows.push(totalRow('하루 합계'))
+                else rows.push({ id:'warn', label:'마감 미입력', v:null, bad:true })
+              } else if (hasT) rows.push(totalRow('마감'))
+            }
+            rows.forEach((row, ri) => lines.push({ ...row, key:`${dd}-${row.id}`, dd, first: ri === 0 }))
+          }
+          lines.push({ key:'sum', id:'sum', label:'합계', v:tot, strong:true, grand:true, first:true })
+          const amt = (v, k) => v ? <Text hasTabularNumbers color={v[k] < 0 ? 'accent' : 'primary'}>{wonCell(v[k])}</Text> : <Text color="secondary">—</Text>
+          return (
+            <Table data={lines} idKey="key" density="compact" columns={[
+              { key:'d', header:'날짜', renderCell: l => l.grand ? <Text weight="bold">이 달</Text> : l.first ? <Text weight="bold" color={getDow(curMonth,l.dd)==='일' ? 'accent' : 'primary'}>{+l.dd}일 ({getDow(curMonth,l.dd)})</Text> : null },
+              ...(isNewMonth ? [{ key:'t', header:'구분', renderCell: l => <Text weight={l.strong ? 'bold' : 'semibold'} color={l.bad ? 'accent' : l.strong ? 'primary' : 'secondary'}>{l.label}</Text> }] : []),
+              ...(showChannelDetail ? [
+                { key:'k', header:CH.kiosk, align:'end', renderCell: l => amt(l.v, 'kiosk') },
+                { key:'del', header:'배달', align:'end', renderCell: l => <VStack gap={0} hAlign="end">{amt(l.v, 'del')}{(l.plat||[]).map(p => <Text key={p.label} type="supporting" color="secondary" hasTabularNumbers>{p.label} {won(p.v)}</Text>)}</VStack> },
+                { key:'p', header:CH.pos, align:'end', renderCell: l => amt(l.v, 'pos') },
+              ] : []),
+              { key:'sum', header:'합계', align:'end', renderCell: l => l.v ? <Text weight={l.strong ? 'bold' : 'normal'} color={l.grand || l.bad ? 'accent' : 'primary'} hasTabularNumbers>{l.grand ? won(grand) : won(l.v.kiosk+l.v.del+l.v.pos)}</Text> : <Text color="secondary">—</Text> },
+              ...(isOwner ? [{ key:'act', header:'', align:'end', renderCell: l => l.eType && (
+                <HStack gap={1} hAlign="end">
+                  <Button size="sm" variant="ghost" label="수정" onClick={()=>startEdit(l.dd, l.eType)}/>
+                  <Button size="sm" variant="ghost" label="삭제" onClick={()=>delRow(l.dd, l.eType)}/>
+                </HStack>) }] : []),
+            ]}/>
+          )
+        })()}
+      </LedgerCard>
     </VStack>
     </AstryxPage>
   )
