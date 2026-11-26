@@ -2,6 +2,19 @@ import { useEffect, useState } from 'react'
 import { db } from '../firebase'
 import { doc, getDoc, setDoc, deleteDoc } from 'firebase/firestore'
 import { PhotoPicker, Lightbox } from '../components/PhotoAttach'
+import { VStack, HStack } from '@astryxdesign/core/Layout'
+import { Text } from '@astryxdesign/core/Text'
+import { Card } from '@astryxdesign/core/Card'
+import { Grid } from '@astryxdesign/core/Grid'
+import { Badge } from '@astryxdesign/core/Badge'
+import { Button } from '@astryxdesign/core/Button'
+import { Divider } from '@astryxdesign/core/Divider'
+import { TextInput } from '@astryxdesign/core/TextInput'
+import { DateInput } from '@astryxdesign/core/DateInput'
+import { TabList, Tab } from '@astryxdesign/core/TabList'
+import { List, ListItem } from '@astryxdesign/core/List'
+import { EmptyState } from '@astryxdesign/core/EmptyState'
+import { AstryxPage, Legacy, PageHeader, LedgerCard } from '../astryx/AstryxPage'
 
 const pad = n => String(n).padStart(2,'0')
 const todayStr = () => { const n=new Date(); return `${n.getFullYear()}-${pad(n.getMonth()+1)}-${pad(n.getDate())}` }
@@ -29,10 +42,10 @@ function stageOf(r) {
   return 'open'
 }
 const STAGE_BADGE = {
-  open:     { label:'진행중',   color:'#C3261C' },
-  paid:     { label:'보상완료', color:'#2E7D45' },
-  rejected: { label:'거절',     color:'#B42318' },
-  closed:   { label:'완료',        color:'#6E6A63' },
+  open:     { label:'진행중',   color:'#C3261C', badge:'warning' },
+  paid:     { label:'보상완료', color:'#2E7D45', badge:'success' },
+  rejected: { label:'거절',     color:'#B42318', badge:'error' },
+  closed:   { label:'완료',        color:'#6E6A63', badge:'neutral' },
 }
 
 function emptyForm() {
@@ -40,36 +53,18 @@ function emptyForm() {
     orderNo:'', orderAmount:'', type:'', cause:'' }
 }
 
-const inputStyle = {
-  background:'#F3F1EC',border:'1px solid #DCD7CE',borderRadius:4,color:'#1D1B18',
-  padding:'8px 10px',fontSize:12,outline:'none',fontFamily:'inherit',width:'100%'
-}
-const labelStyle = { fontSize:10,color:'#6E6A63',fontWeight:600,display:'block',marginBottom:6 }
-const smallBtn = (bg, color, border='none') => ({
-  background:bg,color,border,padding:'6px 12px',fontSize:11,fontWeight:700,
-  borderRadius:6,cursor:'pointer',fontFamily:'inherit',whiteSpace:'nowrap'
-})
+const numIn = v => v.replace(/[^0-9]/g, '')
+const moneyVal = v => v === '' || v == null ? '' : (+v).toLocaleString('ko-KR')
 
+// 하나 고르기 (다시 누르면 해제 가능)
 function ToggleGroup({ options, value, onChange, allowEmpty }) {
   return (
-    <div style={{display:'flex',flexWrap:'wrap',gap:6}}>
-      {options.map(opt=>{
-        const key = opt.key ?? opt
-        const label = opt.label ?? opt
-        const color = opt.color || '#C3261C'
-        const selected = value === key
-        return (
-          <button key={key} type="button" onClick={()=>onChange(selected && allowEmpty ? '' : key)}
-            style={{padding:'6px 12px',borderRadius:4,border:'none',fontSize:11,fontWeight:600,
-              cursor:'pointer',fontFamily:'inherit',
-              background:selected?`${color}22`:'#F3F1EC',
-              color:selected?color:'#6E6A63',
-              outline:selected?`1.5px solid ${color}55`:'1.5px solid transparent'}}>
-            {label}
-          </button>
-        )
+    <HStack gap={1} wrap="wrap">
+      {options.map(opt => {
+        const key = opt.key ?? opt, label = opt.label ?? opt, selected = value === key
+        return <Button key={key} size="sm" variant={selected ? 'primary' : 'secondary'} label={label} onClick={()=>onChange(selected && allowEmpty ? '' : key)}/>
       })}
-    </div>
+    </HStack>
   )
 }
 
@@ -78,67 +73,37 @@ function ClaimForm({ value, onChange }) {
   const [showDetail, setShowDetail] = useState(!!(value.orderNo || value.orderAmount || value.type || value.cause))
   const set = (k,v) => onChange({ ...value, [k]: v })
   return (
-    <div style={{display:'flex',flexDirection:'column',gap:12}}>
-      <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(150px,1fr))',gap:10}}>
-        <div>
-          <label style={labelStyle}>날짜</label>
-          <input type="date" value={value.date} onChange={e=>set('date',e.target.value)} style={inputStyle}/>
-        </div>
-        <div>
-          <label style={labelStyle}>손실 금액 (원)</label>
-          <input type="number" value={value.lossAmount} onChange={e=>set('lossAmount',e.target.value)}
-            placeholder="0" style={inputStyle}/>
-        </div>
-      </div>
-      <div>
-        <label style={labelStyle}>플랫폼</label>
-        <ToggleGroup options={PLATFORMS} value={value.platform} onChange={v=>set('platform',v)}/>
-      </div>
-      <div>
-        <label style={labelStyle}>내용</label>
-        <input value={value.memo} onChange={e=>set('memo',e.target.value)}
-          placeholder="예: 짬뽕 누락, 라이더 오배송" style={inputStyle}/>
-      </div>
-
-      <button type="button" onClick={()=>setShowDetail(v=>!v)}
-        style={{alignSelf:'flex-start',background:'transparent',border:'none',color:'#6E6A63',
-          fontSize:11,cursor:'pointer',fontFamily:'inherit',padding:0}}>
-        {showDetail ? '▾ 상세 접기' : '▸ 상세 (주문번호·주문금액·유형·원인) — 선택'}
-      </button>
+    <VStack gap={3}>
+      <HStack gap={2} vAlign="end" wrap="wrap">
+        <DateInput label="날짜" value={value.date} onChange={v=>set('date', v || value.date)}/>
+        <TextInput label="손실 금액 (원)" inputMode="numeric" placeholder="0" width={150} value={moneyVal(value.lossAmount)} onChange={v=>set('lossAmount', numIn(v))}/>
+      </HStack>
+      <VStack gap={1}><Text type="label">플랫폼</Text><ToggleGroup options={PLATFORMS} value={value.platform} onChange={v=>set('platform',v)}/></VStack>
+      <TextInput label="내용" placeholder="예: 짬뽕 누락, 라이더 오배송" value={value.memo} onChange={v=>set('memo',v)}/>
+      <HStack><Button size="sm" variant="ghost" label={showDetail ? '상세 접기' : '상세 (주문번호·주문금액·유형·원인) — 선택'} onClick={()=>setShowDetail(v=>!v)}/></HStack>
       {showDetail && (
-        <div style={{display:'flex',flexDirection:'column',gap:12,paddingLeft:10,borderLeft:'2px solid #DCD7CE'}}>
-          <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(150px,1fr))',gap:10}}>
-            <div>
-              <label style={labelStyle}>주문번호</label>
-              <input value={value.orderNo} onChange={e=>set('orderNo',e.target.value)} style={inputStyle}/>
-            </div>
-            <div>
-              <label style={labelStyle}>주문 금액 (원)</label>
-              <input type="number" value={value.orderAmount} onChange={e=>set('orderAmount',e.target.value)}
-                placeholder="0" style={inputStyle}/>
-            </div>
-          </div>
-          <div>
-            <label style={labelStyle}>유형</label>
-            <ToggleGroup options={TYPES} value={value.type} onChange={v=>set('type',v)} allowEmpty/>
-          </div>
-          <div>
-            <label style={labelStyle}>원인</label>
-            <ToggleGroup options={CAUSES} value={value.cause} onChange={v=>set('cause',v)} allowEmpty/>
-          </div>
-        </div>
+        <Card variant="muted" padding={3}>
+          <VStack gap={3}>
+            <HStack gap={2} vAlign="end" wrap="wrap">
+              <TextInput label="주문번호" value={value.orderNo} onChange={v=>set('orderNo',v)}/>
+              <TextInput label="주문 금액 (원)" inputMode="numeric" placeholder="0" width={150} value={moneyVal(value.orderAmount)} onChange={v=>set('orderAmount', numIn(v))}/>
+            </HStack>
+            <VStack gap={1}><Text type="label">유형</Text><ToggleGroup options={TYPES} value={value.type} onChange={v=>set('type',v)} allowEmpty/></VStack>
+            <VStack gap={1}><Text type="label">원인</Text><ToggleGroup options={CAUSES} value={value.cause} onChange={v=>set('cause',v)} allowEmpty/></VStack>
+          </VStack>
+        </Card>
       )}
-    </div>
+    </VStack>
   )
 }
 
 // 타임라인 기록 종류 — 플랫폼과 주고받은 과정을 날짜별로 남김
 const EVENT_KINDS = [
-  { key:'contact',  label:'연락·문의', color:'#2B5C9E' },
-  { key:'approved', label:'승인',      color:'#2E7D45' },
-  { key:'rejected', label:'반려',      color:'#B42318' },
-  { key:'paid',     label:'입금확인',  color:'#2E7D45' },
-  { key:'memo',     label:'메모',      color:'#6E6A63' },
+  { key:'contact',  label:'연락·문의', color:'#2B5C9E', badge:'info' },
+  { key:'approved', label:'승인',      color:'#2E7D45', badge:'success' },
+  { key:'rejected', label:'반려',      color:'#B42318', badge:'error' },
+  { key:'paid',     label:'입금확인',  color:'#2E7D45', badge:'success' },
+  { key:'memo',     label:'메모',      color:'#6E6A63', badge:'neutral' },
 ]
 const eventKindOf = k => EVENT_KINDS.find(e=>e.key===k) || EVENT_KINDS[4]
 const receivedOf = r => (r.timeline||[]).filter(e=>e.kind==='paid').reduce((a,e)=>a+(e.amount||0),0)
@@ -156,12 +121,8 @@ function EventPhotos({ eventId, count }) {
   }
   return (
     <>
-      <button onClick={open}
-        style={{background:'#F3F1EC',border:'1px solid #DCD7CE',color:'#1D1B18',borderRadius:5,
-          padding:'1px 7px',fontSize:10,cursor:'pointer',fontFamily:'inherit',marginLeft:6}}>
-        {count}
-      </button>
-      {images && <Lightbox images={images} label="손실보상 첨부 사진" onClose={()=>setImages(null)}/>}
+      <Button size="sm" variant="ghost" label={`사진 ${count}`} onClick={open}/>
+      {images && <Legacy><Lightbox images={images} label="손실보상 첨부 사진" onClose={()=>setImages(null)}/></Legacy>}
     </>
   )
 }
@@ -183,72 +144,43 @@ function Timeline({ r, editable, saving, onAdd, onDelete, onNextCheck }) {
     if(ok) { setEv(v=>({ ...v, amount:'', note:'' })); setImages([]); setShowPhotos(false) }
   }
   return (
-    <div style={{marginTop:12,borderTop:'1px solid #DCD7CE',paddingTop:12}}>
-      {events.length===0 && <div style={{fontSize:11,color:'#6E6A63',marginBottom:10}}>아직 기록이 없어요</div>}
-      <div style={{display:'flex',flexDirection:'column',gap:0,marginBottom:editable?12:0}}>
-        {events.map(e=>{
-          const k = eventKindOf(e.kind)
-          return (
-            <div key={e.id} style={{display:'flex',gap:10,alignItems:'flex-start',padding:'6px 0',
-              borderLeft:`2px solid ${k.color}55`,paddingLeft:10,marginLeft:4}}>
-              <span style={{fontSize:11,color:'#6E6A63',fontFamily:'inherit',fontVariantNumeric:'tabular-nums',minWidth:74}}>{e.date}</span>
-              <span style={{fontSize:11,fontWeight:700,color:k.color,whiteSpace:'nowrap'}}>{k.label}</span>
-              <span style={{flex:1,fontSize:12,color:'#1D1B18',lineHeight:1.5}}>
-                {e.note}
-                {e.amount>0 && <b style={{color:k.color,marginLeft:6,fontFamily:'inherit',fontVariantNumeric:'tabular-nums'}}>{wonFmt(e.amount)}원</b>}
-                {e.photoCount>0 && <EventPhotos eventId={e.id} count={e.photoCount}/>}
-              </span>
-              {editable && (
-                <button onClick={()=>onDelete(e.id)} disabled={saving}
-                  style={{background:'transparent',border:'none',color:'#6E6A63',fontSize:11,cursor:'pointer',padding:0}}>✕</button>
-              )}
-            </div>
-          )
-        })}
-      </div>
-      {editable && (
-        <>
-          <div style={{display:'flex',gap:6,flexWrap:'wrap',marginBottom:8}}>
-            {EVENT_KINDS.map(k=>(
-              <button key={k.key} type="button" onClick={()=>setEv(v=>({...v,kind:k.key}))}
-                style={{padding:'4px 10px',borderRadius:6,border:'none',fontSize:11,fontWeight:600,cursor:'pointer',fontFamily:'inherit',
-                  background:ev.kind===k.key?`${k.color}22`:'#F3F1EC',color:ev.kind===k.key?k.color:'#6E6A63',
-                  outline:ev.kind===k.key?`1.5px solid ${k.color}55`:'1.5px solid transparent'}}>
-                {k.label}
-              </button>
-            ))}
-          </div>
-          <div style={{display:'flex',gap:6,flexWrap:'wrap',alignItems:'center'}}>
-            <input type="date" value={ev.date} onChange={e=>setEv(v=>({...v,date:e.target.value}))}
-              style={{...inputStyle,width:140}}/>
-            <input value={ev.note} onChange={e=>setEv(v=>({...v,note:e.target.value}))}
-              onKeyDown={e=>e.key==='Enter' && add()}
-              placeholder="예: 쿠팡 상담원 - 나머지 금액 자동정산 예정 문자 받음" style={{...inputStyle,flex:1,minWidth:200,width:'auto'}}/>
-            <input type="number" value={ev.amount} onChange={e=>setEv(v=>({...v,amount:e.target.value}))}
-              placeholder="금액(선택)" style={{...inputStyle,width:110}}/>
-            <button type="button" onClick={()=>setShowPhotos(v=>!v)}
-              style={smallBtn(showPhotos||images.length?'rgba(var(--hk-accent-rgb),0.12)':'transparent','var(--hk-accent)','1px solid rgba(var(--hk-accent-rgb),0.4)')}>
-              사진{images.length?` ${images.length}`:''}
-            </button>
-            <button onClick={add} disabled={saving} style={smallBtn('var(--hk-accent)','#FFFFFF')}>+ 기록</button>
-          </div>
-          {showPhotos && (
-            <div style={{marginTop:8}}>
-              <PhotoPicker images={images} onChange={setImages} max={3}/>
-            </div>
-          )}
-          <div style={{display:'flex',gap:8,alignItems:'center',marginTop:10,flexWrap:'wrap'}}>
-            <span style={{fontSize:11,color:'#6E6A63'}}>다음 확인일</span>
-            <input type="date" value={r.nextCheck||''} onChange={e=>onNextCheck(e.target.value)}
-              style={{...inputStyle,width:140}}/>
-            {r.nextCheck && (
-              <button onClick={()=>onNextCheck('')} style={smallBtn('transparent','#6E6A63','1px solid #DCD7CE')}>지우기</button>
-            )}
-            <span style={{fontSize:10,color:'#6E6A63'}}>그날이 되면 카드가 빨갛게 표시되고 맨 위로 올라와요</span>
-          </div>
-        </>
+    <VStack gap={3}>
+      <Divider/>
+      {events.length===0 && <Text type="supporting" color="secondary">아직 기록이 없어요</Text>}
+      {events.length > 0 && (
+        <List hasDividers edge="flush">
+          {events.map(e => {
+            const k = eventKindOf(e.kind)
+            return (
+              <ListItem key={e.id} startContent={<Badge variant={k.badge} label={k.label}/>}
+                label={<HStack gap={2} vAlign="center" wrap="wrap">
+                  <Text>{e.note}</Text>
+                  {e.amount > 0 && <Text weight="bold" hasTabularNumbers>{wonFmt(e.amount)}원</Text>}
+                  {e.photoCount > 0 && <EventPhotos eventId={e.id} count={e.photoCount}/>}
+                </HStack>}
+                description={<Text type="supporting" color="secondary" hasTabularNumbers>{e.date}</Text>}
+                endContent={editable && <Button size="sm" variant="ghost" label="삭제" isDisabled={saving} onClick={()=>onDelete(e.id)}/>}/>
+            )
+          })}
+        </List>
       )}
-    </div>
+      {editable && <>
+        <ToggleGroup options={EVENT_KINDS} value={ev.kind} onChange={v=>setEv(x=>({...x,kind:v}))}/>
+        <HStack gap={2} vAlign="end" wrap="wrap">
+          <DateInput label="날짜" isLabelHidden value={ev.date} onChange={v=>setEv(x=>({...x,date:v||x.date}))}/>
+          <TextInput label="내용" isLabelHidden placeholder="예: 쿠팡 상담원 - 나머지 금액 자동정산 예정 문자 받음" value={ev.note} onChange={v=>setEv(x=>({...x,note:v}))} onEnter={add}/>
+          <TextInput label="금액" isLabelHidden inputMode="numeric" placeholder="금액(선택)" width={120} value={moneyVal(ev.amount)} onChange={v=>setEv(x=>({...x,amount:numIn(v)}))}/>
+          <Button size="sm" variant={showPhotos || images.length ? 'primary' : 'secondary'} label={`사진${images.length ? ` ${images.length}` : ''}`} onClick={()=>setShowPhotos(v=>!v)}/>
+          <Button size="sm" variant="primary" label="+ 기록" isDisabled={saving} onClick={add}/>
+        </HStack>
+        {showPhotos && <Legacy><PhotoPicker images={images} onChange={setImages} max={3}/></Legacy>}
+        <HStack gap={2} vAlign="end" wrap="wrap">
+          <DateInput label="다음 확인일" value={r.nextCheck||''} onChange={v=>onNextCheck(v || '')}/>
+          {r.nextCheck && <Button size="sm" label="지우기" onClick={()=>onNextCheck('')}/>}
+          <Text type="supporting" color="secondary">그날이 되면 카드가 표시되고 맨 위로 올라와요</Text>
+        </HStack>
+      </>}
+    </VStack>
   )
 }
 
@@ -361,67 +293,41 @@ export default function LossClaims() {
   const paidTotal = records.filter(r=>stageOf(r)==='paid').reduce((a,r)=>a+(r.finalAmount||0),0)
 
   return (
-    <div>
-      <div style={{display:'flex',alignItems:'flex-end',justifyContent:'space-between',marginBottom:18,flexWrap:'wrap',gap:10}}>
-        <div>
-          <div style={{fontSize:20,fontWeight:700}}>손실보상</div>
-          <div style={{fontSize:12,color:'#6E6A63',marginTop:2}}>배달 사고 등록 → 보상 받으면 금액만 입력</div>
-        </div>
-        <button onClick={()=>{ setShowForm(v=>!v); setForm(emptyForm()) }}
-          style={{background:'var(--hk-accent)',color:'#FFFFFF',border:'none',borderRadius:4,
-            padding:'8px 16px',fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
-          {showForm ? '닫기' : '+ 사고 등록'}
-        </button>
-      </div>
+    <AstryxPage>
+    <VStack gap={4}>
+      <PageHeader title="손실보상" sub="배달 사고 등록 → 보상 받으면 금액만 입력"
+        right={<Button variant="primary" label={showForm ? '닫기' : '+ 사고 등록'} onClick={()=>{ setShowForm(v=>!v); setForm(emptyForm()) }}/>}/>
 
-      {/* 요약 */}
-      <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(150px,1fr))',gap:12,marginBottom:18}}>
+      <Grid columns={{ minWidth: 160, max: 4, repeat: 'fit' }} gap={3}>
         {[
-          { label:'진행중', val:`${openList.length}건`, color:'var(--hk-accent)' },
-          { label:'진행중 손실 금액', val:`${wonFmt(openLoss)}원`, color:'#B42318' },
-          { label:'지금까지 받은 보상', val:`${wonFmt(paidTotal)}원`, color:'#2E7D45' },
-          ...(dueCount>0 ? [{ label:'오늘 다시 확인할 건', val:`${dueCount}건`, color:'#B42318' }] : []),
-        ].map(k=>(
-          <div key={k.label} style={{background:'#FFFFFF',border:'1px solid #DCD7CE',borderRadius:6,padding:'14px 16px',position:'relative',overflow:'hidden'}}>
-            <div style={{position:'absolute',top:0,left:0,right:0,height:3,background:k.color}}/>
-            <div style={{fontSize:10,fontWeight:600,color:'#6E6A63',marginBottom:6}}>{k.label}</div>
-            <div style={{fontSize:16,fontWeight:700,color:k.color,fontFamily:'inherit',fontVariantNumeric:'tabular-nums'}}>{k.val}</div>
-          </div>
+          ['진행중', `${openList.length}건`, true],
+          ['진행중 손실 금액', `${wonFmt(openLoss)}원`],
+          ['지금까지 받은 보상', `${wonFmt(paidTotal)}원`],
+          ...(dueCount>0 ? [['오늘 다시 확인할 건', `${dueCount}건`]] : []),
+        ].map(([label, val, filled]) => (
+          <Card key={label} variant={filled ? 'red' : 'default'} padding={4}>
+            <VStack gap={1}><Text type="label" color={filled ? 'inherit' : 'secondary'}>{label}</Text><Text type="large" weight="bold" color={filled ? 'inherit' : 'primary'} hasTabularNumbers>{val}</Text></VStack>
+          </Card>
         ))}
-      </div>
+      </Grid>
 
-      {/* 등록 폼 */}
       {showForm && (
-        <div style={{background:'#FFFFFF',border:'1px solid var(--hk-accent)',borderRadius:6,marginBottom:18,padding:18}}>
+        <LedgerCard title="사고 등록">
           <ClaimForm value={form} onChange={setForm}/>
-          <button onClick={addRecord} disabled={saving}
-            style={{marginTop:16,background:'var(--hk-accent)',color:'#FFFFFF',border:'none',borderRadius:4,padding:'9px 22px',
-              fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
-            {saving?'등록 중...':'등록'}
-          </button>
-        </div>
+          <HStack><Button variant="primary" label={saving?'등록 중...':'등록'} isDisabled={saving} onClick={addRecord}/></HStack>
+        </LedgerCard>
       )}
 
-      {/* 진행중 / 완료 */}
-      <div style={{display:'flex',gap:8,marginBottom:14}}>
-        {[['open',`진행중 (${openList.length})`],['done',`완료 (${doneList.length})`]].map(([key,label])=>(
-          <button key={key} onClick={()=>setTab(key)}
-            style={{padding:'7px 14px',borderRadius:4,border:'none',fontSize:12,fontWeight:600,cursor:'pointer',fontFamily:'inherit',
-              background:tab===key?'var(--hk-accent)':'#F3F1EC',color:tab===key?'#FFFFFF':'#6E6A63'}}>
-            {label}
-          </button>
-        ))}
-      </div>
+      <TabList value={tab} onChange={v=>v && setTab(v)}>
+        <Tab value="open" label={`진행중 (${openList.length})`}/>
+        <Tab value="done" label={`완료 (${doneList.length})`}/>
+      </TabList>
 
-      {loading ? (
-        <div style={{textAlign:'center',color:'#6E6A63',padding:60}}>로딩 중...</div>
-      ) : shown.length === 0 ? (
-        <div style={{background:'#FFFFFF',border:'1px solid #DCD7CE',borderRadius:6,padding:40,textAlign:'center',color:'#6E6A63'}}>
-          {tab==='open' ? '진행중인 사고가 없습니다' : '완료된 사고가 없습니다'}
-        </div>
+      {loading ? <Text color="secondary">불러오는 중...</Text> : shown.length === 0 ? (
+        <EmptyState title={tab==='open' ? '진행중인 사고가 없습니다' : '완료된 사고가 없습니다'} isCompact/>
       ) : (
-        <div style={{display:'flex',flexDirection:'column',gap:10}}>
-          {shown.map(r=>{
+        <VStack gap={3}>
+          {shown.map(r => {
             const pf = PLATFORMS.find(p=>p.key===r.platform)
             const cause = CAUSES.find(c=>c.key===r.cause)
             const stage = stageOf(r)
@@ -433,108 +339,79 @@ export default function LossClaims() {
             const tlCount = (r.timeline||[]).length
             const tlOpen = !!openTimeline[r.id]
 
-            if(editId === r.id) return (
-              <div key={r.id} style={{background:'#FFFFFF',border:'1px solid var(--hk-accent)',borderRadius:6,padding:18}}>
+            if (editId === r.id) return (
+              <LedgerCard key={r.id} title="사고 수정">
                 <ClaimForm value={editForm} onChange={setEditForm}/>
-                <div style={{display:'flex',gap:8,marginTop:16}}>
-                  <button onClick={saveEdit} disabled={saving} style={smallBtn('var(--hk-accent)','#FFFFFF')}>{saving?'저장 중...':'저장'}</button>
-                  <button onClick={()=>{setEditId(null);setEditForm(null)}} style={smallBtn('#F3F1EC','#6E6A63','1px solid #DCD7CE')}>취소</button>
-                </div>
-              </div>
+                <HStack gap={2}>
+                  <Button variant="primary" label={saving?'저장 중...':'저장'} isDisabled={saving} onClick={saveEdit}/>
+                  <Button label="취소" onClick={()=>{setEditId(null);setEditForm(null)}}/>
+                </HStack>
+              </LedgerCard>
             )
 
             return (
-              <div key={r.id} style={{background:'#FFFFFF',border:`1px solid ${due?'rgba(180,35,24,0.6)':'#DCD7CE'}`,borderRadius:6,padding:'14px 18px'}}>
-                <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',gap:10,flexWrap:'wrap'}}>
-                  <div style={{flex:1,minWidth:200}}>
-                    <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap',marginBottom:6}}>
-                      <span style={{fontSize:13,fontWeight:700}}>{r.date}</span>
-                      <span style={{fontSize:11,fontWeight:700,padding:'2px 8px',borderRadius:4,
-                        background:`${pf?.color}18`,color:pf?.color}}>{pf?.label}</span>
-                      <span style={{fontSize:11,fontWeight:700,color:badge.color}}>{badge.label}</span>
-                      {stage==='open' && r.nextCheck && (
-                        <span style={{fontSize:11,fontWeight:700,padding:'2px 8px',borderRadius:4,
-                          background:due?'rgba(180,35,24,0.15)':'#F3F1EC',color:due?'#B42318':'#6E6A63'}}>
-                          {due ? '오늘 확인!' : `${mdLabel(r.nextCheck)} 재확인`}
-                        </span>
-                      )}
-                    </div>
-                    {r.memo && <div style={{fontSize:12,color:'#1D1B18',marginBottom:6}}>{r.memo}</div>}
-                    <div style={{display:'flex',gap:12,flexWrap:'wrap',fontSize:11,color:'#6E6A63'}}>
-                      <span>손실 <b style={{color:'#B42318'}}>{wonFmt(r.lossAmount)}원</b></span>
-                      {stage==='open' && received>0 && <span>지금까지 입금 <b style={{color:'#2E7D45'}}>{wonFmt(received)}원</b></span>}
-                      {stage==='paid' && <span>보상 <b style={{color:'#2E7D45'}}>{wonFmt(r.finalAmount)}원</b> ({r.finalConfirmedDate})</span>}
-                      {fee!==null && <span>수수료 <b style={{color:'#B42318'}}>-{wonFmt(fee)}원</b></span>}
-                      {stage==='rejected' && r.rejectReason && <span>사유 <b style={{color:'#B42318'}}>{r.rejectReason}</b></span>}
-                      {r.orderNo && <span style={{fontFamily:'inherit',fontVariantNumeric:'tabular-nums'}}>#{r.orderNo}</span>}
-                      {r.type && <span>{r.type}</span>}
-                      {cause && <span>원인: {cause.label}</span>}
-                    </div>
-                  </div>
+              <Card key={r.id} padding={4}>
+                <VStack gap={2}>
+                  <HStack gap={3} vAlign="start" hAlign="between" wrap="wrap">
+                    <VStack gap={1}>
+                      <HStack gap={2} vAlign="center" wrap="wrap">
+                        <Text weight="bold" hasTabularNumbers>{r.date}</Text>
+                        <Badge label={pf?.label || r.platform}/>
+                        <Badge variant={badge.badge} label={badge.label}/>
+                        {stage==='open' && r.nextCheck && <Badge variant={due ? 'error' : 'neutral'} label={due ? '오늘 확인!' : `${mdLabel(r.nextCheck)} 재확인`}/>}
+                      </HStack>
+                      {r.memo && <Text>{r.memo}</Text>}
+                      <HStack gap={3} wrap="wrap">
+                        <Text type="supporting" color="secondary" hasTabularNumbers>손실 <Text weight="bold" color="accent">{wonFmt(r.lossAmount)}원</Text></Text>
+                        {stage==='open' && received>0 && <Text type="supporting" color="secondary" hasTabularNumbers>지금까지 입금 <Text weight="bold">{wonFmt(received)}원</Text></Text>}
+                        {stage==='paid' && <Text type="supporting" color="secondary" hasTabularNumbers>보상 <Text weight="bold">{wonFmt(r.finalAmount)}원</Text> ({r.finalConfirmedDate})</Text>}
+                        {fee!==null && <Text type="supporting" color="secondary" hasTabularNumbers>수수료 −{wonFmt(fee)}원</Text>}
+                        {stage==='rejected' && r.rejectReason && <Text type="supporting" color="secondary">사유 {r.rejectReason}</Text>}
+                        {r.orderNo && <Text type="supporting" color="secondary" hasTabularNumbers>#{r.orderNo}</Text>}
+                        {r.type && <Text type="supporting" color="secondary">{r.type}</Text>}
+                        {cause && <Text type="supporting" color="secondary">원인: {cause.label}</Text>}
+                      </HStack>
+                    </VStack>
+                    <HStack gap={1} wrap="wrap">
+                      <Button size="sm" variant={tlOpen ? 'primary' : 'secondary'} label={`타임라인${tlCount>0 ? ` ${tlCount}` : ''}`} onClick={()=>setOpenTimeline(o=>({...o,[r.id]:!o[r.id]}))}/>
+                      {stage==='open' && !act && <>
+                        <Button size="sm" variant="primary" label="보상 받음" onClick={()=>setAction({ id:r.id, kind:'paid', date:todayStr(), amount: received ? String(received) : '' })}/>
+                        <Button size="sm" label="거절됨" onClick={()=>setAction({ id:r.id, kind:'rejected', reason:'' })}/>
+                      </>}
+                      {stage!=='open' && <Button size="sm" label="되돌리기" onClick={()=>reopen(r.id)}/>}
+                      {stage==='open' && <Button size="sm" variant="ghost" label="수정" onClick={()=>{ setEditId(r.id); setEditForm({ ...emptyForm(), ...r }) }}/>}
+                      <Button size="sm" variant="ghost" label="삭제" onClick={()=>deleteRecord(r.id)}/>
+                    </HStack>
+                  </HStack>
 
-                  <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>
-                    <button onClick={()=>setOpenTimeline(o=>({...o,[r.id]:!o[r.id]}))}
-                      style={smallBtn(tlOpen?'rgba(43,92,158,0.15)':'transparent','#2B5C9E','1px solid rgba(43,92,158,0.3)')}>
-                      타임라인{tlCount>0?` ${tlCount}`:''}
-                    </button>
-                    {stage==='open' && !act && (
-                      <>
-                        <button onClick={()=>setAction({ id:r.id, kind:'paid', date:todayStr(), amount: received ? String(received) : '' })}
-                          style={smallBtn('#2E7D45','#FFFFFF')}>보상 받음</button>
-                        <button onClick={()=>setAction({ id:r.id, kind:'rejected', reason:'' })}
-                          style={smallBtn('transparent','#B42318','1px solid #E8C4BF')}>거절됨</button>
-                      </>
-                    )}
-                    {stage!=='open' && (
-                      <button onClick={()=>reopen(r.id)} style={smallBtn('transparent','#6E6A63','1px solid #DCD7CE')}>되돌리기</button>
-                    )}
-                    {stage==='open' && (
-                      <button onClick={()=>{ setEditId(r.id); setEditForm({ ...emptyForm(), ...r }) }}
-                        style={smallBtn('transparent','#1D1B18','1px solid #DCD7CE')}>수정</button>
-                    )}
-                    <button onClick={()=>deleteRecord(r.id)}
-                      style={smallBtn('transparent','#B42318','1px solid #E8C4BF')}>삭제</button>
-                  </div>
-                </div>
+                  {act && (
+                    <Card variant="muted" padding={3}>
+                      <HStack gap={2} vAlign="end" wrap="wrap">
+                        {act.kind==='paid' ? <>
+                          <DateInput label="받은 날짜" value={act.date} onChange={v=>setAction({...act,date:v||act.date})}/>
+                          <TextInput label="받은 보상 금액 (원)" inputMode="numeric" placeholder="0" width={170} value={moneyVal(act.amount)} onChange={v=>setAction({...act,amount:numIn(v)})} onEnter={saveAction}/>
+                        </> : (
+                          <TextInput label="거절 사유" isOptional value={act.reason} onChange={v=>setAction({...act,reason:v})} onEnter={saveAction}/>
+                        )}
+                        <Button variant="primary" label={saving?'저장 중...':'완료'} isDisabled={saving} onClick={saveAction}/>
+                        <Button label="취소" onClick={()=>setAction(null)}/>
+                      </HStack>
+                    </Card>
+                  )}
 
-                {act && (
-                  <div style={{marginTop:12,background:'#F3F1EC',borderRadius:4,padding:12,
-                    display:'flex',gap:8,alignItems:'flex-end',flexWrap:'wrap'}}>
-                    {act.kind==='paid' ? (
-                      <>
-                        <div>
-                          <label style={labelStyle}>받은 날짜</label>
-                          <input type="date" value={act.date} onChange={e=>setAction({...act,date:e.target.value})} style={inputStyle}/>
-                        </div>
-                        <div>
-                          <label style={labelStyle}>받은 보상 금액 (원)</label>
-                          <input type="number" autoFocus value={act.amount} onChange={e=>setAction({...act,amount:e.target.value})}
-                            onKeyDown={e=>e.key==='Enter' && saveAction()} placeholder="0" style={inputStyle}/>
-                        </div>
-                      </>
-                    ) : (
-                      <div style={{flex:1,minWidth:180}}>
-                        <label style={labelStyle}>거절 사유 (선택)</label>
-                        <input autoFocus value={act.reason} onChange={e=>setAction({...act,reason:e.target.value})}
-                          onKeyDown={e=>e.key==='Enter' && saveAction()} style={inputStyle}/>
-                      </div>
-                    )}
-                    <button onClick={saveAction} disabled={saving} style={smallBtn('var(--hk-accent)','#FFFFFF')}>{saving?'저장 중...':'완료'}</button>
-                    <button onClick={()=>setAction(null)} style={smallBtn('transparent','#6E6A63','1px solid #DCD7CE')}>취소</button>
-                  </div>
-                )}
-
-                {tlOpen && (
-                  <Timeline r={r} editable={stage==='open'} saving={saving}
-                    onAdd={ev=>addEvent(r.id, ev)}
-                    onDelete={evId=>deleteEvent(r.id, evId)}
-                    onNextCheck={d=>setNextCheck(r.id, d)}/>
-                )}
-              </div>
+                  {tlOpen && (
+                    <Timeline r={r} editable={stage==='open'} saving={saving}
+                      onAdd={ev=>addEvent(r.id, ev)}
+                      onDelete={evId=>deleteEvent(r.id, evId)}
+                      onNextCheck={d=>setNextCheck(r.id, d)}/>
+                  )}
+                </VStack>
+              </Card>
             )
           })}
-        </div>
+        </VStack>
       )}
-    </div>
+    </VStack>
+    </AstryxPage>
   )
 }
