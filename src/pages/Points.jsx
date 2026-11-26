@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react'
-import { VStack } from '@astryxdesign/core/Layout'
+import { VStack, HStack } from '@astryxdesign/core/Layout'
+import { TextInput } from '@astryxdesign/core/TextInput'
+import { CheckboxInput } from '@astryxdesign/core/CheckboxInput'
 import { Text } from '@astryxdesign/core/Text'
 import { Banner } from '@astryxdesign/core/Banner'
 import { TabList, Tab } from '@astryxdesign/core/TabList'
@@ -36,7 +38,6 @@ function Btn({ children, onClick, kind = 'plain', disabled, small }) {
         color: solid ? '#FFFFFF' : kind === 'danger' ? T.red : T.ink, border: solid ? 'none' : `1px solid ${kind === 'danger' ? '#E8C4BF' : T.rule}`}}>{children}</button>
   )
 }
-const inp = { fontFamily:'inherit', fontSize:14, padding:'6px 8px', border:`1px solid ${T.rule}`, borderRadius:4, background:'#FFFFFF', color:T.ink }
 
 export default function Points() {
   const { user, userData, isOwner } = useAuth()
@@ -88,12 +89,10 @@ export default function Points() {
       {tab === 'mine' && <Mine me={staff[0]} ledger={ledgerOf(staff[0])} requests={shop.requests.filter(r => r.uid === user.uid)} uid={user.uid} personalOk={personal[user.uid]?.ok}/>}
       {tab === 'shop' && !isOwner && <Shop shop={shop} balance={ledgerOf(staff[0]).balance} me={staff[0]} onDone={(m)=>{ setMsg(m); refresh() }}/>}
       {tab === 'history' && <History requests={shop.requests}/>}
-      <Legacy>
       {tab === 'shop' && isOwner && <ShopAdmin shop={shop} onDone={(m)=>{ setMsg(m); refresh() }}/>}
       {tab === 'requests' && isOwner && <Requests shop={shop} onDone={(m)=>{ setMsg(m); refresh() }}/>}
       {tab === 'people' && isOwner && <People staff={staff} ledgerOf={ledgerOf} personal={personal} onDone={(m)=>{ setMsg(m); refresh() }}/>}
       {tab === 'settings' && isOwner && <Settings config={config} onDone={(m)=>{ setMsg(m); refresh() }}/>}
-      </Legacy>
     </VStack>
     </AstryxPage>
   )
@@ -248,35 +247,40 @@ function Requests({ shop, onDone }) {
     setBusy(false)
   }
   return (
-    <div>
-      {pending.length === 0 && <div style={{fontSize:13, color:T.sub, padding:'8px 0'}}>기다리는 신청이 없어요</div>}
-      {pending.map(r => (
-        <div key={r.id} style={{padding:'10px 0', borderBottom:`1px solid ${T.soft}`}}>
-          <div style={{display:'flex', alignItems:'center', gap:10, flexWrap:'wrap', fontSize:14}}>
-            <span style={{color:T.sub, ...num}}>{String(r.at).slice(0,16).replace('T',' ')}</span>
-            <b>{r.name}</b><span>{r.itemName}</span><span style={{...num, color:T.accent}}>{P(r.cost)}</span>
-            <span style={{flex:1}}/>
-            <Btn kind="ok" small onClick={()=>setOpen({ req:r, img:'', text:'', note:'' })} disabled={busy}>코드·이미지 넣고 승인</Btn>
-            <Btn small onClick={()=>decide(r, 'approved', { how:'direct' })} disabled={busy}>직접 전달로 승인</Btn>
-            <Btn kind="danger" small onClick={()=>{ if (window.confirm('이 신청을 거절할까요? 포인트는 돌아가요')) decide(r, 'rejected') }} disabled={busy}>거절</Btn>
-          </div>
-          {open?.req.id === r.id && (
-            <div style={{background:T.chip, borderRadius:6, padding:'10px 12px', marginTop:8, display:'flex', flexDirection:'column', gap:8}}>
-              <label style={{fontSize:13}}>상품권 바코드·QR 이미지 (선택)
-                <input type="file" accept="image/*" style={{display:'block', marginTop:4}} onChange={async e => { const f = e.target.files?.[0]; if (f) { const img = await compressImage(f, 900, 160); setOpen(o => ({ ...o, img })) } }}/>
-              </label>
-              {open.img && <img src={open.img} alt="" style={{maxWidth:240, border:`1px solid ${T.rule}`}}/>}
-              <input value={open.text} onChange={e=>setOpen(o=>({ ...o, text:e.target.value }))} placeholder="선물 코드·바코드 번호 (선택)" style={inp}/>
-              <input value={open.note} onChange={e=>setOpen(o=>({ ...o, note:e.target.value }))} placeholder="안내 (선택) 예: 유효기간 2027-01-31" style={inp}/>
-              <div style={{display:'flex', gap:8}}>
-                <Btn kind="ok" onClick={()=>decide(r, 'approved', { how:'code', img:open.img, text:open.text.trim(), note:open.note.trim() })} disabled={busy || (!open.img && !open.text.trim())}>승인하고 보내기</Btn>
-                <Btn onClick={()=>setOpen(null)}>취소</Btn>
-              </div>
-            </div>
-          )}
-        </div>
-      ))}
-    </div>
+    <LedgerCard title="교환 신청">
+      {pending.length === 0 && <EmptyState title="기다리는 신청이 없어요"/>}
+      <List hasDividers edge="flush">
+        {pending.map(r => (
+          <ListItem key={r.id} align="start"
+            label={<HStack gap={2} vAlign="center" wrap="wrap"><Text weight="bold">{r.name}</Text><Text>{r.itemName}</Text><Text color="accent" hasTabularNumbers>{P(r.cost)}</Text></HStack>}
+            description={<VStack gap={2}>
+              <Text type="supporting" color="secondary" hasTabularNumbers>{String(r.at).slice(0,16).replace('T',' ')}</Text>
+              <HStack gap={2} wrap="wrap">
+                <Button size="sm" variant="primary" label="코드·이미지 넣고 승인" isDisabled={busy} onClick={()=>setOpen({ req:r, img:'', text:'', note:'' })}/>
+                <Button size="sm" label="직접 전달로 승인" isDisabled={busy} onClick={()=>decide(r, 'approved', { how:'direct' })}/>
+                <Button size="sm" variant="destructive" label="거절" isDisabled={busy} onClick={()=>{ if (window.confirm('이 신청을 거절할까요? 포인트는 돌아가요')) decide(r, 'rejected') }}/>
+              </HStack>
+              {open?.req.id === r.id && (
+                <Card variant="muted" padding={3}>
+                  <VStack gap={2}>
+                    <Text type="label">상품권 바코드·QR 이미지 (선택)</Text>
+                    <Legacy>
+                      <input type="file" accept="image/*" aria-label="상품권 이미지" onChange={async e => { const f = e.target.files?.[0]; if (f) { const img = await compressImage(f, 900, 160); setOpen(o => ({ ...o, img })) } }}/>
+                      {open.img && <img src={open.img} alt="" style={{maxWidth:240, display:'block', marginTop:6}}/>}
+                    </Legacy>
+                    <TextInput label="선물 코드·바코드 번호" isOptional value={open.text} onChange={v=>setOpen(o=>({ ...o, text:v }))}/>
+                    <TextInput label="안내" isOptional placeholder="예: 유효기간 2027-01-31" value={open.note} onChange={v=>setOpen(o=>({ ...o, note:v }))}/>
+                    <HStack gap={2}>
+                      <Button variant="primary" label="승인하고 보내기" isDisabled={busy || (!open.img && !open.text.trim())} onClick={()=>decide(r, 'approved', { how:'code', img:open.img, text:open.text.trim(), note:open.note.trim() })}/>
+                      <Button label="취소" onClick={()=>setOpen(null)}/>
+                    </HStack>
+                  </VStack>
+                </Card>
+              )}
+            </VStack>}/>
+        ))}
+      </List>
+    </LedgerCard>
   )
 }
 
@@ -300,42 +304,47 @@ function ShopAdmin({ shop, onDone }) {
     const clean = { ...e, name:e.name.trim(), cost:+e.cost || 0, qty:+e.qty || 0, stock:+e.stock || 0, restockDays:+e.restockDays || 0, restockAt: (+e.stock || 0) > 0 ? null : e.restockAt || null }
     saveItems(items => items.some(i => i.id === e.id) ? items.map(i => i.id === e.id ? clean : i) : [...items, clean], '상품을 저장했어요')
   }
+  const field = (k, l, numeric) => (
+    <TextInput key={k} label={l} inputMode={numeric ? 'numeric' : undefined} value={String(edit[k] ?? '')} onChange={v=>setEdit(x=>({ ...x, [k]: numeric ? v.replace(/[^0-9]/g, '') : v }))}/>
+  )
   return (
-    <div>
-      <div style={{display:'flex', gap:8, alignItems:'center', margin:'4px 0 10px'}}>
-        <Btn kind="primary" onClick={()=>setEdit({ id:newId(), name:'', cost:100, qty:1, stock:1, restockDays:30, desc:'', img:'' })}>+ 상품 추가</Btn>
-        <span style={{fontSize:12, color:T.sub}}>재고가 0이 되면 재입고 기간이 지난 뒤 '입고 수량'만큼 다시 열려요</span>
-      </div>
+    <LedgerCard title="상점 관리" right={<Button size="sm" variant="primary" label="+ 상품 추가" onClick={()=>setEdit({ id:newId(), name:'', cost:100, qty:1, stock:1, restockDays:30, desc:'', img:'' })}/>}>
+      <Text type="supporting" color="secondary">재고가 0이 되면 재입고 기간이 지난 뒤 '입고 수량'만큼 다시 열려요</Text>
       {edit && (
-        <div style={{background:T.chip, borderRadius:6, padding:'12px 14px', marginBottom:12, display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(160px, 1fr))', gap:8, alignItems:'end'}}>
-          {[['name','상품 이름','text'],['cost','필요 포인트','number'],['stock','지금 재고','number'],['qty','입고 수량 (다시 들어올 때)','number'],['restockDays','재입고까지 (일)','number']].map(([k, l, t]) => (
-            <label key={k} style={{fontSize:12, color:T.sub, display:'flex', flexDirection:'column', gap:4}}>{l}
-              <input type={t} value={edit[k]} onChange={e=>setEdit(x=>({ ...x, [k]: e.target.value }))} style={inp}/>
-            </label>
-          ))}
-          <label style={{fontSize:12, color:T.sub, display:'flex', flexDirection:'column', gap:4, gridColumn:'1 / -1'}}>설명 (선택)
-            <input value={edit.desc} onChange={e=>setEdit(x=>({ ...x, desc:e.target.value }))} placeholder="예: 스타벅스 아메리카노 T" style={inp}/>
-          </label>
-          <label style={{fontSize:12, color:T.sub, gridColumn:'1 / -1'}}>상품 사진 (선택, 상점에 보이는 그림)
-            <input type="file" accept="image/*" style={{display:'block', marginTop:4}} onChange={async e => { const f = e.target.files?.[0]; if (f) { const img = await compressImage(f, 600, 70); setEdit(x => ({ ...x, img })) } }}/>
-          </label>
-          {edit.img && <img src={edit.img} alt="" style={{maxWidth:160, gridColumn:'1 / -1'}}/>}
-          <label style={{fontSize:13, display:'flex', gap:6, alignItems:'center', gridColumn:'1 / -1'}}><input type="checkbox" checked={!!edit.hidden} onChange={e=>setEdit(x=>({ ...x, hidden:e.target.checked }))}/> 직원 화면에서 숨김</label>
-          <div style={{display:'flex', gap:8, gridColumn:'1 / -1'}}><Btn kind="primary" onClick={save} disabled={busy}>저장</Btn><Btn onClick={()=>setEdit(null)}>취소</Btn></div>
-        </div>
+        <Card variant="muted" padding={3}>
+          <VStack gap={3}>
+            <Grid columns={{ minWidth: 160 }} gap={2}>
+              {field('name', '상품 이름')}
+              {field('cost', '필요 포인트', true)}
+              {field('stock', '지금 재고', true)}
+              {field('qty', '입고 수량 (다시 들어올 때)', true)}
+              {field('restockDays', '재입고까지 (일)', true)}
+            </Grid>
+            <TextInput label="설명" isOptional placeholder="예: 스타벅스 아메리카노 T" value={edit.desc} onChange={v=>setEdit(x=>({ ...x, desc:v }))}/>
+            <Text type="label">상품 사진 (선택, 상점에 보이는 그림)</Text>
+            <Legacy>
+              <input type="file" accept="image/*" aria-label="상품 사진" onChange={async e => { const f = e.target.files?.[0]; if (f) { const img = await compressImage(f, 600, 70); setEdit(x => ({ ...x, img })) } }}/>
+              {edit.img && <img src={edit.img} alt="" style={{maxWidth:160, display:'block', marginTop:6}}/>}
+            </Legacy>
+            <CheckboxInput label="직원 화면에서 숨김" value={!!edit.hidden} onChange={v=>setEdit(x=>({ ...x, hidden:v }))}/>
+            <HStack gap={2}><Button variant="primary" label="저장" isDisabled={busy} onClick={save}/><Button label="취소" onClick={()=>setEdit(null)}/></HStack>
+          </VStack>
+        </Card>
       )}
-      {shop.items.length === 0 && <div style={{fontSize:13, color:T.sub}}>아직 상품이 없어요</div>}
-      {shop.items.map(it => (
-        <div key={it.id} style={{display:'flex', alignItems:'center', gap:10, padding:'8px 0', borderBottom:`1px solid ${T.soft}`, fontSize:14, flexWrap:'wrap', opacity: it.hidden ? 0.5 : 1}}>
-          {it.img ? <img src={it.img} alt="" style={{width:44, height:33, objectFit:'cover', borderRadius:3}}/> : <span style={{width:44, height:33, background:T.chip, borderRadius:3}}/>}
-          <b style={{flex:1, minWidth:120}}>{it.name}{it.hidden ? ' (숨김)' : ''}</b>
-          <span style={{...num, color:T.accent}}>{P(it.cost)}</span>
-          <span style={{...num, fontSize:13, color:T.sub}}>재고 {effectiveStock(it, today)} · 대기 {shop.requests.filter(r => r.itemId === it.id && r.status === 'pending').length}{it.restockAt && effectiveStock(it, today) === 0 ? ` · ${it.restockAt} 재입고` : ''}</span>
-          <Btn small onClick={()=>setEdit({ ...it, desc: it.desc || '', img: it.img || '' })}>수정</Btn>
-          <Btn kind="danger" small onClick={()=>{ if (window.confirm(`${it.name}을(를) 지울까요?`)) saveItems(items => items.filter(i => i.id !== it.id), '상품을 지웠어요') }}>삭제</Btn>
-        </div>
-      ))}
-    </div>
+      {shop.items.length === 0 && <EmptyState title="아직 상품이 없어요"/>}
+      <List hasDividers edge="flush">
+        {shop.items.map(it => (
+          <ListItem key={it.id}
+            startContent={it.img ? <Legacy><img src={it.img} alt="" style={{width:44, height:33, objectFit:'cover', borderRadius:3, display:'block'}}/></Legacy> : undefined}
+            label={<HStack gap={2} vAlign="center"><Text weight="bold" color={it.hidden ? 'secondary' : 'primary'}>{it.name}</Text>{it.hidden && <Badge label="숨김"/>}<Text color="accent" hasTabularNumbers>{P(it.cost)}</Text></HStack>}
+            description={<Text type="supporting" color="secondary" hasTabularNumbers>재고 {effectiveStock(it, today)} · 대기 {shop.requests.filter(r => r.itemId === it.id && r.status === 'pending').length}{it.restockAt && effectiveStock(it, today) === 0 ? ` · ${it.restockAt} 재입고` : ''}</Text>}
+            endContent={<HStack gap={1}>
+              <Button size="sm" variant="ghost" label="수정" onClick={()=>setEdit({ ...it, desc: it.desc || '', img: it.img || '' })}/>
+              <Button size="sm" variant="ghost" label="삭제" onClick={()=>{ if (window.confirm(`${it.name}을(를) 지울까요?`)) saveItems(items => items.filter(i => i.id !== it.id), '상품을 지웠어요') }}/>
+            </HStack>}/>
+        ))}
+      </List>
+    </LedgerCard>
   )
 }
 
@@ -352,40 +361,38 @@ function People({ staff, ledgerOf, personal, onDone }) {
     } catch(e) { console.error(e); onDone('저장하지 못했어요. Firestore 규칙에 points 를 추가해 주세요') }
   }
   return (
-    <div>
-      {staff.map(u => {
-        const l = ledgerOf(u)
-        return (
-          <div key={u.uid} style={{borderBottom:`1px solid ${T.soft}`}}>
-            <button type="button" onClick={()=>setOpen(o => o === u.uid ? null : u.uid)}
-              style={{display:'flex', width:'100%', alignItems:'baseline', gap:10, padding:'9px 0', background:'none', border:'none', cursor:'pointer', fontFamily:'inherit', color:T.ink, textAlign:'left'}}>
-              <b style={{minWidth:72, fontSize:14}}>{u.name}</b>
-              {personal[u.uid]?.ok === false && <span style={{fontSize:12, color:T.amber}}>개인 포인트 못 읽음</span>}
-              <span style={{flex:1}}/>
-              <span style={{fontSize:16, fontWeight:800, color:T.accent, ...num}}>{P(l.balance)}</span>
-              <span style={{fontSize:12, color:T.blue}}>{open === u.uid ? '접기' : '내역'}</span>
-            </button>
-            {open === u.uid && (
-              <div style={{padding:'0 0 12px 12px'}}>
-                <div style={{display:'flex', gap:6, alignItems:'center', flexWrap:'wrap', margin:'4px 0 8px'}}>
-                  <input value={adj.amount} onChange={e=>setAdj(a=>({ ...a, amount:e.target.value }))} placeholder="+20 또는 -10" style={{...inp, width:110}}/>
-                  <input value={adj.note} onChange={e=>setAdj(a=>({ ...a, note:e.target.value }))} placeholder="사유 (예: 대청소 도움)" style={{...inp, flex:'1 1 160px'}}/>
-                  <Btn kind="primary" small onClick={()=>addAdjust(u)}>포인트 조정</Btn>
-                </div>
-                {[...l.entries].reverse().slice(0, 60).map((e, i) => (
-                  <div key={i} style={{display:'flex', gap:10, padding:'4px 0', fontSize:13, borderBottom:`1px dotted ${T.rule}`}}>
-                    <span style={{color:T.sub, ...num, minWidth:84}}>{e.date}</span>
-                    <span style={{flex:1}}>{e.note}</span>
-                    <span style={{...num, fontWeight:700, color: e.amount > 0 ? T.green : T.red}}>{sign(e.applied)}</span>
-                    <span style={{...num, color:T.sub, minWidth:60, textAlign:'right'}}>{P(e.balance)}</span>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        )
-      })}
-    </div>
+    <LedgerCard title="직원 포인트">
+      <List hasDividers edge="flush">
+        {staff.map(u => {
+          const l = ledgerOf(u)
+          const isOpen = open === u.uid
+          return (
+            <ListItem key={u.uid} align="start" onClick={isOpen ? undefined : ()=>setOpen(u.uid)}
+              label={<HStack gap={2} vAlign="center"><Text weight="bold">{u.name}</Text>{personal[u.uid]?.ok === false && <Badge variant="warning" label="개인 포인트 못 읽음"/>}</HStack>}
+              description={isOpen ? (
+                <VStack gap={2}>
+                  <HStack gap={2} vAlign="end" wrap="wrap">
+                    <TextInput label="포인트" placeholder="+20 또는 -10" width={120} value={adj.amount} onChange={v=>setAdj(a=>({ ...a, amount:v }))}/>
+                    <TextInput label="사유" placeholder="예: 대청소 도움" value={adj.note} onChange={v=>setAdj(a=>({ ...a, note:v }))}/>
+                    <Button variant="primary" label="포인트 조정" onClick={()=>addAdjust(u)}/>
+                  </HStack>
+                  <Table density="compact" idKey="i" data={[...l.entries].reverse().slice(0, 60).map((e, i) => ({ ...e, i }))}
+                    columns={[
+                      { key:'date', header:'날짜', renderCell: e => <Text color="secondary" hasTabularNumbers>{e.date}</Text> },
+                      { key:'note', header:'내용', renderCell: e => <Text>{e.note}</Text> },
+                      { key:'applied', header:'변동', align:'end', renderCell: e => <Text weight="bold" color={e.amount > 0 ? 'accent' : 'secondary'} hasTabularNumbers>{sign(e.applied)}</Text> },
+                      { key:'balance', header:'잔액', align:'end', renderCell: e => <Text hasTabularNumbers>{P(e.balance)}</Text> },
+                    ]}/>
+                </VStack>
+              ) : undefined}
+              endContent={<HStack gap={2} vAlign="center">
+                <Text type="large" weight="bold" color="accent" hasTabularNumbers>{P(l.balance)}</Text>
+                <Button size="sm" variant="ghost" label={isOpen ? '접기' : '내역'} onClick={()=>setOpen(isOpen ? null : u.uid)}/>
+              </HStack>}/>
+          )
+        })}
+      </List>
+    </LedgerCard>
   )
 }
 
@@ -402,29 +409,27 @@ function Settings({ config, onDone }) {
     setBusy(false)
   }
   const row = (k, label, hint, type = 'number') => (
-    <label style={{display:'flex', alignItems:'center', gap:10, padding:'8px 0', borderBottom:`1px solid ${T.soft}`, fontSize:14, flexWrap:'wrap'}}>
-      <span style={{minWidth:180}}>{label}</span>
-      <input type={type} value={c[k]} onChange={e=>setC(x=>({ ...x, [k]: e.target.value }))} style={{...inp, width: type === 'month' ? 150 : 90, textAlign: type === 'number' ? 'right' : 'left'}}/>
-      <span style={{fontSize:12, color:T.sub}}>{hint}</span>
-    </label>
+    <ListItem key={k} label={label} description={hint}
+      endContent={<TextInput label={label} isLabelHidden width={type === 'month' ? 130 : 100} placeholder={type === 'month' ? 'YYYY-MM' : undefined}
+        inputMode={type === 'number' ? 'numeric' : undefined} value={String(c[k] ?? '')}
+        onChange={v=>setC(x=>({ ...x, [k]: type === 'number' ? v.replace(/[^0-9]/g, '') : v }))}/>}/>
   )
   return (
-    <div>
-      {row('start', '적립 시작 달', '이 달부터 매달 기본 포인트가 쌓여요', 'month')}
-      {row('monthly', '매달 기본 포인트', '모든 직원 (입사한 달부터)')}
-      {row('boost', '개근 부스트', '개근한 다음 달에 더 줘요')}
-      {row('late', '지각 감점', '한 번마다')}
-      {row('absent', '결근 감점', '한 번마다 (결근 아님 처리한 날은 빼요)')}
-      {row('streakExtra', '연속 추가 감점', '바로 앞 근무일도 지각·결근이면 더 빼요')}
-      {row('lateHalf', '지각 잦은 달 감점', '한 달이 끝났을 때 아래 비율 이상 지각했으면 그 달 마지막 날 한 번 더 빼요 (0이면 안 함)')}
-      {row('lateHalfPct', '지각 비율 기준 (%)', '그 달 출근한 날 중 지각한 날의 비율. 50 = 절반 이상')}
-      <label style={{display:'flex', flexDirection:'column', gap:6, padding:'8px 0', fontSize:14}}>
-        개근 게임 상품 (룰렛·사다리에 들어갈 칸, 쉼표로)
-        <input value={c.prizes} onChange={e=>setC(x=>({ ...x, prizes:e.target.value }))} style={inp}/>
-        <span style={{fontSize:12, color:T.sub}}>예: 30포인트, 20포인트, 10포인트, 꽝 · 게임 결과는 근무관리의 개근 포상에서 '포인트 지급'으로 넣어요</span>
-      </label>
-      <div style={{fontSize:12, color:T.sub, margin:'4px 0 10px', lineHeight:1.6}}>잔액은 0 아래로 내려가지 않아요. 포인트는 퇴사하면 사라져요. 바꾼 숫자는 지난 내역에도 다시 계산돼서 적용돼요.</div>
-      <Btn kind="primary" onClick={save} disabled={busy}>{busy ? '저장 중...' : '저장'}</Btn>
-    </div>
+    <LedgerCard title="포인트 설정">
+      <List hasDividers edge="flush">
+        {row('start', '적립 시작 달', '이 달부터 매달 기본 포인트가 쌓여요 (예: 2026-10)', 'month')}
+        {row('monthly', '매달 기본 포인트', '모든 직원 (입사한 달부터)')}
+        {row('boost', '개근 부스트', '개근한 다음 달에 더 줘요')}
+        {row('late', '지각 감점', '한 번마다')}
+        {row('absent', '결근 감점', '한 번마다 (결근 아님 처리한 날은 빼요)')}
+        {row('streakExtra', '연속 추가 감점', '바로 앞 근무일도 지각·결근이면 더 빼요')}
+        {row('lateHalf', '지각 잦은 달 감점', '한 달이 끝났을 때 아래 비율 이상 지각했으면 그 달 마지막 날 한 번 더 빼요 (0이면 안 함)')}
+        {row('lateHalfPct', '지각 비율 기준 (%)', '그 달 출근한 날 중 지각한 날의 비율. 50 = 절반 이상')}
+      </List>
+      <TextInput label="개근 게임 상품 (룰렛·사다리에 들어갈 칸, 쉼표로)" description="예: 30포인트, 20포인트, 10포인트, 꽝 · 게임 결과는 근무관리의 개근 포상에서 '포인트 지급'으로 넣어요"
+        value={c.prizes} onChange={v=>setC(x=>({ ...x, prizes:v }))}/>
+      <Text type="supporting" color="secondary">잔액은 0 아래로 내려가지 않아요. 포인트는 퇴사하면 사라져요. 바꾼 숫자는 지난 내역에도 다시 계산돼서 적용돼요.</Text>
+      <HStack><Button variant="primary" label={busy ? '저장 중...' : '저장'} isDisabled={busy} onClick={save}/></HStack>
+    </LedgerCard>
   )
 }
