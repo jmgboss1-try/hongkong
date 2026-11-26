@@ -519,12 +519,11 @@ export default function SalesAnalysis() {
       {events.some(e => isGoalEvent(e)) && (
         <LedgerCard title="할인 목표">
           <Text type="supporting" color="secondary">건당 할인을 적은 할인 일정이에요. 할인 전 4주와 같은 이익을 내려면 하루 몇 건이 필요한지, 실제로 얼마나 받고 있는지</Text>
-          <Legacy>{events.filter(e => isGoalEvent(e)).map(ev => <GoalCard key={ev.id} months={months} ev={ev} loading={loading}/>)}</Legacy>
+          {events.filter(e => isGoalEvent(e)).map(ev => <GoalCard key={ev.id} months={months} ev={ev} loading={loading}/>)}
         </LedgerCard>
       )}
 
       {/* 할인 손익 계산기 */}
-      <Legacy>
         <DiscountCalc loading={loading}
           onMakeEvent={(perOrder, margin) => { setForm({ ...emptyForm(), title:`건당 ${perOrder.toLocaleString('ko-KR')}원 할인`, kind:'discount', perOrder:String(perOrder), margin:String(margin), to: OPEN_END });
             setTimeout(() => document.getElementById('sales-events')?.scrollIntoView({ behavior:'smooth' }), 50) }}
@@ -532,7 +531,6 @@ export default function SalesAnalysis() {
           baseLabel={`${shortDate(range.from)}~${shortDate(range.to)}`}
           cmp={cmpRange?.from && cmpRange?.to && cmpRange.from <= cmpRange.to ? PLATFORMS.map(p => ({ ...p, ...stats(months, dateRange(cmpRange.from, cmpRange.to), p.key) })) : null}
           cmpRange={cmpRange} setCmpRange={setCmpRange}/>
-      </Legacy>
 
       {/* 할인·이벤트 일정 */}
       <div id="sales-events"/>

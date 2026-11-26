@@ -4,13 +4,15 @@ import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, ReferenceLin
 import { VStack } from '@astryxdesign/core/Layout'
 import { Text } from '@astryxdesign/core/Text'
 import { Badge } from '@astryxdesign/core/Badge'
+import { HStack } from '@astryxdesign/core/Layout'
+import { Divider } from '@astryxdesign/core/Divider'
+import { Table } from '@astryxdesign/core/Table'
 import { List, ListItem } from '@astryxdesign/core/List'
 import { AstryxPage, LedgerCard } from '../astryx/AstryxPage'
 import { discountGoal, goalMonths, isGoalEvent, loadSalesEvents, loadSalesMonths, OPEN_END, todayStr } from '../lib/salesStats'
 
 // 할인 목표 (건당 할인 일정): 매출분석의 카드(GoalCard)와 대시보드 한 줄(GoalLine)
 const T = { ink:'#1D1B18', sub:'#6E6A63', faint:'#A8A39A', rule:'#DCD7CE', soft:'#ECE8E1', accent:'var(--hk-accent)', green:'#2E7D45', red:'#B42318' }
-const num = { fontVariantNumeric:'tabular-nums' }
 const won = n => n == null || !isFinite(n) ? '—' : Math.round(n).toLocaleString('ko-KR')
 const one = n => n == null || !isFinite(n) ? '—' : (Math.round(n * 10) / 10).toLocaleString('ko-KR')
 const md = s => `${+s.slice(5, 7)}/${+s.slice(8, 10)}`
@@ -35,74 +37,59 @@ export function GoalCard({ months, ev, loading }) {
   const g = { ...discountGoal(months, ev), startDate: ev.from }
   const v = verdict(g)
   const chart = g.daily.map(x => ({ label: md(x.date), orders: x.orders }))
+  const rows = [...g.rows, { key:'_t', label:'합계', base:g.total.base, need:g.total.need, actual:g.total.actual, last7:g.total.last7, total:true }]
   return (
-    <div style={{borderTop:`1px solid ${T.rule}`, padding:'12px 0 4px'}}>
-      <div style={{display:'flex', gap:8, alignItems:'baseline', flexWrap:'wrap'}}>
-        <b style={{fontSize:14, color:T.ink}}>{ev.title}</b>
-        <span style={{fontSize:12, color:T.sub}}>{appNames(g)} · 건당 {won(g.d)}원 · 이익률 {g.margin}% · {period(ev)}{g.ended ? ' (끝남)' : !g.started ? ' (시작 전)' : ''}</span>
-      </div>
-      <div style={{fontSize:15, fontWeight:800, color:v.color, margin:'6px 0 8px', lineHeight:1.5}}>{v.text}</div>
+    <VStack gap={2}>
+      <Divider/>
+      <HStack gap={2} vAlign="center" wrap="wrap">
+        <Text weight="bold">{ev.title}</Text>
+        <Text type="supporting" color="secondary">{appNames(g)} · 건당 {won(g.d)}원 · 이익률 {g.margin}% · {period(ev)}{g.ended ? ' (끝남)' : !g.started ? ' (시작 전)' : ''}</Text>
+      </HStack>
+      <HStack gap={2} vAlign="center" wrap="wrap">
+        {v.color === T.green ? <Badge variant="success" label="본전 넘음"/> : v.color === T.red ? <Badge variant="error" label="모자라요"/> : null}
+        <Text type="large" weight="bold">{v.text}</Text>
+      </HStack>
 
       {!g.noBase && (
-        <div style={{overflowX:'auto'}}>
-          <table style={{width:'100%', borderCollapse:'collapse', fontSize:12, minWidth:560, ...num}}>
-            <thead><tr style={{color:T.sub, fontSize:11, textAlign:'right'}}>
-              <th style={{textAlign:'left', padding:'4px 6px', fontWeight:500}}>앱</th>
-              <th style={{padding:'4px 6px', fontWeight:500}}>할인 전 하루</th>
-              <th style={{padding:'4px 6px', fontWeight:500}}>할인 전 객단가</th>
-              <th style={{padding:'4px 6px', fontWeight:500}}>목표 하루</th>
-              {g.started && <th style={{padding:'4px 6px', fontWeight:500}}>시작 뒤 평균</th>}
-              {g.started && <th style={{padding:'4px 6px', fontWeight:500}}>최근 7일</th>}
-              {g.started && <th style={{padding:'4px 6px', fontWeight:500}}>달성</th>}
-            </tr></thead>
-            <tbody>
-              {[...g.rows, { key:'_t', label:'합계', color:T.ink, base:g.total.base, need:g.total.need, actual:g.total.actual, last7:g.total.last7, total:true }].map(r => {
-                const pct = r.need && r.actual != null ? r.actual / r.need * 100 : null
-                return (
-                  <tr key={r.key} style={{borderTop: r.total ? `2px solid ${T.ink}` : `1px solid ${T.soft}`, textAlign:'right', fontWeight: r.total ? 700 : 400}}>
-                    <td style={{textAlign:'left', padding:'6px'}}><span style={{borderLeft:`3px solid ${r.color}`, paddingLeft:6}}>{r.label}</span></td>
-                    <td style={{padding:'6px'}}>{one(r.base)}건</td>
-                    <td style={{padding:'6px'}}>{r.total ? '' : `${won(r.baseAov)}원`}</td>
-                    <td style={{padding:'6px', color:T.accent, fontWeight:700}}>{r.impossible ? '손해' : `${one(r.need)}건`}</td>
-                    {g.started && <td style={{padding:'6px'}}>{one(r.actual)}건</td>}
-                    {g.started && <td style={{padding:'6px'}}>{one(r.last7)}건</td>}
-                    {g.started && <td style={{padding:'6px', color: pct == null ? T.sub : pct >= 100 ? T.green : T.red}}>{pct == null ? '—' : `${Math.round(pct)}%`}</td>}
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
-        </div>
+        <HStack isScrollable>
+          <Table data={rows} idKey="key" density="compact"
+            columns={[
+              { key:'label', header:'앱', renderCell: r => <Text weight={r.total ? 'bold' : undefined}>{r.label}</Text> },
+              { key:'base', header:'할인 전 하루', align:'end', renderCell: r => <Text hasTabularNumbers>{one(r.base)}건</Text> },
+              { key:'aov', header:'할인 전 객단가', align:'end', renderCell: r => <Text hasTabularNumbers>{r.total ? '' : `${won(r.baseAov)}원`}</Text> },
+              { key:'need', header:'목표 하루', align:'end', renderCell: r => <Text weight="bold" color="accent" hasTabularNumbers>{r.impossible ? '손해' : `${one(r.need)}건`}</Text> },
+              ...(g.started ? [
+                { key:'actual', header:'시작 뒤 평균', align:'end', renderCell: r => <Text hasTabularNumbers>{one(r.actual)}건</Text> },
+                { key:'last7', header:'최근 7일', align:'end', renderCell: r => <Text hasTabularNumbers>{one(r.last7)}건</Text> },
+                { key:'pct', header:'달성', align:'end', renderCell: r => { const pct = r.need && r.actual != null ? r.actual / r.need * 100 : null
+                  return pct == null ? <Text color="secondary">—</Text> : <Badge variant={pct >= 100 ? 'success' : 'error'} label={`${Math.round(pct)}%`}/> } },
+              ] : []),
+            ]}/>
+        </HStack>
       )}
 
-      {g.started && chart.some(x => x.orders != null) && (
-        <>
-          <div style={{fontSize:11, color:T.sub, margin:'10px 0 2px'}}>날마다 주문 (점선 = 목표 {one(g.total.need)}건, 초록 = 목표 넘은 날) · {g.total.days}일 중 {g.total.hit}일 달성</div>
-          <ResponsiveContainer width="100%" height={150}>
-            <BarChart data={chart} margin={{ top:6, right:6, left:0, bottom:0 }}>
-              <XAxis dataKey="label" tick={{ fontSize:10, fill:T.sub }} tickLine={false} axisLine={{ stroke:T.rule }} interval="preserveStartEnd"/>
-              <YAxis tick={{ fontSize:10, fill:T.sub }} width={28} tickLine={false} axisLine={false}/>
-              <Tooltip formatter={v => [`${v}건`, '주문']} contentStyle={{ fontSize:12, borderRadius:4, border:`1px solid ${T.rule}` }}/>
-              <ReferenceLine y={g.total.need} stroke={T.accent} strokeDasharray="4 3"/>
-              <Bar dataKey="orders" isAnimationActive={false} radius={[2,2,0,0]}>
-                {chart.map((x, i) => <Cell key={i} fill={x.orders != null && x.orders >= g.total.need ? T.green : '#C9C3B8'}/>)}
-              </Bar>
-            </BarChart>
-          </ResponsiveContainer>
-        </>
-      )}
+      {g.started && chart.some(x => x.orders != null) && <>
+        <Text type="supporting" color="secondary">날마다 주문 (점선 = 목표 {one(g.total.need)}건, 진한 막대 = 목표 넘은 날) · {g.total.days}일 중 {g.total.hit}일 달성</Text>
+        <ResponsiveContainer width="100%" height={150}>
+          <BarChart data={chart} margin={{ top:6, right:6, left:0, bottom:0 }}>
+            <XAxis dataKey="label" tick={{ fontSize:10, fill:'var(--color-text-secondary)' }} tickLine={false} axisLine={{ stroke:'var(--color-border)' }} interval="preserveStartEnd"/>
+            <YAxis tick={{ fontSize:10, fill:'var(--color-text-secondary)' }} width={28} tickLine={false} axisLine={false}/>
+            <Tooltip formatter={val => [`${val}건`, '주문']}/>
+            <ReferenceLine y={g.total.need} stroke="var(--color-accent)" strokeDasharray="4 3"/>
+            <Bar dataKey="orders" isAnimationActive={false} radius={[2,2,0,0]}>
+              {chart.map((x, i) => <Cell key={i} fill={x.orders != null && x.orders >= g.total.need ? 'var(--color-accent)' : 'var(--hk-chart-bar)'}/>)}
+            </Bar>
+          </BarChart>
+        </ResponsiveContainer>
+      </>}
       {g.started && g.total.actualProfit != null && (
-        <div style={{fontSize:12, color:T.sub, marginTop:4}}>
-          하루 이익 추정: 할인 전 {won(g.total.baseProfit)}원 → 할인 뒤 {won(g.total.actualProfit)}원
-          <b style={{marginLeft:6, color: g.total.actualProfit >= g.total.baseProfit ? T.green : T.red}}>
-            ({g.total.actualProfit >= g.total.baseProfit ? '+' : '−'}{won(Math.abs(g.total.actualProfit - g.total.baseProfit))}원)
-          </b>
-        </div>
+        <Text type="supporting" color="secondary" hasTabularNumbers>
+          하루 이익 추정: 할인 전 {won(g.total.baseProfit)}원 → 할인 뒤 {won(g.total.actualProfit)}원{' '}
+          <Text weight="bold" color={g.total.actualProfit >= g.total.baseProfit ? 'primary' : 'accent'}>({g.total.actualProfit >= g.total.baseProfit ? '+' : '−'}{won(Math.abs(g.total.actualProfit - g.total.baseProfit))}원)</Text>
+        </Text>
       )}
-      <div style={{fontSize:11, color:T.sub, marginTop:4}}>
-        목표 = 할인 전 4주({md(g.baseFrom)}~{md(g.baseTo)}) 하루 이익을 할인 뒤에도 내는 주문 수. 객단가는 할인 전 그대로 두고, 할인은 가게가 다 낸다고 봐요.
-      </div>
-    </div>
+      <Text type="supporting" color="secondary">목표 = 할인 전 4주({md(g.baseFrom)}~{md(g.baseTo)}) 하루 이익을 할인 뒤에도 내는 주문 수. 객단가는 할인 전 그대로 두고, 할인은 가게가 다 낸다고 봐요.</Text>
+    </VStack>
   )
 }
 
