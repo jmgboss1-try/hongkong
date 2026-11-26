@@ -40,24 +40,6 @@ export function useTheme() {
   return k
 }
 
-// 화면 모양: 'card' 카드형(둥근 칸·그림자) / 'ledger' 장부형(괘선 장부). 기기마다 localStorage 'app.view' (예전 'dash.view'의 bento도 읽음)
-//  <html data-view="card"> 를 달면 appView.css 가 모든 탭의 칸·섹션·버튼을 카드 모양으로 바꿈
-const VKEY = 'app.view'
-export function getView() {
-  try { const v = localStorage.getItem(VKEY) || (localStorage.getItem('dash.view') === 'ledger' ? 'ledger' : 'card'); return v === 'ledger' ? 'ledger' : 'card' } catch { return 'card' }
-}
-export function applyView(v) { document.documentElement.dataset.view = v === 'ledger' ? 'ledger' : 'card' }
-export function setView(v) {
-  try { localStorage.setItem(VKEY, v) } catch { /* 저장 못 해도 이번엔 바뀜 */ }
-  applyView(v)
-  window.dispatchEvent(new CustomEvent('hk-view', { detail: v }))
-}
-export function useView() {
-  const [v, setV] = useState(getView)
-  useEffect(() => {
-    const on = e => setV(e.detail)
-    window.addEventListener('hk-view', on)
-    return () => window.removeEventListener('hk-view', on)
-  }, [])
-  return v
-}
+// 화면 모양: 장부형은 없앰 → 늘 카드형. <html data-view="card"> 를 달면 appView.css 가 아직 Astryx 로 안 옮긴 탭도 카드 모양으로 바꿈
+//  (Astryx 로 옮긴 화면은 Astryx Card 를 직접 씀. 모든 화면을 옮기면 appView.css 의 카드 규칙과 이 함수를 지움)
+export function applyView() { document.documentElement.dataset.view = 'card' }

@@ -4,7 +4,7 @@ import RevenuePace from '../components/RevenuePace'
 import { GoalLine } from '../components/DiscountGoal'
 import EarlySales from '../components/EarlySales'
 import BentoBoard from '../components/BentoBoard'
-import { useTheme, useView, setView } from '../lib/dashTheme'
+import { useTheme } from '../lib/dashTheme'
 import ThemeDots from '../components/ThemeDots'
 import RewardPrompt from '../components/RewardPrompt'
 import { db } from '../firebase'
@@ -111,7 +111,10 @@ export default function Dashboard() {
   const [compareSummary, setCompareSummary] = useState(null)  // {curTotal, prevTotal, diffPct}
   const [revDoc, setRevDoc] = useState({})                     // 이 달 revenue 문서 (카드형 보기의 날짜별 막대)
   // 보기 방식(카드형/장부형)과 카드형 강조색은 기기마다 기억
-  const view = useView() === 'card' ? 'bento' : 'ledger'   // 앱 전체 보기 방식 (카드형이면 모든 탭이 카드 모양)
+  const view = 'bento'   // 장부형은 없앰: 늘 카드형 (손익·통장 장부는 아래 '자세히 보기'로 접혀 있음)
+  // Astryx 보드 라이트/다크 (도입 0단계 미리보기용, 기기마다). 아직 다른 화면은 밝은 화면만 있음
+  const [boardMode, setBoardMode] = useState(() => { try { return localStorage.getItem('astryx.mode') === 'dark' ? 'dark' : 'light' } catch { return 'light' } })
+  const toggleMode = () => setBoardMode(m => { const n = m === 'dark' ? 'light' : 'dark'; try { localStorage.setItem('astryx.mode', n) } catch { /* 저장 못 해도 됨 */ } return n })
   const theme = useTheme()
 
   useEffect(() => { load() }, [curMonth])
@@ -392,9 +395,9 @@ export default function Dashboard() {
         paddingBottom:10, borderBottom:`3px double ${T.ink}`, marginBottom:22}}>
         <h1 style={{fontSize:24, fontWeight:800, margin:0, letterSpacing:'-0.01em', fontFamily:'inherit', color:T.ink}}>{mLabel(curMonth)} {view === 'bento' ? '한눈에' : '장부'}</h1>
         <div style={{display:'flex', alignItems:'center', gap:6, flexWrap:'wrap'}}>
-          <div role="group" aria-label="보기 방식" style={{display:'flex', gap:12, marginRight:8}}>
-            {textTab(view==='bento', '카드형', ()=>setView('card'), 'v-bento')}
-            {textTab(view==='ledger', '장부형', ()=>setView('ledger'), 'v-ledger')}
+          <div role="group" aria-label="보드 밝기 (미리보기)" style={{display:'flex', gap:12, marginRight:8}}>
+            {textTab(boardMode==='light', '라이트', ()=>boardMode!=='light' && toggleMode(), 'm-light')}
+            {textTab(boardMode==='dark', '다크', ()=>boardMode!=='dark' && toggleMode(), 'm-dark')}
           </div>
           {view === 'bento' && <ThemeDots style={{marginRight:8}}/>}
           <button type="button" aria-label="이전 달" disabled={monthIdx<=0} onClick={()=>setCurMonth(monthOpts[monthIdx-1])}
@@ -414,7 +417,7 @@ export default function Dashboard() {
       {loading ? <div style={{color:T.sub, padding:'40px 0'}}>불러오는 중...</div> : (
         <>
           {view === 'bento' && (
-            <BentoBoard ym={curMonth} rev={rev} exp={exp} profit={profit} labor={totalLaborCost} staffCount={staff.length} revDoc={revDoc} theme={theme}/>
+            <BentoBoard ym={curMonth} rev={rev} exp={exp} profit={profit} labor={totalLaborCost} staffCount={staff.length} revDoc={revDoc} theme={theme} mode={boardMode}/>
           )}
           <details open={view !== 'bento'} key={view} style={{marginBottom: view === 'bento' ? 28 : 0}}>
           {view === 'bento' && <summary style={{cursor:'pointer', fontSize:14, fontWeight:700, color:T.ink, padding:'4px 0 12px'}}>손익·통장 장부로 자세히 보기</summary>}

@@ -1,0 +1,42 @@
+/* Astryx 도입 0단계 — 아직 안 옮긴 기존 화면 보호막
+ *
+ * Astryx의 reset.css 는 모든 요소의 브라우저 기본 모양(테두리, 버튼 바탕, 제목 크기, 목록 점, 이미지 줄바꿈, 글꼴 등)을 지움.
+ * 기존 화면은 인라인 스타일이 그 기본 모양에 기대고 있어서, reset 바로 위 층(hk-legacy)에서
+ * "Astryx 테마 상자([data-astryx-theme], <html> 제외) 밖"의 요소만 브라우저 기본값으로 되돌림(revert).
+ * 층 순서: reset → hk-legacy → astryx-base → astryx-theme. 그래서 Astryx 부품 안은 Astryx 모양 그대로,
+ * 그 밖의 기존 화면은 예전과 똑같이 보임. 인라인 스타일과 appView.css(층 없음)는 언제나 이 둘보다 우선.
+ * 화면을 하나씩 Astryx로 옮기다가 다 옮기면 이 파일을 지움.
+ * 이 파일은 main.jsx 에서 reset.css 보다 먼저 불러와야 층 순서가 위처럼 정해짐.
+ */
+@layer reset, hk-legacy, astryx-base, astryx-theme;
+
+@layer hk-legacy {
+  /* 기존 화면은 밝은 화면만 있음: 휴대폰이 다크 모드여도 입력칸·스크롤바를 밝게 */
+  :where(html) { color-scheme: light; font-family: revert; line-height: revert; -webkit-text-size-adjust: revert; tab-size: revert; }
+  :where(body) { margin: revert; line-height: revert; -webkit-font-smoothing: revert; -moz-osx-font-smoothing: revert; }
+
+  :where(:not([data-astryx-theme]:not(html), [data-astryx-theme]:not(html) *)),
+  :where(:not([data-astryx-theme]:not(html), [data-astryx-theme]:not(html) *))::before,
+  :where(:not([data-astryx-theme]:not(html), [data-astryx-theme]:not(html) *))::after {
+    box-sizing: revert; border-width: revert; border-style: revert; border-color: revert;
+  }
+  :where(h1, h2, h3, h4, h5, h6):where(:not([data-astryx-theme]:not(html) *)) { font-size: revert; font-weight: revert; font-family: revert; color: revert; }
+  :where(h1, h2, h3, h4, h5, h6, p, blockquote, figure, pre, dl, dd):where(:not([data-astryx-theme]:not(html) *)) { margin: revert; }
+  :where(a):where(:not([data-astryx-theme]:not(html) *)) { color: revert; text-decoration: revert; }
+  :where(b, strong):where(:not([data-astryx-theme]:not(html) *)) { font-weight: revert; }
+  :where(code, kbd, samp, pre):where(:not([data-astryx-theme]:not(html) *)) { font-family: revert; font-size: revert; }
+  :where(small, sub, sup):where(:not([data-astryx-theme]:not(html) *)) { font-size: revert; line-height: revert; position: revert; vertical-align: revert; top: revert; bottom: revert; }
+  :where(ol, ul, menu):where(:not([data-astryx-theme]:not(html) *)) { list-style: revert; margin: revert; padding: revert; }
+  :where(img, svg, video, canvas, audio, iframe, embed, object):where(:not([data-astryx-theme]:not(html) *)) { display: revert; vertical-align: revert; }
+  :where(img, video):where(:not([data-astryx-theme]:not(html) *)) { max-width: revert; height: revert; }
+  :where(button, input, optgroup, select, textarea):where(:not([data-astryx-theme]:not(html) *)) { font: revert; color: revert; margin: revert; padding: revert; }
+  :where(button, [type='button'], [type='reset'], [type='submit']):where(:not([data-astryx-theme]:not(html) *)) { -webkit-appearance: revert; appearance: revert; background-color: revert; background-image: revert; }
+  :where(button, [role='button'], :disabled, [aria-disabled='true']):where(:not([data-astryx-theme]:not(html) *)) { cursor: revert; }
+  :where(textarea):where(:not([data-astryx-theme]:not(html) *)) { resize: revert; }
+  :where(input, textarea):where(:not([data-astryx-theme]:not(html) *))::placeholder { opacity: revert; color: revert; }
+  :where(fieldset, legend):where(:not([data-astryx-theme]:not(html) *)) { margin: revert; padding: revert; }
+  :where(table):where(:not([data-astryx-theme]:not(html) *)) { text-indent: revert; border-color: revert; border-collapse: revert; }
+  :where(hr):where(:not([data-astryx-theme]:not(html) *)) { height: revert; color: revert; border-top-width: revert; }
+  :where(summary):where(:not([data-astryx-theme]:not(html) *)) { display: revert; }
+  :where(dialog):where(:not([data-astryx-theme]:not(html) *)) { padding: revert; outline: revert; }
+}

@@ -1,7 +1,7 @@
 /* main.jsx 가 불러옴 (index.css 는 앱에서 쓰지 않는 Vite 기본 파일) */
 /* 앱 강조색 (lib/dashTheme.js 가 기기에서 고른 테마로 덮어씀) */
 :root { --hk-accent: #C3261C; --hk-accent-rgb: 195,38,28; --hk-accent-soft: #F6DEDB; --hk-accent-mid: #E08A82; }
-/* ── 카드형 보기 (앱 전체, <html data-view="card">, lib/dashTheme.js setView) ──
+/* ── 카드형 보기 (앱 전체, <html data-view="card">, lib/dashTheme.js applyView, 늘 카드형) ──
    화면 코드는 인라인 스타일이라, 브라우저가 적어 둔 style 속성 글자로 칸을 찾아 모양만 바꿈 (내용·배치는 그대로).
    장부형(data-view="ledger")으로 바꾸면 원래 괘선 장부 모양. 인쇄할 때와 손님용 화면(메뉴 밖)은 건드리지 않음 */
 @media screen {
