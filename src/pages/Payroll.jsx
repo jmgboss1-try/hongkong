@@ -7,6 +7,9 @@ import { HStack } from '@astryxdesign/core/Layout'
 import { Text, Heading } from '@astryxdesign/core/Text'
 import { Card } from '@astryxdesign/core/Card'
 import { EmptyState } from '@astryxdesign/core/EmptyState'
+import { List, ListItem } from '@astryxdesign/core/List'
+import { TextInput } from '@astryxdesign/core/TextInput'
+import { DateInput } from '@astryxdesign/core/DateInput'
 import { AstryxPage, Legacy, PageHeader, LedgerCard, Ledger, LedgerRow } from '../astryx/AstryxPage'
 import CountUp from '../components/CountUp'
 import { db } from '../firebase'
@@ -889,230 +892,114 @@ if(!isActive && !isRetired) return
                   </HStack>
                 </HStack>
 
-                {(isAdvanceOpen || isBonusOpen || isOpen || emp.isRetired) && <Legacy>
-                {/* 가불 관리 패널 */}
+                {/* 가불 관리 */}
                 {isAdvanceOpen && (
-                  <div style={{padding:'14px 18px',borderTop:'1px solid rgba(43,92,158,0.2)',
-                    background:'rgba(43,92,158,0.03)'}}>
-                    <div style={{fontSize:11,fontWeight:600,color:'#2B5C9E',marginBottom:10}}>
-                      {emp.name} 가불 내역
-                    </div>
-
-                    {advanceListOf(emp.uid).length > 0 && (
-                      <div style={{display:'flex',flexDirection:'column',gap:6,marginBottom:12}}>
-                        {advanceListOf(emp.uid).map(r=>(
-                          <div key={r.id} style={{display:'flex',alignItems:'center',gap:10,
-                            background:'#F3F1EC',borderRadius:4,padding:'7px 12px',flexWrap:'wrap'}}>
-                            <span style={{fontSize:11,color:'#6E6A63',fontFamily:'inherit',fontVariantNumeric:'tabular-nums',minWidth:80}}>{r.date}</span>
-                            <span style={{fontSize:13,fontWeight:700,color:'#B42318',fontFamily:'inherit',fontVariantNumeric:'tabular-nums'}}>
-                              {r.amount.toLocaleString()}원
-                            </span>
-                            <span style={{flex:1,fontSize:11,color:'#6E6A63'}}>{r.memo||'—'}{r.carryFrom && ' (지난달에 이미 준 돈)'}</span>
-                            <button onClick={()=>deleteAdvance(emp.uid, r.id)}
-                              style={{background:'transparent',border:'1px solid #E8C4BF',color:'#B42318',
-                                padding:'3px 8px',fontSize:10,borderRadius:4,cursor:'pointer',fontFamily:'inherit'}}>
-                              삭제
-                            </button>
-                          </div>
-                        ))}
-                        <div style={{display:'flex',justifyContent:'flex-end',fontSize:11,color:'#6E6A63',paddingTop:2}}>
-                          이번달 가불 합계 <span style={{color:'#B42318',fontWeight:700,marginLeft:6}}>{advTotal.toLocaleString()}원</span>
-                        </div>
-                      </div>
-                    )}
-
-                    <div style={{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap'}}>
-                      <input type="date" value={advanceForm.date}
-                        onChange={e=>setAdvanceForm(f=>({...f,date:e.target.value}))}
-                        style={{background:'#F3F1EC',border:'1px solid #DCD7CE',borderRadius:4,color:'#1D1B18',
-                          padding:'7px 10px',fontSize:12,outline:'none',fontFamily:'inherit'}}/>
-                      <input type="number" placeholder="가불 금액" value={advanceForm.amount}
-                        onChange={e=>setAdvanceForm(f=>({...f,amount:e.target.value}))}
-                        style={{width:140,background:'#F3F1EC',border:'1px solid #DCD7CE',borderRadius:4,color:'#1D1B18',
-                          padding:'7px 10px',fontSize:12,outline:'none',fontFamily:'inherit',fontVariantNumeric:'tabular-nums'}}/>
-                      <input placeholder="메모 (선택)" value={advanceForm.memo}
-                        onChange={e=>setAdvanceForm(f=>({...f,memo:e.target.value}))}
-                        style={{flex:1,minWidth:120,background:'#F3F1EC',border:'1px solid #DCD7CE',borderRadius:4,color:'#1D1B18',
-                          padding:'7px 10px',fontSize:12,outline:'none',fontFamily:'inherit'}}/>
-                      <button onClick={()=>addAdvance(emp.uid)} disabled={saving}
-                        style={{background:'#2B5C9E',color:'#FFFFFF',border:'none',borderRadius:4,padding:'7px 16px',
-                          fontSize:11,fontWeight:700,cursor:'pointer',fontFamily:'inherit',whiteSpace:'nowrap'}}>
-                        + 가불 추가
-                      </button>
-                    </div>
-                  </div>
+                  <Card variant="muted" padding={3}>
+                    <VStack gap={2}>
+                      <Heading level={5}>{emp.name} 가불 내역</Heading>
+                      {advanceListOf(emp.uid).length > 0 && (
+                        <List hasDividers edge="flush">
+                          {advanceListOf(emp.uid).map(r=>(
+                            <ListItem key={r.id} label={<Text weight="bold" hasTabularNumbers>{r.amount.toLocaleString()}원</Text>}
+                              description={<Text type="supporting" color="secondary" hasTabularNumbers>{r.date} · {r.memo||'—'}{r.carryFrom && ' (지난달에 이미 준 돈)'}</Text>}
+                              endContent={<Button size="sm" variant="ghost" label="삭제" onClick={()=>deleteAdvance(emp.uid, r.id)}/>}/>
+                          ))}
+                        </List>
+                      )}
+                      {advanceListOf(emp.uid).length > 0 && <LedgerRow label="이번달 가불 합계" value={advTotal} strong/>}
+                      <HStack gap={2} vAlign="end" wrap="wrap">
+                        <DateInput label="날짜" value={advanceForm.date} onChange={v=>setAdvanceForm(f=>({...f,date:v||''}))}/>
+                        <TextInput label="가불 금액" inputMode="numeric" width={140} value={advanceForm.amount ? (+advanceForm.amount).toLocaleString('ko-KR') : ''} onChange={v=>setAdvanceForm(f=>({...f,amount:v.replace(/[^0-9]/g,'')}))}/>
+                        <TextInput label="메모" isOptional value={advanceForm.memo} onChange={v=>setAdvanceForm(f=>({...f,memo:v}))}/>
+                        <Button variant="primary" label="+ 가불 추가" isDisabled={saving} onClick={()=>addAdvance(emp.uid)}/>
+                      </HStack>
+                    </VStack>
+                  </Card>
                 )}
 
-                {/* 상여/보너스 관리 패널 */}
+                {/* 상여·보너스 */}
                 {isBonusOpen && (
-                  <div style={{padding:'14px 18px',borderTop:'1px solid rgba(107,79,160,0.2)',
-                    background:'rgba(107,79,160,0.03)'}}>
-                    <div style={{fontSize:11,fontWeight:600,color:'#6B4FA0',marginBottom:10}}>
-                      {emp.name} 상여·보너스 내역
-                    </div>
-
-                    {bonusListOf(emp.uid).length > 0 && (
-                      <div style={{display:'flex',flexDirection:'column',gap:6,marginBottom:12}}>
-                        {bonusListOf(emp.uid).map(r=>(
-                          <div key={r.id} style={{display:'flex',alignItems:'center',gap:10,
-                            background:'#F3F1EC',borderRadius:4,padding:'7px 12px',flexWrap:'wrap'}}>
-                            <span style={{fontSize:11,color:'#6E6A63',fontFamily:'inherit',fontVariantNumeric:'tabular-nums',minWidth:80}}>{r.date}</span>
-                            <span style={{fontSize:13,fontWeight:700,color:'#6B4FA0',fontFamily:'inherit',fontVariantNumeric:'tabular-nums'}}>
-                              {r.amount.toLocaleString()}원
-                            </span>
-                            <span style={{flex:1,fontSize:11,color:'#6E6A63'}}>{r.memo||'—'}</span>
-                            <button onClick={()=>deleteBonus(emp.uid, r.id)}
-                              style={{background:'transparent',border:'1px solid #E8C4BF',color:'#B42318',
-                                padding:'3px 8px',fontSize:10,borderRadius:4,cursor:'pointer',fontFamily:'inherit'}}>
-                              삭제
-                            </button>
-                          </div>
-                        ))}
-                        <div style={{display:'flex',justifyContent:'flex-end',fontSize:11,color:'#6E6A63',paddingTop:2}}>
-                          이번달 상여 합계 <span style={{color:'#6B4FA0',fontWeight:700,marginLeft:6}}>{bonusTotal.toLocaleString()}원</span>
-                        </div>
-                      </div>
-                    )}
-
-                    <div style={{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap'}}>
-                      <input type="date" value={bonusForm.date}
-                        onChange={e=>setBonusForm(f=>({...f,date:e.target.value}))}
-                        style={{background:'#F3F1EC',border:'1px solid #DCD7CE',borderRadius:4,color:'#1D1B18',
-                          padding:'7px 10px',fontSize:12,outline:'none',fontFamily:'inherit'}}/>
-                      <input type="number" placeholder="상여 금액" value={bonusForm.amount}
-                        onChange={e=>setBonusForm(f=>({...f,amount:e.target.value}))}
-                        style={{width:140,background:'#F3F1EC',border:'1px solid #DCD7CE',borderRadius:4,color:'#1D1B18',
-                          padding:'7px 10px',fontSize:12,outline:'none',fontFamily:'inherit',fontVariantNumeric:'tabular-nums'}}/>
-                      <input placeholder="사유 (예: 추석 보너스)" value={bonusForm.memo}
-                        onChange={e=>setBonusForm(f=>({...f,memo:e.target.value}))}
-                        style={{flex:1,minWidth:120,background:'#F3F1EC',border:'1px solid #DCD7CE',borderRadius:4,color:'#1D1B18',
-                          padding:'7px 10px',fontSize:12,outline:'none',fontFamily:'inherit'}}/>
-                      <button onClick={()=>addBonus(emp.uid)} disabled={saving}
-                        style={{background:'#6B4FA0',color:'#FFFFFF',border:'none',borderRadius:4,padding:'7px 16px',
-                          fontSize:11,fontWeight:700,cursor:'pointer',fontFamily:'inherit',whiteSpace:'nowrap'}}>
-                        + 상여 추가
-                      </button>
-                    </div>
-                    <div style={{fontSize:9,color:'#6E6A63',marginTop:8}}>
-                      상여는 세전 급여에 합산되어 원천징수(3.3% 또는 4대보험)가 다시 계산돼요.
-                    </div>
-                  </div>
+                  <Card variant="muted" padding={3}>
+                    <VStack gap={2}>
+                      <Heading level={5}>{emp.name} 상여·보너스 내역</Heading>
+                      {bonusListOf(emp.uid).length > 0 && (
+                        <List hasDividers edge="flush">
+                          {bonusListOf(emp.uid).map(r=>(
+                            <ListItem key={r.id} label={<Text weight="bold" hasTabularNumbers>{r.amount.toLocaleString()}원</Text>}
+                              description={<Text type="supporting" color="secondary" hasTabularNumbers>{r.date} · {r.memo||'—'}</Text>}
+                              endContent={<Button size="sm" variant="ghost" label="삭제" onClick={()=>deleteBonus(emp.uid, r.id)}/>}/>
+                          ))}
+                        </List>
+                      )}
+                      {bonusListOf(emp.uid).length > 0 && <LedgerRow label="이번달 상여 합계" value={bonusTotal} strong/>}
+                      <HStack gap={2} vAlign="end" wrap="wrap">
+                        <DateInput label="날짜" value={bonusForm.date} onChange={v=>setBonusForm(f=>({...f,date:v||''}))}/>
+                        <TextInput label="상여 금액" inputMode="numeric" width={140} value={bonusForm.amount ? (+bonusForm.amount).toLocaleString('ko-KR') : ''} onChange={v=>setBonusForm(f=>({...f,amount:v.replace(/[^0-9]/g,'')}))}/>
+                        <TextInput label="사유" placeholder="예: 추석 보너스" value={bonusForm.memo} onChange={v=>setBonusForm(f=>({...f,memo:v}))}/>
+                        <Button variant="primary" label="+ 상여 추가" isDisabled={saving} onClick={()=>addBonus(emp.uid)}/>
+                      </HStack>
+                      <Text type="supporting" color="secondary">상여는 세전 급여에 합산되어 원천징수(3.3% 또는 4대보험)가 다시 계산돼요.</Text>
+                    </VStack>
+                  </Card>
                 )}
 
                 {/* 퇴직금 처리 (퇴직자 전용) */}
                 {emp.isRetired && (
-                  <div style={{padding:'12px 18px',borderTop:'1px solid #DCD7CE',background:'rgba(180,83,9,0.04)'}}>
+                  <Card variant="muted" padding={3}>
                     {severance[emp.uid] ? (
-                      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',flexWrap:'wrap',gap:10}}>
-                        <div style={{fontSize:11,color:'#B45309',fontWeight:600}}>
-                          퇴직금 지급완료 · {severance[emp.uid].paidDate?.slice(0,10)}
-                        </div>
-                        <div style={{display:'flex',alignItems:'center',gap:14,fontSize:11}}>
-                          <span style={{color:'#6E6A63'}}>
-                            지급액 {severance[emp.uid].amount.toLocaleString()}원
-                          </span>
-                          <span style={{color:'#B42318'}}>
-                            원천징수(3.3%) -{severance[emp.uid].tax.toLocaleString()}원
-                          </span>
-                          <span style={{color:'#2E7D45',fontWeight:700,fontFamily:'inherit',fontVariantNumeric:'tabular-nums'}}>
-                            최종 {severance[emp.uid].net.toLocaleString()}원
-                          </span>
-                          <button onClick={()=>deleteSeverance(emp.uid)}
-                            style={{background:'transparent',border:'1px solid #E8C4BF',color:'#B42318',
-                              padding:'3px 8px',fontSize:10,borderRadius:4,cursor:'pointer',fontFamily:'inherit'}}>
-                            취소
-                          </button>
-                        </div>
-                      </div>
+                      <HStack gap={3} vAlign="center" hAlign="between" wrap="wrap">
+                        <HStack gap={2} vAlign="center"><Badge variant="success" label="퇴직금 지급완료"/><Text type="supporting" color="secondary" hasTabularNumbers>{severance[emp.uid].paidDate?.slice(0,10)}</Text></HStack>
+                        <HStack gap={3} vAlign="center" wrap="wrap">
+                          <Text type="supporting" color="secondary" hasTabularNumbers>지급액 {severance[emp.uid].amount.toLocaleString()}원 · 원천징수(3.3%) −{severance[emp.uid].tax.toLocaleString()}원</Text>
+                          <Text weight="bold" hasTabularNumbers>최종 {severance[emp.uid].net.toLocaleString()}원</Text>
+                          <Button size="sm" variant="ghost" label="취소" onClick={()=>deleteSeverance(emp.uid)}/>
+                        </HStack>
+                      </HStack>
                     ) : (
-                      <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}>
-                        <span style={{fontSize:11,color:'#B45309',fontWeight:600,whiteSpace:'nowrap'}}>퇴직금 지급 처리</span>
-                        <input type="number" placeholder="퇴직금 총액 입력"
-                          value={severanceInput[emp.uid]||''}
-                          onChange={e=>setSeveranceInput(prev=>({...prev,[emp.uid]:e.target.value}))}
-                          style={{width:160,background:'#F3F1EC',border:'1px solid #DCD7CE',borderRadius:4,
-                            color:'#1D1B18',padding:'6px 10px',fontSize:12,outline:'none',fontFamily:'inherit',fontVariantNumeric:'tabular-nums'}}/>
+                      <HStack gap={2} vAlign="end" wrap="wrap">
+                        <TextInput label="퇴직금 지급 처리" placeholder="퇴직금 총액" inputMode="numeric" width={180}
+                          value={severanceInput[emp.uid] ? (+severanceInput[emp.uid]).toLocaleString('ko-KR') : ''}
+                          onChange={v=>setSeveranceInput(prev=>({...prev,[emp.uid]:v.replace(/[^0-9]/g,'')}))}/>
+                        <Button variant="primary" label="지급 기록" isDisabled={saving} onClick={()=>saveSeverance(emp.uid)}/>
                         {(+severanceInput[emp.uid]||0) > 0 && (
-                          <span style={{fontSize:10,color:'#6E6A63'}}>
-                            3.3% 제외 → 최종 {Math.round((+severanceInput[emp.uid])*(1-0.033)).toLocaleString()}원
-                          </span>
+                          <Text type="supporting" color="secondary" hasTabularNumbers>3.3% 제외 → 최종 {Math.round((+severanceInput[emp.uid])*(1-0.033)).toLocaleString()}원</Text>
                         )}
-                        <button onClick={()=>saveSeverance(emp.uid)} disabled={saving}
-                          style={{background:'#B45309',color:'#FFFFFF',border:'none',borderRadius:4,
-                            padding:'6px 14px',fontSize:11,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
-                          지급 기록
-                        </button>
-                      </div>
+                      </HStack>
                     )}
-                  </div>
+                  </Card>
                 )}
 
+                {/* 직원 문의 */}
                 {isOpen && p?.inquiry && (
-                  <div style={{borderTop:'1px solid rgba(180,35,24,0.2)',
-                    background:'rgba(180,35,24,0.03)',padding:'16px 18px',
-                    display:'flex',flexDirection:'column',gap:12}}>
-                    <div style={{fontSize:11,fontWeight:600,color:'#B42318'}}>직원 문의 내용</div>
-                    <div style={{display:'flex',gap:10,alignItems:'flex-start'}}>
-                      <div style={{width:30,height:30,borderRadius:'50%',background:'rgba(94,101,133,0.25)',
-                        display:'flex',alignItems:'center',justifyContent:'center',fontSize:13,flexShrink:0}}></div>
-                      <div style={{flex:1}}>
-                        <div style={{fontSize:10,color:'#6E6A63',marginBottom:5}}>
-                          {emp.name} · {p.inquiry.createdAt?.slice(0,10)}
-                        </div>
-                        <div style={{background:'#F3F1EC',border:'1px solid #DCD7CE',borderRadius:4,
-                          padding:'10px 14px',fontSize:12,color:'#1D1B18',lineHeight:1.7}}>
-                          {p.inquiry.message}
-                        </div>
-                      </div>
-                    </div>
-                    {p.inquiry.ownerReply && (
-                      <div style={{display:'flex',gap:10,alignItems:'flex-start',justifyContent:'flex-end'}}>
-                        <div style={{flex:1,maxWidth:'82%'}}>
-                          <div style={{fontSize:10,color:'#6E6A63',marginBottom:5,textAlign:'right'}}>
-                            사장님 답변 · {p.inquiry.repliedAt?.slice(0,10)}
-                          </div>
-                          <div style={{background:'rgba(var(--hk-accent-rgb),0.08)',border:'1px solid rgba(var(--hk-accent-rgb),0.2)',
-                            borderRadius:4,padding:'10px 14px',fontSize:12,color:'#1D1B18',lineHeight:1.7}}>
-                            {p.inquiry.ownerReply}
-                          </div>
-                        </div>
-                        <div style={{width:30,height:30,borderRadius:'50%',background:'rgba(var(--hk-accent-rgb),0.2)',
-                          display:'flex',alignItems:'center',justifyContent:'center',fontSize:13,flexShrink:0}}></div>
-                      </div>
-                    )}
-                    {!p.inquiry.ownerReply && (
-                      <div style={{display:'flex',gap:8}}>
-                        <input value={replyText} onChange={e=>setReplyText(e.target.value)}
-                          placeholder="답변을 입력하고 Enter..."
-                          onKeyDown={e=>e.key==='Enter'&&sendReply(emp.uid)}
-                          style={{flex:1,background:'#F3F1EC',border:'1px solid #DCD7CE',borderRadius:4,
-                            color:'#1D1B18',padding:'8px 12px',fontSize:12,outline:'none',fontFamily:'inherit'}}/>
-                        <button onClick={()=>sendReply(emp.uid)} disabled={saving}
-                          style={{background:'var(--hk-accent)',color:'#FFFFFF',border:'none',borderRadius:4,
-                            padding:'8px 16px',fontSize:11,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
-                          전송
-                        </button>
-                      </div>
-                    )}
-                    {p.inquiry.ownerReply && (
-                      <div style={{display:'flex',gap:8,justifyContent:'flex-end',flexWrap:'wrap'}}>
-                        <button onClick={()=>resolveInquiry(emp.uid)} disabled={saving}
-                          style={{background:'rgba(46,125,69,0.12)',border:'1px solid rgba(46,125,69,0.3)',
-                            color:'#2E7D45',borderRadius:4,padding:'7px 14px',fontSize:11,
-                            fontWeight:600,cursor:'pointer',fontFamily:'inherit'}}>
-                          문의 해결 완료
-                        </button>
-                        <button onClick={()=>markPaid(emp.uid)} disabled={saving}
-                          style={{background:'rgba(43,92,158,0.12)',border:'1px solid rgba(43,92,158,0.3)',
-                            color:'#2B5C9E',borderRadius:4,padding:'7px 14px',fontSize:11,
-                            fontWeight:600,cursor:'pointer',fontFamily:'inherit'}}>
-                          지급 완료 처리
-                        </button>
-                      </div>
-                    )}
-                  </div>
+                  <Card variant="muted" padding={3}>
+                    <VStack gap={3}>
+                      <Heading level={5}>직원 문의 내용</Heading>
+                      <VStack gap={1}>
+                        <Text type="supporting" color="secondary">{emp.name} · {p.inquiry.createdAt?.slice(0,10)}</Text>
+                        <Card padding={3}><Text>{p.inquiry.message}</Text></Card>
+                      </VStack>
+                      {p.inquiry.ownerReply && (
+                        <VStack gap={1}>
+                          <Text type="supporting" color="secondary">사장님 답변 · {p.inquiry.repliedAt?.slice(0,10)}</Text>
+                          <Card padding={3}><Text>{p.inquiry.ownerReply}</Text></Card>
+                        </VStack>
+                      )}
+                      {!p.inquiry.ownerReply && (
+                        <HStack gap={2} vAlign="end">
+                          <TextInput label="답변" isLabelHidden placeholder="답변을 입력하고 Enter..." value={replyText} onChange={v=>setReplyText(v)}
+                            onKeyDown={e=>e.key==='Enter'&&sendReply(emp.uid)}/>
+                          <Button variant="primary" label="전송" isDisabled={saving} onClick={()=>sendReply(emp.uid)}/>
+                        </HStack>
+                      )}
+                      {p.inquiry.ownerReply && (
+                        <HStack gap={2} wrap="wrap">
+                          <Button label="문의 해결 완료" isDisabled={saving} onClick={()=>resolveInquiry(emp.uid)}/>
+                          <Button variant="primary" label="지급 완료 처리" isDisabled={saving} onClick={()=>markPaid(emp.uid)}/>
+                        </HStack>
+                      )}
+                    </VStack>
+                  </Card>
                 )}
-                </Legacy>}
                 </VStack>
               </Card>
             )
