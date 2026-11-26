@@ -1,4 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
+import { VStack } from '@astryxdesign/core/Layout'
+import { Text, Heading } from '@astryxdesign/core/Text'
+import { Banner } from '@astryxdesign/core/Banner'
+import { Button } from '@astryxdesign/core/Button'
+import { Divider } from '@astryxdesign/core/Divider'
+import { List, ListItem } from '@astryxdesign/core/List'
+import { AstryxPage, Legacy } from '../astryx/AstryxPage'
 import { db } from '../firebase'
 import { doc, getDoc, setDoc, deleteField, serverTimestamp } from 'firebase/firestore'
 import { useAuth } from '../AuthContext'
@@ -6,7 +13,6 @@ import ClockAvatar from '../components/ClockAvatar'
 import { DEFAULT_RADIUS, ymOf, ddOf, hm, toDate, planFor, breakForShift, calcRecord, applyRecord, distanceM, getPosition } from '../lib/attendance'
 
 const DAYS_KR = ['일','월','화','수','목','금','토']
-const T = { ink:'#1D1B18', sub:'#6E6A63', rule:'#DCD7CE', accent:'var(--hk-accent)', red:'#B42318', green:'#2E7D45', blue:'#2B5C9E', amber:'#B45309' }
 
 // 매장 입구 NFC 태그가 여는 페이지 (/clock). 열리면 위치를 확인하고 바로 출근 또는 퇴근을 찍음
 //  - 오늘 출근 기록이 없으면 출근, 출근만 있으면 퇴근 (출근 2분 안에 다시 대면 실수로 보고 안 찍음)
@@ -136,93 +142,80 @@ export default function Clock() {
 
   const now = new Date()
   const wrap = children => (
-    <div style={{minHeight:'100vh', background:'#FAF9F6', color:T.ink, padding:'28px 20px', maxWidth:460, margin:'0 auto', textAlign:'left', boxSizing:'border-box'}}>
-      <div style={{borderBottom:`3px double ${T.ink}`, paddingBottom:8, marginBottom:22}}>
-        <div style={{fontSize:13, color:T.sub}}>홍콩반점 중앙대점</div>
-        <h1 style={{fontSize:24, fontWeight:800, margin:'2px 0 0', fontFamily:'inherit'}}>출퇴근</h1>
-        <div style={{fontSize:13, color:T.sub, marginTop:2, fontVariantNumeric:'tabular-nums'}}>
-          {now.getMonth()+1}월 {now.getDate()}일 ({DAYS_KR[now.getDay()]}){userData?.name ? ` · ${userData.name}` : ''}
-        </div>
-      </div>
+    <AstryxPage>
+    <VStack hAlign="center" minHeight="100vh">
+    <VStack padding={5} gap={5} width="100%" maxWidth={460}>
+      <VStack gap={0}>
+        <Text type="supporting" color="secondary">홍콩반점 중앙대점</Text>
+        <Heading level={1}>출퇴근</Heading>
+        <Text type="supporting" color="secondary" hasTabularNumbers>{now.getMonth()+1}월 {now.getDate()}일 ({DAYS_KR[now.getDay()]}){userData?.name ? ` · ${userData.name}` : ''}</Text>
+      </VStack>
+      <Divider variant="strong"/>
       {children}
-    </div>
+    </VStack>
+    </VStack>
+    </AstryxPage>
   )
 
-  if (!userData) return wrap(<div style={{color:T.sub}}>불러오는 중...</div>)
+  if (!userData) return wrap(<Text color="secondary">불러오는 중...</Text>)
   if (!staffOk) return wrap(
-    <div style={{fontSize:15, lineHeight:1.7}}>
-      {isOwner ? '사장님은 출퇴근을 찍지 않아도 돼요. 기록은 남기지 않았어요.' : isStore || isInvestor ? '직원 본인 계정으로 로그인해야 출퇴근을 찍을 수 있어요.' : '아직 가입 승인이 안 됐어요. 사장님께 승인을 요청해 주세요.'}
-    </div>
+    <Text type="large">{isOwner ? '사장님은 출퇴근을 찍지 않아도 돼요. 기록은 남기지 않았어요.' : isStore || isInvestor ? '직원 본인 계정으로 로그인해야 출퇴근을 찍을 수 있어요.' : '아직 가입 승인이 안 됐어요. 사장님께 승인을 요청해 주세요.'}</Text>
   )
-  if (phase === 'working') return wrap(<div style={{fontSize:16, color:T.sub, padding:'30px 0'}}>{msg}</div>)
+  if (phase === 'working') return wrap(<Text type="large" color="secondary">{msg}</Text>)
   if (phase === 'error') return wrap(
     <>
-      <div style={{borderLeft:`4px solid ${T.red}`, background:'#B4231810', padding:'14px 16px', borderRadius:'0 4px 4px 0', fontSize:15, lineHeight:1.6, color:T.red, fontWeight:600}}>{msg}</div>
-      <button onClick={()=>run(false)} style={{marginTop:16, width:'100%', background:T.accent, color:'#FFFFFF', border:'none', borderRadius:6, padding:'16px 0', fontSize:17, fontWeight:800, fontFamily:'inherit', cursor:'pointer'}}>다시 시도</button>
+      <Banner status="error" title={msg}/>
+      <Button variant="primary" size="lg" width="100%" label="다시 시도" onClick={()=>run(false)}/>
     </>
   )
 
   const r = result.rec || {}
   const inD = toDate(r.in), outD = toDate(r.out)
   const c = calcRecord(r)
-  const big = (label, time, color) => (
-    <div style={{padding:'10px 0 18px'}}>
-      <div style={{fontSize:20, fontWeight:800, color}}>{label}</div>
-      <div style={{fontSize:56, fontWeight:800, lineHeight:1.1, fontVariantNumeric:'tabular-nums', color}}>{time}</div>
-    </div>
+  const big = (label, time, accent) => (
+    <VStack gap={0}>
+      <Heading level={3}>{label}</Heading>
+      <Text type="display-1" color={accent ? 'accent' : 'primary'} hasTabularNumbers>{time}</Text>
+    </VStack>
   )
   // 일찍 온 시간 인정 여부는 직원 화면에 안 보여 줌 (사장님이 근무관리에서 정함)
 
   return wrap(
     <>
-      {result.kind === 'in' && big(result.undone ? '퇴근을 취소했어요' : '출근했어요', hm(inD), T.green)}
-      {result.kind === 'soon' && big('방금 출근했어요', hm(inD), T.green)}
-      {result.kind === 'out' && big('퇴근했어요', hm(outD), T.blue)}
-      {result.kind === 'already' && big('오늘은 이미 퇴근했어요', hm(outD), T.sub)}
-      {result.kind === 'back' && big('다시 출근했어요', hm(toDate(r.splitBack)), T.green)}
+      {result.kind === 'in' && big(result.undone ? '퇴근을 취소했어요' : '출근했어요', hm(inD), true)}
+      {result.kind === 'soon' && big('방금 출근했어요', hm(inD), true)}
+      {result.kind === 'out' && big('퇴근했어요', hm(outD))}
+      {result.kind === 'already' && big('오늘은 이미 퇴근했어요', hm(outD))}
+      {result.kind === 'back' && big('다시 출근했어요', hm(toDate(r.splitBack)), true)}
 
-      <ClockAvatar uid={user?.uid} me={me} kind={result.kind === 'back' ? 'in' : result.kind} rec={r}/>
+      <Legacy><ClockAvatar uid={user?.uid} me={me} kind={result.kind === 'back' ? 'in' : result.kind} rec={r}/></Legacy>
 
-      <div style={{borderTop:`1px solid ${T.rule}`}}>
+      <List hasDividers edge="flush">
         {[
           ['예정', r.schedStart ? `${r.schedStart} 출근${r.schedEnd ? ` ~ ${r.schedEnd}` : ''}` : '오늘 예정 없음'],
           ...(r.breakStart && !r.noBreak ? [[r.splitBack ? '쉬는 시간' : '브레이크', `${r.breakStart} ~ ${r.breakEnd} (근무시간에서 빠져요)`]] : []),
           ['출근', hm(inD)],
           ...(r.splitBack ? [['다시 출근', hm(toDate(r.splitBack))]] : []),
           ['퇴근', outD ? hm(outD) : '—'],
-        ].map(([k,v])=>(
-          <div key={k} style={{display:'flex', justifyContent:'space-between', padding:'10px 0', borderBottom:`1px solid ${T.rule}`, fontSize:16}}>
-            <span style={{color:T.sub}}>{k}</span><b style={{fontVariantNumeric:'tabular-nums'}}>{v}</b>
-          </div>
+        ].map(([k,v]) => (
+          <ListItem key={k} label={<Text color="secondary">{k}</Text>} endContent={<Text type="large" weight="bold" hasTabularNumbers>{v}</Text>}/>
         ))}
-      </div>
+      </List>
 
       {result.forgotYesterday && (
-        <div style={{marginTop:14, fontSize:14, color:T.red, lineHeight:1.6, fontWeight:600}}>
-          어제({hm(result.forgotYesterday)} 출근) 퇴근을 안 찍었어요. 어제 근무시간이 아직 안 들어갔으니 사장님께 퇴근한 시각을 알려 주세요.
-        </div>
+        <Banner status="error" title={`어제(${hm(result.forgotYesterday)} 출근) 퇴근을 안 찍었어요.`} description="어제 근무시간이 아직 안 들어갔으니 사장님께 퇴근한 시각을 알려 주세요."/>
       )}
       {(result.kind === 'in' || result.kind === 'soon') && !r.schedStart && (
-        <div style={{marginTop:14, fontSize:14, color:T.amber, lineHeight:1.6}}>오늘은 예정된 근무가 없는 날이에요. 오늘 근무는 사장님이 승인하면 급여에 들어가요.</div>
+        <Banner status="warning" title="오늘은 예정된 근무가 없는 날이에요." description="오늘 근무는 사장님이 승인하면 급여에 들어가요."/>
       )}
       {/* 인정 시간·일찍 온 시간 승인 여부는 직원 화면에 안 보여 줌. 예정 없는 날 근무만 안내 */}
       {c?.unsched > 0 && r.unschedOk == null && (
-        <div style={{marginTop:14, fontSize:14, color:T.amber, lineHeight:1.6}}>오늘은 예정 없는 날 근무라 사장님 승인 후 급여에 들어가요.</div>
+        <Banner status="warning" title="오늘은 예정 없는 날 근무라 사장님 승인 후 급여에 들어가요."/>
       )}
 
-      {result.kind === 'soon' && (
-        <button onClick={()=>run(true)} style={{marginTop:20, width:'100%', background:'#FFFFFF', color:T.ink, border:`1px solid ${T.rule}`, borderRadius:6, padding:'14px 0', fontSize:15, fontWeight:700, fontFamily:'inherit', cursor:'pointer'}}>
-          지금 퇴근으로 찍기
-        </button>
-      )}
-      {result.kind === 'out' && (
-        <button onClick={undoOut} disabled={busy} style={{marginTop:20, width:'100%', background:'#FFFFFF', color:T.red, border:`1px solid #E8C4BF`, borderRadius:6, padding:'14px 0', fontSize:15, fontWeight:700, fontFamily:'inherit', cursor:'pointer'}}>
-          잘못 찍었어요 (퇴근 취소)
-        </button>
-      )}
-      <div style={{marginTop:22, fontSize:12, color:T.sub, lineHeight:1.6}}>
-        출근할 때 한 번, 퇴근할 때 한 번 매장 입구 태그에 폰을 대면 돼요. 이 창은 닫아도 돼요.
-      </div>
+      {result.kind === 'soon' && <Button size="lg" width="100%" label="지금 퇴근으로 찍기" onClick={()=>run(true)}/>}
+      {result.kind === 'out' && <Button size="lg" variant="destructive" width="100%" label="잘못 찍었어요 (퇴근 취소)" isDisabled={busy} onClick={undoOut}/>}
+      <Text type="supporting" color="secondary">출근할 때 한 번, 퇴근할 때 한 번 매장 입구 태그에 폰을 대면 돼요. 이 창은 닫아도 돼요.</Text>
     </>
   )
 }
