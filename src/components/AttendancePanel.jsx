@@ -5,6 +5,12 @@ import { Card } from '@astryxdesign/core/Card'
 import { Badge } from '@astryxdesign/core/Badge'
 import { Button } from '@astryxdesign/core/Button'
 import { List, ListItem } from '@astryxdesign/core/List'
+import { Banner } from '@astryxdesign/core/Banner'
+import { StatusDot } from '@astryxdesign/core/StatusDot'
+import { TextInput } from '@astryxdesign/core/TextInput'
+import { DateInput } from '@astryxdesign/core/DateInput'
+import { Selector } from '@astryxdesign/core/Selector'
+import { CheckboxInput } from '@astryxdesign/core/CheckboxInput'
 import { AstryxPage, Legacy, LedgerCard } from '../astryx/AstryxPage'
 import { useEffect, useState } from 'react'
 import { db } from '../firebase'
@@ -17,21 +23,6 @@ import RewardPrompt from './RewardPrompt'
 const earlyChoice = rec => typeof rec?.earlyAllow === 'number' ? String(rec.earlyAllow) : rec?.earlyOk === true ? 'all' : rec?.earlyOk === false ? 'no' : ''
 
 const DAYS_KR = ['일','월','화','수','목','금','토']
-const T = { ink:'#1D1B18', sub:'#6E6A63', faint:'#A8A39A', rule:'#DCD7CE', soft:'#ECE8E1', accent:'var(--hk-accent)', red:'#B42318', green:'#2E7D45', blue:'#2B5C9E', amber:'#B45309' }
-const num = { fontVariantNumeric:'tabular-nums' }
-
-function Btn({ children, onClick, kind = 'plain', disabled }) {
-  const solid = kind==='primary' || kind==='ok'
-  return (
-    <button type="button" onClick={onClick} disabled={disabled}
-      style={{fontFamily:'inherit', cursor:'pointer', borderRadius:4, whiteSpace:'nowrap', fontSize:12, padding:'4px 10px',
-        fontWeight: solid ? 700 : 500, background: kind==='primary' ? T.accent : kind==='ok' ? T.green : '#FFFFFF',
-        color: solid ? '#FFFFFF' : kind==='danger' ? T.red : T.ink,
-        border: solid ? 'none' : `1px solid ${kind==='danger' ? '#E8C4BF' : T.rule}`, opacity: disabled ? 0.6 : 1}}>
-      {children}
-    </button>
-  )
-}
 
 // 근무관리 맨 위: NFC 출퇴근 기록, 승인 대기, 퇴근 안 찍은 기록, 설정(매장 위치·태그 주소)
 // 찍힌 기록은 근무관리 근무시간(workhours/workextra)에 자동으로 들어가고, 승인하면 그 시간도 더해짐
@@ -245,57 +236,55 @@ export default function AttendancePanel({ curMonth, nameMap, onApplied }) {
 
   const clockUrl = `${window.location.origin}/clock`
   // 시각 고르기: 아이폰 시간 칸은 지우거나 고치기가 불편해서 시·분 선택 (찍은 시각을 고치므로 1분 단위, 0~23시)
-  const timeIn = (v, set, label) => <TimePick value={v||''} onChange={set} label={label} step={1} allHours width={128}/>
+  const timeIn = (v, set, label) => <Legacy><TimePick value={v||''} onChange={set} label={label} step={1} allHours width={128}/></Legacy>
+  const openEdit = r => setEdit({ uid:r.uid, dd:r.dd, in:hm(toDate(r.rec.in)), out: r.rec.out ? hm(toDate(r.rec.out)) : '', bStart:r.rec.breakStart||'', bEnd:r.rec.breakEnd||'', noBreak:!!r.rec.noBreak, earlyLeave:!!r.rec.earlyLeave, earlyAllow: earlyChoice(r.rec) })
   const recLine = r => {
     const inD = toDate(r.rec.in), outD = toDate(r.rec.out)
     const isEdit = edit && edit.uid===r.uid && edit.dd===r.dd
     return (
-      <div key={r.uid+r.dd} style={{display:'flex', alignItems:'center', gap:10, padding:'7px 0', borderBottom:`1px solid ${T.soft}`, fontSize:13, flexWrap:'wrap'}}>
-        <span style={{...num, color:T.sub, minWidth:62}}>{+r.dd}일 ({dow(r.dd)})</span>
-        <span style={{fontWeight:700, minWidth:56}}>{name(r.uid)}</span>
-        {isEdit ? (
-          <>
-            {timeIn(edit.in, v=>setEdit(e=>({...e,in:v})), '출근')}<span>~</span>{timeIn(edit.out, v=>setEdit(e=>({...e,out:v})), '퇴근')}
-            <span style={{color:T.sub, marginLeft:6}}>브레이크</span>
-            {timeIn(edit.bStart, v=>setEdit(e=>({...e,bStart:v,noBreak:false})), '브레이크 시작')}<span>~</span>{timeIn(edit.bEnd, v=>setEdit(e=>({...e,bEnd:v,noBreak:false})), '브레이크 끝')}
-            <label style={{display:'flex', alignItems:'center', gap:4, color:T.sub}}>
-              <input type="checkbox" checked={!!edit.noBreak} onChange={e=>setEdit(x=>({...x,noBreak:e.target.checked}))}/> 못 쉼
-            </label>
-            {r.rec.schedStart && (
-              <label style={{display:'flex', alignItems:'center', gap:4, color:T.sub}}>일찍 온 시간
-                <select value={edit.earlyAllow ?? ''} onChange={e=>setEdit(x=>({...x, earlyAllow:e.target.value}))} aria-label="일찍 온 시간 인정"
-                  style={{fontFamily:'inherit', fontSize:12, padding:'3px 4px', border:'1px solid #CBC5BA', borderRadius:4, background:'#FFFFFF'}}>
-                  <option value="">자동{r.rec.earlyAuto ? ` (${r.rec.earlyAuto}분까지)` : ''}</option>
-                  <option value="all">전부 인정</option>
-                  {[10,15,20,30,40,60].map(m => <option key={m} value={m}>{m}분만 인정</option>)}
-                  <option value="no">인정 안 함{r.rec.earlyAuto ? ' (자동분만)' : ''}</option>
-                </select>
-              </label>
-            )}
-            <label style={{display:'flex', alignItems:'center', gap:4, color:T.red}} title="퇴근 예정을 안 정하므로 조퇴는 사장님이 직접 표시해요 (개근에서 빠져요)">
-              <input type="checkbox" checked={!!edit.earlyLeave} onChange={e=>setEdit(x=>({...x,earlyLeave:e.target.checked}))}/> 조퇴
-            </label>
-            <Btn kind="primary" onClick={saveEdit} disabled={busy}>저장</Btn>
-            <Btn onClick={()=>setEdit(null)}>취소</Btn>
-          </>
+      <ListItem key={r.uid+r.dd} align="start"
+        label={<HStack gap={2} vAlign="center" wrap="wrap">
+          <Text color="secondary" hasTabularNumbers>{+r.dd}일 ({dow(r.dd)})</Text>
+          <Text weight="bold">{name(r.uid)}</Text>
+          {!isEdit && <Text hasTabularNumbers>{hm(inD)} ~ {outD ? hm(outD) : ''}</Text>}
+          {!isEdit && !outD && <Badge variant="error" label="퇴근 안 찍음"/>}
+        </HStack>}
+        description={isEdit ? (
+          <VStack gap={2}>
+            <HStack gap={2} vAlign="center" wrap="wrap">
+              <Text type="label">출퇴근</Text>{timeIn(edit.in, v=>setEdit(e=>({...e,in:v})), '출근')}<Text>~</Text>{timeIn(edit.out, v=>setEdit(e=>({...e,out:v})), '퇴근')}
+            </HStack>
+            <HStack gap={2} vAlign="center" wrap="wrap">
+              <Text type="label">브레이크</Text>
+              {timeIn(edit.bStart, v=>setEdit(e=>({...e,bStart:v,noBreak:false})), '브레이크 시작')}<Text>~</Text>{timeIn(edit.bEnd, v=>setEdit(e=>({...e,bEnd:v,noBreak:false})), '브레이크 끝')}
+              <CheckboxInput label="못 쉼" value={!!edit.noBreak} onChange={v=>setEdit(x=>({...x,noBreak:v}))}/>
+            </HStack>
+            <HStack gap={3} vAlign="end" wrap="wrap">
+              {r.rec.schedStart && (
+                <Selector label="일찍 온 시간" size="sm" value={String(edit.earlyAllow ?? '')} onChange={v=>setEdit(x=>({...x, earlyAllow: v ?? ''}))}
+                  options={[{ value:'', label:`자동${r.rec.earlyAuto ? ` (${r.rec.earlyAuto}분까지)` : ''}` }, { value:'all', label:'전부 인정' },
+                    ...[10,15,20,30,40,60].map(m => ({ value:String(m), label:`${m}분만 인정` })), { value:'no', label:`인정 안 함${r.rec.earlyAuto ? ' (자동분만)' : ''}` }]}/>
+              )}
+              <CheckboxInput label="조퇴 (개근에서 빠져요)" value={!!edit.earlyLeave} onChange={v=>setEdit(x=>({...x,earlyLeave:v}))}/>
+              <Button size="sm" variant="primary" label="저장" isDisabled={busy} onClick={saveEdit}/>
+              <Button size="sm" label="취소" onClick={()=>setEdit(null)}/>
+            </HStack>
+          </VStack>
         ) : (
-          <>
-            <span style={{...num}}>{hm(inD)} ~ {outD ? hm(outD) : <span style={{color:T.red}}>퇴근 안 찍음</span>}</span>
-            <span style={{color:T.sub, fontSize:12}}>{r.rec.schedStart ? `예정 ${r.rec.schedStart}~${r.rec.schedEnd||''}` : '예정 없음'}</span>
-            {r.rec.earlyLeave && <b style={{color:T.red, fontSize:12}}>조퇴</b>}
-            {r.c?.early > 0 && <span style={{color:T.blue, fontSize:12}}>일찍 {r.c.early}분 중 {r.c.earlyCounted}분 인정</span>}
-            {recBreak(r.rec) && <span style={{color:T.sub, fontSize:12}}>브레이크 {r.rec.breakStart}~{r.rec.breakEnd}</span>}
-            {r.rec.noBreak && <span style={{color:T.amber, fontSize:12}}>브레이크 못 쉼</span>}
-            <span style={{flex:1}}/>
-            {r.c && <span style={{...num, fontWeight:600}}>{minsLabel(r.c.total)}</span>}
-            {r.c?.pending && <span style={{color:T.amber, fontSize:12, fontWeight:700}}>승인 대기</span>}
-            <button type="button" onClick={()=>setEdit({ uid:r.uid, dd:r.dd, in:hm(inD), out: outD ? hm(outD) : '', bStart:r.rec.breakStart||'', bEnd:r.rec.breakEnd||'', noBreak:!!r.rec.noBreak, earlyLeave:!!r.rec.earlyLeave, earlyAllow: earlyChoice(r.rec) })}
-              style={{background:'none', border:'none', color:T.sub, fontSize:12, cursor:'pointer', padding:0, fontFamily:'inherit'}}>수정</button>
-            <button type="button" onClick={()=>remove(r)}
-              style={{background:'none', border:'none', color:T.red, fontSize:12, cursor:'pointer', padding:0, fontFamily:'inherit'}}>삭제</button>
-          </>
+          <HStack gap={2} vAlign="center" wrap="wrap">
+            <Text type="supporting" color="secondary">{r.rec.schedStart ? `예정 ${r.rec.schedStart}~${r.rec.schedEnd||''}` : '예정 없음'}</Text>
+            {r.rec.earlyLeave && <Badge variant="error" label="조퇴"/>}
+            {r.c?.early > 0 && <Text type="supporting" color="secondary">일찍 {r.c.early}분 중 {r.c.earlyCounted}분 인정</Text>}
+            {recBreak(r.rec) && <Text type="supporting" color="secondary">브레이크 {r.rec.breakStart}~{r.rec.breakEnd}</Text>}
+            {r.rec.noBreak && <Badge variant="warning" label="브레이크 못 쉼"/>}
+          </HStack>
         )}
-      </div>
+        endContent={!isEdit && <HStack gap={1} vAlign="center">
+          {r.c && <Text weight="bold" hasTabularNumbers>{minsLabel(r.c.total)}</Text>}
+          {r.c?.pending && <Badge variant="warning" label="승인 대기"/>}
+          <Button size="sm" variant="ghost" label="수정" onClick={()=>openEdit(r)}/>
+          <Button size="sm" variant="ghost" label="삭제" onClick={()=>remove(r)}/>
+        </HStack>}/>
     )
   }
 
@@ -305,84 +294,84 @@ export default function AttendancePanel({ curMonth, nameMap, onApplied }) {
       {pending.length > 0 ? <Badge variant="warning" label={`승인 대기 ${pending.length}건`}/> : rows.length > 0 && <Text type="supporting" color="secondary">승인 대기 없음</Text>}
       <Button size="sm" label={showSet ? '설정 닫기' : '설정 (매장 위치·태그 주소)'} onClick={()=>setShowSet(v=>!v)}/>
     </>}>
-      {showSet && <Legacy>
       {showSet && (
-        <div style={{background:'#F3F1EC', borderRadius:4, padding:'12px 14px', margin:'8px 0 12px', fontSize:13, lineHeight:1.7}}>
-          <div style={{fontWeight:700}}>1. 매장 위치</div>
-          <div style={{color:T.sub}}>
-            {cfg?.lat != null ? `저장됨 · 매장에서 ${cfg.radius || DEFAULT_RADIUS}m 안에서만 찍혀요` : '아직 없어요. 매장 안에서 아래 버튼을 눌러 주세요. 없으면 어디서든 찍혀요.'}
-          </div>
-          <div style={{display:'flex', gap:8, alignItems:'center', flexWrap:'wrap', margin:'6px 0 12px'}}>
-            <Btn kind="primary" onClick={saveStoreLocation} disabled={busy}>지금 이 기기 위치를 매장으로 저장</Btn>
-            <span style={{color:T.sub}}>범위</span>
-            <input type="text" inputMode="numeric" value={radius} placeholder={String(cfg?.radius || DEFAULT_RADIUS)} onChange={e=>setRadius(e.target.value.replace(/[^0-9]/g,''))}
-              aria-label="범위(m)" style={{width:64, background:'#FFFFFF', border:'1px solid #CBC5BA', borderRadius:4, padding:'4px 6px', fontSize:13, textAlign:'right', ...num}}/>
-            <span style={{color:T.sub}}>m</span>
-            {cfg && radius && <Btn onClick={saveRadius}>범위 저장</Btn>}
-          </div>
-          <div style={{fontWeight:700}}>요일별 매장 브레이크</div>
-          <div style={{color:T.sub}}>이 시간을 통째로 포함하는 근무(풀타임)는 근무시간에서 자동으로 빠져요. 평일처럼 그때그때 다른 날은 비워 두고 아래 "날짜별 브레이크"에서 정해요.</div>
-          {brkEdit ? (
-            <div style={{display:'flex', flexDirection:'column', gap:4, margin:'6px 0 12px'}}>
-              {[1,2,3,4,5,6,0].map(w => (
-                <div key={w} style={{display:'flex', alignItems:'center', gap:6}}>
-                  <span style={{width:18, fontWeight:700}}>{DAYS_KR[w]}</span>
-                  {timeIn(brkEdit[w]?.start, v=>setBrkEdit(b=>({...b,[w]:{...(b[w]||{}),start:v}})), `${DAYS_KR[w]} 브레이크 시작`)}<span>~</span>
-                  {timeIn(brkEdit[w]?.end, v=>setBrkEdit(b=>({...b,[w]:{...(b[w]||{}),end:v}})), `${DAYS_KR[w]} 브레이크 끝`)}
-                  {(brkEdit[w]?.start || brkEdit[w]?.end) && <button type="button" onClick={()=>setBrkEdit(b=>{ const n={...b}; delete n[w]; return n })}
-                    style={{background:'none', border:'none', color:T.red, fontSize:12, cursor:'pointer', fontFamily:'inherit'}}>지우기</button>}
-                </div>
-              ))}
-              <div style={{display:'flex', gap:6, marginTop:4}}><Btn kind="primary" onClick={saveBreaks}>저장</Btn><Btn onClick={()=>setBrkEdit(null)}>취소</Btn></div>
-            </div>
-          ) : (
-            <div style={{display:'flex', gap:8, alignItems:'center', flexWrap:'wrap', margin:'4px 0 12px'}}>
-              <span>{Object.entries(cfg?.breaks || DEFAULT_BREAKS).filter(([,v])=>v?.start).map(([w,v])=>`${DAYS_KR[w]} ${v.start}~${v.end}`).join(' · ') || '없음'}</span>
-              <Btn onClick={()=>setBrkEdit({ ...(cfg?.breaks || DEFAULT_BREAKS) })}>바꾸기</Btn>
-            </div>
-          )}
-          <div style={{fontWeight:700}}>지각·결근 집계 시작일</div>
-          <div style={{display:'flex', gap:8, alignItems:'center', flexWrap:'wrap', margin:'4px 0 12px'}}>
-            <input type="date" value={since || cfg?.since || DEFAULT_SINCE} onChange={e=>setSince(e.target.value)} aria-label="집계 시작일"
-              style={{background:'#FFFFFF', border:'1px solid #CBC5BA', borderRadius:4, padding:'4px 6px', fontSize:13, fontFamily:'inherit'}}/>
-            {since && <Btn onClick={saveSince}>저장</Btn>}
-            <span style={{color:T.sub}}>이 날 전에는 기록이 없어도 결근으로 보지 않아요</span>
-          </div>
-          <div style={{fontWeight:700}}>일찍 출근 기준</div>
-          <div style={{display:'flex', gap:8, alignItems:'center', flexWrap:'wrap', margin:'4px 0 6px'}}>
-            <span>예정보다</span>
-            <select value={cfg?.earlyGrace ?? 10} onChange={e=>saveEarlyGrace(+e.target.value)} aria-label="그냥 예정 시각부터 세는 범위"
-              style={{background:'#FFFFFF', border:'1px solid #CBC5BA', borderRadius:4, padding:'4px 6px', fontSize:13, fontFamily:'inherit'}}>
-              {[0,5,10,15,20,30,60].map(m => <option key={m} value={m}>{m ? `${m}분` : '1분이라도'}</option>)}
-            </select>
-            <span>{(cfg?.earlyGrace ?? 10) ? '이내로 일찍 오면 그냥 예정 시각부터 세고, 그보다 일찍 오면 승인 대기' : '일찍 오면 승인 대기'}</span>
-          </div>
-          <div style={{color:T.sub, margin:'0 0 8px'}}>
-            {(() => { const g = cfg?.earlyGrace ?? 10; const t = m => { const x = 8*60+30 - m; return `${Math.floor(x/60)}:${String(x%60).padStart(2,'0')}` }
-              return g ? `예: 8:30 출근이면 ${t(g)}~8:30에 온 건 8:30부터, ${t(g+1)} 또는 더 일찍 온 건 승인 대기` : '예: 8:30 출근이면 8:29에 와도 승인 대기' })()}
-          </div>
-          <div style={{fontWeight:700}}>일찍 출근 자동 인정 (매장 기본)</div>
-          <div style={{display:'flex', gap:8, alignItems:'center', flexWrap:'wrap', margin:'4px 0 12px'}}>
-            <select value={cfg?.earlyAuto || 0} onChange={e=>saveEarlyAuto(+e.target.value)} aria-label="일찍 출근 자동 인정"
-              style={{background:'#FFFFFF', border:'1px solid #CBC5BA', borderRadius:4, padding:'4px 6px', fontSize:13, fontFamily:'inherit'}}>
-              <option value={0}>안 함 (사장님이 승인)</option>
-              {[5,10,15,20,30,40,60].map(m => <option key={m} value={m}>{m}분까지 바로 인정</option>)}
-            </select>
-            <span style={{color:T.sub}}>예정보다 이만큼까지 일찍 온 시간은 승인 없이 급여에 들어가요. 더 일찍 온 시간은 승인 대기. 직원별로 다르게 하려면 인원관리에서</span>
-          </div>
-          <div style={{fontWeight:700}}>2. NFC 태그에 넣을 주소</div>
-          <div style={{display:'flex', gap:8, alignItems:'center', flexWrap:'wrap', margin:'4px 0'}}>
-            <code style={{background:'#FFFFFF', border:`1px solid ${T.rule}`, borderRadius:4, padding:'3px 8px', fontSize:13}}>{clockUrl}</code>
-            <Btn onClick={()=>{ navigator.clipboard?.writeText(clockUrl); setNote('주소를 복사했어요') }}>복사</Btn>
-          </div>
-          <div style={{color:T.sub}}>
-            NFC 스티커(NTAG213)에 폰 앱 "NFC Tools"로 넣어요: 쓰기 → 레코드 추가 → URL → 위 주소 → 쓰기 → 스티커에 폰 대기.
-            직원은 폰 브라우저(아이폰은 Safari)에서 한 번 로그인해 두면, 태그에 댈 때마다 출근·퇴근이 찍혀요.
-            예정보다 {GRACE_MIN}분 넘게 일찍 출근하거나 늦게 퇴근한 시간, 예정 없는 날 근무는 여기서 승인해야 근무시간에 들어가요.
-          </div>
-        </div>
+        <Card variant="muted" padding={3}>
+          <VStack gap={4}>
+            <VStack gap={2}>
+              <Heading level={5}>1. 매장 위치</Heading>
+              <Text type="supporting" color="secondary">{cfg?.lat != null ? `저장됨 · 매장에서 ${cfg.radius || DEFAULT_RADIUS}m 안에서만 찍혀요` : '아직 없어요. 매장 안에서 아래 버튼을 눌러 주세요. 없으면 어디서든 찍혀요.'}</Text>
+              <HStack gap={2} vAlign="end" wrap="wrap">
+                <Button variant="primary" label="지금 이 기기 위치를 매장으로 저장" isDisabled={busy} onClick={saveStoreLocation}/>
+                <TextInput label="범위 (m)" inputMode="numeric" width={100} value={radius} placeholder={String(cfg?.radius || DEFAULT_RADIUS)} onChange={v=>setRadius(v.replace(/[^0-9]/g,''))}/>
+                {cfg && radius && <Button label="범위 저장" onClick={saveRadius}/>}
+              </HStack>
+            </VStack>
+            <VStack gap={2}>
+              <Heading level={5}>요일별 매장 브레이크</Heading>
+              <Text type="supporting" color="secondary">이 시간을 통째로 포함하는 근무(풀타임)는 근무시간에서 자동으로 빠져요. 평일처럼 그때그때 다른 날은 비워 두고 아래 "날짜별 브레이크"에서 정해요.</Text>
+              {brkEdit ? (
+                <VStack gap={1}>
+                  {[1,2,3,4,5,6,0].map(w => (
+                    <HStack key={w} gap={2} vAlign="center">
+                      <Text weight="bold">{DAYS_KR[w]}</Text>
+                      {timeIn(brkEdit[w]?.start, v=>setBrkEdit(b=>({...b,[w]:{...(b[w]||{}),start:v}})), `${DAYS_KR[w]} 브레이크 시작`)}<Text>~</Text>
+                      {timeIn(brkEdit[w]?.end, v=>setBrkEdit(b=>({...b,[w]:{...(b[w]||{}),end:v}})), `${DAYS_KR[w]} 브레이크 끝`)}
+                      {(brkEdit[w]?.start || brkEdit[w]?.end) && <Button size="sm" variant="ghost" label="지우기" onClick={()=>setBrkEdit(b=>{ const n={...b}; delete n[w]; return n })}/>}
+                    </HStack>
+                  ))}
+                  <HStack gap={2}><Button size="sm" variant="primary" label="저장" onClick={saveBreaks}/><Button size="sm" label="취소" onClick={()=>setBrkEdit(null)}/></HStack>
+                </VStack>
+              ) : (
+                <HStack gap={2} vAlign="center" wrap="wrap">
+                  <Text>{Object.entries(cfg?.breaks || DEFAULT_BREAKS).filter(([,v])=>v?.start).map(([w,v])=>`${DAYS_KR[w]} ${v.start}~${v.end}`).join(' · ') || '없음'}</Text>
+                  <Button size="sm" label="바꾸기" onClick={()=>setBrkEdit({ ...(cfg?.breaks || DEFAULT_BREAKS) })}/>
+                </HStack>
+              )}
+            </VStack>
+            <VStack gap={2}>
+              <Heading level={5}>지각·결근 집계 시작일</Heading>
+              <HStack gap={2} vAlign="end" wrap="wrap">
+                <DateInput label="집계 시작일" isLabelHidden value={since || cfg?.since || DEFAULT_SINCE} onChange={v=>setSince(v || '')}/>
+                {since && <Button label="저장" onClick={saveSince}/>}
+              </HStack>
+              <Text type="supporting" color="secondary">이 날 전에는 기록이 없어도 결근으로 보지 않아요</Text>
+            </VStack>
+            <VStack gap={2}>
+              <Heading level={5}>일찍 출근 기준</Heading>
+              <HStack gap={2} vAlign="center" wrap="wrap">
+                <Text>예정보다</Text>
+                <Selector label="그냥 예정 시각부터 세는 범위" isLabelHidden size="sm" value={String(cfg?.earlyGrace ?? 10)} onChange={v=>v != null && saveEarlyGrace(+v)}
+                  options={[0,5,10,15,20,30,60].map(m => ({ value:String(m), label: m ? `${m}분` : '1분이라도' }))}/>
+                <Text>{(cfg?.earlyGrace ?? 10) ? '이내로 일찍 오면 그냥 예정 시각부터 세고, 그보다 일찍 오면 승인 대기' : '일찍 오면 승인 대기'}</Text>
+              </HStack>
+              <Text type="supporting" color="secondary">
+                {(() => { const g = cfg?.earlyGrace ?? 10; const t = m => { const x = 8*60+30 - m; return `${Math.floor(x/60)}:${String(x%60).padStart(2,'0')}` }
+                  return g ? `예: 8:30 출근이면 ${t(g)}~8:30에 온 건 8:30부터, ${t(g+1)} 또는 더 일찍 온 건 승인 대기` : '예: 8:30 출근이면 8:29에 와도 승인 대기' })()}
+              </Text>
+            </VStack>
+            <VStack gap={2}>
+              <Heading level={5}>일찍 출근 자동 인정 (매장 기본)</Heading>
+              <HStack gap={2}>
+              <Selector label="일찍 출근 자동 인정" isLabelHidden size="sm" value={String(cfg?.earlyAuto || 0)} onChange={v=>v != null && saveEarlyAuto(+v)}
+                options={[{ value:'0', label:'안 함 (사장님이 승인)' }, ...[5,10,15,20,30,40,60].map(m => ({ value:String(m), label:`${m}분까지 바로 인정` }))]}/>
+              </HStack>
+              <Text type="supporting" color="secondary">예정보다 이만큼까지 일찍 온 시간은 승인 없이 급여에 들어가요. 더 일찍 온 시간은 승인 대기. 직원별로 다르게 하려면 인원관리에서</Text>
+            </VStack>
+            <VStack gap={2}>
+              <Heading level={5}>2. NFC 태그에 넣을 주소</Heading>
+              <HStack gap={2} vAlign="end" wrap="wrap">
+                <TextInput label="태그 주소" isLabelHidden isReadOnly value={clockUrl} onChange={()=>{}}/>
+                <Button label="복사" onClick={()=>{ navigator.clipboard?.writeText(clockUrl); setNote('주소를 복사했어요') }}/>
+              </HStack>
+              <Text type="supporting" color="secondary">
+                NFC 스티커(NTAG213)에 폰 앱 "NFC Tools"로 넣어요: 쓰기 → 레코드 추가 → URL → 위 주소 → 쓰기 → 스티커에 폰 대기.
+                직원은 폰 브라우저(아이폰은 Safari)에서 한 번 로그인해 두면, 태그에 댈 때마다 출근·퇴근이 찍혀요.
+                예정보다 {GRACE_MIN}분 넘게 일찍 출근하거나 늦게 퇴근한 시간, 예정 없는 날 근무는 여기서 승인해야 근무시간에 들어가요.
+              </Text>
+            </VStack>
+          </VStack>
+        </Card>
       )}
-      </Legacy>}
       {note && <Text type="supporting" color="secondary">{note}</Text>}
 
       {rows.length === 0 && !showSet && (
@@ -390,7 +379,7 @@ export default function AttendancePanel({ curMonth, nameMap, onApplied }) {
       )}
 
       {/* 지난달 개근 포상 */}
-      <Legacy><RewardPrompt/></Legacy>
+      <RewardPrompt/>
 
       {/* 승인 대기 */}
       {pending.map(r=>{
@@ -422,52 +411,47 @@ export default function AttendancePanel({ curMonth, nameMap, onApplied }) {
         )
       })}
 
-      {/* 날짜별 브레이크 · 지금 근무 중 · 퇴근 안 찍은 기록 (고치는 줄은 아직 예전 입력칸) */}
-      <Legacy>
       {/* 날짜별 브레이크: 평일처럼 그날그날 정하는 날 */}
       {(() => {
         const t = new Date(), tds = `${t.getFullYear()}-${pad(t.getMonth()+1)}-${pad(t.getDate())}`
         const cur = breakFor(cfg, t)
         return (
-          <div style={{display:'flex', alignItems:'center', gap:8, flexWrap:'wrap', fontSize:13, marginTop:10}}>
-            <b>브레이크</b>
+          <HStack gap={2} vAlign="center" wrap="wrap">
+            <Text weight="bold">브레이크</Text>
             {dayBrk ? <>
-              <input type="date" value={dayBrk.date} onChange={e=>setDayBrk(d=>({...d,date:e.target.value}))} aria-label="날짜"
-                style={{background:'#FFFFFF', border:'1px solid #CBC5BA', borderRadius:4, padding:'4px 6px', fontSize:13, fontFamily:'inherit'}}/>
-              {timeIn(dayBrk.start, v=>setDayBrk(d=>({...d,start:v})), '브레이크 시작')}<span>~</span>{timeIn(dayBrk.end, v=>setDayBrk(d=>({...d,end:v})), '브레이크 끝')}
-              <Btn kind="primary" onClick={()=>saveDayBreak(false)} disabled={busy}>저장</Btn>
-              <Btn onClick={()=>saveDayBreak(true)} disabled={busy}>그날 브레이크 없음</Btn>
-              <Btn onClick={()=>setDayBrk(null)}>취소</Btn>
+              <DateInput label="날짜" isLabelHidden size="sm" value={dayBrk.date} onChange={v=>setDayBrk(d=>({...d,date:v || d.date}))}/>
+              {timeIn(dayBrk.start, v=>setDayBrk(d=>({...d,start:v})), '브레이크 시작')}<Text>~</Text>{timeIn(dayBrk.end, v=>setDayBrk(d=>({...d,end:v})), '브레이크 끝')}
+              <Button size="sm" variant="primary" label="저장" isDisabled={busy} onClick={()=>saveDayBreak(false)}/>
+              <Button size="sm" label="그날 브레이크 없음" isDisabled={busy} onClick={()=>saveDayBreak(true)}/>
+              <Button size="sm" variant="ghost" label="취소" onClick={()=>setDayBrk(null)}/>
             </> : <>
-              <span style={{color:T.sub}}>오늘 {cur ? `${cur.start}~${cur.end}` : '없음'}</span>
-              <Btn onClick={()=>setDayBrk({ date:tds, start:cur?.start||'', end:cur?.end||'' })}>날짜별 브레이크 정하기</Btn>
+              <Text color="secondary">오늘 {cur ? `${cur.start}~${cur.end}` : '없음'}</Text>
+              <Button size="sm" label="날짜별 브레이크 정하기" onClick={()=>setDayBrk({ date:tds, start:cur?.start||'', end:cur?.end||'' })}/>
             </>}
-          </div>
+          </HStack>
         )
       })()}
 
-      {/* 지금 근무 중 · 퇴근 안 찍은 기록 */}
+      {/* 지금 근무 중 (수정에서 퇴근 시각을 넣으면 퇴근 처리) */}
       {working.length > 0 && (
-        <div style={{fontSize:13, marginTop:10}}>
-          <span style={{color:T.sub}}>지금 근무 중 </span>
-          {working.map(r=>(
-            <span key={r.uid} style={{marginRight:14, whiteSpace:'nowrap'}}><b>{name(r.uid)}</b> <span style={{...num, color:T.sub}}>{hm(toDate(r.rec.in))}~</span>
-              <button type="button" onClick={()=>setEdit({ uid:r.uid, dd:r.dd, in:hm(toDate(r.rec.in)), out:'', bStart:r.rec.breakStart||'', bEnd:r.rec.breakEnd||'', noBreak:!!r.rec.noBreak, earlyLeave:!!r.rec.earlyLeave, earlyAllow: earlyChoice(r.rec) })}
-                style={{background:'none', border:'none', color:T.blue, fontSize:12, cursor:'pointer', padding:'0 0 0 4px', fontFamily:'inherit', textDecoration:'underline'}}>수정</button>
-            </span>
-          ))}
-          {/* 지금 근무 중인 사람의 출근 시각 고치기 (여기서 퇴근 시각을 넣으면 퇴근 처리) */}
-          {working.filter(r=>edit && edit.uid===r.uid && edit.dd===r.dd).map(recLine)}
-        </div>
+        <VStack gap={1}>
+          <Heading level={5}>지금 근무 중</Heading>
+          <List hasDividers edge="flush">
+            {working.map(r => edit && edit.uid===r.uid && edit.dd===r.dd ? recLine(r) : (
+              <ListItem key={r.uid} startContent={<StatusDot variant="success" label="근무 중"/>}
+                label={<Text weight="bold">{name(r.uid)}</Text>}
+                description={<Text type="supporting" color="secondary" hasTabularNumbers>{hm(toDate(r.rec.in))} 출근</Text>}
+                endContent={<Button size="sm" variant="ghost" label="수정" onClick={()=>openEdit(r)}/>}/>
+            ))}
+          </List>
+        </VStack>
       )}
       {noOut.length > 0 && (
-        <div style={{marginTop:10}}>
-          <div style={{fontSize:12, fontWeight:700, color:T.red}}>퇴근을 안 찍은 기록 · 수정에서 퇴근 시각을 넣어 주세요</div>
-          {noOut.map(recLine)}
-        </div>
+        <VStack gap={1}>
+          <Banner status="warning" title="퇴근을 안 찍은 기록이 있어요" description="수정에서 퇴근 시각을 넣어 주세요."/>
+          <List hasDividers edge="flush">{noOut.map(recLine)}</List>
+        </VStack>
       )}
-
-      </Legacy>
 
       {/* 이 달 근태: 지각·조퇴·결근, 개근 (이름을 누르면 날짜별) */}
       {stats.length > 0 && (
@@ -525,7 +509,7 @@ export default function AttendancePanel({ curMonth, nameMap, onApplied }) {
 
       {rows.length > 0 && <>
         <Button size="sm" variant="ghost" label={showAll ? '이 달 기록 접기' : `이 달 출퇴근 기록 ${rows.length}건 보기`} onClick={()=>setShowAll(v=>!v)}/>
-        {showAll && <Legacy>{rows.map(recLine)}</Legacy>}
+        {showAll && <List hasDividers edge="flush">{rows.map(recLine)}</List>}
       </>}
     </LedgerCard>
     </AstryxPage>

@@ -1,6 +1,11 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, ReferenceLine, Cell } from 'recharts'
+import { VStack } from '@astryxdesign/core/Layout'
+import { Text } from '@astryxdesign/core/Text'
+import { Badge } from '@astryxdesign/core/Badge'
+import { List, ListItem } from '@astryxdesign/core/List'
+import { AstryxPage, LedgerCard } from '../astryx/AstryxPage'
 import { discountGoal, goalMonths, isGoalEvent, loadSalesEvents, loadSalesMonths, OPEN_END, todayStr } from '../lib/salesStats'
 
 // 할인 목표 (건당 할인 일정): 매출분석의 카드(GoalCard)와 대시보드 한 줄(GoalLine)
@@ -117,26 +122,28 @@ export function GoalLine() {
   }, [])
   if (!state?.events.length) return null
   return (
-    <section style={{marginBottom:24}}>
-      <div style={{display:'flex', justifyContent:'space-between', alignItems:'baseline', borderBottom:`2px solid ${T.ink}`, paddingBottom:6, marginBottom:4}}>
-        <h2 style={{fontSize:16, fontWeight:800, margin:0, fontFamily:'inherit', color:T.ink}}>할인 목표</h2>
-        <Link to="/sales-analysis" style={{fontSize:12, color:'#2B5C9E', textDecoration:'none'}}>매출분석에서 자세히</Link>
-      </div>
-      {state.events.map(ev => {
-        const g = { ...discountGoal(state.months, ev), startDate: ev.from }
-        const v = verdict(g)
-        return (
-          <div key={ev.id} style={{padding:'8px 0', borderBottom:`1px solid ${T.soft}`}}>
-            <div style={{fontSize:12, color:T.sub}}>{ev.title} · {appNames(g)} 건당 {won(g.d)}원 · {period(ev)}</div>
-            <div style={{fontSize:14, fontWeight:700, color:v.color, marginTop:2, ...num}}>{v.text}</div>
-            {g.started && !g.noBase && (
-              <div style={{fontSize:12, color:T.sub, marginTop:2, ...num}}>
-                어제 {g.total.yesterday != null ? `${g.total.yesterday}건` : '기록 없음'} · 최근 7일 평균 {one(g.total.last7)}건 · {g.total.days}일 중 {g.total.hit}일 달성
-              </div>
-            )}
-          </div>
-        )
-      })}
-    </section>
+    <AstryxPage>
+      <LedgerCard title="할인 목표" right={<Link to="/sales-analysis"><Text type="supporting" color="accent">매출분석에서 자세히</Text></Link>}>
+        <List hasDividers edge="flush">
+          {state.events.map(ev => {
+            const g = { ...discountGoal(state.months, ev), startDate: ev.from }
+            const v = verdict(g)
+            return (
+              <ListItem key={ev.id} align="start"
+                label={<Text type="supporting" color="secondary">{ev.title} · {appNames(g)} 건당 {won(g.d)}원 · {period(ev)}</Text>}
+                description={<VStack gap={1}>
+                  <Text weight="bold" hasTabularNumbers>{v.text}</Text>
+                  {g.started && !g.noBase && (
+                    <Text type="supporting" color="secondary" hasTabularNumbers>
+                      어제 {g.total.yesterday != null ? `${g.total.yesterday}건` : '기록 없음'} · 최근 7일 평균 {one(g.total.last7)}건 · {g.total.days}일 중 {g.total.hit}일 달성
+                    </Text>
+                  )}
+                </VStack>}
+                endContent={v.color === T.green ? <Badge variant="success" label="본전 넘음"/> : v.color === T.red ? <Badge variant="error" label="모자라요"/> : null}/>
+            )
+          })}
+        </List>
+      </LedgerCard>
+    </AstryxPage>
   )
 }

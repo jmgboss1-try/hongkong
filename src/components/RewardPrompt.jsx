@@ -4,21 +4,16 @@ import { doc, getDoc, setDoc } from 'firebase/firestore'
 import { prevYmOf, monthNum, loadEligible, rewardResults, addRewardBonuses, addRewardPoints, rewardIsPoints } from '../lib/rewards'
 import { loadPointConfig } from '../lib/points'
 import RewardGame from './RewardGame'
+import { VStack, HStack } from '@astryxdesign/core/Layout'
+import { Text, Heading } from '@astryxdesign/core/Text'
+import { Card } from '@astryxdesign/core/Card'
+import { Badge } from '@astryxdesign/core/Badge'
+import { Button } from '@astryxdesign/core/Button'
+import { TextInput } from '@astryxdesign/core/TextInput'
+import { List, ListItem } from '@astryxdesign/core/List'
+import { AstryxPage, Legacy } from '../astryx/AstryxPage'
 
-const T = { ink:'#1D1B18', sub:'#6E6A63', rule:'#DCD7CE', soft:'#ECE8E1', accent:'var(--hk-accent)', red:'#B42318', green:'#2E7D45', blue:'#2B5C9E', amber:'#B45309' }
 const won = n => (n||0).toLocaleString('ko-KR')
-
-function Btn({ children, onClick, kind = 'plain', disabled }) {
-  const solid = kind==='primary' || kind==='ok'
-  return (
-    <button type="button" onClick={onClick} disabled={disabled}
-      style={{fontFamily:'inherit', cursor:'pointer', borderRadius:4, whiteSpace:'nowrap', fontSize:13, padding:'6px 12px',
-        fontWeight: solid ? 700 : 500, background: kind==='primary' ? T.accent : kind==='ok' ? T.green : '#FFFFFF',
-        color: solid ? '#FFFFFF' : T.ink, border: solid ? 'none' : `1px solid ${T.rule}`, opacity: disabled ? 0.6 : 1}}>
-      {children}
-    </button>
-  )
-}
 
 // 사장님: 지난달 개근 포상을 할지 묻고(직원이 각자 룰렛 / 지금 사다리 / 안 함), 진행 상황과 포인트 지급 (예전 현금 상품 달은 상여)
 // 대시보드와 근무관리 맨 위에 같은 카드로 나옴. 할 일이 없으면(개근 없음, 끝났고 다 지급) 아무것도 안 보임
@@ -77,46 +72,50 @@ export default function RewardPrompt() {
   if (rw?.status === 'skip') return null
   if (rw && rw.status !== 'open' && !unpaid.length) return null // 끝났고 다 지급함
 
-  const box = { borderLeft:`4px solid ${T.accent}`, background:'rgba(var(--hk-accent-rgb),0.051)', borderRadius:'0 4px 4px 0', padding:'12px 14px', marginBottom:20 }
   return (
-    <section style={box}>
-      {!rw ? (
-        <>
-          <div style={{fontSize:15, fontWeight:800}}>{m}월 개근 {eligible.length}명 · 포상 게임을 할까요?</div>
-          <div style={{fontSize:13, color:T.sub, margin:'2px 0 8px'}}>{eligible.map(e=>e.name).join(', ')}</div>
-          <div style={{fontSize:12, color:T.sub, marginBottom:4}}>룰렛 상품 (쉼표로 나눠 적기, 같은 걸 여러 번 적으면 잘 나와요)</div>
-          <input value={prizeText} onChange={e=>setPrizeText(e.target.value)} aria-label="상품"
-            style={{width:'100%', boxSizing:'border-box', background:'#FFFFFF', border:'1px solid #CBC5BA', borderRadius:4, padding:'7px 10px', fontSize:14, fontFamily:'inherit', marginBottom:8}}/>
-          <div style={{display:'flex', gap:8, flexWrap:'wrap'}}>
-            <Btn kind="primary" onClick={()=>decide('open')} disabled={busy}>직원이 각자 룰렛 돌리기</Btn>
-            <Btn onClick={()=>setLadder(true)} disabled={busy}>지금 여기서 사다리로</Btn>
-            <Btn onClick={()=>decide('skip')} disabled={busy}>이번 달은 안 함</Btn>
-          </div>
-          <div style={{fontSize:12, color:T.sub, marginTop:6}}>"각자 룰렛"을 고르면 개근한 직원의 내 기록에 룰렛이 떠서 한 번씩 돌릴 수 있어요. 결과는 여기와 매장 화면에 보여요.</div>
-        </>
-      ) : (
-        <>
-          <div style={{fontSize:15, fontWeight:800}}>{m}월 개근 포상 {rw.status==='open' ? '· 직원 룰렛 진행 중' : ''}</div>
-          <div style={{margin:'6px 0'}}>
-            {eligible.map(e => {
-              const r = results.find(x => x.uid === e.uid)
-              return (
-                <div key={e.uid} style={{display:'flex', gap:10, alignItems:'baseline', fontSize:14, padding:'4px 0', borderBottom:`1px solid ${T.soft}`}}>
-                  <b style={{minWidth:64}}>{e.name}</b>
-                  <span style={{flex:1, color: r ? T.ink : T.sub}}>{r ? r.prize : '아직 안 돌림'}</span>
-                  {r && <span style={{fontVariantNumeric:'tabular-nums'}}>{isPts ? `${r.amount}P` : `${won(r.amount)}원`}</span>}
-                  {r?.paid && <span style={{fontSize:12, color:T.green, fontWeight:700}}>{isPts ? '포인트 지급' : '상여 지급'}</span>}
-                </div>
-              )
-            })}
-          </div>
-          <div style={{display:'flex', gap:8, flexWrap:'wrap'}}>
-            {unpaid.length > 0 && <Btn kind="ok" onClick={()=>payAll(unpaid)} disabled={busy}>{isPts ? `${unpaid.length}명 포인트 지급` : `${unpaid.length}명 ${m}월 급여 상여에 넣기`}</Btn>}
-            {rw.status === 'open' && <Btn onClick={close} disabled={busy}>룰렛 마감</Btn>}
-          </div>
-        </>
-      )}
-      {ladder && <RewardGame ym={ym} people={eligible} onClose={()=>{ setLadder(false); setReload(k=>k+1) }} onSaved={()=>setReload(k=>k+1)}/>}
-    </section>
+    <AstryxPage>
+      <Card variant="muted" padding={4}>
+        {!rw ? (
+          <VStack gap={3}>
+            <VStack gap={1}>
+              <Heading level={4}>{m}월 개근 {eligible.length}명 · 포상 게임을 할까요?</Heading>
+              <Text color="secondary">{eligible.map(e=>e.name).join(', ')}</Text>
+            </VStack>
+            <TextInput label="룰렛 상품" description="쉼표로 나눠 적기, 같은 걸 여러 번 적으면 잘 나와요" value={prizeText} onChange={v=>setPrizeText(v)}/>
+            <HStack gap={2} wrap="wrap">
+              <Button variant="primary" label="직원이 각자 룰렛 돌리기" isDisabled={busy} onClick={()=>decide('open')}/>
+              <Button label="지금 여기서 사다리로" isDisabled={busy} onClick={()=>setLadder(true)}/>
+              <Button variant="ghost" label="이번 달은 안 함" isDisabled={busy} onClick={()=>decide('skip')}/>
+            </HStack>
+            <Text type="supporting" color="secondary">"각자 룰렛"을 고르면 개근한 직원의 내 기록에 룰렛이 떠서 한 번씩 돌릴 수 있어요. 결과는 여기와 매장 화면에 보여요.</Text>
+          </VStack>
+        ) : (
+          <VStack gap={3}>
+            <HStack gap={2} vAlign="center" wrap="wrap">
+              <Heading level={4}>{m}월 개근 포상</Heading>
+              {rw.status==='open' && <Badge variant="info" label="직원 룰렛 진행 중"/>}
+            </HStack>
+            <List hasDividers edge="flush">
+              {eligible.map(e => {
+                const r = results.find(x => x.uid === e.uid)
+                return (
+                  <ListItem key={e.uid} label={<Text weight="bold">{e.name}</Text>}
+                    description={<Text color={r ? 'primary' : 'secondary'}>{r ? r.prize : '아직 안 돌림'}</Text>}
+                    endContent={<HStack gap={2} vAlign="center">
+                      {r && <Text hasTabularNumbers>{isPts ? `${r.amount}P` : `${won(r.amount)}원`}</Text>}
+                      {r?.paid && <Badge variant="success" label={isPts ? '포인트 지급' : '상여 지급'}/>}
+                    </HStack>}/>
+                )
+              })}
+            </List>
+            <HStack gap={2} wrap="wrap">
+              {unpaid.length > 0 && <Button variant="primary" label={isPts ? `${unpaid.length}명 포인트 지급` : `${unpaid.length}명 ${m}월 급여 상여에 넣기`} isDisabled={busy} onClick={()=>payAll(unpaid)}/>}
+              {rw.status === 'open' && <Button label="룰렛 마감" isDisabled={busy} onClick={close}/>}
+            </HStack>
+          </VStack>
+        )}
+        {ladder && <Legacy><RewardGame ym={ym} people={eligible} onClose={()=>{ setLadder(false); setReload(k=>k+1) }} onSaved={()=>setReload(k=>k+1)}/></Legacy>}
+      </Card>
+    </AstryxPage>
   )
 }

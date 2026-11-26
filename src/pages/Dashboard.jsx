@@ -387,7 +387,7 @@ export default function Dashboard() {
       </>}/>
 
       {/* 지난달 개근 포상: 할지 묻기·진행 상황 (아직 예전 모양) */}
-      <Legacy><RewardPrompt/></Legacy>
+      <RewardPrompt/>
 
       {loading ? <Text color="secondary">불러오는 중...</Text> : <>
         <BentoBoard ym={curMonth} rev={rev} exp={exp} profit={profit} labor={totalLaborCost} staffCount={staff.length} revDoc={revDoc} theme={theme} mode={boardMode}/>
@@ -424,7 +424,7 @@ export default function Dashboard() {
         )}
 
         {/* 건당 할인 목표 · 얼리 영업: 아직 예전 모양 */}
-        <Legacy><GoalLine/></Legacy>
+        <GoalLine/>
         <EarlySales ym={curMonth}/>
 
         {/* 지난달 같은 기간과 비교 */}

@@ -8,6 +8,10 @@ import { StatusDot } from '@astryxdesign/core/StatusDot'
 import { Badge } from '@astryxdesign/core/Badge'
 import { Table } from '@astryxdesign/core/Table'
 import { ClickableCard } from '@astryxdesign/core/ClickableCard'
+import { Card } from '@astryxdesign/core/Card'
+import { Selector } from '@astryxdesign/core/Selector'
+import { DateInput } from '@astryxdesign/core/DateInput'
+import { TextInput } from '@astryxdesign/core/TextInput'
 import { AstryxPage, Legacy, PageHeader, LedgerCard } from '../astryx/AstryxPage'
 import { db } from '../firebase'
 import { doc, getDoc, setDoc, collection, query, where, getDocs } from 'firebase/firestore'
@@ -34,44 +38,25 @@ function PendingCard({ u, onApprove, onReject }) {
   const [joinDate, setJoinDate] = useState(u.createdAt?.slice(0,10)||'')
   const [wage, setWage] = useState(10030)
   return (
-    <div style={{background:'#F3F1EC',border:'1px solid #DCD7CE',borderRadius:6,padding:'16px'}}>
-      <div style={{marginBottom:12}}>
-        <div style={{fontSize:14,fontWeight:700}}>{u.name}</div>
-        <div style={{fontSize:11,color:'#6E6A63',marginTop:2}}>{u.email}</div>
-        <div style={{fontSize:10,color:'#6E6A63',marginTop:2}}>가입 신청일: {u.createdAt?.slice(0,10)}</div>
-      </div>
-      <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(150px,1fr))',gap:10,marginBottom:12}}>
-        <div style={{display:'flex',flexDirection:'column',gap:4}}>
-          <label style={{fontSize:10,color:'#6E6A63',fontWeight:600}}>등급</label>
-          <select value={selGrade} onChange={e=>setSelGrade(e.target.value)}
-            style={{background:'#FAF9F6',border:'1px solid #DCD7CE',borderRadius:6,color:'#1D1B18',padding:'7px 10px',fontSize:12,fontFamily:'inherit',outline:'none'}}>
-            <option value="1">대선배 (1년↑)</option>
-            <option value="2">고오급인력 (6개월~1년)</option>
-            <option value="3">병아리 (6개월↓)</option>
-          </select>
-        </div>
-        <div style={{display:'flex',flexDirection:'column',gap:4}}>
-          <label style={{fontSize:10,color:'#6E6A63',fontWeight:600}}>입사일</label>
-          <input type="date" value={joinDate} onChange={e=>setJoinDate(e.target.value)}
-            style={{background:'#FAF9F6',border:'1px solid #DCD7CE',borderRadius:6,color:'#1D1B18',padding:'7px 10px',fontSize:12,fontFamily:'inherit',outline:'none'}}/>
-        </div>
-        <div style={{display:'flex',flexDirection:'column',gap:4}}>
-          <label style={{fontSize:10,color:'#6E6A63',fontWeight:600}}>시급 (원)</label>
-          <input type="number" value={wage} onChange={e=>setWage(+e.target.value)}
-            style={{background:'#FAF9F6',border:'1px solid #DCD7CE',borderRadius:6,color:'#1D1B18',padding:'7px 10px',fontSize:12,fontFamily:'inherit',outline:'none'}}/>
-        </div>
-      </div>
-      <div style={{display:'flex',gap:8}}>
-        <button onClick={()=>onApprove(u,selGrade,joinDate,wage)}
-          style={{background:'#2E7D45',color:'#FFFFFF',border:'none',borderRadius:6,padding:'8px 18px',fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
-          승인
-        </button>
-        <button onClick={()=>onReject(u.uid)}
-          style={{background:'transparent',border:'1px solid #E8C4BF',color:'#B42318',borderRadius:6,padding:'8px 18px',fontSize:12,cursor:'pointer',fontFamily:'inherit'}}>
-          거절
-        </button>
-      </div>
-    </div>
+    <Card variant="muted" padding={3}>
+      <VStack gap={3}>
+        <VStack gap={0}>
+          <Text weight="bold">{u.name}</Text>
+          <Text type="supporting" color="secondary">{u.email}</Text>
+          <Text type="supporting" color="secondary">가입 신청일: {u.createdAt?.slice(0,10)}</Text>
+        </VStack>
+        <HStack gap={3} vAlign="end" wrap="wrap">
+          <Selector label="등급" value={selGrade} onChange={v=>v && setSelGrade(v)}
+            options={[{ value:'1', label:'대선배 (1년↑)' }, { value:'2', label:'고오급인력 (6개월~1년)' }, { value:'3', label:'병아리 (6개월↓)' }]}/>
+          <DateInput label="입사일" value={joinDate} onChange={v=>setJoinDate(v || '')}/>
+          <TextInput label="시급 (원)" inputMode="numeric" width={130} value={wage ? (+wage).toLocaleString('ko-KR') : ''} onChange={v=>setWage(+v.replace(/[^0-9]/g,'') || 0)}/>
+        </HStack>
+        <HStack gap={2}>
+          <Button variant="primary" label="승인" onClick={()=>onApprove(u,selGrade,joinDate,wage)}/>
+          <Button variant="destructive" label="거절" onClick={()=>onReject(u.uid)}/>
+        </HStack>
+      </VStack>
+    </Card>
   )
 }
 
@@ -295,12 +280,6 @@ export default function Staff() {
   const maxCount = Math.max(1, ...hours.flatMap(h => shiftsByDay.map(l => countAt(l, h))))
 
   const weekLabel = `${monday.getMonth()+1}월 ${monday.getDate()}일 ~ ${days[days.length-1].getMonth()+1}월 ${days[days.length-1].getDate()}일`
-  const sectionTitle = (text, right) => (
-    <div style={{display:'flex', justifyContent:'space-between', alignItems:'baseline', gap:10, flexWrap:'wrap', borderBottom:`2px solid ${T.ink}`, paddingBottom:6, marginBottom:6}}>
-      <h2 style={{fontSize:16, fontWeight:800, margin:0, fontFamily:'inherit', color:T.ink}}>{text}</h2>
-      {right && <div style={{fontSize:12, color:T.sub}}>{right}</div>}
-    </div>
-  )
   const linkBtn = color => ({ background:'none', border:'none', borderBottom:`1px solid ${color}`, color, padding:0, fontSize:11, cursor:'pointer', fontFamily:'inherit' })
 
   return (
@@ -312,19 +291,13 @@ export default function Staff() {
         <Button size="sm" label="다음 주" onClick={()=>goWeek(weekOffset+1)}/>
       </>}/>
 
-      <Legacy>
-      <style>{ST_CSS}</style>
+      <Legacy><style>{ST_CSS}</style></Legacy>
       {/* 사장: 가입 승인 대기 */}
       {isOwner && pending.length>0 && (
-        <section style={{marginBottom:28}}>
-          {sectionTitle(`가입 승인 대기 ${pending.length}명`)}
-          <div style={{display:'flex', flexDirection:'column', gap:12, paddingTop:6}}>
-            {pending.map(u=><PendingCard key={u.uid} u={u} onApprove={approveUser} onReject={rejectUser}/>)}
-          </div>
-        </section>
+        <LedgerCard title={`가입 승인 대기 ${pending.length}명`}>
+          {pending.map(u=><PendingCard key={u.uid} u={u} onApprove={approveUser} onReject={rejectUser}/>)}
+        </LedgerCard>
       )}
-
-      </Legacy>
 
       {loading ? <Text color="secondary">불러오는 중...</Text> : <>
         {/* 지금 매장: 사람마다 상태 점 + 오늘 하루 막대 (점선 = 예정, 진한 막대 = 실제 근무, 빨간 선 = 지금) */}
