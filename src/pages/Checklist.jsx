@@ -416,14 +416,9 @@ export default function Checklist() {
   }
   function PhotoBadge(item) {
     if(!(item.photoCount>0)) return null
-    return (
-      <button onClick={e=>{ e.stopPropagation(); openItemPhotos(item) }}
-        style={{border:'none',cursor:'pointer',background:'rgba(43,92,158,0.15)',color:'#2B5C9E',
-          borderRadius:6,padding:'4px 8px',fontSize:10,fontWeight:700,fontFamily:'inherit',flexShrink:0}}>
-        {item.photoCount}
-      </button>
-    )
+    return <Button size="sm" variant="ghost" label={`사진 ${item.photoCount}`} onClick={e=>{ e?.stopPropagation?.(); openItemPhotos(item) }}/>
   }
+
 
   // ── 임시휴무 관리 ──
   async function saveHolidays(list) {
@@ -500,105 +495,53 @@ export default function Checklist() {
 
 
   // 매일 항목 1개 = 오전/오후 체크박스 2개 나란히
-  function DailyRow(item, date, big=false) {
+  function DailyRow(item, date) {
     const amDone = isChecked(date, item.id+'_am')
     const pmDone = isChecked(date, item.id+'_pm')
     const bothDone = amDone && pmDone
     return (
-      <div key={item.id+date} style={{
-        display:'flex',alignItems:'center',gap:8,
-        padding: big ? '10px 12px' : '7px 10px',
-        borderRadius:4,
-        background: bothDone ? 'rgba(46,125,69,0.08)' : '#F3F1EC',
-        border: bothDone ? '1px solid rgba(46,125,69,0.3)' : '1px solid #DCD7CE',
-      }}>
-        <span style={{
-          flex:1,fontSize: big?14:12, fontWeight: bothDone?400:600,
-          color: bothDone ? '#6E6A63' : '#1D1B18',
-          textDecoration: bothDone ? 'line-through' : 'none',
-        }}>
-          {item.label}
-        </span>
-        {PhotoBadge(item)}
-        <button onClick={()=>toggleCheck(date, item.id+'_am')}
-          style={{
-            display:'flex',alignItems:'center',gap:4,border:'none',cursor:'pointer',
-            background: amDone ? 'rgba(var(--hk-accent-rgb),0.18)' : '#FAF9F6',
-            color: amDone ? 'var(--hk-accent)' : '#6E6A63',
-            borderRadius:6,padding:'4px 8px',fontSize:10,fontWeight:700,fontFamily:'inherit'
-          }}>
-          {amDone ? '✓' : '○'} 오전
-        </button>
-        <button onClick={()=>toggleCheck(date, item.id+'_pm')}
-          style={{
-            display:'flex',alignItems:'center',gap:4,border:'none',cursor:'pointer',
-            background: pmDone ? 'rgba(43,92,158,0.18)' : '#FAF9F6',
-            color: pmDone ? '#2B5C9E' : '#6E6A63',
-            borderRadius:6,padding:'4px 8px',fontSize:10,fontWeight:700,fontFamily:'inherit'
-          }}>
-          {pmDone ? '✓' : '○'} 오후
-        </button>
-      </div>
+      <Card key={item.id+date} variant={bothDone ? 'muted' : 'default'} padding={2}>
+        <HStack gap={1} vAlign="center" hAlign="between">
+          <Text weight={bothDone ? 'normal' : 'semibold'} color={bothDone ? 'secondary' : 'primary'} hasStrikethrough={bothDone}>{item.label}</Text>
+          <HStack gap={1} vAlign="center">
+            {PhotoBadge(item)}
+            <Button size="sm" variant={amDone ? 'primary' : 'secondary'} label={amDone ? '오전 완료' : '오전'} onClick={()=>toggleCheck(date, item.id+'_am')}/>
+            <Button size="sm" variant={pmDone ? 'primary' : 'secondary'} label={pmDone ? '오후 완료' : '오후'} onClick={()=>toggleCheck(date, item.id+'_pm')}/>
+          </HStack>
+        </HStack>
+      </Card>
     )
   }
+
 
   // 요일별 항목 1개 = 체크박스 1개 (기존과 동일)
   function alertNameOf(uid) {
     return employees.find(e=>e.uid===uid)?.name || ''
   }
 
-  function WeeklyRow(item, date, big=false) {
+  function WeeklyRow(item, date) {
     const done = isChecked(date, item.id)
     const hasAlert = item.alertUid || item.alertMsg
     return (
-      <div key={item.id+date}>
-        <div onClick={()=>toggleCheck(date, item.id)}
-          style={{
-            display:'flex',alignItems:'center',gap:8,
-            padding: big ? '10px 12px' : '7px 10px',
-            borderRadius: hasAlert ? '8px 8px 0 0' : 8,cursor:'pointer',
-            background: done ? 'rgba(46,125,69,0.08)' : '#F3F1EC',
-            border: done ? '1px solid rgba(46,125,69,0.3)' : '1px solid #DCD7CE',
-            borderBottom: hasAlert ? 'none' : undefined,
-          }}>
-          <div style={{
-            width: big?22:18, height: big?22:18, borderRadius:6,flexShrink:0,
-            display:'flex',alignItems:'center',justifyContent:'center',
-            background: done ? '#2E7D45' : 'transparent',
-            border: done ? 'none' : '1.5px solid #A8A39A',
-            fontSize: big?13:11, color:'#FFFFFF',fontWeight:900,
-          }}>
-            {done && '✓'}
-          </div>
-          <span style={{
-            fontSize: big?14:12, fontWeight: done?400:600,
-            color: done ? '#6E6A63' : '#1D1B18',
-            textDecoration: done ? 'line-through' : 'none',
-          }}>
-            {item.label}
-            <span style={{fontSize:big?11:10,color:'var(--hk-accent)',marginLeft:6,fontWeight:700}}>({item.time})</span>
-            {intervalLabel(item.interval) && (
-              <span style={{fontSize:big?10:9,color:'#6B4FA0',marginLeft:5,fontWeight:700}}>{intervalLabel(item.interval)}</span>
-            )}
-          </span>
-          {PhotoBadge(item)}
-        </div>
-        {hasAlert && (
-          <div style={{
-            padding: big ? '7px 12px' : '5px 10px',
-            borderRadius:'0 0 8px 8px',
-            background:'rgba(180,35,24,0.12)',
-            border:'1px solid rgba(180,35,24,0.3)',borderTop:'none',
-            fontSize: big?11:10, color:'#B42318', fontWeight:700,
-            display:'flex',alignItems:'center',gap:5,
-          }}>
-            {item.alertUid && alertNameOf(item.alertUid) ? `${alertNameOf(item.alertUid)}님 ` : ''}
-            {item.alertMsg || '일찍 출근 필요'}
-          </div>
-        )}
-      </div>
+      <Card key={item.id+date} variant={done ? 'muted' : 'default'} padding={2}>
+        <VStack gap={1}>
+          <HStack gap={1} vAlign="center" hAlign="between">
+            <HStack gap={1} vAlign="center" wrap="wrap">
+              <Text weight={done ? 'normal' : 'semibold'} color={done ? 'secondary' : 'primary'} hasStrikethrough={done}>{item.label}</Text>
+              <Badge label={item.time}/>
+              {intervalLabel(item.interval) && <Badge variant="purple" label={intervalLabel(item.interval)}/>}
+            </HStack>
+            <HStack gap={1} vAlign="center">
+              {PhotoBadge(item)}
+              <Button size="sm" variant={done ? 'primary' : 'secondary'} label={done ? '완료' : '체크'} onClick={()=>toggleCheck(date, item.id)}/>
+            </HStack>
+          </HStack>
+          {hasAlert && <Text type="supporting" color="accent">{item.alertUid && alertNameOf(item.alertUid) ? `${alertNameOf(item.alertUid)}님 ` : ''}{item.alertMsg || '일찍 출근 필요'}</Text>}
+        </VStack>
+      </Card>
     )
   }
+
 
   // 오늘 할 일 칸: 매일 항목은 오전·오후 두 칸, 요일별 항목은 정해진 시간 한 칸 (요일별을 먼저)
   const todaySlots = [
@@ -764,18 +707,10 @@ export default function Checklist() {
             <VStack gap={2}>
               <Text type="supporting" color="secondary" hasTabularNumbers>{historyDate} ({DAYS_KR[historyDow]}) — 매일 {historyDailyDone}/{dailyTotalSlots} · 요일 {historyWeeklyDone}/{historyWeekly.length}</Text>
               <Heading level={5}>매일 항목</Heading>
-              <Legacy>
-                <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(240px,1fr))',gap:8}}>
-                  {dailyItems.map(it=>DailyRow(it, historyDate))}
-                </div>
-              </Legacy>
+              <Grid columns={{ minWidth: 260, repeat: 'fill' }} gap={2}>{dailyItems.map(it=>DailyRow(it, historyDate))}</Grid>
               {historyWeekly.length>0 && <>
                 <Heading level={5}>요일별 항목</Heading>
-                <Legacy>
-                  <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(220px,1fr))',gap:8}}>
-                    {historyWeekly.map(it=>WeeklyRow(it, historyDate))}
-                  </div>
-                </Legacy>
+                <Grid columns={{ minWidth: 260, repeat: 'fill' }} gap={2}>{historyWeekly.map(it=>WeeklyRow(it, historyDate))}</Grid>
               </>}
             </VStack>
           )}
@@ -808,12 +743,10 @@ export default function Checklist() {
           {/* 직전 영업일 못한 일 (일요일+임시휴무 건너뜀) */}
           {hasPrevUnfinished && (
             <LedgerCard title={`${+prevBusinessDate.split('-')[2]}일(${DAYS_KR[prevBusinessDow]}) 못한 일 ${prevDailyUnfinished.length+prevWeeklyUnfinished.length}건`}>
-              <Legacy>
-                <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(240px,1fr))',gap:8}}>
-                  {prevDailyUnfinished.map(it=>DailyRow(it, prevBusinessDate))}
-                  {prevWeeklyUnfinished.map(it=>WeeklyRow(it, prevBusinessDate))}
-                </div>
-              </Legacy>
+              <Grid columns={{ minWidth: 260, repeat: 'fill' }} gap={2}>
+                {prevDailyUnfinished.map(it=>DailyRow(it, prevBusinessDate))}
+                {prevWeeklyUnfinished.map(it=>WeeklyRow(it, prevBusinessDate))}
+              </Grid>
             </LedgerCard>
           )}
 
@@ -917,20 +850,12 @@ export default function Checklist() {
             {expandedDow !== null && (
               <VStack gap={2}>
                 <Heading level={5}>{DAYS_KR[expandedDow]}요일 ({+dateOfDow(expandedDow).split('-')[2]}일) 전체 할 일</Heading>
-                <Legacy>
-                  <div style={{fontSize:10,color:'#6E6A63',fontWeight:600,marginBottom:6}}>매일 항목</div>
-                  <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(240px,1fr))',gap:8,marginBottom:14}}>
-                    {dailyItems.map(it=>DailyRow(it, dateOfDow(expandedDow)))}
-                  </div>
-                  {getWeeklyForDate(dateOfDow(expandedDow)).length>0 && (
-                    <>
-                      <div style={{fontSize:10,color:'#6E6A63',fontWeight:600,marginBottom:6}}>요일별 항목</div>
-                      <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(220px,1fr))',gap:8}}>
-                        {getWeeklyForDate(dateOfDow(expandedDow)).map(it=>WeeklyRow(it, dateOfDow(expandedDow)))}
-                      </div>
-                    </>
-                  )}
-                </Legacy>
+                <Text type="label" color="secondary">매일 항목</Text>
+                <Grid columns={{ minWidth: 260, repeat: 'fill' }} gap={2}>{dailyItems.map(it=>DailyRow(it, dateOfDow(expandedDow)))}</Grid>
+                {getWeeklyForDate(dateOfDow(expandedDow)).length>0 && <>
+                  <Text type="label" color="secondary">요일별 항목</Text>
+                  <Grid columns={{ minWidth: 260, repeat: 'fill' }} gap={2}>{getWeeklyForDate(dateOfDow(expandedDow)).map(it=>WeeklyRow(it, dateOfDow(expandedDow)))}</Grid>
+                </>}
               </VStack>
             )}
           </LedgerCard>
