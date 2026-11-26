@@ -329,7 +329,7 @@ function getEmpStats(emp) {
         right={<Selector label="달 고르기" isLabelHidden size="sm" value={curMonth} onChange={v => v && setCurMonth(v)} options={monthOpts.map(m => ({ value:m, label:mLabel(m) }))}/>}/>
 
       {/* NFC 출퇴근: 승인 대기·퇴근 누락·설정 (찍힌 시간은 아래 근무시간에 자동 반영) */}
-      <Legacy><AttendancePanel curMonth={curMonth} nameMap={nameMap} onApplied={load}/></Legacy>
+      <AttendancePanel curMonth={curMonth} nameMap={nameMap} onApplied={load}/>
 
       {/* 월 합계 */}
       <Grid columns={{ minWidth: 200, max: 3, repeat: 'fit' }} gap={4}>

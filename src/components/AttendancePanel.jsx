@@ -1,4 +1,11 @@
 import TimePick from './TimePick'
+import { VStack, HStack } from '@astryxdesign/core/Layout'
+import { Text, Heading } from '@astryxdesign/core/Text'
+import { Card } from '@astryxdesign/core/Card'
+import { Badge } from '@astryxdesign/core/Badge'
+import { Button } from '@astryxdesign/core/Button'
+import { List, ListItem } from '@astryxdesign/core/List'
+import { AstryxPage, Legacy, LedgerCard } from '../astryx/AstryxPage'
 import { useEffect, useState } from 'react'
 import { db } from '../firebase'
 import { doc, getDoc, getDocs, collection, setDoc, deleteField, Timestamp } from 'firebase/firestore'
@@ -237,15 +244,6 @@ export default function AttendancePanel({ curMonth, nameMap, onApplied }) {
   const monthOver = stats[0]?.st.monthOver ?? (curMonth < `${now.getFullYear()}-${pad(now.getMonth()+1)}`)
 
   const clockUrl = `${window.location.origin}/clock`
-  const sectionTitle = (text, right) => (
-    <div style={{display:'flex', justifyContent:'space-between', alignItems:'baseline', gap:10, flexWrap:'wrap', borderBottom:`2px solid ${T.ink}`, paddingBottom:6, marginBottom:6}}>
-      <h2 style={{fontSize:16, fontWeight:800, margin:0, fontFamily:'inherit', color:T.ink}}>{text}</h2>
-      {right && <div style={{display:'flex', alignItems:'center', gap:10, flexWrap:'wrap', fontSize:12, color:T.sub}}>{right}</div>}
-    </div>
-  )
-  const link = (label, onClick) => (
-    <button type="button" onClick={onClick} style={{background:'none', border:'none', borderBottom:`1px solid ${T.blue}`, color:T.blue, padding:0, fontSize:12, cursor:'pointer', fontFamily:'inherit'}}>{label}</button>
-  )
   // 시각 고르기: 아이폰 시간 칸은 지우거나 고치기가 불편해서 시·분 선택 (찍은 시각을 고치므로 1분 단위, 0~23시)
   const timeIn = (v, set, label) => <TimePick value={v||''} onChange={set} label={label} step={1} allHours width={128}/>
   const recLine = r => {
@@ -302,12 +300,12 @@ export default function AttendancePanel({ curMonth, nameMap, onApplied }) {
   }
 
   return (
-    <section style={{marginBottom:28}}>
-      {sectionTitle('NFC 출퇴근', <>
-        {pending.length > 0 ? <span style={{color:T.amber, fontWeight:700}}>승인 대기 {pending.length}건</span> : rows.length > 0 && <span>승인 대기 없음</span>}
-        {link(showSet ? '설정 닫기' : '설정 (매장 위치·태그 주소)', ()=>setShowSet(v=>!v))}
-      </>)}
-
+    <AstryxPage>
+    <LedgerCard title="NFC 출퇴근" right={<>
+      {pending.length > 0 ? <Badge variant="warning" label={`승인 대기 ${pending.length}건`}/> : rows.length > 0 && <Text type="supporting" color="secondary">승인 대기 없음</Text>}
+      <Button size="sm" label={showSet ? '설정 닫기' : '설정 (매장 위치·태그 주소)'} onClick={()=>setShowSet(v=>!v)}/>
+    </>}>
+      {showSet && <Legacy>
       {showSet && (
         <div style={{background:'#F3F1EC', borderRadius:4, padding:'12px 14px', margin:'8px 0 12px', fontSize:13, lineHeight:1.7}}>
           <div style={{fontWeight:700}}>1. 매장 위치</div>
@@ -384,14 +382,15 @@ export default function AttendancePanel({ curMonth, nameMap, onApplied }) {
           </div>
         </div>
       )}
-      {note && <div style={{fontSize:12, color:T.blue, margin:'4px 0'}}>{note}</div>}
+      </Legacy>}
+      {note && <Text type="supporting" color="secondary">{note}</Text>}
 
       {rows.length === 0 && !showSet && (
-        <div style={{fontSize:13, color:T.sub, padding:'10px 0'}}>이 달 출퇴근 기록이 없어요. 처음이면 설정에서 매장 위치를 저장하고 태그를 만들어 주세요.</div>
+        <Text color="secondary">이 달 출퇴근 기록이 없어요. 처음이면 설정에서 매장 위치를 저장하고 태그를 만들어 주세요.</Text>
       )}
 
       {/* 지난달 개근 포상 */}
-      <div style={{marginTop:10}}><RewardPrompt/></div>
+      <Legacy><RewardPrompt/></Legacy>
 
       {/* 승인 대기 */}
       {pending.map(r=>{
@@ -401,22 +400,30 @@ export default function AttendancePanel({ curMonth, nameMap, onApplied }) {
           r.c.unsched && r.rec.unschedOk == null && ['unschedOk', `예정 없는 날 근무 ${hm(inD)}~${hm(outD)} (${minsLabel(r.c.unsched)})`],
         ].filter(Boolean)
         return (
-          <div key={'p'+r.uid+r.dd} style={{borderLeft:`4px solid ${T.amber}`, background:'#B4530910', borderRadius:'0 4px 4px 0', padding:'8px 12px', marginTop:6}}>
-            <div style={{fontSize:13, fontWeight:700}}>{+r.dd}일 ({dow(r.dd)}) {name(r.uid)} <span style={{fontWeight:400, color:T.sub}}>· 지금 인정 {minsLabel(r.c.total)}</span></div>
-            {items.map(([field, text])=>(
-              <div key={field} style={{display:'flex', alignItems:'center', gap:8, flexWrap:'wrap', marginTop:4, fontSize:13}}>
-                <span style={{flex:1, minWidth:200}}>{text}</span>
-                <Btn kind="ok" onClick={()=>decide(r, field, true)} disabled={busy}>{field === 'earlyOk' ? `전부 인정 (${minsLabel(r.c.early)})` : '인정'}</Btn>
-                {field === 'earlyOk' && [10,15,20,30,40,60].filter(m => m < r.c.early && m > (r.c.earlyCounted || 0)).map(m => (
-                  <Btn key={m} onClick={()=>decideEarly(r, m)} disabled={busy}>{m}분만</Btn>
-                ))}
-                <Btn kind="danger" onClick={()=>decide(r, field, false)} disabled={busy}>{field === 'earlyOk' && r.c.earlyCounted ? `자동 ${r.c.earlyCounted}분만` : '인정 안 함'}</Btn>
-              </div>
-            ))}
-          </div>
+          <Card key={'p'+r.uid+r.dd} variant="muted" padding={3}>
+            <VStack gap={2}>
+              <HStack gap={2} vAlign="center" wrap="wrap">
+                <Badge variant="warning" label="승인 대기"/>
+                <Text weight="bold">{+r.dd}일 ({dow(r.dd)}) {name(r.uid)}</Text>
+                <Text type="supporting" color="secondary">지금 인정 {minsLabel(r.c.total)}</Text>
+              </HStack>
+              {items.map(([field, text])=>(
+                <HStack key={field} gap={2} vAlign="center" wrap="wrap">
+                  <Text>{text}</Text>
+                  <Button size="sm" variant="primary" isDisabled={busy} label={field === 'earlyOk' ? `전부 인정 (${minsLabel(r.c.early)})` : '인정'} onClick={()=>decide(r, field, true)}/>
+                  {field === 'earlyOk' && [10,15,20,30,40,60].filter(m => m < r.c.early && m > (r.c.earlyCounted || 0)).map(m => (
+                    <Button key={m} size="sm" isDisabled={busy} label={`${m}분만`} onClick={()=>decideEarly(r, m)}/>
+                  ))}
+                  <Button size="sm" variant="destructive" isDisabled={busy} label={field === 'earlyOk' && r.c.earlyCounted ? `자동 ${r.c.earlyCounted}분만` : '인정 안 함'} onClick={()=>decide(r, field, false)}/>
+                </HStack>
+              ))}
+            </VStack>
+          </Card>
         )
       })}
 
+      {/* 날짜별 브레이크 · 지금 근무 중 · 퇴근 안 찍은 기록 (고치는 줄은 아직 예전 입력칸) */}
+      <Legacy>
       {/* 날짜별 브레이크: 평일처럼 그날그날 정하는 날 */}
       {(() => {
         const t = new Date(), tds = `${t.getFullYear()}-${pad(t.getMonth()+1)}-${pad(t.getDate())}`
@@ -460,71 +467,67 @@ export default function AttendancePanel({ curMonth, nameMap, onApplied }) {
         </div>
       )}
 
-      {/* 이 달 근태: 지각·조퇴·결근, 개근 */}
+      </Legacy>
+
+      {/* 이 달 근태: 지각·조퇴·결근, 개근 (이름을 누르면 날짜별) */}
       {stats.length > 0 && (
-        <div style={{marginTop:14}}>
-          <div style={{fontSize:12, fontWeight:700, color:T.sub, padding:'4px 0', borderBottom:`1px solid ${T.rule}`}}>
-            이 달 근태 <span style={{fontWeight:400}}>· 지각·조퇴는 예정보다 1분이라도 늦거나 이르면, 결근은 예정일에 출근 기록이 없으면 (이름을 누르면 날짜별로 보여요)</span>
-          </div>
-          {stats.map(({ u, st }) => {
-            const c = st.cnt, open = openUid === u.uid
-            return (
-              <div key={u.uid} style={{borderBottom:`1px solid ${T.soft}`}}>
-                <div onClick={()=>setOpenUid(open ? null : u.uid)} style={{display:'flex', alignItems:'baseline', gap:10, padding:'7px 0', fontSize:13, cursor:'pointer', flexWrap:'wrap'}}>
-                  <b style={{minWidth:56}}>{u.name}</b>
-                  <span style={{...num, color:T.sub}}>출근 {c.worked}일</span>
-                  <span style={{...num, color: c.late ? T.red : T.sub}}>지각 {c.late}회{c.late ? ` (${minsLabel(c.lateMins)})` : ''}</span>
-                  <span style={{...num, color: c.leftEarly ? T.red : T.sub}}>조퇴 {c.leftEarly}회</span>
-                  <span style={{...num, color: c.absent ? T.red : T.sub}}>결근 {c.absent}일</span>
-                  {c.noOut > 0 && <span style={{color:T.amber}}>퇴근 미기록 {c.noOut}</span>}
-                  <span style={{flex:1}}/>
-                  {st.perfect && <span style={{fontSize:12, fontWeight:800, color:T.green}}>{st.monthOver ? '개근' : '개근 중'}</span>}
-                </div>
-                {open && (
-                  <div style={{padding:'0 0 8px 12px'}}>
-                    {st.days.filter(d=>d.late || d.leftEarly || d.absent || d.excused || d.noOut).length === 0 && <div style={{fontSize:12, color:T.sub}}>지각·조퇴·결근 없음</div>}
-                    {st.days.filter(d=>d.late || d.leftEarly || d.absent || d.excused || d.noOut).map(d => (
-                      <div key={d.dd} style={{display:'flex', alignItems:'center', gap:10, fontSize:12, padding:'3px 0', flexWrap:'wrap'}}>
-                        <span style={{...num, color:T.sub, minWidth:62}}>{+d.dd}일 ({dow(d.dd)})</span>
-                        {d.sched && <span style={{color:T.sub}}>예정 {d.sched.start}~{d.sched.end||''}</span>}
-                        {d.rec?.in && <span style={{...num}}>{hm(toDate(d.rec.in))} ~ {d.rec.out ? hm(toDate(d.rec.out)) : '—'}</span>}
-                        {d.late > 0 && <b style={{color:T.red}}>지각 {minsLabel(d.late)}</b>}
-                        {d.leftEarly > 0 && <b style={{color:T.red}}>조퇴</b>}
-                        {d.noOut && <b style={{color:T.amber}}>퇴근 미기록</b>}
-                        {d.absent && <><b style={{color:T.red}}>결근</b><Btn onClick={()=>setExcused(u.uid, d.dd, true)} disabled={busy}>결근 아님</Btn></>}
-                        {d.excused && <><span style={{color:T.sub}}>결근 아님(사유 있음)</span><Btn onClick={()=>setExcused(u.uid, d.dd, false)} disabled={busy}>결근으로 되돌리기</Btn></>}
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )
-          })}
+        <VStack gap={2}>
+          <Heading level={5}>이 달 근태</Heading>
+          <Text type="supporting" color="secondary">지각·조퇴는 예정보다 1분이라도 늦거나 이르면, 결근은 예정일에 출근 기록이 없으면 · 이름을 누르면 날짜별로 보여요</Text>
+          <List hasDividers edge="flush">
+            {stats.map(({ u, st }) => {
+              const c = st.cnt, open = openUid === u.uid
+              const bad = st.days.filter(d=>d.late || d.leftEarly || d.absent || d.excused || d.noOut)
+              return (
+                <ListItem key={u.uid} align="start" onClick={()=>setOpenUid(open ? null : u.uid)} label={<Text weight="bold">{u.name}</Text>}
+                  description={<VStack gap={1}>
+                    <Text type="supporting" color={c.late || c.leftEarly || c.absent ? 'accent' : 'secondary'} hasTabularNumbers>
+                      출근 {c.worked}일 · 지각 {c.late}회{c.late ? ` (${minsLabel(c.lateMins)})` : ''} · 조퇴 {c.leftEarly}회 · 결근 {c.absent}일{c.noOut > 0 ? ` · 퇴근 미기록 ${c.noOut}` : ''}
+                    </Text>
+                    {open && (bad.length === 0 ? <Text type="supporting" color="secondary">지각·조퇴·결근 없음</Text> : bad.map(d => (
+                      <HStack key={d.dd} gap={2} vAlign="center" wrap="wrap">
+                        <Text type="supporting" color="secondary" hasTabularNumbers>{+d.dd}일 ({dow(d.dd)})</Text>
+                        {d.sched && <Text type="supporting" color="secondary">예정 {d.sched.start}~{d.sched.end||''}</Text>}
+                        {d.rec?.in && <Text type="supporting" hasTabularNumbers>{hm(toDate(d.rec.in))} ~ {d.rec.out ? hm(toDate(d.rec.out)) : '—'}</Text>}
+                        {d.late > 0 && <Badge variant="error" label={`지각 ${minsLabel(d.late)}`}/>}
+                        {d.leftEarly > 0 && <Badge variant="error" label="조퇴"/>}
+                        {d.noOut && <Badge variant="warning" label="퇴근 미기록"/>}
+                        {d.absent && <><Badge variant="error" label="결근"/><Button size="sm" isDisabled={busy} label="결근 아님" onClick={()=>setExcused(u.uid, d.dd, true)}/></>}
+                        {d.excused && <><Text type="supporting" color="secondary">결근 아님(사유 있음)</Text><Button size="sm" isDisabled={busy} label="결근으로 되돌리기" onClick={()=>setExcused(u.uid, d.dd, false)}/></>}
+                      </HStack>
+                    )))}
+                  </VStack>}
+                  endContent={st.perfect && <Badge variant="success" label={st.monthOver ? '개근' : '개근 중'}/>}/>
+              )
+            })}
+          </List>
 
           {/* 개근 포상 */}
-          <div style={{marginTop:10, fontSize:13, display:'flex', alignItems:'center', gap:10, flexWrap:'wrap'}}>
-            <b>개근 포상</b>
+          <HStack gap={2} vAlign="center" wrap="wrap">
+            <Text weight="bold">개근 포상</Text>
             {reward?.list ? (
-              <span>{reward.list.map(r=>`${r.name} ${r.prize}${r.paid ? ' (상여 지급)' : ''}`).join(' · ')}</span>
+              <Text>{reward.list.map(r=>`${r.name} ${r.prize}${r.paid ? ' (상여 지급)' : ''}`).join(' · ')}</Text>
             ) : !monthOver ? (
-              <span style={{color:T.sub}}>이 달이 끝나면 개근한 직원끼리 게임을 할 수 있어요{perfectList.length ? ` · 지금까지 개근 ${perfectList.map(x=>x.u.name).join(', ')}` : ''}</span>
+              <Text type="supporting" color="secondary">이 달이 끝나면 개근한 직원끼리 게임을 할 수 있어요{perfectList.length ? ` · 지금까지 개근 ${perfectList.map(x=>x.u.name).join(', ')}` : ''}</Text>
             ) : perfectList.length ? (
-              <><span>개근 {perfectList.map(x=>x.u.name).join(', ')}</span><Btn kind="primary" onClick={()=>setShowGame(true)}>포상 게임 하기</Btn></>
-            ) : <span style={{color:T.sub}}>이 달 개근한 직원이 없어요</span>}
-            {link('연습해 보기', ()=>setPractice(true))}
-          </div>
-        </div>
+              <><Text>개근 {perfectList.map(x=>x.u.name).join(', ')}</Text><Button size="sm" variant="primary" label="포상 게임 하기" onClick={()=>setShowGame(true)}/></>
+            ) : <Text type="supporting" color="secondary">이 달 개근한 직원이 없어요</Text>}
+            <Button size="sm" variant="ghost" label="연습해 보기" onClick={()=>setPractice(true)}/>
+          </HStack>
+        </VStack>
       )}
+      <Legacy>
       {showGame && <RewardGame ym={curMonth} people={perfectList.map(x=>({ uid:x.u.uid, name:x.u.name }))}
         onClose={()=>setShowGame(false)} onSaved={()=>{ load(false); onApplied?.() }}/>}
       {practice && <RewardGame ym={curMonth} practice people={staff.map(u=>({ uid:u.uid, name:u.name }))} onClose={()=>setPractice(false)}/>}
 
-      {rows.length > 0 && (
-        <div style={{marginTop:10}}>
-          {link(showAll ? '이 달 기록 접기' : `이 달 출퇴근 기록 ${rows.length}건 보기`, ()=>setShowAll(v=>!v))}
-          {showAll && <div style={{marginTop:6}}>{rows.map(recLine)}</div>}
-        </div>
-      )}
-    </section>
+      </Legacy>
+
+      {rows.length > 0 && <>
+        <Button size="sm" variant="ghost" label={showAll ? '이 달 기록 접기' : `이 달 출퇴근 기록 ${rows.length}건 보기`} onClick={()=>setShowAll(v=>!v)}/>
+        {showAll && <Legacy>{rows.map(recLine)}</Legacy>}
+      </>}
+    </LedgerCard>
+    </AstryxPage>
   )
 }
