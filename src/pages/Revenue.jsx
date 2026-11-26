@@ -413,9 +413,10 @@ export default function Revenue() {
         </Grid>
       )}
 
-      <Legacy>
       {/* 지난달 같은 기간과 비교 */}
       {!loading && <RevenuePace ym={curMonth}/>}
+
+      <Legacy>
 
       {/* 매출 입력 (사장만) */}
       {isOwner && (

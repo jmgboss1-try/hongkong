@@ -5,7 +5,15 @@ import { Card } from '@astryxdesign/core/Card'
 import { Grid } from '@astryxdesign/core/Grid'
 import { Selector } from '@astryxdesign/core/Selector'
 import { TabList, Tab } from '@astryxdesign/core/TabList'
-import { AstryxPage, Legacy, PageHeader } from '../astryx/AstryxPage'
+import { HStack } from '@astryxdesign/core/Layout'
+import { Button } from '@astryxdesign/core/Button'
+import { Table } from '@astryxdesign/core/Table'
+import { List, ListItem } from '@astryxdesign/core/List'
+import { StatusDot } from '@astryxdesign/core/StatusDot'
+import { ProgressBar } from '@astryxdesign/core/ProgressBar'
+import { Divider } from '@astryxdesign/core/Divider'
+import { EmptyState } from '@astryxdesign/core/EmptyState'
+import { AstryxPage, Legacy, PageHeader, LedgerCard, Ledger, LedgerRow } from '../astryx/AstryxPage'
 import { db } from '../firebase'
 import { doc, getDoc, setDoc, collection, getDocs, deleteField } from 'firebase/firestore'
 import AttendancePanel from '../components/AttendancePanel'
@@ -302,93 +310,10 @@ function getEmpStats(emp) {
   const todayDD  = pad(new Date().getDate())
   const todayEmps = allStats.filter(s => s.emp.workDays.includes(todayDow))
 
-  const todayContent = (
-    <div style={{background:'#FFFFFF',border:'1px solid #2E7D45',borderRadius:6,overflow:'hidden',marginBottom:18}}>
-      <div style={{padding:'14px 18px',borderBottom:'1px solid #DCD7CE',fontSize:13,fontWeight:600,color:'#2E7D45'}}>
-        오늘 ({+todayDD}일) 근무 인원 — {todayEmps.length}명
-        <div style={{fontSize:11,fontWeight:400,color:'#6E6A63',marginTop:3}}>
-          NFC로 찍은 직원은 퇴근을 찍으면 근무시간이 자동으로 채워져요. 비어 있거나 틀린 것만 고치세요 (퇴근 전에 미리 적으면 퇴근 때 NFC 시간으로 바뀌어요).
-        </div>
-      </div>
-      {todayEmps.length === 0 ? (
-        <div style={{padding:24,textAlign:'center',color:'#6E6A63',fontSize:12}}>오늘 근무 예정 인원이 없습니다</div>
-      ) : (
-        <div>
-          <div style={{display:'flex',alignItems:'center',gap:14,padding:'8px 18px',
-            background:'#F3F1EC',fontSize:10,fontWeight:600,color:'#6E6A63'}}>
-            <div style={{minWidth:80}}>이름</div>
-            <div style={{minWidth:170}}>NFC 출퇴근</div>
-            <div style={{minWidth:120}}>근무시간 (h)</div>
-            <div style={{minWidth:120}}>추가근무 (분)</div>
-            <div style={{flex:1}}>비고</div>
-          </div>
-          {todayEmps.map(({emp}, i)=>{
-            const wh = workHours[emp.uid]||{}
-            const ex = workExtra[emp.uid]||{}
-            const empMemos = memos[emp.uid]||{}
-            const missing = []
-            const hasMissing = missing.length > 0
-            const hasToday = (wh[todayDD]||0) > 0
-            return (
-              <div key={emp.uid} className="wm-row" style={{animationDelay:`${i*50}ms`,display:'flex',alignItems:'center',gap:14,padding:'10px 18px',
-                borderBottom:'1px solid #ECE8E1',
-                background:hasToday?'rgba(var(--hk-accent-rgb),0.04)':'transparent'}}>
-                <div style={{minWidth:80,fontSize:13,fontWeight:700,display:'flex',alignItems:'center',gap:7,
-                  color:hasMissing?'#B42318':hasToday?'var(--hk-accent)':'#1D1B18'}}>
-                  {(() => {
-                    // 지금 상태 점: 근무 중 = 초록 깜박임, 퇴근 = 회색 체크, 안 찍음 = 빈 동그라미
-                    const r = curMonth===`${new Date().getFullYear()}-${pad(new Date().getMonth()+1)}` ? att[emp.uid]?.[todayDD] : null
-                    if (r?.in && !r.out) return <span className="wm-live" title="근무 중" style={{width:10,height:10,borderRadius:5,background:'#2E7D45',flexShrink:0}}/>
-                    if (r?.out) return <span title="퇴근" style={{width:14,height:14,borderRadius:7,background:'#A8A39A',color:'#FFFFFF',fontSize:9,display:'grid',placeItems:'center',flexShrink:0}}>✓</span>
-                    return <span title="안 찍음" style={{width:10,height:10,borderRadius:5,border:'1.5px solid #CBC5BA',boxSizing:'border-box',flexShrink:0}}/>
-                  })()}
-                  {emp.name}
-                  {hasMissing && <span style={{fontSize:9,marginLeft:4}}>⚠{missing.length}</span>}
-                </div>
-                {(() => {
-                  // 오늘 NFC 기록: 출근·퇴근 시각, 지각·조퇴
-                  const rec = curMonth===`${new Date().getFullYear()}-${pad(new Date().getMonth()+1)}` ? att[emp.uid]?.[todayDD] : null
-                  if (!rec?.in) return <div style={{minWidth:170,fontSize:12,color:'#A8A39A'}}>태그 안 함</div>
-                  const st = dayStatus(rec, rec.schedStart ? { start:rec.schedStart, end:rec.schedEnd } : null)
-                  return (
-                    <div style={{minWidth:170,fontSize:12,fontVariantNumeric:'tabular-nums',lineHeight:1.5}}>
-                      <span style={{fontWeight:700}}>{hm(toDate(rec.in))} ~ {rec.out ? hm(toDate(rec.out)) : ''}</span>
-                      {!rec.out && <span style={{color:'#2B5C9E',marginLeft:4}}>근무 중</span>}
-                      {st.late > 0 && <span style={{color:'#B42318',fontWeight:700,marginLeft:6}}>지각 {st.late}분</span>}
-                      {st.leftEarly > 0 && <span style={{color:'#B42318',fontWeight:700,marginLeft:6}}>조퇴</span>}
-                    </div>
-                  )
-                })()}
-                <input key={`h${wh[todayDD]||0}`} className={flash[`${emp.uid}|${todayDD}|h`] ? 'wm-saved' : undefined} type="number" defaultValue={wh[todayDD]||''} min="0" max="24" step="0.5" placeholder="0"
-                  onBlur={e=>saveWorkHours(emp.uid,todayDD,e.target.value)}
-                  onKeyDown={e=>e.key==='Enter'&&e.target.blur()}
-                  style={{width:100,background:wh[todayDD]>0?'rgba(var(--hk-accent-rgb),0.15)':'#F3F1EC',
-                    border:wh[todayDD]>0?'1px solid var(--hk-accent)':'1px solid #DCD7CE',
-                    borderRadius:6,color:wh[todayDD]>0?'var(--hk-accent)':'#1D1B18',
-                    padding:'7px 8px',fontSize:13,fontWeight:wh[todayDD]>0?700:400,
-                    textAlign:'center',outline:'none',fontFamily:'inherit',fontVariantNumeric:'tabular-nums'}}/>
-                <input key={`m${ex[todayDD]||0}`} className={flash[`${emp.uid}|${todayDD}|m`] ? 'wm-saved' : undefined} type="number" defaultValue={ex[todayDD]||''} min="0" max="180" step="5" placeholder="0"
-                  onBlur={e=>saveWorkExtra(emp.uid,todayDD,e.target.value)}
-                  onKeyDown={e=>e.key==='Enter'&&e.target.blur()}
-                  style={{width:100,background:ex[todayDD]>0?'rgba(var(--hk-accent-rgb),0.15)':'#F3F1EC',
-                    border:ex[todayDD]>0?'1px solid var(--hk-accent)':'1px solid #DCD7CE',
-                    borderRadius:6,color:ex[todayDD]>0?'var(--hk-accent)':'#1D1B18',
-                    padding:'7px 8px',fontSize:13,fontWeight:ex[todayDD]>0?700:400,
-                    textAlign:'center',outline:'none',fontFamily:'inherit',fontVariantNumeric:'tabular-nums'}}/>
-                <input type="text" defaultValue={empMemos[todayDD]||''} placeholder="비고..."
-                  onBlur={e=>saveMemo(emp.uid,todayDD,e.target.value)}
-                  onKeyDown={e=>e.key==='Enter'&&e.target.blur()}
-                  style={{flex:1,background:'transparent',border:'none',
-                    borderBottom:empMemos[todayDD]?'1px solid #DCD7CE':'1px solid transparent',
-                    color:empMemos[todayDD]?'#B42318':'#A8A39A',
-                    padding:'4px 2px',fontSize:11,outline:'none',fontFamily:'inherit'}}/>
-              </div>
-            )
-          })}
-        </div>
-      )}
-    </div>
-  )
+  // 표 안의 숫자 입력칸 (아직 예전 입력칸: 칸을 벗어나면 저장)
+  const cellInput = (on, w = 100) => ({ width:w, background:on?'rgba(var(--hk-accent-rgb),0.15)':'#F3F1EC', border:on?'1px solid var(--hk-accent)':'1px solid #DCD7CE',
+    borderRadius:6, color:on?'var(--hk-accent)':'#1D1B18', padding:'7px 8px', fontSize:13, fontWeight:on?700:400, textAlign:'center', outline:'none', fontFamily:'inherit', fontVariantNumeric:'tabular-nums' })
+  const memoInput = v => ({ width:'100%', minWidth:120, background:'transparent', border:'none', borderBottom:v?'1px solid #DCD7CE':'1px solid transparent', color:v?'#B42318':'#A8A39A', padding:'4px 2px', fontSize:12, outline:'none', fontFamily:'inherit' })
 
   const grandBase = allStats.reduce((a,s)=>a+s.basePay,0)
   const grandHoliday = allStats.reduce((a,s)=>a+s.totalWeeklyHoliday,0)
@@ -429,246 +354,137 @@ function getEmpStats(emp) {
         {employees.map(e => <Tab key={e.uid} value={e.uid} label={e.name}/>)}
       </TabList>
 
-      <Legacy>
       {/* 이번달 퇴직금 지급 내역 */}
       {Object.keys(severance).length > 0 && (
-        <div style={{background:'#FFFFFF',border:'1px solid rgba(180,83,9,0.3)',borderRadius:6,
-          overflow:'hidden',marginBottom:18}}>
-          <div style={{padding:'14px 18px',borderBottom:'1px solid #DCD7CE',fontSize:13,fontWeight:600,color:'#B45309'}}>
-            {mLabel(curMonth)} 퇴직금 지급 내역
-          </div>
-          <div style={{padding:'8px 0'}}>
-            {Object.entries(severance).map(([uid,s])=>(
-              <div key={uid} style={{display:'flex',alignItems:'center',gap:14,padding:'10px 18px',
-                borderBottom:'1px solid #ECE8E1',flexWrap:'wrap'}}>
-                <div style={{minWidth:80,fontSize:13,fontWeight:700,color:'#1D1B18'}}>
-                  {nameMap[uid]||'—'}
-                </div>
-                <div style={{fontSize:11,color:'#6E6A63'}}>
-                  {s.paidDate?.slice(0,10)} 지급
-                </div>
-                <div style={{flex:1}}/>
-                <div style={{fontSize:11,color:'#6E6A63'}}>
-                  총액 {s.amount.toLocaleString()}원
-                </div>
-                <div style={{fontSize:11,color:'#B42318'}}>
-                  원천징수 -{s.tax.toLocaleString()}원
-                </div>
-                <div style={{fontSize:13,fontWeight:700,color:'#2E7D45',fontFamily:'inherit',fontVariantNumeric:'tabular-nums'}}>
-                  실지급 {s.net.toLocaleString()}원
-                </div>
-              </div>
+        <LedgerCard title={`${mLabel(curMonth)} 퇴직금 지급 내역`}>
+          <List hasDividers edge="flush">
+            {Object.entries(severance).map(([uid, sv]) => (
+              <ListItem key={uid} label={nameMap[uid] || '—'} description={`${sv.paidDate?.slice(0,10) || ''} 지급 · 총액 ${sv.amount.toLocaleString()}원 · 원천징수 −${sv.tax.toLocaleString()}원`}
+                endContent={<Text weight="bold" hasTabularNumbers>실지급 {sv.net.toLocaleString()}원</Text>}/>
             ))}
-          </div>
-        </div>
+          </List>
+        </LedgerCard>
       )}
 
-      {loading ? <div style={{textAlign:'center',color:'#6E6A63',padding:60}}>로딩 중...</div> : (
-        <>
-          <style>{WM_CSS}</style>
-          {showTodayOnly && <div key="today" className="wm-in">{todayContent}</div>}
+      <Legacy><style>{WM_CSS}</style></Legacy>
+      {loading ? <Text color="secondary">불러오는 중...</Text> : <>
+        {/* 오늘 근무: NFC 시간 옆에서 근무시간·추가근무·비고를 바로 고침 (칸을 벗어나면 저장, 저장한 칸은 초록으로 반짝) */}
+        {showTodayOnly && (() => {
+          const isThisMonth = curMonth===`${new Date().getFullYear()}-${pad(new Date().getMonth()+1)}`
+          return (
+            <LedgerCard key="today" title={`오늘 (${+todayDD}일) 근무 인원 — ${todayEmps.length}명`}>
+              <Text type="supporting" color="secondary">NFC로 찍은 직원은 퇴근을 찍으면 근무시간이 자동으로 채워져요. 비어 있거나 틀린 것만 고치세요 (퇴근 전에 미리 적으면 퇴근 때 NFC 시간으로 바뀌어요).</Text>
+              {todayEmps.length === 0 ? <EmptyState title="오늘 근무 예정 인원이 없어요" isCompact/> : (
+                <Table data={todayEmps.map(x => x.emp)} idKey="uid" density="compact" columns={[
+                  { key:'name', header:'이름', renderCell: emp => {
+                    const r = isThisMonth ? att[emp.uid]?.[todayDD] : null
+                    return <HStack gap={2} vAlign="center">
+                      <StatusDot variant={r?.in && !r.out ? 'success' : 'neutral'} label={r?.in && !r.out ? '근무 중' : r?.out ? '퇴근' : '안 찍음'} isPulsing={!!(r?.in && !r.out)}/>
+                      <Text weight="bold">{emp.name}</Text>
+                    </HStack>
+                  }},
+                  { key:'nfc', header:'NFC 출퇴근', renderCell: emp => {
+                    const rec = isThisMonth ? att[emp.uid]?.[todayDD] : null
+                    if (!rec?.in) return <Text type="supporting" color="secondary">태그 안 함</Text>
+                    const st = dayStatus(rec, rec.schedStart ? { start:rec.schedStart, end:rec.schedEnd } : null)
+                    return <VStack gap={0}>
+                      <Text weight="semibold" hasTabularNumbers>{hm(toDate(rec.in))} ~ {rec.out ? hm(toDate(rec.out)) : '근무 중'}</Text>
+                      {(st.late > 0 || st.leftEarly > 0) && <Text type="supporting" color="accent">{st.late > 0 ? `지각 ${st.late}분 ` : ''}{st.leftEarly > 0 ? '조퇴' : ''}</Text>}
+                    </VStack>
+                  }},
+                  { key:'h', header:'근무시간 (h)', renderCell: emp => { const v = (workHours[emp.uid]||{})[todayDD]; return (
+                    <Legacy><input key={`h${v||0}`} className={flash[`${emp.uid}|${todayDD}|h`] ? 'wm-saved' : undefined} type="number" defaultValue={v||''} min="0" max="24" step="0.5" placeholder="0" aria-label={`${emp.name} 근무시간`}
+                      onBlur={e=>saveWorkHours(emp.uid,todayDD,e.target.value)} onKeyDown={e=>e.key==='Enter'&&e.target.blur()} style={cellInput(v>0)}/></Legacy>) } },
+                  { key:'m', header:'추가근무 (분)', renderCell: emp => { const v = (workExtra[emp.uid]||{})[todayDD]; return (
+                    <Legacy><input key={`m${v||0}`} className={flash[`${emp.uid}|${todayDD}|m`] ? 'wm-saved' : undefined} type="number" defaultValue={v||''} min="0" max="180" step="5" placeholder="0" aria-label={`${emp.name} 추가근무`}
+                      onBlur={e=>saveWorkExtra(emp.uid,todayDD,e.target.value)} onKeyDown={e=>e.key==='Enter'&&e.target.blur()} style={cellInput(v>0)}/></Legacy>) } },
+                  { key:'memo', header:'비고', renderCell: emp => { const v = (memos[emp.uid]||{})[todayDD]; return (
+                    <Legacy><input type="text" defaultValue={v||''} placeholder="비고..." aria-label={`${emp.name} 비고`} onBlur={e=>saveMemo(emp.uid,todayDD,e.target.value)} onKeyDown={e=>e.key==='Enter'&&e.target.blur()} style={memoInput(v)}/></Legacy>) } },
+                ]}/>
+              )}
+            </LedgerCard>
+          )
+        })()}
 
-          {/* 전체 요약 */}
-          {activeEmp===null && !showTodayOnly && (
-            <div key="all" className="wm-in" style={{background:'#FFFFFF',border:'1px solid #DCD7CE',borderRadius:6,overflow:'hidden',marginBottom:18}}>
-              <div style={{padding:'14px 18px',borderBottom:'1px solid #DCD7CE',fontSize:13,fontWeight:600}}>직원별 급여 요약</div>
-              <div style={{overflowX:'auto'}}>
-                <table style={{width:'100%',borderCollapse:'collapse',fontSize:12}}>
-                  <thead>
-                    <tr style={{background:'#F3F1EC'}}>
-                      {['직원','시급','근무시간','추가(분)','기본급','주휴수당','총 지급액'].map(h=>(
-                        <th key={h} style={{padding:'8px 14px',fontSize:10,fontWeight:600,color:'#6E6A63',
-                          textAlign:h==='직원'?'left':'right',whiteSpace:'nowrap'}}>{h}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {allStats.map(({emp,totalHours,totalMins,basePay,totalWeeklyHoliday,totalPay}, i)=>(
-                      <tr key={emp.uid} className="wm-row" onClick={()=>setActiveEmp(emp.uid)} style={{cursor:'pointer',animationDelay:`${i*45}ms`}}>
-                        <td style={{padding:'10px 14px',borderBottom:'1px solid #DCD7CE',color:'#1D1B18',fontWeight:600}}>{emp.name}</td>
-                        <td style={{padding:'10px 14px',borderBottom:'1px solid #DCD7CE',textAlign:'right',fontFamily:'inherit',fontVariantNumeric:'tabular-nums',color:'#1D1B18'}}>{(emp.wage||10030).toLocaleString()}</td>
-                        <td style={{padding:'10px 14px',borderBottom:'1px solid #DCD7CE',textAlign:'right',fontFamily:'inherit',fontVariantNumeric:'tabular-nums',color:'#1D1B18'}}>{totalHours}h</td>
-                        <td style={{padding:'10px 14px',borderBottom:'1px solid #DCD7CE',textAlign:'right',fontFamily:'inherit',fontVariantNumeric:'tabular-nums',color:totalMins>0?'var(--hk-accent)':'#6E6A63'}}>{totalMins>0?`${totalMins}m`:'—'}</td>
-                        <td style={{padding:'10px 14px',borderBottom:'1px solid #DCD7CE',textAlign:'right',fontFamily:'inherit',fontVariantNumeric:'tabular-nums',color:'#1D1B18'}}>{basePay.toLocaleString()}</td>
-                        <td style={{padding:'10px 14px',borderBottom:'1px solid #DCD7CE',textAlign:'right',fontFamily:'inherit',fontVariantNumeric:'tabular-nums',color:'#2B5C9E'}}>{totalWeeklyHoliday.toLocaleString()}</td>
-                        <td style={{padding:'10px 14px',borderBottom:'1px solid #DCD7CE',textAlign:'right',fontFamily:'inherit',fontVariantNumeric:'tabular-nums',color:'#2E7D45',fontWeight:700,minWidth:110}}>
-                          <Count value={totalPay}/>
-                          {/* 총 인건비 중 이 사람 몫 막대 */}
-                          <div style={{height:4,borderRadius:2,background:'#ECE8E1',marginTop:5,overflow:'hidden'}}>
-                            <div className="wm-grow" style={{height:'100%',borderRadius:2,background:'#2E7D45',width:`${grandTotal ? Math.round(totalPay / Math.max(1, ...allStats.map(x=>x.totalPay)) * 100) : 0}%`,animationDelay:`${150 + i*45}ms`}}/>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                  <tfoot>
-                    <tr style={{background:'#ECE8E1'}}>
-                      <td style={{padding:'10px 14px',fontWeight:700,color:'var(--hk-accent)'}}>합 계</td>
-                      <td></td>
-                      <td style={{padding:'10px 14px',textAlign:'right',fontWeight:700,color:'var(--hk-accent)',fontFamily:'inherit',fontVariantNumeric:'tabular-nums'}}>{allStats.reduce((a,s)=>a+s.totalHours,0)}h</td>
-                      <td style={{padding:'10px 14px',textAlign:'right',fontWeight:700,color:'var(--hk-accent)',fontFamily:'inherit',fontVariantNumeric:'tabular-nums'}}>{allStats.reduce((a,s)=>a+s.totalMins,0)}m</td>
-                      <td style={{padding:'10px 14px',textAlign:'right',fontWeight:700,color:'var(--hk-accent)',fontFamily:'inherit',fontVariantNumeric:'tabular-nums'}}>{grandBase.toLocaleString()}</td>
-                      <td style={{padding:'10px 14px',textAlign:'right',fontWeight:700,color:'var(--hk-accent)',fontFamily:'inherit',fontVariantNumeric:'tabular-nums'}}>{grandHoliday.toLocaleString()}</td>
-                      <td style={{padding:'10px 14px',textAlign:'right',fontWeight:700,color:'var(--hk-accent)',fontFamily:'inherit',fontVariantNumeric:'tabular-nums'}}>{grandTotal.toLocaleString()}</td>
-                    </tr>
-                  </tfoot>
-                </table>
-              </div>
-            </div>
-          )}
+        {/* 전체 요약 */}
+        {activeEmp===null && !showTodayOnly && (() => {
+          const maxPay = Math.max(1, ...allStats.map(x=>x.totalPay))
+          return (
+            <LedgerCard key="all" title="직원별 급여 요약" right={<Text type="supporting" color="secondary">이름을 누르면 날짜별로 고쳐요</Text>}>
+              <Table data={allStats} idKey={x => x.emp.uid} density="compact" columns={[
+                { key:'name', header:'직원', renderCell: x => <Button variant="ghost" size="sm" label={x.emp.name} onClick={()=>setActiveEmp(x.emp.uid)}/> },
+                { key:'wage', header:'시급', align:'end', renderCell: x => <Text hasTabularNumbers>{(x.emp.wage||10030).toLocaleString()}</Text> },
+                { key:'h', header:'근무시간', align:'end', renderCell: x => <Text hasTabularNumbers>{x.totalHours}h</Text> },
+                { key:'m', header:'추가(분)', align:'end', renderCell: x => <Text hasTabularNumbers color={x.totalMins>0 ? 'accent' : 'secondary'}>{x.totalMins>0 ? `${x.totalMins}m` : '—'}</Text> },
+                { key:'base', header:'기본급', align:'end', renderCell: x => <Text hasTabularNumbers>{x.basePay.toLocaleString()}</Text> },
+                { key:'hol', header:'주휴수당', align:'end', renderCell: x => <Text hasTabularNumbers>{x.totalWeeklyHoliday.toLocaleString()}</Text> },
+                { key:'pay', header:'총 지급액', align:'end', width:160, renderCell: x => <VStack gap={1}>
+                  <Text weight="bold" hasTabularNumbers justify="end"><Count value={x.totalPay}/></Text>
+                  <ProgressBar label={`${x.emp.name} 몫`} isLabelHidden value={x.totalPay} max={maxPay}/>
+                </VStack> },
+              ]}/>
+              <Divider variant="strong"/>
+              <Ledger rows={<>
+                <LedgerRow label="근무시간 합계" text={`${allStats.reduce((a,x)=>a+x.totalHours,0)}h · 추가 ${allStats.reduce((a,x)=>a+x.totalMins,0)}m`}/>
+                <LedgerRow label="기본급" value={grandBase}/>
+                <LedgerRow label="주휴수당" value={grandHoliday}/>
+              </>} total={<LedgerRow label="합계" value={grandTotal} strong/>}/>
+            </LedgerCard>
+          )
+        })()}
 
-          {/* 개인별 상세 */}
-{activeEmp!==null && (()=>{
-  const empData = allStats.find(s=>s.emp.uid===activeEmp)
-  if(!empData) return null
-            if(!empData) return null
-            const {emp, totalHours, totalMins, totalH, basePay, totalWeeklyHoliday, totalPay, rows} = empData
-            const empMemos = memos[emp.uid] || {}
-
-            return (
-              <div key={`emp-${emp.uid}`} className="wm-in" style={{background:'#FFFFFF',border:'1px solid #DCD7CE',borderRadius:6,overflow:'hidden'}}>
-                <div style={{padding:'14px 18px',borderBottom:'1px solid #DCD7CE',fontSize:13,fontWeight:600,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
-                  <span>{emp.name} 근무 상세</span>
-                  <span style={{fontSize:11,color:'#6E6A63'}}>시급 {(emp.wage||10030).toLocaleString()}원/h</span>
-                </div>
-
-                {/* 급여 요약 */}
-                <div style={{padding:'14px 18px',borderBottom:'1px solid #DCD7CE',display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:10}}>
-                  {[
-                    {label:'총 근무시간', val:`${totalHours}h ${totalMins>0?totalMins+'m':''}`, color:'var(--hk-accent)'},
-                    {label:'기본급', val:<><Count value={basePay}/>원</>, color:'#1D1B18'},
-                    {label:'주휴수당', val:<><Count value={totalWeeklyHoliday}/>원</>, color:'#2B5C9E'},
-                    {label:'이달 월급', val:<><Count value={totalPay}/>원</>, color:'#2E7D45'},
-                  ].map(k=>(
-                    <div key={k.label} style={{background:'#F3F1EC',borderRadius:4,padding:'10px 12px'}}>
-                      <div style={{fontSize:10,color:'#6E6A63',marginBottom:3}}>{k.label}</div>
-                      <div style={{fontSize:13,fontWeight:700,color:k.color,fontFamily:'inherit',fontVariantNumeric:'tabular-nums'}}>{k.val}</div>
-                    </div>
-                  ))}
-                </div>
-
-                {/* 테이블 */}
-                <div style={{padding:'12px 18px',borderBottom:'1px solid #DCD7CE',fontSize:12,fontWeight:600,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
-                  <span>일별 근무시간 입력</span>
-                  <span style={{fontSize:10,color:'#6E6A63'}}>일요일에 주휴수당 자동계산</span>
-                </div>
-                <div style={{overflowX:'auto'}}>
-                  <table style={{width:'100%',borderCollapse:'collapse',fontSize:12}}>
-                    <thead>
-                      <tr style={{background:'#F3F1EC'}}>
-                        <th style={{padding:'8px 10px',fontSize:10,fontWeight:600,color:'#6E6A63',textAlign:'left',width:45}}>날짜</th>
-                        <th style={{padding:'8px 6px',fontSize:10,fontWeight:600,color:'#6E6A63',textAlign:'left',width:28}}>요일</th>
-                        <th style={{padding:'8px 10px',fontSize:10,fontWeight:600,color:'#6E6A63',textAlign:'center',width:110}}>근무시간(h)</th>
-                        <th style={{padding:'8px 10px',fontSize:10,fontWeight:600,color:'var(--hk-accent)',textAlign:'center',width:110}}>추가근무(분)</th>
-                        <th style={{padding:'8px 10px',fontSize:10,fontWeight:600,color:'#2B5C9E',textAlign:'center',width:110}}>주휴수당</th>
-                        <th style={{padding:'8px 10px',fontSize:10,fontWeight:600,color:'#6E6A63',textAlign:'left'}}>비고</th>
-                      </tr>
-                    </thead>
-<tbody key={activeEmp}>
-  {rows.map(({d,dd,dow,h,m,weeklyHoliday}, i)=>{
-                        const isWeekend = dow===0||dow===6
-                        const isSun = dow===0
-                        const now = new Date()
-                        const isToday = curMonth===`${now.getFullYear()}-${pad(now.getMonth()+1)}` && d===now.getDate()
-
-                        return (
-                          <tr key={dd} className="wm-row" style={{
-                            animationDelay:`${Math.min(i*14, 420)}ms`,
-                            background: isSun&&weeklyHoliday>0?'rgba(43,92,158,0.05)':h>0||m>0?'rgba(var(--hk-accent-rgb),0.04)':'transparent',
-                            borderLeft: isSun&&weeklyHoliday>0?'3px solid #2B5C9E':h>0||m>0?'3px solid var(--hk-accent)':'3px solid transparent'
-                          }}>
-                            <td style={{padding:'6px 10px',borderBottom:'1px solid #ECE8E1',
-                              color:isToday?'var(--hk-accent)':dow===0?'#B42318':dow===6?'#2B5C9E':'#1D1B18',
-                              fontWeight:isToday?700:500,fontSize:12}}>
-                              {d}일
-                            </td>
-                            <td style={{padding:'6px 6px',borderBottom:'1px solid #ECE8E1',
-                              color:dow===0?'#B42318':dow===6?'#2B5C9E':'#6E6A63',fontSize:11,fontWeight:600}}>
-                              {DAYS_KR[dow]}
-                            </td>
-                            {/* 근무시간 */}
-                            <td style={{padding:'4px 10px',borderBottom:'1px solid #ECE8E1',textAlign:'center'}}>
-                              {!isSun ? (
-<input key={`${activeEmp}_${dd}_h`} className={flash[`${emp.uid}|${dd}|h`] ? 'wm-saved' : undefined} type="number" defaultValue={h||''} min="0" max="24" step="0.5" placeholder="0"
-  onBlur={e=>saveWorkHours(emp.uid,dd,e.target.value)}
-  onKeyDown={e=>e.key==='Enter'&&e.target.blur()}
-                                  style={{
-                                    width:80, background:h>0?'rgba(var(--hk-accent-rgb),0.15)':'#F3F1EC',
-                                    border:h>0?'1px solid var(--hk-accent)':'1px solid #DCD7CE',
-                                    borderRadius:6, color:h>0?'var(--hk-accent)':'#1D1B18',
-                                    padding:'6px 8px', fontSize:13, fontWeight:h>0?700:400,
-                                    textAlign:'center', outline:'none', fontFamily:'inherit',fontVariantNumeric:'tabular-nums'
-                                  }}/>
-                              ) : (
-                                <span style={{fontSize:11,color:'#6E6A63'}}>주휴일</span>
-                              )}
-                            </td>
-                            {/* 추가근무(분) */}
-                            <td style={{padding:'4px 10px',borderBottom:'1px solid #ECE8E1',textAlign:'center'}}>
-                              {!isSun ? (
-<input key={`${activeEmp}_${dd}_m`} className={flash[`${emp.uid}|${dd}|m`] ? 'wm-saved' : undefined} type="number" defaultValue={m||''} min="0" max="180" step="5" placeholder="0"
-  onBlur={e=>saveWorkExtra(emp.uid,dd,e.target.value)}
-  onKeyDown={e=>e.key==='Enter'&&e.target.blur()}
-                                  style={{
-                                    width:80, background:m>0?'rgba(var(--hk-accent-rgb),0.15)':'#F3F1EC',
-                                    border:m>0?'1px solid var(--hk-accent)':'1px solid #DCD7CE',
-                                    borderRadius:6, color:m>0?'var(--hk-accent)':'#1D1B18',
-                                    padding:'6px 8px', fontSize:13, fontWeight:m>0?700:400,
-                                    textAlign:'center', outline:'none', fontFamily:'inherit',fontVariantNumeric:'tabular-nums'
-                                  }}/>
-                              ) : <span style={{color:'#DCD7CE'}}>—</span>}
-                            </td>
-                            {/* 주휴수당 */}
-                            <td style={{padding:'6px 10px',borderBottom:'1px solid #ECE8E1',textAlign:'center',fontFamily:'inherit',fontVariantNumeric:'tabular-nums'}}>
-{isSun && weeklyHoliday>0 ? (
-  <span style={{color:'#2B5C9E',fontWeight:700,fontSize:12}}>{weeklyHoliday.toLocaleString()}원</span>
-) : isSun ? (
-  <span style={{color:'#A8A39A',fontSize:11}}>미지급</span>
-) : (
-  <span style={{color:'#DCD7CE'}}>—</span>
-)}
-                            </td>
-                            {/* 비고 */}
-                            <td style={{padding:'4px 10px',borderBottom:'1px solid #ECE8E1'}}>
-<input key={`${activeEmp}_${dd}_memo`} type="text" defaultValue={empMemos[dd]||''}
-  placeholder={isSun?'':'결석사유 등...'}
-  onBlur={e=>saveMemo(emp.uid,dd,e.target.value)}
-  onKeyDown={e=>e.key==='Enter'&&e.target.blur()}
-                                style={{
-                                  width:'100%', background:'transparent', border:'none',
-                                  borderBottom:empMemos[dd]?'1px solid #DCD7CE':'1px solid transparent',
-                                  color:empMemos[dd]?'#B42318':'#A8A39A',
-                                  padding:'4px 2px', fontSize:11, outline:'none', fontFamily:'inherit'
-                                }}/>
-                            </td>
-                          </tr>
-                        )
-                      })}
-                    </tbody>
-                    <tfoot>
-                      <tr style={{background:'#ECE8E1'}}>
-                        <td colSpan={2} style={{padding:'12px 10px',fontWeight:700,color:'var(--hk-accent)',fontSize:12}}>이달 합계</td>
-                        <td style={{padding:'12px 10px',textAlign:'center',fontWeight:700,color:'var(--hk-accent)',fontFamily:'inherit',fontVariantNumeric:'tabular-nums'}}>{totalHours}h</td>
-                        <td style={{padding:'12px 10px',textAlign:'center',fontWeight:700,color:'var(--hk-accent)',fontFamily:'inherit',fontVariantNumeric:'tabular-nums'}}>{totalMins>0?`${totalMins}m`:'—'}</td>
-                        <td style={{padding:'12px 10px',textAlign:'center',fontWeight:700,color:'#2B5C9E',fontFamily:'inherit',fontVariantNumeric:'tabular-nums'}}>{totalWeeklyHoliday.toLocaleString()}원</td>
-                        <td style={{padding:'12px 10px'}}>
-                          <span style={{color:'#2E7D45',fontWeight:700,fontFamily:'inherit',fontVariantNumeric:'tabular-nums',fontSize:14}}>
-                            월급 {totalPay.toLocaleString()}원
-                          </span>
-                          <span style={{color:'#6E6A63',fontSize:10,marginLeft:8}}>
-                            (기본급 {basePay.toLocaleString()} + 주휴 {totalWeeklyHoliday.toLocaleString()})
-                          </span>
-                        </td>
-                      </tr>
-                    </tfoot>
-                  </table>
-                </div>
-              </div>
-            )
-          })()}
-        </>
-      )}
-      </Legacy>
+        {/* 개인별 상세: 날짜별 근무시간·추가근무·비고 (일요일 칸에 주휴수당 자동 계산) */}
+        {activeEmp!==null && (() => {
+          const empData = allStats.find(x=>x.emp.uid===activeEmp)
+          if(!empData) return null
+          const {emp, totalHours, totalMins, basePay, totalWeeklyHoliday, totalPay, rows} = empData
+          const empMemos = memos[emp.uid] || {}
+          const now = new Date()
+          return (
+            <LedgerCard key={`emp-${emp.uid}`} title={`${emp.name} 근무 상세`} right={<Text type="supporting" color="secondary" hasTabularNumbers>시급 {(emp.wage||10030).toLocaleString()}원/h</Text>}>
+              <Grid columns={{ minWidth: 150, max: 4, repeat: 'fit' }} gap={3}>
+                {[
+                  { label:'총 근무시간', val:<>{totalHours}h {totalMins>0 ? `${totalMins}m` : ''}</> },
+                  { label:'기본급', val:<><Count value={basePay}/>원</> },
+                  { label:'주휴수당', val:<><Count value={totalWeeklyHoliday}/>원</> },
+                  { label:'이달 월급', val:<><Count value={totalPay}/>원</>, filled:true },
+                ].map(k => (
+                  <Card key={k.label} variant={k.filled ? 'red' : 'muted'} padding={3}>
+                    <VStack gap={0}>
+                      <Text type="supporting" color={k.filled ? 'inherit' : 'secondary'}>{k.label}</Text>
+                      <Text type="large" weight="bold" color={k.filled ? 'inherit' : 'primary'} hasTabularNumbers>{k.val}</Text>
+                    </VStack>
+                  </Card>
+                ))}
+              </Grid>
+              <Table key={activeEmp} data={rows} idKey="dd" density="compact" columns={[
+                { key:'d', header:'날짜', renderCell: r => {
+                  const isToday = curMonth===`${now.getFullYear()}-${pad(now.getMonth()+1)}` && r.d===now.getDate()
+                  return <Text weight={isToday ? 'bold' : 'normal'} color={isToday || r.dow===0 ? 'accent' : 'primary'}>{r.d}일 {DAYS_KR[r.dow]}</Text>
+                }},
+                { key:'h', header:'근무시간(h)', renderCell: r => r.dow===0 ? <Text type="supporting" color="secondary">주휴일</Text> : (
+                  <Legacy><input key={`${activeEmp}_${r.dd}_h`} className={flash[`${emp.uid}|${r.dd}|h`] ? 'wm-saved' : undefined} type="number" defaultValue={r.h||''} min="0" max="24" step="0.5" placeholder="0" aria-label={`${r.d}일 근무시간`}
+                    onBlur={e=>saveWorkHours(emp.uid,r.dd,e.target.value)} onKeyDown={e=>e.key==='Enter'&&e.target.blur()} style={cellInput(r.h>0, 80)}/></Legacy>) },
+                { key:'m', header:'추가근무(분)', renderCell: r => r.dow===0 ? <Text color="secondary">—</Text> : (
+                  <Legacy><input key={`${activeEmp}_${r.dd}_m`} className={flash[`${emp.uid}|${r.dd}|m`] ? 'wm-saved' : undefined} type="number" defaultValue={r.m||''} min="0" max="180" step="5" placeholder="0" aria-label={`${r.d}일 추가근무`}
+                    onBlur={e=>saveWorkExtra(emp.uid,r.dd,e.target.value)} onKeyDown={e=>e.key==='Enter'&&e.target.blur()} style={cellInput(r.m>0, 80)}/></Legacy>) },
+                { key:'hol', header:'주휴수당', align:'end', renderCell: r => r.dow===0
+                  ? <Text weight={r.weeklyHoliday>0 ? 'bold' : 'normal'} color={r.weeklyHoliday>0 ? 'primary' : 'secondary'} hasTabularNumbers>{r.weeklyHoliday>0 ? `${r.weeklyHoliday.toLocaleString()}원` : '미지급'}</Text>
+                  : <Text color="secondary">—</Text> },
+                { key:'memo', header:'비고', renderCell: r => (
+                  <Legacy><input key={`${activeEmp}_${r.dd}_memo`} type="text" defaultValue={empMemos[r.dd]||''} placeholder={r.dow===0 ? '' : '결석사유 등...'} aria-label={`${r.d}일 비고`}
+                    onBlur={e=>saveMemo(emp.uid,r.dd,e.target.value)} onKeyDown={e=>e.key==='Enter'&&e.target.blur()} style={memoInput(empMemos[r.dd])}/></Legacy>) },
+              ]}/>
+              <Divider variant="strong"/>
+              <Ledger rows={<>
+                <LedgerRow label="이달 근무" text={`${totalHours}h${totalMins>0 ? ` · 추가 ${totalMins}m` : ''}`}/>
+                <LedgerRow label="기본급" value={basePay}/>
+                <LedgerRow label="주휴수당" value={totalWeeklyHoliday}/>
+              </>} total={<LedgerRow label="월급" value={totalPay} strong/>}/>
+            </LedgerCard>
+          )
+        })()}
+      </>}
     </VStack>
     </AstryxPage>
   )

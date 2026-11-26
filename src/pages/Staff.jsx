@@ -1,7 +1,11 @@
 import { useEffect, useState } from 'react'
 import { VStack } from '@astryxdesign/core/Layout'
 import { Button } from '@astryxdesign/core/Button'
-import { AstryxPage, Legacy, PageHeader } from '../astryx/AstryxPage'
+import { HStack } from '@astryxdesign/core/Layout'
+import { Text } from '@astryxdesign/core/Text'
+import { List, ListItem } from '@astryxdesign/core/List'
+import { StatusDot } from '@astryxdesign/core/StatusDot'
+import { AstryxPage, Legacy, PageHeader, LedgerCard } from '../astryx/AstryxPage'
 import { db } from '../firebase'
 import { doc, getDoc, setDoc, collection, query, where, getDocs } from 'firebase/firestore'
 import { useAuth } from '../AuthContext'
@@ -296,10 +300,6 @@ export default function Staff() {
       {right && <div style={{fontSize:12, color:T.sub}}>{right}</div>}
     </div>
   )
-  const navBtn = (label, onClick, on) => (
-    <button type="button" onClick={onClick}
-      style={{background: on ? T.ink : 'none', color: on ? '#FFFFFF' : T.ink, border:`1px solid ${on ? T.ink : T.rule}`, borderRadius:4, padding:'6px 10px', cursor:'pointer', fontFamily:'inherit', fontSize:13}}>{label}</button>
-  )
   const linkBtn = color => ({ background:'none', border:'none', borderBottom:`1px solid ${color}`, color, padding:0, fontSize:11, cursor:'pointer', fontFamily:'inherit' })
   const th = { padding:'8px 8px', fontSize:12, fontWeight:600, color:T.sub, borderBottom:`1px solid ${T.ink}`, textAlign:'center', whiteSpace:'nowrap' }
   const td = { padding:'7px 8px', borderBottom:`1px solid ${T.soft}`, textAlign:'center', verticalAlign:'top', whiteSpace:'nowrap', fontSize:12, ...num }
@@ -325,11 +325,12 @@ export default function Staff() {
         </section>
       )}
 
-      {loading ? <div style={{color:T.sub, padding:'30px 0'}}>불러오는 중...</div> : <>
-        {/* 지금 매장 */}
-        <section style={{marginBottom:30}}>
-          {sectionTitle(`지금 매장 · ${hm(now)}`, closedOf(todayD) ? (holidayOf(dateStr(todayD))?.reason || '오늘은 휴무일') : `지금 근무 예정 ${plannedNow}명 · 출근해 있는 사람 ${inNow}명`)}
-          {todayRows.length === 0 ? <div style={{fontSize:13, color:T.sub, padding:'10px 0'}}>오늘 근무 예정인 사람이 없어요</div> :
+      </Legacy>
+
+      {loading ? <Text color="secondary">불러오는 중...</Text> : <>
+        {/* 지금 매장: 사람마다 상태 점 + 오늘 하루 막대 (점선 = 예정, 진한 막대 = 실제 근무, 빨간 선 = 지금) */}
+        <LedgerCard title={`지금 매장 · ${hm(now)}`} right={<Text type="supporting" color="secondary">{closedOf(todayD) ? (holidayOf(dateStr(todayD))?.reason || '오늘은 휴무일') : `지금 근무 예정 ${plannedNow}명 · 출근해 있는 사람 ${inNow}명`}</Text>}>
+          {todayRows.length === 0 ? <Text color="secondary">오늘 근무 예정인 사람이 없어요</Text> :
             (() => {
               // 오늘 하루 막대의 눈금: 가장 이른 출근 ~ 가장 늦은 퇴근(예정) 시각
               const minOf = d => d.getHours()*60 + d.getMinutes()
@@ -345,41 +346,39 @@ export default function Staff() {
               const wid = (m0, m1) => `${Math.max(0.8, Math.min(100, (Math.min(m1, a1) - Math.max(m0, a0)) / (a1 - a0) * 100))}%`
               const showNow = !closedOf(todayD) && nowMin >= a0 && nowMin <= a1
               return <>
-                {todayRows.map(({u, s, state, color, c}, i) => {
-                  const inD = toDate(c.rec?.in), outD = toDate(c.rec?.out)
-                  const working = inD && !outD, late = !inD && s && nowMin > toMin(s.start)
-                  return (
-                    <div key={u.uid} className="st-in" style={{animationDelay:`${i*50}ms`, padding:'8px 0 9px', borderBottom:`1px solid ${T.soft}`}}>
-                      <div style={{display:'flex', alignItems:'center', gap:10, fontSize:14, flexWrap:'wrap'}}>
-                        {/* 상태 점: 근무 중 초록 깜박, 늦음 빨강 깜박, 퇴근 회색 체크, 예정 빈 동그라미 */}
-                        {outD ? <span title="퇴근" style={{width:14, height:14, borderRadius:7, background:T.faint, color:'#FFFFFF', fontSize:9, display:'grid', placeItems:'center', flexShrink:0}}>✓</span>
-                          : working || late ? <span className="st-pulse" title={working ? '근무 중' : '아직 안 옴'} style={{'--st-c': working ? 'rgba(46,125,69,.55)' : 'rgba(180,35,24,.55)', width:10, height:10, borderRadius:5, background: working ? T.green : T.red, flexShrink:0, margin:'0 2px'}}/>
-                          : <span title="출근 예정" style={{width:10, height:10, borderRadius:5, border:`1.5px solid ${T.rule}`, boxSizing:'border-box', flexShrink:0, margin:'0 2px'}}/>}
-                        <b style={{minWidth:64}}>{u.name}</b>
-                        <span style={{...num, color:T.sub, fontSize:13}}>{s ? `${s.start}~${s.end||''}` : '예정 없음'}{c.covering.length ? ` (${nameOf(c.covering[0].for)} 대타)` : ''}</span>
-                        <span style={{flex:1}}/>
-                        <span style={{fontWeight:700, color, ...num}}>{state}</span>
-                      </div>
-                      {/* 오늘 하루 막대 */}
-                      <div aria-hidden="true" style={{position:'relative', height:8, borderRadius:4, background:'#F3F1EC', marginTop:7}}>
-                        {s && <span className="st-grow" style={{position:'absolute', top:0, bottom:0, left:pct(toMin(s.start)), width:wid(toMin(s.start), endMinOf(s)), borderRadius:4,
-                          background:'rgba(var(--hk-accent-rgb),.16)', border:'1px dashed rgba(var(--hk-accent-rgb),.45)', boxSizing:'border-box', animationDelay:`${i*50}ms`}}/>}
-                        {inD && <span className="st-grow" style={{position:'absolute', top:1, bottom:1, left:pct(minOf(inD)), width:wid(minOf(inD), outD ? minOf(outD) : nowMin), borderRadius:3,
-                          background: outD ? T.faint : T.green, animationDelay:`${120 + i*50}ms`}}/>}
-                        {showNow && <span className="st-now" style={{position:'absolute', top:-3, bottom:-3, left:pct(nowMin), width:2, marginLeft:-1, borderRadius:1, background:T.accent}}/>}
-                      </div>
-                    </div>
-                  )
-                })}
-                <div style={{display:'flex', justifyContent:'space-between', fontSize:11, color:T.faint, marginTop:4, ...num}}>
-                  <span>{a0/60}시</span>
-                  {showNow && <span style={{color:T.accent}}>지금 {hm(now)} · 점선 = 예정, 진한 막대 = 실제 근무</span>}
-                  <span>{a1/60}시</span>
-                </div>
+                <List hasDividers edge="flush">
+                  {todayRows.map(({u, s, state, c}, i) => {
+                    const inD = toDate(c.rec?.in), outD = toDate(c.rec?.out)
+                    const working = inD && !outD, late = !inD && s && nowMin > toMin(s.start)
+                    const bad = late || c.st?.late
+                    return (
+                      <ListItem key={u.uid} align="start"
+                        startContent={<StatusDot variant={outD ? 'neutral' : working ? 'success' : late ? 'error' : 'neutral'} label={outD ? '퇴근' : working ? '근무 중' : late ? '아직 안 옴' : '출근 예정'} isPulsing={!!(working || late)}/>}
+                        label={<HStack gap={2} vAlign="center" wrap="wrap"><Text weight="bold">{u.name}</Text><Text type="supporting" color="secondary" hasTabularNumbers>{s ? `${s.start}~${s.end||''}` : '예정 없음'}{c.covering.length ? ` (${nameOf(c.covering[0].for)} 대타)` : ''}</Text></HStack>}
+                        endContent={<Text weight="bold" color={bad ? 'accent' : 'secondary'} hasTabularNumbers>{state}</Text>}
+                        description={
+                          <Legacy>
+                            <div aria-hidden="true" style={{position:'relative', height:8, borderRadius:4, background:'#F3F1EC', marginTop:6}}>
+                              {s && <span className="st-grow" style={{position:'absolute', top:0, bottom:0, left:pct(toMin(s.start)), width:wid(toMin(s.start), endMinOf(s)), borderRadius:4,
+                                background:'rgba(var(--hk-accent-rgb),.16)', border:'1px dashed rgba(var(--hk-accent-rgb),.45)', boxSizing:'border-box', animationDelay:`${i*50}ms`}}/>}
+                              {inD && <span className="st-grow" style={{position:'absolute', top:1, bottom:1, left:pct(minOf(inD)), width:wid(minOf(inD), outD ? minOf(outD) : nowMin), borderRadius:3,
+                                background: outD ? T.faint : T.green, animationDelay:`${120 + i*50}ms`}}/>}
+                              {showNow && <span className="st-now" style={{position:'absolute', top:-3, bottom:-3, left:pct(nowMin), width:2, marginLeft:-1, borderRadius:1, background:T.accent}}/>}
+                            </div>
+                          </Legacy>}/>
+                    )
+                  })}
+                </List>
+                <HStack hAlign="between">
+                  <Text type="supporting" color="secondary" hasTabularNumbers>{a0/60}시</Text>
+                  {showNow && <Text type="supporting" color="accent">지금 {hm(now)} · 점선 = 예정, 진한 막대 = 실제 근무</Text>}
+                  <Text type="supporting" color="secondary" hasTabularNumbers>{a1/60}시</Text>
+                </HStack>
               </>
             })()}
-        </section>
+        </LedgerCard>
 
+        <Legacy>
         {/* 이번 주 근무표 */}
         <section style={{marginBottom:30}}>
           {sectionTitle(`${weekOffset===0 ? '이번 주' : weekOffset===1 ? '다음 주' : weekOffset===-1 ? '지난주' : ''} 근무표 · ${weekLabel}`,
@@ -530,8 +529,8 @@ export default function Staff() {
             </div>
           </section>
         )}
+        </Legacy>
       </>}
-      </Legacy>
     </VStack>
     </AstryxPage>
   )

@@ -11,7 +11,7 @@ import { Grid } from '@astryxdesign/core/Grid'
 import { List, ListItem } from '@astryxdesign/core/List'
 import { StatusDot } from '@astryxdesign/core/StatusDot'
 import { TabList, Tab } from '@astryxdesign/core/TabList'
-import { AstryxPage, Legacy, PageHeader } from '../astryx/AstryxPage'
+import { AstryxPage, Legacy, PageHeader, LedgerCard } from '../astryx/AstryxPage'
 import { prevYmOf, monthNum, rewardResults } from '../lib/rewards'
 import { db } from '../firebase'
 import { doc, getDoc, setDoc, deleteDoc, collection, getDocs, deleteField } from 'firebase/firestore'
@@ -481,18 +481,6 @@ export default function Checklist() {
     .filter(r=>r.diffDays>=0 && r.diffDays<=30)
     .sort((a,b)=>a.diffDays-b.diffDays)
 
-  // 알림 한 줄: 왼쪽 색 띠 + 꼬리표 + 내용 (박스를 작게, 색으로 구분)
-  const alertRow = (key, color, tag, title, sub, extra) => (
-    <div key={key} style={{display:'flex',alignItems:'baseline',gap:10,padding:'7px 12px',
-      borderLeft:`4px solid ${color}`,background:`${color}12`,borderRadius:'0 4px 4px 0'}}>
-      <span style={{fontSize:12,fontWeight:800,color,whiteSpace:'nowrap',flexShrink:0}}>{tag}</span>
-      <div style={{flex:1,minWidth:0,fontSize:13,color:'#1D1B18',lineHeight:1.5}}>
-        <span style={{fontWeight:700}}>{title}</span>
-        {sub && <span style={{fontSize:12,color:'#6E6A63',marginLeft:8}}>{sub}</span>}
-        {extra}
-      </div>
-    </div>
-  )
 
   // 직전 영업일 미완료 항목 (일요일+임시휴무는 건너뛰고 계산됨)
   const prevWeekly = prevBusinessDate ? getWeeklyForDate(prevBusinessDate) : []
@@ -903,28 +891,24 @@ export default function Checklist() {
         </div>
       )}
 
+      </Legacy>
+
       {/* 지난달 개근 직원과 포상 결과 */}
       {reward?.eligible?.length > 0 && (
-        <div style={{marginBottom:6}}>
-          {alertRow('reward', '#2E7D45', `${monthNum(prevYmOf())}월 개근`,
-            reward.eligible.map(e => {
-              const r = rewardResults(reward).find(x => x.uid === e.uid)
-              return r ? `${e.name} ${r.prize}` : reward.status === 'open' ? `${e.name} (룰렛 전)` : e.name
-            }).join(' · '),
-            '지각·조퇴·결근 없이 한 달! 축하해요')}
-        </div>
+        <Banner status="success" title={`${monthNum(prevYmOf())}월 개근 — 지각·조퇴·결근 없이 한 달! 축하해요`}
+          description={reward.eligible.map(e => {
+            const r = rewardResults(reward).find(x => x.uid === e.uid)
+            return r ? `${e.name} ${r.prize}` : reward.status === 'open' ? `${e.name} (룰렛 전)` : e.name
+          }).join(' · ')}/>
       )}
 
       {/* 공지·메모 알림 — 휴무일에도 항상 표시 */}
-      {!loading && pinnedNotices.length > 0 && (
-        <div style={{marginBottom:14,display:'flex',flexDirection:'column',gap:4}}>
-          {pinnedNotices.map(n=>alertRow(n.type+n.id, n.type==='notice' ? '#C3261C' : '#2B5C9E', n.type==='notice' ? '공지' : '메모',
-            <span style={{whiteSpace:'pre-wrap',fontWeight:600}}>{n.content}</span>, n.authorName,
-            n.images?.length > 0 && <div style={{marginTop:6}}><PhotoGrid images={n.images} label={n.type==='notice' ? '공지 사진' : '메모 사진'}/></div>))}
-        </div>
-      )}
-
-      </Legacy>
+      {!loading && pinnedNotices.map(n => (
+        <Banner key={n.type+n.id} status={n.type==='notice' ? 'warning' : 'info'} title={`${n.type==='notice' ? '공지' : '메모'}${n.authorName ? ` · ${n.authorName}` : ''}`}
+          description={<Text textWrap="pretty">{n.content}</Text>}>
+          {n.images?.length > 0 && <Legacy><PhotoGrid images={n.images} label={n.type==='notice' ? '공지 사진' : '메모 사진'}/></Legacy>}
+        </Banner>
+      ))}
 
       {loading ? (
         <Text color="secondary">불러오는 중...</Text>
@@ -932,43 +916,30 @@ export default function Checklist() {
         <Card><EmptyState title={todayDow===CLOSED_DOW ? '오늘은 일요일 휴무일입니다' : `오늘은 임시휴무일입니다 (${todayHolidayInfo?.reason||'임시휴무'})`}/></Card>
       ) : (
         <>
-          <Legacy>
           {/* 직전 영업일 못한 일 (일요일+임시휴무 건너뜀) */}
           {hasPrevUnfinished && (
-            <div style={{background:'#FFFFFF',border:'1px solid rgba(180,35,24,0.4)',borderRadius:6,
-              padding:16,marginBottom:18}}>
-              <div style={{fontSize:12,fontWeight:700,color:'#B42318',marginBottom:10}}>
-                {+prevBusinessDate.split('-')[2]}일({DAYS_KR[prevBusinessDow]}) 못한 일 {prevDailyUnfinished.length+prevWeeklyUnfinished.length}건
-              </div>
-              <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(240px,1fr))',gap:8}}>
-                {prevDailyUnfinished.map(it=>DailyRow(it, prevBusinessDate))}
-                {prevWeeklyUnfinished.map(it=>WeeklyRow(it, prevBusinessDate))}
-              </div>
-            </div>
+            <LedgerCard title={`${+prevBusinessDate.split('-')[2]}일(${DAYS_KR[prevBusinessDow]}) 못한 일 ${prevDailyUnfinished.length+prevWeeklyUnfinished.length}건`}>
+              <Legacy>
+                <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(240px,1fr))',gap:8}}>
+                  {prevDailyUnfinished.map(it=>DailyRow(it, prevBusinessDate))}
+                  {prevWeeklyUnfinished.map(it=>WeeklyRow(it, prevBusinessDate))}
+                </div>
+              </Legacy>
+            </LedgerCard>
           )}
 
           {/* 미확정 대타 구함 알림 (D-30 이내) */}
-          {openSubs.length > 0 && (
-            <div style={{marginBottom:14,display:'flex',flexDirection:'column',gap:4}}>
-              {openSubs.map(r=>{
-                const dLabel = r.diffDays===0 ? '오늘' : r.diffDays===1 ? '내일' : `D-${r.diffDays}`
-                return alertRow(r.id, '#B42318', '대타 구함',
-                  `${dLabel}(${DAYS_KR[dowOfDate(r.date)]}) ${nameOf(r.requesterUid)} ${r.startH}:${r.startM}~${r.endH}:${r.endM}`,
-                  `${r.date.slice(5).replace('-','/')} · 지원 가능해요`)
-              })}
-            </div>
-          )}
+          {openSubs.map(r => {
+            const dLabel = r.diffDays===0 ? '오늘' : r.diffDays===1 ? '내일' : `D-${r.diffDays}`
+            return <Banner key={r.id} status="error" title={`대타 구함 · ${dLabel}(${DAYS_KR[dowOfDate(r.date)]}) ${nameOf(r.requesterUid)} ${r.startH}:${r.startM}~${r.endH}:${r.endM}`}
+              description={`${r.date.slice(5).replace('-','/')} · 지원 가능해요`}/>
+          })}
 
           {/* 다가오는 특별 항목 미리 알림 (2~3일 전) */}
-          {upcomingAlerts.length > 0 && (
-            <div style={{marginBottom:14,display:'flex',flexDirection:'column',gap:4}}>
-              {upcomingAlerts.map(({item,found})=>alertRow(item.id, '#6B4FA0', found.offset===1 ? '내일' : `${found.offset}일 후`,
-                `${DAYS_KR[found.dow]}요일 ${item.label}`,
-                `${item.alertUid && alertNameOf(item.alertUid) ? `${alertNameOf(item.alertUid)}님 — ` : ''}${item.alertMsg || '일찍 출근 필요'}`))}
-            </div>
-          )}
-
-          </Legacy>
+          {upcomingAlerts.map(({item,found}) => (
+            <Banner key={item.id} status="info" title={`${found.offset===1 ? '내일' : `${found.offset}일 후`} · ${DAYS_KR[found.dow]}요일 ${item.label}`}
+              description={`${item.alertUid && alertNameOf(item.alertUid) ? `${alertNameOf(item.alertUid)}님 — ` : ''}${item.alertMsg || '일찍 출근 필요'}`}/>
+          ))}
 
           {/* 오늘 할 일: 오전 · 오후 · 완료 탭. 누르면 그 줄이 완료 탭으로 날아감 */}
           <Card>
@@ -1030,94 +1001,50 @@ export default function Checklist() {
             </VStack>
           </Card>
 
-          <Legacy>
-
-          {/* 이번주 전체 보기 */}
-          <div style={{background:'#FFFFFF',border:'1px solid #DCD7CE',borderRadius:6,overflow:'hidden'}}>
-            <div style={{padding:'14px 18px',borderBottom:'1px solid #DCD7CE',fontSize:13,fontWeight:600}}>
-              이번주 전체 보기 <span style={{fontSize:10,color:'#6E6A63',fontWeight:400}}>— 요일을 클릭하면 전체 목록이 보여요</span>
-            </div>
-            <div style={{display:'grid',gridTemplateColumns:'repeat(7,1fr)',gap:0}}>
-              {DAYS_KR.map((dayName, dow)=>{
+          {/* 이번주 전체 보기: 요일 카드를 누르면 그날 전체 목록 */}
+          <LedgerCard title="이번주 전체 보기" right={<Text type="supporting" color="secondary">요일을 누르면 전체 목록이 보여요</Text>}>
+            <Grid columns={{ minWidth: 92, max: 7, repeat: 'fit' }} gap={2}>
+              {DAYS_KR.map((dayName, dow) => {
                 const date = dateOfDow(dow)
                 const isClosed = isClosedDate(date, holidays)
                 const weekly = getWeeklyForDate(date)
                 const isToday = dow === todayDow
-                const dDone = isClosed ? 0 : dailyDoneCount(date)
-                const wDone = isClosed ? 0 : weekly.filter(it=>isChecked(date, it.id)).length
                 const total = isClosed ? 0 : dailyTotalSlots + weekly.length
-                const done  = dDone + wDone
-                return (
-                  <div key={dow} onClick={()=>!isClosed && setExpandedDow(v=>v===dow?null:dow)}
-                    style={{
-                    padding:'12px 8px',cursor: isClosed?'default':'pointer',
-                    borderRight: dow<6 ? '1px solid #F3F1EC' : 'none',
-                    background: isClosed ? 'rgba(94,101,133,0.04)' : expandedDow===dow ? 'rgba(var(--hk-accent-rgb),0.12)' : isToday ? 'rgba(var(--hk-accent-rgb),0.06)' : 'transparent',
-                    outline: expandedDow===dow ? '1px solid rgba(var(--hk-accent-rgb),0.5)' : 'none',
-                    opacity: isClosed ? 0.5 : 1,
-                  }}>
-                    <div style={{textAlign:'center',marginBottom:8}}>
-                      <div style={{fontSize:11,fontWeight:800,
-                        color: isToday ? 'var(--hk-accent)' : dow===0?'#B42318':dow===6?'#2B5C9E':'#1D1B18'}}>
-                        {dayName}
-                      </div>
-                      <div style={{fontSize:9,color:'#6E6A63',marginTop:2}}>{+date.split('-')[2]}일</div>
-                      {isClosed ? (
-                        <div style={{fontSize:9,color:'#6E6A63',marginTop:3,fontWeight:600}}>휴무</div>
-                      ) : (
-                        <div style={{fontSize:9,color: done===total && total>0 ?'#2E7D45':'#6E6A63',
-                          marginTop:3,fontWeight:600}}>
-                          {done}/{total}
-                        </div>
-                      )}
-                    </div>
-                    {!isClosed && (
-                      <div style={{display:'flex',flexDirection:'column',gap:3}}>
-                        {weekly.map(it=>{
-                          const wdone = isChecked(date, it.id)
-                          return (
-                            <div key={it.id} style={{
-                              fontSize:8.5,padding:'3px 4px',borderRadius:4,textAlign:'center',
-                              background: wdone?'rgba(46,125,69,0.15)':'rgba(94,101,133,0.1)',
-                              color: wdone?'#2E7D45':'#6E6A63',
-                              textDecoration: wdone?'line-through':'none',
-                              lineHeight:1.3,
-                            }}>
-                              {it.label}
-                            </div>
-                          )
-                        })}
-                        <div style={{fontSize:8,color:'#A8A39A',textAlign:'center',marginTop:2}}>
-                          +매일 {dailyItems.length}개
-                        </div>
-                      </div>
-                    )}
-                  </div>
+                const done = isClosed ? 0 : dailyDoneCount(date) + weekly.filter(it=>isChecked(date, it.id)).length
+                const body = (
+                  <VStack gap={1} hAlign="center">
+                    <Text weight="bold" color={isToday ? 'accent' : 'primary'}>{dayName}{isToday ? ' 오늘' : ''}</Text>
+                    <Text type="supporting" color="secondary">{+date.split('-')[2]}일</Text>
+                    {isClosed ? <Badge label="휴무"/> : <Badge variant={done===total && total>0 ? 'success' : 'neutral'} label={`${done}/${total}`}/>}
+                    {!isClosed && weekly.map(it => <Text key={it.id} type="supporting" color={isChecked(date, it.id) ? 'secondary' : 'primary'} hasStrikethrough={isChecked(date, it.id)} justify="center">{it.label}</Text>)}
+                  </VStack>
                 )
+                return isClosed
+                  ? <Card key={dow} variant="muted" padding={2}>{body}</Card>
+                  : <ClickableCard key={dow} label={`${dayName}요일 전체 목록`} padding={2} variant={expandedDow===dow ? 'muted' : 'default'}
+                      onClick={() => setExpandedDow(v => v===dow ? null : dow)}>{body}</ClickableCard>
               })}
-            </div>
-
+            </Grid>
             {expandedDow !== null && (
-              <div style={{borderTop:'1px solid #DCD7CE',padding:16,background:'rgba(var(--hk-accent-rgb),0.03)'}}>
-                <div style={{fontSize:12,fontWeight:700,color:'var(--hk-accent)',marginBottom:10}}>
-                  {DAYS_KR[expandedDow]}요일 ({+dateOfDow(expandedDow).split('-')[2]}일) 전체 할 일
-                </div>
-                <div style={{fontSize:10,color:'#6E6A63',fontWeight:600,marginBottom:6}}>매일 항목</div>
-                <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(240px,1fr))',gap:8,marginBottom:14}}>
-                  {dailyItems.map(it=>DailyRow(it, dateOfDow(expandedDow)))}
-                </div>
-                {getWeeklyForDate(dateOfDow(expandedDow)).length>0 && (
-                  <>
-                    <div style={{fontSize:10,color:'#6E6A63',fontWeight:600,marginBottom:6}}>요일별 항목</div>
-                    <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(220px,1fr))',gap:8}}>
-                      {getWeeklyForDate(dateOfDow(expandedDow)).map(it=>WeeklyRow(it, dateOfDow(expandedDow)))}
-                    </div>
-                  </>
-                )}
-              </div>
+              <VStack gap={2}>
+                <Heading level={5}>{DAYS_KR[expandedDow]}요일 ({+dateOfDow(expandedDow).split('-')[2]}일) 전체 할 일</Heading>
+                <Legacy>
+                  <div style={{fontSize:10,color:'#6E6A63',fontWeight:600,marginBottom:6}}>매일 항목</div>
+                  <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(240px,1fr))',gap:8,marginBottom:14}}>
+                    {dailyItems.map(it=>DailyRow(it, dateOfDow(expandedDow)))}
+                  </div>
+                  {getWeeklyForDate(dateOfDow(expandedDow)).length>0 && (
+                    <>
+                      <div style={{fontSize:10,color:'#6E6A63',fontWeight:600,marginBottom:6}}>요일별 항목</div>
+                      <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(220px,1fr))',gap:8}}>
+                        {getWeeklyForDate(dateOfDow(expandedDow)).map(it=>WeeklyRow(it, dateOfDow(expandedDow)))}
+                      </div>
+                    </>
+                  )}
+                </Legacy>
+              </VStack>
             )}
-          </div>
-          </Legacy>
+          </LedgerCard>
         </>
       )}
       <Legacy>
