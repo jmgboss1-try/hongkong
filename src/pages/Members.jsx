@@ -2,6 +2,9 @@ import { useEffect, useState } from 'react'
 import { VStack, HStack } from '@astryxdesign/core/Layout'
 import { Text } from '@astryxdesign/core/Text'
 import { Card } from '@astryxdesign/core/Card'
+import { Heading } from '@astryxdesign/core/Text'
+import { Grid } from '@astryxdesign/core/Grid'
+import { EmptyState } from '@astryxdesign/core/EmptyState'
 import { Button } from '@astryxdesign/core/Button'
 import { AstryxPage, Legacy, PageHeader } from '../astryx/AstryxPage'
 import CountUp from '../components/CountUp'
@@ -114,80 +117,63 @@ function MemberCard({ m, onEdit, onRetire }) {
   const [paper, setPaper] = useState(null)   // 'contract' | 'cert' (근로계약서·재직증명서 창)
   const tenure = calcTenure(m.joinDate)
   const severance = calcSeverance(m.joinDate, null, m.wage||10030, m.avgHours||8)
+  const facts = [
+    ['연락처', m.phone||'—'],
+    ['이메일', m.email||'—'],
+    ['계좌번호', m.account||'—'],
+    ['주민번호', maskSSN(m.ssn)],
+    ...(m.payType==='fixed'
+      ? [['월 고정급', `${(m.fixedSalary||0).toLocaleString()}원`]]
+      : [['시급', `${(m.wage||10030).toLocaleString()}원`], ['평균 근무시간', `${m.avgHours||8}h/일`]]),
+  ]
 
   return (
-    <div style={{background:'#F3F1EC',border:'1px solid #DCD7CE',borderRadius:6,overflow:'hidden'}}>
-      <div style={{padding:'16px',display:'flex',alignItems:'center',justifyContent:'space-between',cursor:'pointer'}}
-        onClick={()=>setShowDetail(v=>!v)}>
-        <div style={{display:'flex',flexDirection:'column',gap:6}}>
-          <div style={{display:'flex',alignItems:'center',gap:10}}>
-            <div style={{fontSize:16,fontWeight:700}}>{m.name}</div>
-            <GradeBadge joinDate={m.joinDate} size={11}/>
-            <RoleBadge role={m.role}/>
-          </div>
-          <div style={{fontSize:11,color:'#6E6A63'}}>
-            입사일: {m.joinDate||'미입력'} · 근속 {tenure}
-          </div>
-        </div>
-        <div style={{fontSize:12,color:'#6E6A63'}}>{showDetail?'▲':'▼'}</div>
-      </div>
-      {showDetail && (
-        <div style={{borderTop:'1px solid #DCD7CE',padding:'16px',display:'flex',flexDirection:'column',gap:10}}>
-          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
-            {[
-              ['연락처', m.phone||'—'],
-              ['이메일', m.email||'—'],
-              ['계좌번호', m.account||'—'],
-              ['주민번호', maskSSN(m.ssn)],
-              ...(m.payType==='fixed'
-                ? [['월 고정급', `${(m.fixedSalary||0).toLocaleString()}원`]]
-                : [
-                    ['시급', `${(m.wage||10030).toLocaleString()}원`],
-                    ['평균 근무시간', `${m.avgHours||8}h/일`],
-                  ]
-              ),
-            ].map(([label,val])=>(
-              <div key={label} style={{background:'#FFFFFF',borderRadius:4,padding:'10px 12px'}}>
-                <div style={{fontSize:10,color:'#6E6A63',marginBottom:3}}>{label}</div>
-                <div style={{fontSize:12,color:'#1D1B18',fontFamily:'inherit',fontVariantNumeric:'tabular-nums'}}>{val}</div>
-              </div>
+    <Card>
+      <VStack gap={3}>
+        <HStack hAlign="between" vAlign="center" gap={2}>
+          <VStack gap={1}>
+            <HStack gap={2} vAlign="center" wrap="wrap">
+              <Heading level={4}>{m.name}</Heading>
+              <Legacy><span style={{display:'inline-flex', gap:6}}><GradeBadge joinDate={m.joinDate} size={11}/><RoleBadge role={m.role}/></span></Legacy>
+            </HStack>
+            <Text type="supporting" color="secondary">입사일: {m.joinDate||'미입력'} · 근속 {tenure}</Text>
+          </VStack>
+          <Button size="sm" variant="ghost" label={showDetail ? '접기' : '자세히'} onClick={()=>setShowDetail(v=>!v)}/>
+        </HStack>
+        {showDetail && <>
+          <Grid columns={{ minWidth: 150, max: 3, repeat: 'fit' }} gap={2}>
+            {facts.map(([label, val]) => (
+              <Card key={label} variant="muted" padding={2}>
+                <VStack gap={0}>
+                  <Text type="supporting" color="secondary">{label}</Text>
+                  <Text hasTabularNumbers>{val}</Text>
+                </VStack>
+              </Card>
             ))}
-          </div>
-          <div style={{background:'rgba(var(--hk-accent-rgb),0.08)',border:'1px solid rgba(var(--hk-accent-rgb),0.2)',borderRadius:4,padding:'12px 14px',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
-            <div>
-              <div style={{fontSize:10,color:'#6E6A63',marginBottom:3}}>예상 퇴직금 (현재 기준)</div>
-              <div style={{fontSize:16,fontWeight:700,color:'var(--hk-accent)',fontFamily:'inherit',fontVariantNumeric:'tabular-nums'}}>
-                {severance > 0 ? severance.toLocaleString()+'원' : '1년 미만 (해당없음)'}
-              </div>
-            </div>
-            <div style={{fontSize:10,color:'#6E6A63',textAlign:'right',lineHeight:1.8}}>
-              근속 {tenure}<br/>시급 {(m.wage||10030).toLocaleString()}원
-            </div>
-          </div>
-          <SetPasswordBox m={m}/>
-          <div style={{display:'flex',gap:8}}>
-            <button onClick={()=>onEdit(m)}
-              style={{background:'var(--hk-accent)',color:'#FFFFFF',border:'none',borderRadius:4,padding:'8px 16px',fontSize:11,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
-              정보 수정
-            </button>
-            <button onClick={()=>onRetire(m)}
-              style={{background:'transparent',border:'1px solid #B42318',color:'#B42318',borderRadius:4,padding:'8px 16px',fontSize:11,cursor:'pointer',fontFamily:'inherit'}}>
-              퇴직 처리
-            </button>
-            <button onClick={()=>setPaper('contract')}
-              style={{background:'#FFFFFF',border:'1px solid #DCD7CE',color:'#1D1B18',borderRadius:4,padding:'8px 16px',fontSize:11,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
-              근로계약서
-            </button>
-            <button onClick={()=>setPaper('cert')}
-              style={{background:'#FFFFFF',border:'1px solid #DCD7CE',color:'#1D1B18',borderRadius:4,padding:'8px 16px',fontSize:11,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
-              재직증명서
-            </button>
-          </div>
-          {paper === 'contract' && <ContractManager member={m} onClose={()=>setPaper(null)}/>}
-          {paper === 'cert' && <EmploymentCert member={m} onClose={()=>setPaper(null)}/>}
-        </div>
-      )}
-    </div>
+          </Grid>
+          <Card variant="muted" padding={3}>
+            <HStack hAlign="between" vAlign="center" gap={2} wrap="wrap">
+              <VStack gap={0}>
+                <Text type="supporting" color="secondary">예상 퇴직금 (현재 기준)</Text>
+                <Text type="large" weight="bold" color="accent" hasTabularNumbers>{severance > 0 ? `${severance.toLocaleString()}원` : '1년 미만 (해당없음)'}</Text>
+              </VStack>
+              <Text type="supporting" color="secondary" hasTabularNumbers>근속 {tenure} · 시급 {(m.wage||10030).toLocaleString()}원</Text>
+            </HStack>
+          </Card>
+          <Legacy><SetPasswordBox m={m}/></Legacy>
+          <HStack gap={2} wrap="wrap">
+            <Button variant="primary" label="정보 수정" onClick={()=>onEdit(m)}/>
+            <Button variant="destructive" label="퇴직 처리" onClick={()=>onRetire(m)}/>
+            <Button label="근로계약서" onClick={()=>setPaper('contract')}/>
+            <Button label="재직증명서" onClick={()=>setPaper('cert')}/>
+          </HStack>
+          {paper && <Legacy>
+            {paper === 'contract' && <ContractManager member={m} onClose={()=>setPaper(null)}/>}
+            {paper === 'cert' && <EmploymentCert member={m} onClose={()=>setPaper(null)}/>}
+          </Legacy>}
+        </>}
+      </VStack>
+    </Card>
   )
 }
 
@@ -863,38 +849,27 @@ export default function Members() {
         </div>
       )}
 
+      </Legacy>
+
       {/* 재직 직원 목록 */}
-      {loading ? <div style={{textAlign:'center',color:'#6E6A63',padding:60}}>로딩 중...</div> : (
-        <div style={{display:'flex',flexDirection:'column',gap:12}}>
-          {members.length===0 && (
-            <div style={{textAlign:'center',color:'#6E6A63',padding:40}}>
-              승인된 직원이 없습니다.
-            </div>
-          )}
+      {loading ? <Text color="secondary">불러오는 중...</Text> : (
+        <VStack gap={3}>
+          {members.length===0 && <EmptyState title="승인된 직원이 없습니다" isCompact/>}
           {members.map(m=>(
             <MemberCard key={m.uid} m={m} onEdit={editMember} onRetire={m=>setRetireForm({...m,leaveDate:''})}/>
           ))}
-        </div>
+        </VStack>
       )}
 
-      {/* 퇴직자 목록 */}
-      <div style={{marginTop:24}}>
-        <button onClick={()=>setShowRetired(v=>!v)}
-          style={{background:'#F3F1EC',border:'1px solid #DCD7CE',borderRadius:4,color:'#6E6A63',
-            padding:'8px 16px',fontSize:12,cursor:'pointer',fontFamily:'inherit',width:'100%',marginBottom:10}}>
-          {showRetired?'▲':'▼'} 퇴직자 기록 ({retired.length}명)
-        </button>
-        {showRetired && (
+      {/* 퇴직자 목록 (카드는 아직 예전 모양) */}
+      <Button width="100%" label={`${showRetired ? '접기' : '보기'} · 퇴직자 기록 (${retired.length}명)`} onClick={()=>setShowRetired(v=>!v)}/>
+      {showRetired && (retired.length===0 ? <EmptyState title="퇴직자 기록이 없습니다" isCompact/> : (
+        <Legacy>
           <div style={{display:'flex',flexDirection:'column',gap:12}}>
-            {retired.length===0 ? (
-              <div style={{textAlign:'center',color:'#6E6A63',padding:20}}>퇴직자 기록이 없습니다</div>
-            ) : (
-              retired.map(m=><RetiredCard key={m.uid} m={m} onRestore={restoreMember}/>)
-            )}
+            {retired.map(m=><RetiredCard key={m.uid} m={m} onRestore={restoreMember}/>)}
           </div>
-        )}
-      </div>
-      </Legacy>
+        </Legacy>
+      ))}
     </VStack>
     </AstryxPage>
   )

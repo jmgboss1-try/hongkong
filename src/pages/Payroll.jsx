@@ -3,7 +3,11 @@ import { VStack } from '@astryxdesign/core/Layout'
 import { Button } from '@astryxdesign/core/Button'
 import { Badge } from '@astryxdesign/core/Badge'
 import { Selector } from '@astryxdesign/core/Selector'
-import { AstryxPage, Legacy, PageHeader } from '../astryx/AstryxPage'
+import { HStack } from '@astryxdesign/core/Layout'
+import { Text, Heading } from '@astryxdesign/core/Text'
+import { Card } from '@astryxdesign/core/Card'
+import { EmptyState } from '@astryxdesign/core/EmptyState'
+import { AstryxPage, Legacy, PageHeader, LedgerCard, Ledger, LedgerRow } from '../astryx/AstryxPage'
 import CountUp from '../components/CountUp'
 import { db } from '../firebase'
 import { doc, getDoc, setDoc, collection, getDocs } from 'firebase/firestore'
@@ -809,38 +813,25 @@ if(!isActive && !isRetired) return
         <Selector label="달 고르기" isLabelHidden size="sm" value={curMonth} onChange={v => v && setCurMonth(v)} options={monthOpts.map(m => ({ value:m, label:mLabel(m) }))}/>
       </>}/>
 
-      <Legacy>
-      {/* 이달 인건비 요약 (장부 줄) */}
+      {/* 이달 인건비 요약 (장부) */}
       {(()=>{
         const unpaidN = pays.filter(x=>x.unpaid>0).length
-        const rows = [
-          { label:'지급한 돈', note:`이달 가불 포함 · ${paidCount}명 지급 완료`, val:paidOutTotal, color:'#2B5C9E' },
-          { label:'아직 줄 돈', note: unpaidN ? `${unpaidN}명` : '없음', val:unpaidTotal, color: unpaidTotal ? '#B45309' : '#6E6A63' },
-          ...(carryInTotal>0 ? [{ label:'지난달에 미리 준 돈', note:'지난달 초과 가불', val:carryInTotal, color:'#6E6A63' }] : []),
-          ...(carriedTotal>0 ? [{ label:'다음 달로 넘긴 가불', note:'다음 달 급여에서 뺌', val:-carriedTotal, color:'#6E6A63' }] : []),
-          ...(overTotal>0 ? [{ label:'급여보다 많이 준 가불', note:'아래에서 다음 달로 넘겨주세요', val:-overTotal, color:'#B42318' }] : []),
-        ]
-        const line = (r, big) => (
-          <div key={r.label} style={{display:'flex',alignItems:'baseline',padding: big ? '6px 0' : '4px 0 4px 14px',fontSize: big ? 16 : 14,fontWeight: big ? 800 : 500}}>
-            <span style={{whiteSpace:'nowrap'}}>{r.label}</span>
-            {r.note && <span style={{fontSize:12,color:'#6E6A63',marginLeft:6,fontWeight:400,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{r.note}</span>}
-            <span aria-hidden="true" style={{flex:1,borderBottom:'1px dotted #A8A39A',margin:'0 8px',minWidth:12,transform:'translateY(-4px)'}}/>
-            <span style={{fontVariantNumeric:'tabular-nums',whiteSpace:'nowrap',color:r.color||'#1D1B18',fontWeight: big ? 800 : 700}}><CountUp value={r.val}/></span>
-          </div>
-        )
         return (
-          <div style={{maxWidth:560,borderTop:'3px double #1D1B18',paddingTop:4,marginBottom:22}}>
-            {line({ label:'이달 인건비', note: bonusGrandTotal>0 ? `세후, 상여 ${bonusGrandTotal.toLocaleString()} 포함` : '세후', val:netTotal, color:'#1D1B18' }, true)}
-            {rows.map(r=>line(r))}
-            {severanceTotal>0 && <div style={{borderTop:'1px solid #DCD7CE',marginTop:4}}>{line({ label:'퇴직금 지급', note:'인건비와 별도', val:severanceTotal, color:'#B45309' })}</div>}
-          </div>
+          <LedgerCard title="이달 인건비" right={<Text type="supporting" color="secondary">{bonusGrandTotal>0 ? `세후, 상여 ${bonusGrandTotal.toLocaleString()} 포함` : '세후'}</Text>}>
+            <Ledger rows={<>
+              <LedgerRow label="지급한 돈" note={`이달 가불 포함 · ${paidCount}명 지급 완료`} value={paidOutTotal}/>
+              <LedgerRow label="아직 줄 돈" note={unpaidN ? `${unpaidN}명` : '없음'} value={unpaidTotal} tone={unpaidTotal ? 'accent' : undefined}/>
+              {carryInTotal>0 && <LedgerRow label="지난달에 미리 준 돈" note="지난달 초과 가불" value={carryInTotal} sub/>}
+              {carriedTotal>0 && <LedgerRow label="다음 달로 넘긴 가불" note="다음 달 급여에서 뺌" value={-carriedTotal} sub/>}
+              {overTotal>0 && <LedgerRow label="급여보다 많이 준 가불" note="아래에서 다음 달로 넘겨주세요" value={-overTotal} tone="bad"/>}
+            </>} total={<LedgerRow label="이달 인건비" value={netTotal} strong/>}/>
+            {severanceTotal>0 && <LedgerRow label="퇴직금 지급" note="인건비와 별도" value={severanceTotal}/>}
+          </LedgerCard>
         )
       })()}
 
-      {loading ? (
-        <div style={{textAlign:'center',color:'#6E6A63',padding:60}}>로딩 중...</div>
-      ) : (
-        <div style={{display:'flex',flexDirection:'column',gap:10}}>
+      {loading ? <Text color="secondary">불러오는 중...</Text> : (
+        <VStack gap={3}>
           {employees.map(emp=>{
             const status  = getStatus(emp.uid)
             const p       = payroll[emp.uid]
@@ -852,149 +843,53 @@ if(!isActive && !isRetired) return
             const carryIn = advanceListOf(emp.uid).filter(r=>r.carryFrom).reduce((a,r)=>a+(r.amount||0),0)
             const isAdvanceOpen = advanceUid === emp.uid
             const isBonusOpen = bonusUid === emp.uid
+            const badgeOf = { unconfirmed:'neutral', confirmed:'warning', checked:'success', inquiry:'error', paid:'info' }
 
             return (
-              <div key={emp.uid} style={{background:'#FFFFFF',
-                border:`1px solid ${hasInquiry?'rgba(180,35,24,0.4)':'#DCD7CE'}`,
-                borderRadius:6,overflow:'hidden'}}>
+              <Card key={emp.uid}>
+                <VStack gap={3}>
+                <HStack hAlign="between" vAlign="start" gap={3} wrap="wrap">
+                  <VStack gap={2}>
+                    <HStack gap={2} vAlign="center" wrap="wrap">
+                      <Heading level={4}>{emp.name}</Heading>
+                      {emp.isRetired && <Badge label={`퇴직 ${emp.leaveDate?.slice(0,10) || ''}`}/>}
+                      <Badge variant={badgeOf[status]} label={st.label}/>
+                    </HStack>
+                    <HStack gap={2} wrap="wrap">
+                      {hasInquiry && <Button size="sm" variant="destructive" label={`문의 ${isOpen ? '닫기' : '확인'}`} onClick={()=>{ setActiveUid(isOpen?null:emp.uid); setReplyText('') }}/>}
+                      <Button size="sm" label={`가불${advTotal>0 ? ` ${advTotal.toLocaleString()}원` : ''}${isAdvanceOpen ? ' 닫기' : ''}`} onClick={()=>{ setAdvanceUid(isAdvanceOpen?null:emp.uid); setAdvanceForm({date:todayStr(),amount:'',memo:''}) }}/>
+                      <Button size="sm" label={`상여${bonusTotal>0 ? ` ${bonusTotal.toLocaleString()}원` : ''}${isBonusOpen ? ' 닫기' : ''}`} onClick={()=>{ setBonusUid(isBonusOpen?null:emp.uid); setBonusForm({date:todayStr(),amount:'',memo:''}) }}/>
+                    </HStack>
+                  </VStack>
+                  <HStack gap={3} vAlign="center" wrap="wrap">
+                    <VStack gap={0} hAlign="end">
+                      {display.isFixed
+                        ? <Text type="supporting" weight="semibold">고정급 직원</Text>
+                        : <>
+                            <Text type="supporting" color="secondary" hasTabularNumbers>{display.totalHours}h {display.totalMins>0?display.totalMins+'m':''} · 시급 {(display.wage||10030).toLocaleString()}원</Text>
+                            <Text type="supporting" color="secondary" hasTabularNumbers>기본 {(display.basePay||0).toLocaleString()} + 주휴 {(display.weeklyHoliday||0).toLocaleString()}</Text>
+                          </>}
+                      <Text type="supporting" color="secondary" hasTabularNumbers>세전 {(display.totalPay||0).toLocaleString()}원{(display.deduction?.total||0)>0 ? ` · 공제 −${(display.deduction?.total||0).toLocaleString()}원` : ''}</Text>
+                      {bonusTotal>0 && <Text type="supporting" color="secondary" hasTabularNumbers>상여 +{bonusTotal.toLocaleString()}원 (세금 −{(deductionWithBonus?.total||0).toLocaleString()}원)</Text>}
+                      {advTotal>0 && <Text type="supporting" color="accent" hasTabularNumbers>가불 차감 −{advTotal.toLocaleString()}원{carryIn>0 ? ` (지난달에서 넘어온 ${carryIn.toLocaleString()}원 포함)` : ''}</Text>}
+                      {carriedOut>0 && <HStack gap={1} vAlign="center"><Text type="supporting" color="secondary" hasTabularNumbers>초과 가불 {carriedOut.toLocaleString()}원 → {mLabel(p?.carriedTo||nextYm(curMonth))}로 넘김</Text><Button size="sm" variant="ghost" label="되돌리기" isDisabled={saving} onClick={()=>undoCarry(emp)}/></HStack>}
+                      <Text type="large" weight="bold" color={remain<0 ? 'accent' : 'primary'} hasTabularNumbers>{advTotal>0 || bonusTotal>0 ? '최종 지급' : '실수령'} {remain.toLocaleString()}원</Text>
+                      {remain<0 && <VStack gap={1} hAlign="end">
+                        <Text type="supporting" color="accent">가불이 급여보다 {(-remain).toLocaleString()}원 많아요</Text>
+                        <Button size="sm" variant="destructive" label={`${mLabel(nextYm(curMonth)).slice(6)} 급여에서 빼기`} isDisabled={saving} onClick={()=>carryOver(emp, -remain)}/>
+                      </VStack>}
+                    </VStack>
+                    <VStack gap={1} hAlign="end">
+                      {status==='unconfirmed' && <Button variant="primary" label="급여 확정" isDisabled={saving} onClick={()=>confirmOne(emp.uid)}/>}
+                      {(status==='confirmed' || status==='inquiry') && <Button size="sm" label="재확정" isDisabled={saving} onClick={()=>confirmOne(emp.uid)}/>}
+                      {(status==='confirmed' || status==='inquiry') && <Button size="sm" variant="ghost" label="강제 지급" isDisabled={saving} onClick={()=>markPaid(emp.uid)}/>}
+                      {status==='checked' && <Button variant="primary" label="지급 완료" isDisabled={saving} onClick={()=>markPaid(emp.uid)}/>}
+                      {status==='paid' && <Text type="supporting" color="secondary" hasTabularNumbers>{p.paidAt?.slice(0,10)} 지급</Text>}
+                    </VStack>
+                  </HStack>
+                </HStack>
 
-                <div style={{padding:'14px 18px',display:'flex',alignItems:'center',
-                  justifyContent:'space-between',flexWrap:'wrap',gap:10}}>
-                  <div style={{display:'flex',alignItems:'center',gap:10,flexWrap:'wrap'}}>
-                    <div style={{fontSize:14,fontWeight:700}}>{emp.name}</div>
-                    {emp.isRetired && (
-                      <span style={{fontSize:10,fontWeight:700,padding:'2px 8px',borderRadius:4,
-                        background:'rgba(94,101,133,0.2)',color:'#6E6A63'}}>
-                        퇴직 {emp.leaveDate?.slice(0,10)}
-                      </span>
-                    )}
-                    <span style={{fontSize:11,fontWeight:700,padding:'3px 9px',borderRadius:5,
-                      background:st.bg,color:st.color}}>{st.label}</span>
-                    {hasInquiry && (
-                      <button onClick={()=>{ setActiveUid(isOpen?null:emp.uid); setReplyText('') }}
-                        style={{background:'rgba(180,35,24,0.12)',border:'1px solid rgba(180,35,24,0.3)',
-                          color:'#B42318',borderRadius:6,padding:'4px 10px',fontSize:11,
-                          cursor:'pointer',fontFamily:'inherit',fontWeight:600}}>
-                        문의 {isOpen?'닫기':'확인'}
-                      </button>
-                    )}
-                    <button onClick={()=>{ setAdvanceUid(isAdvanceOpen?null:emp.uid); setAdvanceForm({date:todayStr(),amount:'',memo:''}) }}
-                      style={{background: advTotal>0 ? 'rgba(180,35,24,0.12)' : 'rgba(43,92,158,0.1)',
-                        border: advTotal>0 ? '1px solid rgba(180,35,24,0.3)' : '1px solid rgba(43,92,158,0.25)',
-                        color: advTotal>0 ? '#B42318' : '#2B5C9E',borderRadius:6,padding:'4px 10px',fontSize:11,
-                        cursor:'pointer',fontFamily:'inherit',fontWeight:600}}>
-                      가불{advTotal>0?` ${advTotal.toLocaleString()}원`:''} {isAdvanceOpen?'닫기':''}
-                    </button>
-                    <button onClick={()=>{ setBonusUid(isBonusOpen?null:emp.uid); setBonusForm({date:todayStr(),amount:'',memo:''}) }}
-                      style={{background: bonusTotal>0 ? 'rgba(107,79,160,0.12)' : 'rgba(94,101,133,0.1)',
-                        border: bonusTotal>0 ? '1px solid rgba(107,79,160,0.3)' : '1px solid #DCD7CE',
-                        color: bonusTotal>0 ? '#6B4FA0' : '#6E6A63',borderRadius:6,padding:'4px 10px',fontSize:11,
-                        cursor:'pointer',fontFamily:'inherit',fontWeight:600}}>
-                      상여{bonusTotal>0?` ${bonusTotal.toLocaleString()}원`:''} {isBonusOpen?'닫기':''}
-                    </button>
-                  </div>
-                  <div style={{display:'flex',alignItems:'center',gap:14,flexWrap:'wrap'}}>
-                    <div style={{textAlign:'right'}}>
-                      {display.isFixed ? (
-                        <div style={{fontSize:10,color:'#2B5C9E',marginBottom:2,fontWeight:600}}>
-                          고정급 직원
-                        </div>
-                      ) : (
-                        <>
-                          <div style={{fontSize:10,color:'#6E6A63',marginBottom:2}}>
-                            {display.totalHours}h {display.totalMins>0?display.totalMins+'m':''} · 시급 {(display.wage||10030).toLocaleString()}원
-                          </div>
-                          <div style={{fontSize:10,color:'#6E6A63',marginBottom:2}}>
-                            기본 {(display.basePay||0).toLocaleString()} + 주휴 {(display.weeklyHoliday||0).toLocaleString()}
-                          </div>
-                        </>
-                      )}
-                      <div style={{fontSize:11,color:'#6E6A63',marginBottom:2}}>
-                        세전 {(display.totalPay||0).toLocaleString()}원
-                        {(display.deduction?.total||0)>0 && (
-                          <span style={{color:'#B42318',marginLeft:6}}>
-                            -{(display.deduction?.total||0).toLocaleString()}원
-                          </span>
-                        )}
-                      </div>
-                      {bonusTotal>0 && (
-                        <div style={{fontSize:11,color:'#6B4FA0',marginBottom:2}}>
-                          상여 +{bonusTotal.toLocaleString()}원
-                          <span style={{color:'#B42318',marginLeft:6}}>
-                            (세금 -{(deductionWithBonus?.total||0).toLocaleString()}원)
-                          </span>
-                        </div>
-                      )}
-                      {advTotal>0 && (
-                        <div style={{fontSize:11,color:'#B42318',marginBottom:2}}>
-                          가불 차감 -{advTotal.toLocaleString()}원
-                          {carryIn>0 && <span style={{color:'#6E6A63'}}> (지난달에서 넘어온 {carryIn.toLocaleString()}원 포함)</span>}
-                        </div>
-                      )}
-                      {carriedOut>0 && (
-                        <div style={{fontSize:11,color:'#6E6A63',marginBottom:2}}>
-                          초과 가불 {carriedOut.toLocaleString()}원 → {mLabel(p?.carriedTo||nextYm(curMonth))}로 넘김
-                          <button onClick={()=>undoCarry(emp)} disabled={saving}
-                            style={{background:'none',border:'none',color:'#2B5C9E',fontSize:11,cursor:'pointer',fontFamily:'inherit',padding:'0 0 0 6px',textDecoration:'underline'}}>되돌리기</button>
-                        </div>
-                      )}
-                      <div style={{fontSize:16,fontWeight:700,color: remain<0 ? '#B42318' : '#2E7D45',fontFamily:'inherit',fontVariantNumeric:'tabular-nums'}}>
-                        {advTotal>0 || bonusTotal>0 ? '최종 지급' : '실수령'} {remain.toLocaleString()}원
-                      </div>
-                      {remain<0 && (
-                        <div style={{marginTop:4}}>
-                          <div style={{fontSize:11,color:'#B42318',marginBottom:4}}>가불이 급여보다 {(-remain).toLocaleString()}원 많아요</div>
-                          <button onClick={()=>carryOver(emp, -remain)} disabled={saving}
-                            style={{background:'#B42318',color:'#FFFFFF',border:'none',borderRadius:4,padding:'5px 10px',
-                              fontSize:11,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
-                            {mLabel(nextYm(curMonth)).slice(6)} 급여에서 빼기
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                    {status==='unconfirmed' && (
-                      <button onClick={()=>confirmOne(emp.uid)} disabled={saving}
-                        style={{background:'var(--hk-accent)',color:'#FFFFFF',border:'none',borderRadius:4,
-                          padding:'8px 14px',fontSize:11,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
-                        급여 확정
-                      </button>
-                    )}
-                                        {(status==='confirmed' || status==='inquiry') && (
-                      <>
-                        <button onClick={()=>confirmOne(emp.uid)} disabled={saving}
-                          style={{background:'transparent',border:'1px solid #A8A39A',color:'#6E6A63',
-                            borderRadius:4,padding:'8px 12px',fontSize:11,cursor:'pointer',fontFamily:'inherit',marginRight:6}}>
-                          재확정
-                        </button>
-                        <button onClick={()=>markPaid(emp.uid)} disabled={saving}
-                          style={{background:'transparent',border:'1px solid rgba(43,92,158,0.4)',color:'#2B5C9E',
-                            borderRadius:4,padding:'8px 12px',fontSize:11,cursor:'pointer',fontFamily:'inherit'}}>
-                          강제 지급
-                        </button>
-                      </>
-                    )}
-                    {status==='checked' && (
-                      <button onClick={()=>markPaid(emp.uid)} disabled={saving}
-                        style={{background:'#2B5C9E',color:'#FFFFFF',border:'none',borderRadius:4,
-                          padding:'8px 14px',fontSize:11,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
-                        지급 완료
-                      </button>
-                    )}
-                    {status==='inquiry' && (
-                      <button onClick={()=>markPaid(emp.uid)} disabled={saving}
-                        style={{background:'transparent',border:'1px solid rgba(43,92,158,0.4)',color:'#2B5C9E',
-                          borderRadius:4,padding:'8px 12px',fontSize:11,cursor:'pointer',fontFamily:'inherit'}}>
-                        강제 지급
-                      </button>
-                    )}
-                    {status==='paid' && (
-                      <div style={{fontSize:11,color:'#2B5C9E',fontWeight:600}}>
-                        {p.paidAt?.slice(0,10)}
-                      </div>
-                    )}
-                  </div>
-                </div>
-
+                {(isAdvanceOpen || isBonusOpen || isOpen || emp.isRetired) && <Legacy>
                 {/* 가불 관리 패널 */}
                 {isAdvanceOpen && (
                   <div style={{padding:'14px 18px',borderTop:'1px solid rgba(43,92,158,0.2)',
@@ -1217,15 +1112,16 @@ if(!isActive && !isRetired) return
                     )}
                   </div>
                 )}
-              </div>
+                </Legacy>}
+                </VStack>
+              </Card>
             )
           })}
-          {employees.length===0 && (
-            <div style={{textAlign:'center',color:'#6E6A63',padding:40}}>승인된 직원이 없습니다</div>
-          )}
-        </div>
+          {employees.length===0 && <EmptyState title="승인된 직원이 없습니다" isCompact/>}
+        </VStack>
       )}
 
+      <Legacy>
       {/* 세무 보고서 모달 */}
       {/* 사장님 본인 임금명세서: 세무 보고서의 '급여 설정'(payrollOwner, 다음 달로 이어짐)으로 이 달 명세서 */}
       {showMyStatement && (
