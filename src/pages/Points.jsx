@@ -3,7 +3,15 @@ import { VStack } from '@astryxdesign/core/Layout'
 import { Text } from '@astryxdesign/core/Text'
 import { Banner } from '@astryxdesign/core/Banner'
 import { TabList, Tab } from '@astryxdesign/core/TabList'
-import { AstryxPage, Legacy, PageHeader } from '../astryx/AstryxPage'
+import { Card } from '@astryxdesign/core/Card'
+import { Grid } from '@astryxdesign/core/Grid'
+import { Button } from '@astryxdesign/core/Button'
+import { Badge } from '@astryxdesign/core/Badge'
+import { Table } from '@astryxdesign/core/Table'
+import { List, ListItem } from '@astryxdesign/core/List'
+import { EmptyState } from '@astryxdesign/core/EmptyState'
+import { AstryxPage, Legacy, PageHeader, LedgerCard } from '../astryx/AstryxPage'
+import CountUp from '../components/CountUp'
 import { db } from '../firebase'
 import { collection, doc, getDoc, getDocs, setDoc, arrayUnion } from 'firebase/firestore'
 import { useAuth } from '../AuthContext'
@@ -29,7 +37,6 @@ function Btn({ children, onClick, kind = 'plain', disabled, small }) {
   )
 }
 const inp = { fontFamily:'inherit', fontSize:14, padding:'6px 8px', border:`1px solid ${T.rule}`, borderRadius:4, background:'#FFFFFF', color:T.ink }
-const h2 = t => <h2 style={{fontSize:16, fontWeight:800, margin:'18px 0 6px', fontFamily:'inherit', borderBottom:`2px solid ${T.ink}`, paddingBottom:4}}>{t}</h2>
 
 export default function Points() {
   const { user, userData, isOwner } = useAuth()
@@ -78,13 +85,13 @@ export default function Points() {
       </TabList>
       {msg && <Banner status={msg.includes('못') ? 'error' : 'success'} title={msg}/>}
 
-      <Legacy>
       {tab === 'mine' && <Mine me={staff[0]} ledger={ledgerOf(staff[0])} requests={shop.requests.filter(r => r.uid === user.uid)} uid={user.uid} personalOk={personal[user.uid]?.ok}/>}
       {tab === 'shop' && !isOwner && <Shop shop={shop} balance={ledgerOf(staff[0]).balance} me={staff[0]} onDone={(m)=>{ setMsg(m); refresh() }}/>}
+      {tab === 'history' && <History requests={shop.requests}/>}
+      <Legacy>
       {tab === 'shop' && isOwner && <ShopAdmin shop={shop} onDone={(m)=>{ setMsg(m); refresh() }}/>}
       {tab === 'requests' && isOwner && <Requests shop={shop} onDone={(m)=>{ setMsg(m); refresh() }}/>}
       {tab === 'people' && isOwner && <People staff={staff} ledgerOf={ledgerOf} personal={personal} onDone={(m)=>{ setMsg(m); refresh() }}/>}
-      {tab === 'history' && <History requests={shop.requests}/>}
       {tab === 'settings' && isOwner && <Settings config={config} onDone={(m)=>{ setMsg(m); refresh() }}/>}
       </Legacy>
     </VStack>
@@ -92,45 +99,46 @@ export default function Points() {
   )
 }
 
-// ── 직원: 내 포인트 ──
+// ── 직원: 내 포인트 (Astryx) ──
 function Mine({ me, ledger, requests, uid, personalOk }) {
   const [code, setCode] = useState(null)
+  const entries = [...ledger.entries].reverse().map((e, i) => ({ ...e, id: i }))
   return (
-    <div>
-      <div style={{display:'flex', alignItems:'baseline', gap:10, padding:'10px 0'}}>
-        <span style={{fontSize:14, color:T.sub}}>{me?.name}님 포인트</span>
-        <span style={{fontSize:30, fontWeight:900, color:T.accent, ...num}}>{P(ledger.balance)}</span>
-      </div>
-      {personalOk === false && <div style={{fontSize:12, color:T.amber}}>사장님 조정·게임 포인트를 불러오지 못했어요 (권한 설정 확인 중)</div>}
+    <VStack gap={4}>
+      <Card variant="red">
+        <VStack gap={0}>
+          <Text type="label" color="inherit">{me?.name}님 포인트</Text>
+          <Text type="display-2" color="inherit" hasTabularNumbers><CountUp value={ledger.balance}/>P</Text>
+        </VStack>
+      </Card>
+      {personalOk === false && <Banner status="warning" title="사장님 조정·게임 포인트를 불러오지 못했어요" description="권한 설정 확인 중이에요"/>}
 
-      {requests.length > 0 && <>
-        {h2('내 교환')}
-        {[...requests].reverse().map(r => (
-          <div key={r.id} style={{display:'flex', alignItems:'center', gap:10, padding:'7px 0', borderBottom:`1px solid ${T.soft}`, fontSize:14, flexWrap:'wrap'}}>
-            <span style={{color:T.sub, ...num, minWidth:84}}>{String(r.at).slice(0,10)}</span>
-            <b style={{flex:1}}>{r.itemName}</b>
-            <span style={{...num}}>{P(r.cost)}</span>
-            {r.status === 'pending' && <span style={{color:T.amber, fontWeight:700, fontSize:13}}>사장님 확인 대기</span>}
-            {r.status === 'rejected' && <span style={{color:T.sub, fontSize:13}}>취소됨 (포인트 돌려받음)</span>}
-            {r.status === 'approved' && (r.how === 'direct'
-              ? <span style={{color:T.green, fontWeight:700, fontSize:13}}>사장님이 직접 드려요</span>
-              : <Btn kind="ok" small onClick={()=>setCode(r)}>받기 (코드 보기)</Btn>)}
-          </div>
-        ))}
-      </>}
+      {requests.length > 0 && (
+        <LedgerCard title="내 교환">
+          <List hasDividers edge="flush">
+            {[...requests].reverse().map(r => (
+              <ListItem key={r.id} label={r.itemName} description={`${String(r.at).slice(0,10)} · ${P(r.cost)}`}
+                endContent={r.status === 'pending' ? <Badge variant="warning" label="사장님 확인 대기"/>
+                  : r.status === 'rejected' ? <Badge label="취소됨 (포인트 돌려받음)"/>
+                  : r.how === 'direct' ? <Badge variant="success" label="사장님이 직접 드려요"/>
+                  : <Button size="sm" variant="primary" label="받기 (코드 보기)" onClick={()=>setCode(r)}/>}/>
+            ))}
+          </List>
+        </LedgerCard>
+      )}
 
-      {h2('포인트 내역')}
-      {ledger.entries.length === 0 && <div style={{fontSize:13, color:T.sub}}>아직 내역이 없어요</div>}
-      {[...ledger.entries].reverse().map((e, i) => (
-        <div key={i} style={{display:'flex', alignItems:'baseline', gap:10, padding:'6px 0', borderBottom:`1px solid ${T.soft}`, fontSize:13}}>
-          <span style={{color:T.sub, ...num, minWidth:84}}>{e.date}</span>
-          <span style={{flex:1}}>{e.note}</span>
-          <span style={{...num, fontWeight:700, color: e.amount > 0 ? T.green : T.red}}>{sign(e.applied)}</span>
-          <span style={{...num, color:T.sub, minWidth:64, textAlign:'right'}}>{P(e.balance)}</span>
-        </div>
-      ))}
-      {code && <CodeView uid={uid} req={code} onClose={()=>setCode(null)}/>}
-    </div>
+      <LedgerCard title="포인트 내역">
+        {entries.length === 0 ? <Text color="secondary">아직 내역이 없어요</Text> : (
+          <Table data={entries} idKey="id" density="compact" columns={[
+            { key:'date', header:'날짜', renderCell: e => <Text type="supporting" color="secondary" hasTabularNumbers>{e.date}</Text> },
+            { key:'note', header:'내용', renderCell: e => <Text>{e.note}</Text> },
+            { key:'amt', header:'포인트', align:'end', renderCell: e => <Text weight="bold" color={e.amount > 0 ? 'primary' : 'accent'} hasTabularNumbers>{sign(e.applied)}</Text> },
+            { key:'bal', header:'잔액', align:'end', renderCell: e => <Text color="secondary" hasTabularNumbers>{P(e.balance)}</Text> },
+          ]}/>
+        )}
+      </LedgerCard>
+      {code && <Legacy><CodeView uid={uid} req={code} onClose={()=>setCode(null)}/></Legacy>}
+    </VStack>
   )
 }
 
@@ -172,44 +180,42 @@ function Shop({ shop, balance, me, onDone }) {
   }
   const items = shop.items.filter(i => !i.hidden)
   return (
-    <div>
-      <div style={{fontSize:14, padding:'6px 0 10px'}}>내 포인트 <b style={{color:T.accent, ...num}}>{P(balance)}</b></div>
-      {items.length === 0 && <div style={{fontSize:13, color:T.sub}}>아직 상품이 없어요</div>}
-      <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(min(100%, 200px), 1fr))', gap:12}}>
-        {items.map(it => {
-          const left = availableStock(it, shop.requests, today)
-          return (
-            <div key={it.id} style={{background:'#FFFFFF', border:`1px solid ${T.rule}`, borderRadius:6, overflow:'hidden', display:'flex', flexDirection:'column'}}>
-              {it.img ? <img src={it.img} alt="" style={{width:'100%', aspectRatio:'4/3', objectFit:'cover', background:T.chip}}/> : <div style={{aspectRatio:'4/3', background:T.chip}}/>}
-              <div style={{padding:'10px 12px', display:'flex', flexDirection:'column', gap:4, flex:1}}>
-                <b style={{fontSize:15}}>{it.name}</b>
-                {it.desc && <span style={{fontSize:12, color:T.sub}}>{it.desc}</span>}
-                <span style={{fontSize:16, fontWeight:800, color:T.accent, ...num}}>{P(it.cost)}</span>
-                <span style={{fontSize:12, color: left ? T.sub : T.red}}>{left ? `남은 수량 ${left}개` : it.restockAt && it.restockAt > today ? `품절 · ${it.restockAt} 재입고` : '품절'}</span>
-                <div style={{marginTop:'auto', paddingTop:6}}><Btn kind="primary" small onClick={()=>exchange(it)} disabled={busy || !left || balance < it.cost}>{balance < it.cost ? '포인트 모자람' : '교환하기'}</Btn></div>
-              </div>
-            </div>
-          )
-        })}
-      </div>
-    </div>
+    <VStack gap={4}>
+      <Text type="large">내 포인트 <Text type="inherit" weight="bold" color="accent" hasTabularNumbers>{P(balance)}</Text></Text>
+      {items.length === 0 ? <EmptyState title="아직 상품이 없어요" isCompact/> : (
+        <Grid columns={{ minWidth: 200, max: 4, repeat: 'fit' }} gap={3}>
+          {items.map(it => {
+            const left = availableStock(it, shop.requests, today)
+            return (
+              <Card key={it.id}>
+                <VStack gap={2}>
+                  {it.img && <Legacy><img src={it.img} alt="" style={{width:'100%', aspectRatio:'4/3', objectFit:'cover', borderRadius:10, display:'block'}}/></Legacy>}
+                  <Text type="large" weight="bold">{it.name}</Text>
+                  {it.desc && <Text type="supporting" color="secondary">{it.desc}</Text>}
+                  <Text type="large" weight="bold" color="accent" hasTabularNumbers>{P(it.cost)}</Text>
+                  <Text type="supporting" color={left ? 'secondary' : 'accent'}>{left ? `남은 수량 ${left}개` : it.restockAt && it.restockAt > today ? `품절 · ${it.restockAt} 재입고` : '품절'}</Text>
+                  <Button variant="primary" size="sm" label={balance < it.cost ? '포인트 모자람' : '교환하기'} isDisabled={busy || !left || balance < it.cost} onClick={()=>exchange(it)}/>
+                </VStack>
+              </Card>
+            )
+          })}
+        </Grid>
+      )}
+    </VStack>
   )
 }
 
 // ── 공개: 교환 이력 (누가 어떤 상품을) ──
 function History({ requests }) {
   const done = requests.filter(r => r.status === 'approved').sort((a, b) => String(b.decidedAt || b.at).localeCompare(String(a.decidedAt || a.at)))
-  return (
-    <div>
-      {done.length === 0 && <div style={{fontSize:13, color:T.sub, padding:'8px 0'}}>아직 교환한 사람이 없어요</div>}
-      {done.map(r => (
-        <div key={r.id} style={{display:'flex', gap:10, padding:'7px 0', borderBottom:`1px solid ${T.soft}`, fontSize:14}}>
-          <span style={{color:T.sub, ...num, minWidth:84}}>{String(r.decidedAt || r.at).slice(0,10)}</span>
-          <b style={{minWidth:64}}>{r.name}</b>
-          <span>{r.itemName}</span>
-        </div>
-      ))}
-    </div>
+  return done.length === 0 ? <EmptyState title="아직 교환한 사람이 없어요" isCompact/> : (
+    <Card>
+      <Table data={done} idKey="id" density="compact" columns={[
+        { key:'d', header:'날짜', renderCell: r => <Text type="supporting" color="secondary" hasTabularNumbers>{String(r.decidedAt || r.at).slice(0,10)}</Text> },
+        { key:'n', header:'이름', renderCell: r => <Text weight="bold">{r.name}</Text> },
+        { key:'i', header:'상품', renderCell: r => <Text>{r.itemName}</Text> },
+      ]}/>
+    </Card>
   )
 }
 
