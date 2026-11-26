@@ -5,6 +5,21 @@ import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, ReferenceAre
 import { readDeliveryExcel, pickSalesField, SALES_FIELDS } from '../lib/deliveryImport'
 import DiscountCalc from '../components/DiscountCalc'
 import { GoalCard } from '../components/DiscountGoal'
+import { VStack, HStack } from '@astryxdesign/core/Layout'
+import { Text } from '@astryxdesign/core/Text'
+import { Card } from '@astryxdesign/core/Card'
+import { Grid } from '@astryxdesign/core/Grid'
+import { Badge } from '@astryxdesign/core/Badge'
+import { Banner } from '@astryxdesign/core/Banner'
+import { Button } from '@astryxdesign/core/Button'
+import { Table } from '@astryxdesign/core/Table'
+import { TextInput } from '@astryxdesign/core/TextInput'
+import { TextArea } from '@astryxdesign/core/TextArea'
+import { DateInput } from '@astryxdesign/core/DateInput'
+import { CheckboxInput } from '@astryxdesign/core/CheckboxInput'
+import { List, ListItem } from '@astryxdesign/core/List'
+import { SegmentedControl, SegmentedControlItem } from '@astryxdesign/core/SegmentedControl'
+import { AstryxPage, Legacy, PageHeader, LedgerCard } from '../astryx/AstryxPage'
 import { PLATFORMS, EVENTS_DOC, OPEN_END, DEFAULT_MARGIN, isGoalEvent, goalMonths, addDays, daysBetween, dateRange, todayStr, monthsOf, dayValue, stats, loadSalesMonths } from '../lib/salesStats'
 
 // 매출분석 — 배달앱별 하루 주문수·매출·객단가, 할인·이벤트 기간과 그 전 기간 비교
@@ -48,12 +63,6 @@ function comparePeriods(ev) {
 }
 
 const pct = (a, b) => (a == null || b == null || b === 0) ? null : (a - b) / b * 100
-
-const card = { background:'#FFFFFF', border:'1px solid #DCD7CE', borderRadius:6, padding:16 }
-const input = { background:'#F3F1EC', border:'1px solid #DCD7CE', borderRadius:4, color:'#1D1B18', padding:'7px 10px',
-  fontSize:12, outline:'none', fontFamily:'inherit', boxSizing:'border-box' }
-const chip = on => ({ padding:'6px 12px', borderRadius:6, border:'none', fontSize:11, fontWeight:600, cursor:'pointer', fontFamily:'inherit',
-  background: on ? 'var(--hk-accent)' : '#F3F1EC', color: on ? '#FFFFFF' : '#5F5B54', outline: on ? 'none' : '1px solid #DCD7CE' })
 
 function Change({ value }) {
   if (value == null) return <span style={{color:'#6E6A63'}}>—</span>
@@ -210,6 +219,7 @@ function emptyForm() {
 }
 
 export default function SalesAnalysis() {
+  const [showDetail, setShowDetail] = useState(false)
   const [range, setRange]   = useState(()=>({ from: addDays(todayStr(), -29), to: todayStr(), preset:'30' }))
   const [metric, setMetric] = useState('orders')
   const [months, setMonths] = useState({})       // { 'YYYY-MM': { rev: revenue 문서, apps: 배달앱 엑셀 문서 } }
@@ -357,94 +367,57 @@ export default function SalesAnalysis() {
   const anyOrders = rangeDates.some(d => PLATFORMS.some(p => dayValue(months, d, p.key).orders != null))
 
   return (
-    <div style={{maxWidth:1200}}>
-      <div style={{marginBottom:18}}>
-        <div style={{fontSize:20,fontWeight:700}}>매출분석</div>
-        <div style={{fontSize:12,color:'#6E6A63',marginTop:2}}>배달앱별 주문수·매출·객단가와 할인·이벤트 효과</div>
-      </div>
+    <AstryxPage>
+    <VStack gap={4}>
+      <PageHeader title="매출분석" sub="배달앱별 주문수·매출·객단가와 할인·이벤트 효과"/>
 
       {/* 기간 · 지표 */}
-      <div style={{display:'flex',flexWrap:'wrap',gap:8,alignItems:'center',marginBottom:14}}>
-        {[['30','최근 30일'],['90','최근 90일'],['month','이번 달'],['last','지난 달']].map(([k,l])=>(
-          <button key={k} type="button" onClick={()=>setPreset(k)} style={chip(range.preset===k)}>{l}</button>
-        ))}
-        <input type="date" value={range.from} max={range.to} onChange={e=>e.target.value && setRange(r=>({ ...r, from:e.target.value, preset:'' }))} style={input} aria-label="시작일"/>
-        <span style={{color:'#6E6A63',fontSize:12}}>~</span>
-        <input type="date" value={range.to} min={range.from} onChange={e=>e.target.value && setRange(r=>({ ...r, to:e.target.value, preset:'' }))} style={input} aria-label="종료일"/>
-        <div style={{flex:1}}/>
-        <div style={{display:'flex',gap:4}}>
-          {METRICS.map(m => <button key={m.key} type="button" onClick={()=>setMetric(m.key)} style={chip(metric===m.key)}>{m.label}</button>)}
-        </div>
-      </div>
+      <HStack gap={2} vAlign="end" hAlign="between" wrap="wrap">
+        <HStack gap={2} vAlign="end" wrap="wrap">
+          <SegmentedControl label="기간" value={range.preset || 'custom'} onChange={v=>v && v !== 'custom' && setPreset(v)}>
+            {[['30','최근 30일'],['90','최근 90일'],['month','이번 달'],['last','지난 달'],['custom','직접']].map(([k,l]) => <SegmentedControlItem key={k} value={k} label={l}/>)}
+          </SegmentedControl>
+          <DateInput label="시작일" isLabelHidden size="sm" value={range.from} onChange={v=>v && v <= range.to && setRange(r=>({ ...r, from:v, preset:'' }))}/>
+          <DateInput label="종료일" isLabelHidden size="sm" value={range.to} onChange={v=>v && v >= range.from && setRange(r=>({ ...r, to:v, preset:'' }))}/>
+        </HStack>
+        <SegmentedControl label="지표" value={metric} onChange={v=>v && setMetric(v)}>
+          {METRICS.map(m => <SegmentedControlItem key={m.key} value={m.key} label={m.label}/>)}
+        </SegmentedControl>
+      </HStack>
 
       {!loading && !anyOrders && (
-        <div style={{...card,marginBottom:14,borderColor:'rgba(var(--hk-accent-rgb),0.35)',fontSize:12,color:'#1D1B18',lineHeight:1.7}}>
-          이 기간엔 주문 건수 기록이 없어요. 매출입력의 <b>마감</b>에서 앱별 주문 건수를 적으면 여기 쌓여요.
-          매출은 그대로 볼 수 있고, 예전 주문수는 배달앱 엑셀을 올리는 기능으로 채울 예정이에요.
-        </div>
+        <Banner status="info" title="이 기간엔 주문 건수 기록이 없어요." description="매출입력의 마감에서 앱별 주문 건수를 적으면 여기 쌓여요. 매출은 그대로 볼 수 있고, 예전 주문수는 아래 배달앱 엑셀로 채울 수 있어요."/>
       )}
 
       {/* 앱별 요약 */}
-      <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(220px,1fr))',gap:12,marginBottom:14}}>
+      <Grid columns={{ minWidth: 220, max: 4, repeat: 'fit' }} gap={3}>
         {PLATFORMS.map(p => {
           const s = stats(months, rangeDates, p.key)
           return (
-            <div key={p.key} style={{...card,borderTop:`3px solid ${p.color}`}}>
-              <div style={{fontSize:13,fontWeight:700,marginBottom:10}}>{p.label}</div>
-              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
-                <div>
-                  <div style={{fontSize:10,color:'#6E6A63'}}>하루 평균 주문</div>
-                  <div style={{fontSize:18,fontWeight:700,fontFamily:'inherit',fontVariantNumeric:'tabular-nums'}}>
-                    {s.ordersPerDay == null ? '—' : s.ordersPerDay.toFixed(1)}<span style={{fontSize:11,color:'#6E6A63'}}> 건</span>
-                  </div>
-                </div>
-                <div>
-                  <div style={{fontSize:10,color:'#6E6A63'}}>객단가</div>
-                  <div style={{fontSize:18,fontWeight:700,fontFamily:'inherit',fontVariantNumeric:'tabular-nums'}}>
-                    {won(s.aov)}<span style={{fontSize:11,color:'#6E6A63'}}> 원</span>
-                  </div>
-                </div>
-                <div>
-                  <div style={{fontSize:10,color:'#6E6A63'}}>하루 평균 매출</div>
-                  <div style={{fontSize:13,fontWeight:600,fontFamily:'inherit',fontVariantNumeric:'tabular-nums'}}>{won(s.salesPerDay)}원</div>
-                </div>
-                <div>
-                  <div style={{fontSize:10,color:'#6E6A63'}}>기간 합계</div>
-                  <div style={{fontSize:13,fontWeight:600,fontFamily:'inherit',fontVariantNumeric:'tabular-nums'}}>{s.ordN ? `${s.ordSum}건` : '—'}</div>
-                </div>
-              </div>
-              {s.discN > 0 && (
-                <div style={{fontSize:11,color:'#5F5B54',marginTop:8}}>
-                  가게 부담 할인 하루 평균 <b style={{color:'#1D1B18',fontFamily:'inherit',fontVariantNumeric:'tabular-nums'}}>{won(s.discountPerDay)}원</b>
-                  <span style={{color:'#6E6A63'}}> (엑셀 {s.discN}일)</span>
-                </div>
-              )}
-              {s.adsN > 0 && (
-                <div style={{fontSize:11,color:'#5F5B54',marginTop:2}}>
-                  광고비 하루 평균 <b style={{color:'#1D1B18',fontFamily:'inherit',fontVariantNumeric:'tabular-nums'}}>{won(s.adsPerDay)}원</b>
-                </div>
-              )}
-              <div style={{fontSize:10,color:'#6E6A63',marginTop:8}}>
-                매출 {s.salesN}일 · 주문수 {s.ordN}일 기록
-              </div>
-            </div>
+            <LedgerCard key={p.key} title={p.label}>
+              <Grid columns={2} gap={2}>
+                <VStack gap={0}><Text type="supporting" color="secondary">하루 평균 주문</Text><Text type="large" weight="bold" hasTabularNumbers>{s.ordersPerDay == null ? '—' : s.ordersPerDay.toFixed(1)}건</Text></VStack>
+                <VStack gap={0}><Text type="supporting" color="secondary">객단가</Text><Text type="large" weight="bold" hasTabularNumbers>{won(s.aov)}원</Text></VStack>
+                <VStack gap={0}><Text type="supporting" color="secondary">하루 평균 매출</Text><Text weight="semibold" hasTabularNumbers>{won(s.salesPerDay)}원</Text></VStack>
+                <VStack gap={0}><Text type="supporting" color="secondary">기간 합계</Text><Text weight="semibold" hasTabularNumbers>{s.ordN ? `${s.ordSum}건` : '—'}</Text></VStack>
+              </Grid>
+              {s.discN > 0 && <Text type="supporting" color="secondary" hasTabularNumbers>가게 부담 할인 하루 평균 <Text weight="bold" color="primary">{won(s.discountPerDay)}원</Text> (엑셀 {s.discN}일)</Text>}
+              {s.adsN > 0 && <Text type="supporting" color="secondary" hasTabularNumbers>광고비 하루 평균 <Text weight="bold" color="primary">{won(s.adsPerDay)}원</Text></Text>}
+              <Text type="supporting" color="secondary">매출 {s.salesN}일 · 주문수 {s.ordN}일 기록</Text>
+            </LedgerCard>
           )
         })}
-      </div>
+      </Grid>
 
-      {/* 앱별 일일 그래프 (앱마다 따로) */}
-      <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(min(100%,460px),1fr))',gap:12,marginBottom:8}}>
+      {/* 앱별 일일 그래프 */}
+      <Grid columns={{ minWidth: 420, max: 2, repeat: 'fit' }} gap={3}>
         {PLATFORMS.map(p => {
           const data = chartData(p.key)
           const evs = eventsFor(p.key).filter(e => e.to >= range.from && e.from <= range.to)
           return (
-            <div key={p.key} style={card}>
-              <div style={{display:'flex',justifyContent:'space-between',alignItems:'baseline',marginBottom:6}}>
-                <span style={{fontSize:12,fontWeight:700}}>{p.label} · 하루 {METRICS.find(m=>m.key===metric).label}</span>
-                {evs.length > 0 && <span style={{fontSize:10,color:'#5F5B54'}}>옅은 노란 칸 = 할인·이벤트 기간</span>}
-              </div>
-              <div style={{height:180}}>
-                {loading ? <div style={{color:'#6E6A63',fontSize:12,padding:60,textAlign:'center'}}>불러오는 중...</div> : (
+            <LedgerCard key={p.key} title={`${p.label} · 하루 ${METRICS.find(m=>m.key===metric).label}`} right={evs.length > 0 && <Text type="supporting" color="secondary">옅은 칸 = 할인·이벤트 기간</Text>}>
+              <VStack height={180}>
+                {loading ? <Text color="secondary">불러오는 중...</Text> : (
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart data={data} margin={{top:6,right:4,left:-14,bottom:0}} barCategoryGap={2}>
                       <CartesianGrid vertical={false} stroke="#ECE8E1"/>
@@ -460,69 +433,50 @@ export default function SalesAnalysis() {
                     </BarChart>
                   </ResponsiveContainer>
                 )}
-              </div>
-            </div>
+              </VStack>
+            </LedgerCard>
           )
         })}
-      </div>
-      <button type="button" onClick={()=>setShowTable(v=>!v)}
-        style={{background:'transparent',border:'none',color:'#2B5C9E',fontSize:11,cursor:'pointer',fontFamily:'inherit',padding:'4px 0',marginBottom:14}}>
-        {showTable ? '▾ 날짜별 표 접기' : '▸ 날짜별 표로 보기'}
-      </button>
+      </Grid>
+
+      <HStack><Button variant="ghost" label={showTable ? '날짜별 표 접기' : '날짜별 표로 보기'} onClick={()=>setShowTable(v=>!v)}/></HStack>
       {showTable && (
-        <div style={{...card,overflowX:'auto',marginBottom:14,padding:0}}>
-          <table style={{width:'100%',borderCollapse:'collapse',fontSize:11,minWidth:640}}>
-            <thead>
-              <tr style={{color:'#6E6A63',textAlign:'right'}}>
-                <th style={{textAlign:'left',padding:'8px 12px',fontWeight:600}}>날짜</th>
-                {PLATFORMS.map(p => <th key={p.key} style={{padding:'8px 12px',fontWeight:600}}>{p.short} 주문 / 매출</th>)}
-              </tr>
-            </thead>
-            <tbody>
-              {[...rangeDates].reverse().map(d => (
-                <tr key={d} style={{borderTop:'1px solid #ECE8E1',textAlign:'right',fontFamily:'inherit',fontVariantNumeric:'tabular-nums'}}>
-                  <td style={{textAlign:'left',padding:'6px 12px',color:'#5F5B54',fontFamily:'inherit'}}>{shortDate(d)} ({DAYS_KR[weekday(d)]})</td>
-                  {PLATFORMS.map(p => { const v = dayValue(months, d, p.key); return (
-                    <td key={p.key} style={{padding:'6px 12px'}}>
-                      {v.orders == null ? '—' : `${v.orders}건`} <span style={{color:'#6E6A63'}}>/ {won(v.sales)}</span>
-                    </td>
-                  )})}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <LedgerCard title="날짜별 주문 / 매출">
+          <HStack isScrollable>
+            <Table data={[...rangeDates].reverse().map(d => ({ d }))} idKey="d" density="compact"
+              columns={[
+                { key:'d', header:'날짜', width:90, renderCell: x => <Text type="supporting" color="secondary" textWrap="nowrap">{shortDate(x.d)} ({DAYS_KR[weekday(x.d)]})</Text> },
+                ...PLATFORMS.map(p => ({ key:p.key, header:`${p.short} 주문 / 매출`, width:150, align:'end', renderCell: x => { const v = dayValue(months, x.d, p.key); return <Text type="supporting" hasTabularNumbers textWrap="nowrap">{v.orders == null ? '—' : `${v.orders}건`} / {won(v.sales)}</Text> } })),
+              ]}/>
+          </HStack>
+        </LedgerCard>
       )}
 
       {/* 배달앱 엑셀로 예전 자료 넣기 */}
-      <div style={{...card,marginBottom:14}}>
-        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',gap:8,flexWrap:'wrap'}}>
-          <div>
-            <div style={{fontSize:14,fontWeight:700}}>배달앱 엑셀로 예전 자료 넣기</div>
-            <div style={{fontSize:11,color:'#6E6A63',marginTop:2}}>사장님 사이트에서 받은 주문·매출내역 엑셀 (쿠팡이츠 매출내역, 배민 정산명세서, 요기요 정산내역, 땡겨요 부가세신고내역). 같은 날짜는 엑셀 값으로 덮어써요</div>
-          </div>
-          <label style={{background:'#F3F1EC',border:'1px solid #DCD7CE',color:'#1D1B18',borderRadius:4,padding:'8px 14px',fontSize:12,fontWeight:600,
-            cursor: imp?.busy ? 'default' : 'pointer'}}>
-            {imp?.busy ? (imp.decrypting ? '비밀번호 푸는 중... (10초쯤)' : '읽는 중...') : '엑셀 파일 고르기'}
-            <input type="file" accept=".xlsx,.xls,.csv" disabled={!!imp?.busy} style={{display:'none'}}
-              onChange={e=>{ onExcel(e.target.files?.[0]); e.target.value='' }}/>
+      <LedgerCard title="배달앱 엑셀로 예전 자료 넣기" right={
+        <Legacy>
+          <label style={{display:'inline-block'}}>
+            <span style={{fontSize:12, marginRight:6}}>{imp?.busy ? (imp.decrypting ? '비밀번호 푸는 중... (10초쯤)' : '읽는 중...') : '엑셀 파일 고르기'}</span>
+            <input type="file" accept=".xlsx,.xls,.csv" disabled={!!imp?.busy} onChange={e=>{ onExcel(e.target.files?.[0]); e.target.value='' }}/>
           </label>
-        </div>
+        </Legacy>}>
+        <Text type="supporting" color="secondary">사장님 사이트에서 받은 주문·매출내역 엑셀 (쿠팡이츠 매출내역, 배민 정산명세서, 요기요 정산내역, 땡겨요 부가세신고내역). 같은 날짜는 엑셀 값으로 덮어써요</Text>
         {imp?.needPw && (
-          <form onSubmit={e=>{ e.preventDefault(); if (imp.pw) onExcel(imp.file, imp.pw) }}
-            style={{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap',marginTop:12,background:'#F3F1EC',borderRadius:6,padding:12}}>
-            <span style={{fontSize:12}}>비밀번호가 걸린 파일이에요</span>
-            <input type="password" value={imp.pw} autoFocus onChange={e=>{ const pw = e.target.value; setImp(v=>({ ...v, pw })) }}
-              placeholder="파일 비밀번호" aria-label="파일 비밀번호" style={{...input,width:150,background:'#FFFFFF'}}/>
-            <button type="submit" disabled={!imp.pw}
-              style={{background:'var(--hk-accent)',color:'#FFFFFF',border:'none',borderRadius:4,padding:'7px 14px',fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>열기</button>
-            <button type="button" onClick={()=>setImp(null)}
-              style={{background:'transparent',border:'1px solid #DCD7CE',color:'#5F5B54',borderRadius:4,padding:'7px 12px',fontSize:12,cursor:'pointer',fontFamily:'inherit'}}>취소</button>
-            <span style={{width:'100%',fontSize:10,color:'#6E6A63'}}>비밀번호는 이 화면에서 파일을 여는 데만 쓰고 어디에도 저장하지 않아요</span>
+          <form onSubmit={e=>{ e.preventDefault(); if (imp.pw) onExcel(imp.file, imp.pw) }}>
+            <Card variant="muted" padding={3}>
+              <VStack gap={2}>
+                <HStack gap={2} vAlign="end" wrap="wrap">
+                  <TextInput type="password" label="비밀번호가 걸린 파일이에요" placeholder="파일 비밀번호" value={imp.pw} onChange={pw=>setImp(v=>({ ...v, pw }))}/>
+                  <Button type="submit" variant="primary" label="열기" isDisabled={!imp.pw}/>
+                  <Button label="취소" onClick={()=>setImp(null)}/>
+                </HStack>
+                <Text type="supporting" color="secondary">비밀번호는 이 화면에서 파일을 여는 데만 쓰고 어디에도 저장하지 않아요</Text>
+              </VStack>
+            </Card>
           </form>
         )}
-        {imp?.error && <div style={{fontSize:12,color:'#B42318',marginTop:10}}>{imp.error}</div>}
-        {imp?.done && <div style={{fontSize:12,color:'#2E7D45',marginTop:10}}>{imp.done}</div>}
+        {imp?.error && <Banner status="error" title={imp.error}/>}
+        {imp?.done && <Banner status="success" title={imp.done}/>}
         {imp?.result && (()=>{
           const { result, dates, entered, match, field } = imp
           const tot = dates.reduce((a,d)=>{ const v = result.days[d]; return { est:(a.est||0)+(v.ordersEstimated||0), o:a.o+(v.orders||0), s:a.s+(v[field]||0), disc:a.disc+(v.discount||0), out:a.out+(v.payout||0), ads:a.ads+(v.ads||0) } }, { o:0, s:0, disc:0, out:0, ads:0 })
@@ -532,194 +486,137 @@ export default function SalesAnalysis() {
           const nEntered = Object.keys(entered).length
           const diff = nEntered ? dates.filter(d => entered[d] != null).reduce((a,d) => a + Math.abs(result.days[d][field] - entered[d]), 0) : null
           return (
-            <div style={{background:'#F3F1EC',borderRadius:6,padding:14,marginTop:12,fontSize:12,lineHeight:1.8}}>
-              <div style={{fontWeight:700}}>{result.label} · {dates[0]} ~ {dates[dates.length-1]} ({dates.length}일)</div>
-              <div style={{color:'#5F5B54'}}>
-                {hasOrders ? <>주문 <b style={{color:'#1D1B18'}}>{tot.o}건</b>{tot.est > 0 && <span style={{color:'#6E6A63'}}> (그중 포장·가게배달 {tot.est}건은 금액으로 추정)</span>} · </> : null}매출 <b style={{color:'#1D1B18'}}>{won(tot.s)}원</b>
-                {' · '}가게 부담 할인 <b style={{color:'#1D1B18'}}>{won(tot.disc)}원</b>
-                {tot.ads > 0 && <> · 광고비 <b style={{color:'#1D1B18'}}>{won(tot.ads)}원</b></>}
-                {unpaid < dates.length
-                  ? <>{' · '}정산(입금)금액 <b style={{color:'#1D1B18'}}>{won(tot.out)}원</b>{unpaid > 0 && <span style={{color:'#6E6A63'}}> (아직 입금 전 {unpaid}일 제외)</span>}</>
-                  : <span style={{color:'#6E6A63'}}> · 이 엑셀엔 정산금액이 없어요</span>}
-              </div>
-              {!hasOrders && <div style={{fontSize:11,color:'var(--hk-accent)'}}>이 엑셀엔 주문 건수가 없어요. 주문수·객단가는 마감 때 적은 건수로 계산해요</div>}
-              {tot.est > 0 && <div style={{fontSize:11,color:'#6E6A63'}}>배민 배달 건수는 건당 배달비로 정확히 세요. 마감 때 건수를 적은 날은 그 건수를 먼저 써요</div>}
-              <div style={{display:'flex',alignItems:'center',gap:6,flexWrap:'wrap',marginTop:6}}>
-                <span style={{color:'#5F5B54'}}>매출로 쓸 금액</span>
-                {fields.map(f => <button key={f.key} type="button" onClick={()=>setImp(v=>({ ...v, field:f.key }))} style={chip(field===f.key)}>{f.label}</button>)}
-              </div>
-              <div style={{fontSize:11,color:'#6E6A63',marginTop:4}}>
-                {nEntered
-                  ? <>매출입력에 적힌 {nEntered}일치와 비교하면 <b style={{color:'#1D1B18'}}>{SALES_FIELDS.find(f=>f.key===match.key).label}</b>이 가장 가까워요
-                      {field === match.key ? '' : ' (다른 금액을 골랐어요)'} · 지금 고른 금액과 하루 평균 차이 {won(diff / nEntered)}원</>
-                  : '이 기간엔 매출입력 기록이 없어서 결제금액(배민 출력물의 총 결제금액과 같은 기준)으로 넣어요'}
-              </div>
-              {imp.saveError && <div style={{color:'#B42318',marginTop:6}}>{imp.saveError}</div>}
-              <div style={{display:'flex',gap:8,marginTop:10}}>
-                <button type="button" onClick={saveExcel} disabled={imp.saving}
-                  style={{background:'var(--hk-accent)',color:'#FFFFFF',border:'none',borderRadius:4,padding:'8px 18px',fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
-                  {imp.saving ? '저장 중...' : '매출분석에 넣기'}
-                </button>
-                <button type="button" onClick={()=>setImp(null)}
-                  style={{background:'transparent',border:'1px solid #DCD7CE',color:'#5F5B54',borderRadius:4,padding:'8px 14px',fontSize:12,cursor:'pointer',fontFamily:'inherit'}}>
-                  취소
-                </button>
-              </div>
-            </div>
+            <Card variant="muted" padding={3}>
+              <VStack gap={2}>
+                <Text weight="bold">{result.label} · {dates[0]} ~ {dates[dates.length-1]} ({dates.length}일)</Text>
+                <Text type="supporting" color="secondary" hasTabularNumbers>
+                  {hasOrders ? `주문 ${tot.o}건${tot.est > 0 ? ` (그중 포장·가게배달 ${tot.est}건은 금액으로 추정)` : ''} · ` : ''}매출 {won(tot.s)}원 · 가게 부담 할인 {won(tot.disc)}원{tot.ads > 0 ? ` · 광고비 ${won(tot.ads)}원` : ''}
+                  {unpaid < dates.length ? ` · 정산(입금)금액 ${won(tot.out)}원${unpaid > 0 ? ` (아직 입금 전 ${unpaid}일 제외)` : ''}` : ' · 이 엑셀엔 정산금액이 없어요'}
+                </Text>
+                {!hasOrders && <Text type="supporting" color="accent">이 엑셀엔 주문 건수가 없어요. 주문수·객단가는 마감 때 적은 건수로 계산해요</Text>}
+                {tot.est > 0 && <Text type="supporting" color="secondary">배민 배달 건수는 건당 배달비로 정확히 세요. 마감 때 건수를 적은 날은 그 건수를 먼저 써요</Text>}
+                <HStack gap={2} vAlign="center" wrap="wrap">
+                  <Text type="supporting">매출로 쓸 금액</Text>
+                  {fields.map(f => <Button key={f.key} size="sm" variant={field===f.key ? 'primary' : 'secondary'} label={f.label} onClick={()=>setImp(v=>({ ...v, field:f.key }))}/>)}
+                </HStack>
+                <Text type="supporting" color="secondary">
+                  {nEntered
+                    ? `매출입력에 적힌 ${nEntered}일치와 비교하면 ${SALES_FIELDS.find(f=>f.key===match.key).label}이 가장 가까워요${field === match.key ? '' : ' (다른 금액을 골랐어요)'} · 지금 고른 금액과 하루 평균 차이 ${won(diff / nEntered)}원`
+                    : '이 기간엔 매출입력 기록이 없어서 결제금액(배민 출력물의 총 결제금액과 같은 기준)으로 넣어요'}
+                </Text>
+                {imp.saveError && <Banner status="error" title={imp.saveError}/>}
+                <HStack gap={2}>
+                  <Button variant="primary" label={imp.saving ? '저장 중...' : '매출분석에 넣기'} isDisabled={imp.saving} onClick={saveExcel}/>
+                  <Button label="취소" onClick={()=>setImp(null)}/>
+                </HStack>
+              </VStack>
+            </Card>
           )
         })()}
-      </div>
+      </LedgerCard>
 
       {/* 할인 목표 (건당 할인 일정) */}
       {events.some(e => isGoalEvent(e)) && (
-        <div style={{...card,marginBottom:14,borderColor:'rgba(var(--hk-accent-rgb),0.45)'}}>
-          <div style={{fontSize:14,fontWeight:700}}>할인 목표</div>
-          <div style={{fontSize:11,color:'#6E6A63',marginTop:2}}>건당 할인을 적은 할인 일정이에요. 할인 전 4주와 같은 이익을 내려면 하루 몇 건이 필요한지, 실제로 얼마나 받고 있는지</div>
-          {events.filter(e => isGoalEvent(e)).map(ev => <GoalCard key={ev.id} months={months} ev={ev} loading={loading}/>)}
-        </div>
+        <LedgerCard title="할인 목표">
+          <Text type="supporting" color="secondary">건당 할인을 적은 할인 일정이에요. 할인 전 4주와 같은 이익을 내려면 하루 몇 건이 필요한지, 실제로 얼마나 받고 있는지</Text>
+          <Legacy>{events.filter(e => isGoalEvent(e)).map(ev => <GoalCard key={ev.id} months={months} ev={ev} loading={loading}/>)}</Legacy>
+        </LedgerCard>
       )}
 
       {/* 할인 손익 계산기 */}
-      <DiscountCalc loading={loading}
-        onMakeEvent={(perOrder, margin) => { setForm({ ...emptyForm(), title:`건당 ${perOrder.toLocaleString('ko-KR')}원 할인`, kind:'discount', perOrder:String(perOrder), margin:String(margin), to: OPEN_END });
-          setTimeout(() => document.getElementById('sales-events')?.scrollIntoView({ behavior:'smooth' }), 50) }}
-        base={PLATFORMS.map(p => ({ ...p, ...stats(months, rangeDates, p.key) }))}
-        baseLabel={`${shortDate(range.from)}~${shortDate(range.to)}`}
-        cmp={cmpRange?.from && cmpRange?.to && cmpRange.from <= cmpRange.to ? PLATFORMS.map(p => ({ ...p, ...stats(months, dateRange(cmpRange.from, cmpRange.to), p.key) })) : null}
-        cmpRange={cmpRange} setCmpRange={setCmpRange}/>
+      <Legacy>
+        <DiscountCalc loading={loading}
+          onMakeEvent={(perOrder, margin) => { setForm({ ...emptyForm(), title:`건당 ${perOrder.toLocaleString('ko-KR')}원 할인`, kind:'discount', perOrder:String(perOrder), margin:String(margin), to: OPEN_END });
+            setTimeout(() => document.getElementById('sales-events')?.scrollIntoView({ behavior:'smooth' }), 50) }}
+          base={PLATFORMS.map(p => ({ ...p, ...stats(months, rangeDates, p.key) }))}
+          baseLabel={`${shortDate(range.from)}~${shortDate(range.to)}`}
+          cmp={cmpRange?.from && cmpRange?.to && cmpRange.from <= cmpRange.to ? PLATFORMS.map(p => ({ ...p, ...stats(months, dateRange(cmpRange.from, cmpRange.to), p.key) })) : null}
+          cmpRange={cmpRange} setCmpRange={setCmpRange}/>
+      </Legacy>
 
       {/* 할인·이벤트 일정 */}
-      <div id="sales-events" style={{...card,marginBottom:14}}>
-        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:12,gap:8,flexWrap:'wrap'}}>
-          <div>
-            <div style={{fontSize:14,fontWeight:700}}>할인·이벤트 일정</div>
-            <div style={{fontSize:11,color:'#6E6A63',marginTop:2}}>방학·시험기간 같은 시기도 적어두면 비교할 때 도움이 돼요</div>
-          </div>
-          {!form && (
-            <button type="button" onClick={()=>setForm(emptyForm())}
-              style={{background:'var(--hk-accent)',color:'#FFFFFF',border:'none',borderRadius:4,padding:'8px 14px',fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
-              + 일정 추가
-            </button>
-          )}
-        </div>
-        {eventsErr && <div style={{fontSize:11,color:'#B42318',marginBottom:10}}>{eventsErr}</div>}
+      <div id="sales-events"/>
+      <LedgerCard title="할인·이벤트 일정" right={!form && <Button size="sm" variant="primary" label="+ 일정 추가" onClick={()=>setForm(emptyForm())}/>}>
+        <Text type="supporting" color="secondary">방학·시험기간 같은 시기도 적어두면 비교할 때 도움이 돼요</Text>
+        {eventsErr && <Banner status="error" title={eventsErr}/>}
 
         {form && (
-          <div style={{background:'#F3F1EC',border:'1px solid var(--hk-accent)',borderRadius:6,padding:14,marginBottom:12}}>
-            <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(160px,1fr))',gap:10}}>
-              <label style={{gridColumn:'1/-1',fontSize:10,color:'#6E6A63'}}>제목
-                <input value={form.title} onChange={e=>setForm(f=>({ ...f, title:e.target.value }))} placeholder="예: 배민 3,000원 할인"
-                  style={{...input,width:'100%',marginTop:4,background:'#FFFFFF'}}/>
-              </label>
-              <label style={{fontSize:10,color:'#6E6A63'}}>시작일
-                <input type="date" value={form.from} onChange={e=>setForm(f=>({ ...f, from:e.target.value, to: f.to < e.target.value ? e.target.value : f.to }))}
-                  style={{...input,width:'100%',marginTop:4,background:'#FFFFFF'}}/>
-              </label>
-              <label style={{fontSize:10,color:'#6E6A63'}}>종료일
-                {form.to === OPEN_END
-                  ? <div style={{...input,marginTop:4,background:'#FFFFFF',color:'#6E6A63'}}>정하지 않음 (계속)</div>
-                  : <input type="date" value={form.to} min={form.from} onChange={e=>setForm(f=>({ ...f, to:e.target.value }))}
-                      style={{...input,width:'100%',marginTop:4,background:'#FFFFFF'}}/>}
-                <span style={{display:'flex',alignItems:'center',gap:4,marginTop:4}}>
-                  <input type="checkbox" checked={form.to === OPEN_END} onChange={e=>setForm(f=>({ ...f, to: e.target.checked ? OPEN_END : f.from }))}/>끝나는 날 아직 안 정함
-                </span>
-              </label>
-              <div style={{fontSize:10,color:'#6E6A63'}}>종류
-                <div style={{display:'flex',gap:4,flexWrap:'wrap',marginTop:4}}>
-                  {KINDS.map(k => <button key={k.key} type="button" onClick={()=>setForm(f=>({ ...f, kind:k.key }))} style={chip(form.kind===k.key)}>{k.label}</button>)}
-                </div>
-              </div>
-              <div style={{gridColumn:'1/-1',fontSize:10,color:'#6E6A63'}}>대상 앱 (안 고르면 전체)
-                <div style={{display:'flex',gap:4,flexWrap:'wrap',marginTop:4}}>
+          <Card variant="muted" padding={3}>
+            <VStack gap={3}>
+              <TextInput label="제목" placeholder="예: 배민 3,000원 할인" value={form.title} onChange={v=>setForm(f=>({ ...f, title:v }))}/>
+              <HStack gap={2} vAlign="end" wrap="wrap">
+                <DateInput label="시작일" value={form.from} onChange={v=>v && setForm(f=>({ ...f, from:v, to: f.to < v ? v : f.to }))}/>
+                {form.to === OPEN_END ? <Text color="secondary">종료일: 정하지 않음 (계속)</Text>
+                  : <DateInput label="종료일" value={form.to} onChange={v=>v && v >= form.from && setForm(f=>({ ...f, to:v }))}/>}
+                <CheckboxInput label="끝나는 날 아직 안 정함" value={form.to === OPEN_END} onChange={v=>setForm(f=>({ ...f, to: v ? OPEN_END : f.from }))}/>
+              </HStack>
+              <VStack gap={1}><Text type="label">종류</Text>
+                <HStack gap={1} wrap="wrap">{KINDS.map(k => <Button key={k.key} size="sm" variant={form.kind===k.key ? 'primary' : 'secondary'} label={k.label} onClick={()=>setForm(f=>({ ...f, kind:k.key }))}/>)}</HStack>
+              </VStack>
+              <VStack gap={1}><Text type="label">대상 앱 (안 고르면 전체)</Text>
+                <HStack gap={1} wrap="wrap">
                   {PLATFORMS.map(p => {
                     const on = form.platforms.includes(p.key)
-                    return <button key={p.key} type="button" style={chip(on)}
-                      onClick={()=>setForm(f=>({ ...f, platforms: on ? f.platforms.filter(x=>x!==p.key) : [...f.platforms, p.key] }))}>{p.label}</button>
+                    return <Button key={p.key} size="sm" variant={on ? 'primary' : 'secondary'} label={p.label} onClick={()=>setForm(f=>({ ...f, platforms: on ? f.platforms.filter(x=>x!==p.key) : [...f.platforms, p.key] }))}/>
                   })}
-                </div>
-              </div>
+                </HStack>
+              </VStack>
               {form.kind === 'discount' && (
-                <div style={{gridColumn:'1/-1',display:'flex',gap:12,flexWrap:'wrap',alignItems:'flex-end',background:'#FFFFFF',border:'1px solid #DCD7CE',borderRadius:4,padding:'8px 10px'}}>
-                  <label style={{fontSize:10,color:'#6E6A63'}}>주문 1건당 할인 (원)
-                    <input type="text" inputMode="numeric" value={form.perOrder ?? ''} placeholder="예: 1000"
-                      onChange={e=>setForm(f=>({ ...f, perOrder:e.target.value.replace(/[^0-9]/g,'') }))}
-                      style={{...input,width:110,marginTop:4,background:'#FFFFFF',textAlign:'right',display:'block'}}/>
-                  </label>
-                  <label style={{fontSize:10,color:'#6E6A63'}}>이익률 (%)
-                    <input type="text" inputMode="decimal" value={form.margin ?? ''} placeholder={String(DEFAULT_MARGIN)}
-                      onChange={e=>setForm(f=>({ ...f, margin:e.target.value.replace(/[^0-9.]/g,'') }))}
-                      style={{...input,width:70,marginTop:4,background:'#FFFFFF',textAlign:'right',display:'block'}}/>
-                  </label>
-                  <div style={{fontSize:10,color:'#6E6A63',flex:1,minWidth:180,lineHeight:1.6}}>
-                    건당 할인을 적으면 할인 전 4주 평균으로 '하루 몇 건 받아야 본전인지' 목표를 정하고, 시작하면 매일 실제 주문과 비교해요 (대시보드에도 나와요)
-                  </div>
-                </div>
+                <Card padding={3}>
+                  <VStack gap={2}>
+                    <HStack gap={2} vAlign="end" wrap="wrap">
+                      <TextInput label="주문 1건당 할인 (원)" inputMode="numeric" placeholder="예: 1000" width={160} value={form.perOrder ?? ''} onChange={v=>setForm(f=>({ ...f, perOrder:v.replace(/[^0-9]/g,'') }))}/>
+                      <TextInput label="이익률 (%)" inputMode="decimal" placeholder={String(DEFAULT_MARGIN)} width={110} value={form.margin ?? ''} onChange={v=>setForm(f=>({ ...f, margin:v.replace(/[^0-9.]/g,'') }))}/>
+                    </HStack>
+                    <Text type="supporting" color="secondary">건당 할인을 적으면 할인 전 4주 평균으로 '하루 몇 건 받아야 본전인지' 목표를 정하고, 시작하면 매일 실제 주문과 비교해요 (대시보드에도 나와요)</Text>
+                  </VStack>
+                </Card>
               )}
-              <label style={{gridColumn:'1/-1',fontSize:10,color:'#6E6A63'}}>메모 (선택)
-                <textarea value={form.memo} onChange={e=>setForm(f=>({ ...f, memo:e.target.value }))} rows={2}
-                  placeholder="예: 최소주문 20,000원, 첫 주문 고객만"
-                  style={{...input,width:'100%',marginTop:4,background:'#FFFFFF',resize:'vertical'}}/>
-              </label>
-            </div>
-            <div style={{display:'flex',gap:8,marginTop:12}}>
-              <button type="button" onClick={saveForm} disabled={saving}
-                style={{background:'var(--hk-accent)',color:'#FFFFFF',border:'none',borderRadius:4,padding:'8px 18px',fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
-                {saving ? '저장 중...' : '저장'}
-              </button>
-              <button type="button" onClick={()=>setForm(null)}
-                style={{background:'transparent',border:'1px solid #DCD7CE',color:'#5F5B54',borderRadius:4,padding:'8px 14px',fontSize:12,cursor:'pointer',fontFamily:'inherit'}}>
-                취소
-              </button>
-            </div>
-          </div>
+              <TextArea label="메모" isOptional rows={2} placeholder="예: 최소주문 20,000원, 첫 주문 고객만" value={form.memo} onChange={v=>setForm(f=>({ ...f, memo:v }))}/>
+              <HStack gap={2}>
+                <Button variant="primary" label={saving ? '저장 중...' : '저장'} isDisabled={saving} onClick={saveForm}/>
+                <Button label="취소" onClick={()=>setForm(null)}/>
+              </HStack>
+            </VStack>
+          </Card>
         )}
 
-        {!events.length && !form && <div style={{fontSize:12,color:'#6E6A63',padding:'10px 0'}}>아직 적어둔 일정이 없어요</div>}
-        <div style={{display:'flex',flexDirection:'column',gap:6}}>
+        {!events.length && !form && <Text color="secondary">아직 적어둔 일정이 없어요</Text>}
+        <List hasDividers edge="flush">
           {events.map(ev => {
             const on = selId === ev.id
             return (
-              <div key={ev.id} style={{display:'flex',alignItems:'center',gap:10,flexWrap:'wrap',background:'#F3F1EC',borderRadius:4,padding:'9px 12px',
-                outline: on ? '1px solid var(--hk-accent)' : 'none'}}>
-                <span style={{fontSize:10,fontWeight:700,padding:'2px 7px',borderRadius:4,background:'rgba(var(--hk-accent-rgb),0.12)',color:'var(--hk-accent)'}}>
-                  {KINDS.find(k=>k.key===ev.kind)?.label || '기타'}
-                </span>
-                <div style={{flex:1,minWidth:160}}>
-                  <div style={{fontSize:12,fontWeight:600}}>{ev.title}</div>
-                  <div style={{fontSize:10,color:'#6E6A63',marginTop:2}}>
-                    {ev.to === OPEN_END ? `${ev.from} ~ 계속` : ev.from === ev.to ? ev.from : `${ev.from} ~ ${ev.to} (${daysBetween(ev.from, ev.to)+1}일)`}
-                    {+ev.perOrder > 0 && ` · 건당 ${(+ev.perOrder).toLocaleString('ko-KR')}원`}
-                    {' · '}{ev.platforms?.length ? ev.platforms.map(k=>PLATFORMS.find(p=>p.key===k)?.short).join(', ') : '전체 앱'}
-                    {ev.memo && ` · ${ev.memo}`}
-                  </div>
-                </div>
-                <button type="button" onClick={()=>setSelId(on ? null : ev.id)} style={chip(on)}>{on ? '효과 닫기' : '효과 보기'}</button>
-                <button type="button" onClick={()=>setForm({ ...emptyForm(), ...ev, platforms: ev.platforms || [], memo: ev.memo || '', perOrder: ev.perOrder ?? '', margin: ev.margin ?? '' })}
-                  style={{...chip(false),padding:'6px 10px'}}>수정</button>
-                <button type="button" onClick={()=>removeEvent(ev)}
-                  style={{background:'transparent',border:'1px solid #E8C4BF',color:'#B42318',borderRadius:6,padding:'5px 9px',fontSize:11,cursor:'pointer',fontFamily:'inherit'}}>삭제</button>
-              </div>
+              <ListItem key={ev.id} startContent={<Badge label={KINDS.find(k=>k.key===ev.kind)?.label || '기타'}/>}
+                label={<Text weight="bold">{ev.title}</Text>}
+                description={<Text type="supporting" color="secondary" hasTabularNumbers>
+                  {ev.to === OPEN_END ? `${ev.from} ~ 계속` : ev.from === ev.to ? ev.from : `${ev.from} ~ ${ev.to} (${daysBetween(ev.from, ev.to)+1}일)`}
+                  {+ev.perOrder > 0 && ` · 건당 ${(+ev.perOrder).toLocaleString('ko-KR')}원`}
+                  {' · '}{ev.platforms?.length ? ev.platforms.map(k=>PLATFORMS.find(p=>p.key===k)?.short).join(', ') : '전체 앱'}
+                  {ev.memo && ` · ${ev.memo}`}
+                </Text>}
+                endContent={<HStack gap={1}>
+                  <Button size="sm" variant={on ? 'primary' : 'secondary'} label={on ? '효과 닫기' : '효과 보기'} onClick={()=>setSelId(on ? null : ev.id)}/>
+                  <Button size="sm" variant="ghost" label="수정" onClick={()=>setForm({ ...emptyForm(), ...ev, platforms: ev.platforms || [], memo: ev.memo || '', perOrder: ev.perOrder ?? '', margin: ev.margin ?? '' })}/>
+                  <Button size="sm" variant="ghost" label="삭제" onClick={()=>removeEvent(ev)}/>
+                </HStack>}/>
             )
           })}
-        </div>
-      </div>
+        </List>
+      </LedgerCard>
 
       {/* 효과 비교 */}
       {selEvent && (
-        <div style={{...card,borderColor:'rgba(var(--hk-accent-rgb),0.45)'}}>
-          <div style={{fontSize:14,fontWeight:700,marginBottom:4}}>'{selEvent.title}' 효과</div>
-          {!periods ? (
-            <div style={{fontSize:12,color:'#6E6A63'}}>아직 시작 전인 일정이에요</div>
-          ) : (
-            <>
-              {!loading && <EventEffect months={months} periods={periods} ev={selEvent}/>}
-              <details>
-              <summary style={{fontSize:12,color:'#2B5C9E',cursor:'pointer',margin:'4px 0 10px'}}>자세히 보기 (숫자 표)</summary>
-              <div style={{fontSize:11,color:'#6E6A63',lineHeight:1.7,marginBottom:12}}>
+        <LedgerCard title={`'${selEvent.title}' 효과`}>
+          {!periods ? <Text color="secondary">아직 시작 전인 일정이에요</Text> : <>
+            {!loading && <Legacy><EventEffect months={months} periods={periods} ev={selEvent}/></Legacy>}
+            <HStack><Button size="sm" variant="ghost" label={showDetail ? '자세히 접기' : '자세히 보기 (숫자 표)'} onClick={()=>setShowDetail(v=>!v)}/></HStack>
+            {showDetail && <>
+              <Text type="supporting" color="secondary">
                 이벤트 기간 {shortDate(selEvent.from)}~{shortDate(periods.to)} ({periods.during.length}일)을
                 ① 바로 전 {periods.before.length}일 ({shortDate(periods.before[0])}~{shortDate(periods.before[periods.before.length-1])}),
                 ② 그 전 4주의 같은 요일 평균과 비교해요. 하루 평균이라 기간 길이가 달라도 비교할 수 있어요.
-              </div>
+              </Text>
+              <Legacy>
               {loading ? <div style={{color:'#6E6A63',fontSize:12}}>불러오는 중...</div> : (()=>{
                 // 배달앱 엑셀로 넣은 날이 있으면 가게 부담 할인도 비교
                 const allDays = [...periods.during, ...periods.before, ...periods.sameWeekday]
@@ -788,15 +685,17 @@ export default function SalesAnalysis() {
                 </div>
                 )
               })()}
-              <div style={{fontSize:10,color:'#6E6A63',marginTop:10,lineHeight:1.7}}>
+
+              </Legacy>
+              <Text type="supporting" color="secondary">
                 ▲▼는 이벤트 기간이 비교 기간보다 몇 % 높거나 낮은지예요. 주문수·객단가는 주문 건수를 적은 날만 계산해요.
                 할인 대상이 아닌 앱도 같이 올랐다면 할인보다는 날씨·시기 영향일 수 있어요.
-              </div>
-              </details>
-            </>
-          )}
-        </div>
+              </Text>
+            </>}
+          </>}
+        </LedgerCard>
       )}
-    </div>
+    </VStack>
+    </AstryxPage>
   )
 }
