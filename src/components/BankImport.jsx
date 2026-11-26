@@ -1,4 +1,16 @@
 import { useEffect, useRef, useState } from 'react'
+import { VStack, HStack } from '@astryxdesign/core/Layout'
+import { Text } from '@astryxdesign/core/Text'
+import { Card } from '@astryxdesign/core/Card'
+import { Badge } from '@astryxdesign/core/Badge'
+import { Banner } from '@astryxdesign/core/Banner'
+import { Button } from '@astryxdesign/core/Button'
+import { Selector } from '@astryxdesign/core/Selector'
+import { TextInput } from '@astryxdesign/core/TextInput'
+import { Table } from '@astryxdesign/core/Table'
+import { CheckboxInput } from '@astryxdesign/core/CheckboxInput'
+import { List, ListItem } from '@astryxdesign/core/List'
+import { Legacy } from '../astryx/AstryxPage'
 import { db } from '../firebase'
 import { doc, getDoc, setDoc } from 'firebase/firestore'
 import { INVEST_OPTIONS, investOption, appendInvestmentRecords, bankSummary } from '../lib/bankRecon'
@@ -215,8 +227,6 @@ const isSangam = t => norm(t.matchText).startsWith('홍콩반점0410상')
 const builtinCat = (t, categories) => norm(t.matchText).startsWith('홍콩반점0410중') && categories.some(c=>c.id==='hq') ? 'hq' : ''
 const isNonOp = v => !!kindOf(v)
 
-const selStyle = {background:'#FFFFFF',border:'1px solid #DCD7CE',borderRadius:6,color:'#1D1B18',
-  padding:'5px 8px',fontSize:11,outline:'none',fontFamily:'inherit'}
 
 export default function BankImport({ categories, onSaved }) {
   const fileRef = useRef(null)
@@ -500,198 +510,121 @@ export default function BankImport({ categories, onSaved }) {
   }
 
   const secs = ['재료비','관리비','인건비']
-  const nonOpOptions = NONOP_KINDS.map(k=><option key={k.value} value={k.value}>{k.label}</option>)
-  const renderRow = (r, amount, color, showCat) => {
-    const dim = r.imported || r.recorded || (!r.out && !r.include) || r.cat==='skip'
+  const nonOpOpts = NONOP_KINDS.map(k=>({ value:k.value, label:k.label }))
+  const catOpts = [
+    { value:'', label:'— 카테고리 —' },
+    ...secs.map(sec => ({ type:'section', title:sec, options: categories.filter(c=>c.sec===sec).map(c=>({ value:c.id, label:c.label })) })),
+    { type:'section', title:'영업 외 (지출 아님 · 통장 잔액 맞추기에만)', options: nonOpOpts },
+    { type:'section', title:'투자관리 회수로 기록 (영업 외)', options: INVEST_OPTIONS.map(o=>({ value:o.value, label:o.label })) },
+    { value:'skip', label:'반영 안 함 (이미 직접 적은 지출 등)' },
+  ]
+  const depOpts = [{ type:'section', title:'영업 외 입금으로 기록', options: nonOpOpts }, { value:'', label:'기록 안 함' }]
+  const renderRow = (r, amount, isOut, showCat) => {
+    const locked = r.imported || r.recorded
+    const checked = r.out ? (!r.imported && r.include && r.cat!=='skip') : r.include
     return (
-      <div key={r.key} style={{background:'#F3F1EC',borderRadius:4,padding:'8px 12px',display:'flex',alignItems:'center',gap:10,
-        flexWrap:'wrap',opacity: dim ? (r.fixed?.paid || (!r.out && !r.recorded) ? 0.8 : 0.45) : 1}}>
-        <input type="checkbox" checked={r.out ? (!r.imported && r.include && r.cat!=='skip') : r.include}
-          disabled={r.imported || r.recorded}
-          onChange={()=> !r.out ? updateDeposit(r.i, { include: !r.include })
-            : r.cat==='skip' ? setCat(r.i, r.fixed?.categoryId || '') : toggle(r.i)}
-          style={{width:16,height:16,cursor:r.imported||r.recorded?'default':'pointer',flexShrink:0}}/>
-        <span style={{fontSize:11,color:'#6E6A63',fontFamily:'inherit',fontVariantNumeric:'tabular-nums',minWidth:80}}>{r.date.slice(5)} {r.time.slice(0,5)}</span>
-        <span style={{flex:1,fontSize:12,color:'#1D1B18',minWidth:120}}>
-          {r.desc || '—'}
-          {r.fixed && (
-            <span style={{display:'block',fontSize:10,marginTop:2,color: r.fixed.paid ? '#6E6A63' : '#2B5C9E'}}>
-              고정지출 '{r.fixed.label}' {r.fixed.paid
-                ? `— ${+r.fixed.paidDate || ''}일 납부 처리돼 있어서 중복이라 제외했어요`
-                : '— 반영하면 고정지출도 이 날짜로 납부 처리돼요'}
-            </span>
-          )}
-          {r.loanDup && !r.imported && !r.recorded && (
-            <span style={{display:'block',fontSize:10,marginTop:2,color:'#6E6A63'}}>대여금 장부에 이미 같은 기록이 있어서 장부에는 다시 쓰지 않아요</span>
-          )}
-          {r.selfTransfer && <span style={{display:'block',fontSize:10,marginTop:2,color:'#6E6A63'}}>예금주(형) 본인 이체라 실입금에서 뺐어요</span>}
-          {r.sangam && !r.imported && !r.recorded && <span style={{display:'block',fontSize:10,marginTop:2,color:'#2B5C9E'}}>상암점 계좌로 형과 주고받은 돈이라 형과의 대여금으로 보내요</span>}
-        </span>
-        <span style={{fontSize:13,fontWeight:700,color,fontFamily:'inherit',fontVariantNumeric:'tabular-nums',minWidth:90,textAlign:'right'}}>{wonFmt(amount)}원</span>
-        {(r.imported || r.recorded) ? (
-          <span style={{fontSize:10,color:'#6E6A63',minWidth:110,textAlign:'center'}}>
-            이미 반영됨{(r.recorded || isNonOp(r.cat)) ? ` (${investOption(r.cat)?.label || NONOP_KINDS.find(k=>k.value===(r.out?r.cat:r.kind))?.label||'영업외'})` : ''}
-          </span>
+      <ListItem key={r.key} align="start"
+        startContent={<CheckboxInput label="반영" isLabelHidden value={checked} isDisabled={locked}
+          onChange={()=> !r.out ? updateDeposit(r.i, { include: !r.include }) : r.cat==='skip' ? setCat(r.i, r.fixed?.categoryId || '') : toggle(r.i)}/>}
+        label={<HStack gap={2} vAlign="center" wrap="wrap"><Text color={checked || locked ? 'primary' : 'secondary'}>{r.desc || '—'}</Text><Text weight="bold" hasTabularNumbers>{wonFmt(amount)}원</Text>{!isOut && <Badge variant="success" label="입금"/>}</HStack>}
+        description={<VStack gap={1}>
+          <Text type="supporting" color="secondary" hasTabularNumbers>{r.date.slice(5)} {r.time.slice(0,5)}</Text>
+          {r.fixed && <Text type="supporting" color="secondary">고정지출 '{r.fixed.label}' {r.fixed.paid ? `— ${+r.fixed.paidDate || ''}일 납부 처리돼 있어서 중복이라 제외했어요` : '— 반영하면 고정지출도 이 날짜로 납부 처리돼요'}</Text>}
+          {r.loanDup && !locked && <Text type="supporting" color="secondary">대여금 장부에 이미 같은 기록이 있어서 장부에는 다시 쓰지 않아요</Text>}
+          {r.selfTransfer && <Text type="supporting" color="secondary">예금주(형) 본인 이체라 실입금에서 뺐어요</Text>}
+          {r.sangam && !locked && <Text type="supporting" color="secondary">상암점 계좌로 형과 주고받은 돈이라 형과의 대여금으로 보내요</Text>}
+        </VStack>}
+        endContent={locked ? (
+          <Badge label={`이미 반영됨${(r.recorded || isNonOp(r.cat)) ? ` (${investOption(r.cat)?.label || NONOP_KINDS.find(k=>k.value===(r.out?r.cat:r.kind))?.label||'영업외'})` : ''}`}/>
         ) : showCat ? (
-          <select value={r.cat} onChange={e=>setCat(r.i, e.target.value)}
-            style={{...selStyle, minWidth:110, borderColor: r.include && !r.cat ? '#B42318' : '#DCD7CE'}}>
-            <option value="">— 카테고리 —</option>
-            {secs.map(sec=>(
-              <optgroup key={sec} label={sec}>
-                {categories.filter(c=>c.sec===sec).map(c=><option key={c.id} value={c.id}>{c.label}</option>)}
-              </optgroup>
-            ))}
-            <optgroup label="영업 외 (지출 아님 · 통장 잔액 맞추기에만)">{nonOpOptions}</optgroup>
-            <optgroup label="투자관리 회수로 기록 (영업 외)">
-              {INVEST_OPTIONS.map(o=><option key={o.value} value={o.value}>{o.label}</option>)}
-            </optgroup>
-            <option value="skip">반영 안 함 (이미 직접 적은 지출 등)</option>
-          </select>
-        ) : !r.include && (
-          <select value={r.kind||''} onChange={e=>updateDeposit(r.i, { kind: e.target.value })}
-            style={{...selStyle, minWidth:150}}>
-            <optgroup label="영업 외 입금으로 기록">{nonOpOptions}</optgroup>
-            <option value="">기록 안 함</option>
-          </select>
-        )}
-      </div>
+          <Selector label="카테고리" isLabelHidden size="sm" value={r.cat || ''} onChange={v=>setCat(r.i, v ?? '')} options={catOpts}/>
+        ) : !r.include ? (
+          <Selector label="입금 종류" isLabelHidden size="sm" value={r.kind || ''} onChange={v=>updateDeposit(r.i, { kind: v ?? '' })} options={depOpts}/>
+        ) : null}/>
     )
   }
 
   return (
-    <div style={{padding:18}}>
-      <div style={{fontSize:12,color:'#6E6A63',marginBottom:14,lineHeight:1.7}}>
-        인터넷뱅킹에서 받은 <b style={{color:'#1D1B18'}}>거래내역 엑셀(.xls / .xlsx / .csv) 또는 PDF</b>를 올리면 출금을 지출 카테고리별로 정리해요.<br/>
+    <VStack gap={3}>
+      <Text type="supporting" color="secondary">
+        인터넷뱅킹에서 받은 거래내역 엑셀(.xls / .xlsx / .csv) 또는 PDF를 올리면 출금을 지출 카테고리별로 정리해요.
         한 번 고른 카테고리는 기억해서 다음부터 자동으로 골라줘요. 같은 파일을 다시 올려도 중복 반영되지 않아요.
-      </div>
-
-      <div onClick={()=>!busy && fileRef.current?.click()}
-        style={{border:'2px dashed #DCD7CE',borderRadius:6,padding:'24px',textAlign:'center',cursor:busy?'default':'pointer',marginBottom:14}}>
-        <div style={{fontSize:28,marginBottom:6}}></div>
-        <div style={{fontSize:13,color:'#1D1B18'}}>{busy ? '읽는 중...' : fileName || '클릭해서 거래내역 파일 선택 (엑셀·PDF)'}</div>
-      </div>
-      <input ref={fileRef} type="file" accept=".xls,.xlsx,.csv,.pdf" style={{display:'none'}}
-        onChange={e=>handleFile(e.target.files?.[0])}/>
-      {err && <div style={{fontSize:12,color:'#B42318',marginBottom:12}}>{err}</div>}
+      </Text>
+      <Card variant="muted" padding={4}>
+        <HStack gap={3} vAlign="center" hAlign="between" wrap="wrap">
+          <Text>{busy ? '읽는 중...' : fileName || '거래내역 파일(엑셀·PDF)을 골라 주세요'}</Text>
+          <Button variant="primary" label="파일 고르기" isDisabled={busy} onClick={()=>fileRef.current?.click()}/>
+        </HStack>
+      </Card>
+      <Legacy><input ref={fileRef} type="file" accept=".xls,.xlsx,.csv,.pdf" style={{display:'none'}} onChange={e=>handleFile(e.target.files?.[0])}/></Legacy>
+      {err && <Banner status="error" title={err}/>}
       {pwFile && (
-        <div style={{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap',marginBottom:14}}>
-          <input type="password" autoFocus value={password} onChange={e=>setPassword(e.target.value)}
-            onKeyDown={e=>e.key==='Enter' && handleFile(pwFile, password)}
-            placeholder="PDF 비밀번호" autoComplete="off"
-            style={{...selStyle,padding:'8px 10px',fontSize:12,width:180}}/>
-          <button onClick={()=>handleFile(pwFile, password)} disabled={busy||!password}
-            style={{background:'var(--hk-accent)',color:'#FFFFFF',border:'none',borderRadius:4,padding:'8px 16px',
-              fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>열기</button>
-          <span style={{fontSize:10,color:'#6E6A63'}}>비밀번호는 이 화면에서 파일을 여는 데만 쓰고 저장하지 않아요</span>
-        </div>
+        <HStack gap={2} vAlign="end" wrap="wrap">
+          <TextInput type="password" label="PDF 비밀번호" value={password} onChange={v=>setPassword(v)} onEnter={()=>handleFile(pwFile, password)}/>
+          <Button variant="primary" label="열기" isDisabled={busy||!password} onClick={()=>handleFile(pwFile, password)}/>
+          <Text type="supporting" color="secondary">비밀번호는 이 화면에서 파일을 여는 데만 쓰고 저장하지 않아요</Text>
+        </HStack>
       )}
-      {done && <div style={{fontSize:12,color:'#2E7D45',marginBottom:12}}>{done}</div>}
+      {done && <Banner status="success" title={done}/>}
 
-      {rows && (
-        <>
-          {check && (check.out!==null || check.in!==null) && (()=>{
-            const outSum = outs.reduce((a,r)=>a+r.out,0), inSum = ins.reduce((a,r)=>a+r.in,0)
-            const ok = (check.out===null || check.out===outSum) && (check.in===null || check.in===inSum)
-            return (
-              <div style={{fontSize:11,marginBottom:12,padding:'8px 12px',borderRadius:4,
-                background: ok ? 'rgba(46,125,69,0.08)' : 'rgba(180,35,24,0.1)', color: ok ? '#2E7D45' : '#B42318'}}>
-                {ok ? 'PDF의 총 출금·입금 금액과 읽은 합계가 일치해요'
-                    : `PDF 총액과 다르게 읽혔어요 (총 출금 ${wonFmt(check.out)}원 / 읽은 출금 ${wonFmt(outSum)}원, 총 입금 ${wonFmt(check.in)}원 / 읽은 입금 ${wonFmt(inSum)}원). 빠진 거래가 있을 수 있으니 알려주세요.`}
-              </div>
-            )
-          })()}
-          {pickedOut.length + depChanged.length + nonOpIn.length > 0 && (
-            <div style={{fontSize:11,marginBottom:12,padding:'8px 12px',borderRadius:4,background:'rgba(var(--hk-accent-rgb),0.08)',color:'var(--hk-accent)'}}>
-              아직 저장 전이에요. 카테고리를 고른 뒤 맨 아래 <b>"지출관리에 반영"</b>을 눌러야 지출관리에 들어가요. 다 못 골라도 고른 것만 먼저 반영할 수 있어요.
-            </div>
-          )}
-          {!rulesOk && (
-            <div style={{fontSize:11,marginBottom:12,color:'#6E6A63'}}>
-              ℹ️ 카테고리 기억 기능을 쓸 수 없어요(Firebase 보안 규칙에 expenseImportRules 허용 필요). 지출 반영은 정상적으로 돼요.
-            </div>
-          )}
-          {ins.length > 0 && period && (()=>{
-            const curSum = depDays.reduce((a,d)=>a+d.cur,0), pdfSum = depDays.reduce((a,d)=>a+d.pdf,0)
-            const excluded = ins.filter(r=>!r.include)
-            const shownDays = depDays.filter(d=>d.cur || d.pdf)
-            return (
-              <div style={{marginBottom:16,background:'rgba(46,125,69,0.04)',border:'1px solid rgba(46,125,69,0.2)',borderRadius:6,padding:12}}>
-                <label style={{display:'flex',alignItems:'center',gap:8,fontSize:12,fontWeight:600,color:'#2E7D45',cursor:'pointer'}}>
-                  <input type="checkbox" checked={withDeposits} onChange={e=>setWithDeposits(e.target.checked)} style={{width:16,height:16}}/>
-                  실입금액을 PDF 입금으로 맞추기 ({+period[0].slice(5,7)}/{+period[0].slice(8)} ~ {+period[1].slice(5,7)}/{+period[1].slice(8)})
-                </label>
-                <div style={{fontSize:10,color:'#6E6A63',margin:'6px 0 10px 24px',lineHeight:1.6}}>
-                  이 기간 날짜별 실입금액을 아래 'PDF' 금액으로 <b>바꿔요</b>(더하지 않아요). 직접 적어둔 금액은 PDF 금액으로 대체돼요.<br/>
-                  매출이 아닌 입금(형 대여금·투자금·개인 이체 등)은 아래 입금 내역에서 체크를 빼고 종류를 고르면 '영업 외 거래'로 기록돼요. 다음부터 자동으로 빠져요.
-                </div>
-                {withDeposits && (
-                  <>
-                    <div style={{display:'flex',gap:16,flexWrap:'wrap',fontSize:12,marginBottom:8}}>
-                      <span style={{color:'#6E6A63'}}>지금 적힌 합계 <b style={{color:'#1D1B18',fontFamily:'inherit',fontVariantNumeric:'tabular-nums'}}>{wonFmt(curSum)}원</b></span>
-                      <span style={{color:'#6E6A63'}}>PDF 기준 합계 <b style={{color:'#2E7D45',fontFamily:'inherit',fontVariantNumeric:'tabular-nums'}}>{wonFmt(pdfSum)}원</b></span>
-                      <span style={{color: depChanged.length ? 'var(--hk-accent)' : '#2E7D45'}}>{depChanged.length ? `${depChanged.length}일 금액이 달라요` : '모든 날짜가 일치해요'}</span>
-                    </div>
-                    <div style={{maxHeight:240,overflowY:'auto',border:'1px solid #DCD7CE',borderRadius:4,marginBottom:8}}>
-                      <table style={{width:'100%',borderCollapse:'collapse',fontSize:11}}>
-                        <thead><tr style={{background:'#F3F1EC',color:'#6E6A63'}}>
-                          {['날짜','지금 적힌 금액','PDF 금액','차이'].map((h,i)=><th key={h} style={{padding:'6px 10px',textAlign:i?'right':'left',fontWeight:600}}>{h}</th>)}
-                        </tr></thead>
-                        <tbody>
-                          {shownDays.map(d=>{
-                            const diff = d.pdf - d.cur
-                            return (
-                              <tr key={d.date} style={{background: diff ? 'rgba(var(--hk-accent-rgb),0.06)' : 'transparent'}}>
-                                <td style={{padding:'5px 10px',borderTop:'1px solid #DCD7CE',color:'#1D1B18'}}>{+d.date.slice(5,7)}/{+d.date.slice(8)}</td>
-                                <td style={{padding:'5px 10px',borderTop:'1px solid #DCD7CE',textAlign:'right',fontFamily:'inherit',fontVariantNumeric:'tabular-nums',color:'#6E6A63'}}>{d.cur?wonFmt(d.cur):'—'}</td>
-                                <td style={{padding:'5px 10px',borderTop:'1px solid #DCD7CE',textAlign:'right',fontFamily:'inherit',fontVariantNumeric:'tabular-nums',color:'#2E7D45'}}>{wonFmt(d.pdf)}</td>
-                                <td style={{padding:'5px 10px',borderTop:'1px solid #DCD7CE',textAlign:'right',fontFamily:'inherit',fontVariantNumeric:'tabular-nums',
-                                  color: diff>0 ? 'var(--hk-accent)' : diff<0 ? '#B42318' : '#6E6A63'}}>{diff ? `${diff>0?'+':''}${wonFmt(diff)}` : '일치'}</td>
-                              </tr>
-                            )
-                          })}
-                        </tbody>
-                      </table>
-                    </div>
-                    <button type="button" onClick={()=>setShowDepRows(v=>!v)}
-                      style={{background:'transparent',border:'none',color:'#2B5C9E',fontSize:11,cursor:'pointer',fontFamily:'inherit',padding:0}}>
-                      {showDepRows ? '▾ 입금 내역 접기' : `▸ 입금 내역 ${ins.length}건 보기`}{excluded.length ? ` (제외 ${excluded.length}건 · ${wonFmt(excluded.reduce((a,r)=>a+r.in,0))}원)` : ''}{nonOpIn.length ? ` · 영업 외 입금 ${nonOpIn.length}건 기록 예정` : ''}
-                    </button>
-                    {showDepRows && (
-                      <div style={{display:'flex',flexDirection:'column',gap:6,marginTop:8}}>
-                        {ins.map(r=>renderRow(r, r.in, '#2E7D45', false))}
-                      </div>
-                    )}
-                  </>
-                )}
-              </div>
-            )
-          })()}
+      {rows && <>
+        {check && (check.out!==null || check.in!==null) && (()=>{
+          const outSum = outs.reduce((a,r)=>a+r.out,0), inSum = ins.reduce((a,r)=>a+r.in,0)
+          const ok = (check.out===null || check.out===outSum) && (check.in===null || check.in===inSum)
+          return <Banner status={ok ? 'success' : 'error'} title={ok ? 'PDF의 총 출금·입금 금액과 읽은 합계가 일치해요'
+            : `PDF 총액과 다르게 읽혔어요 (총 출금 ${wonFmt(check.out)}원 / 읽은 출금 ${wonFmt(outSum)}원, 총 입금 ${wonFmt(check.in)}원 / 읽은 입금 ${wonFmt(inSum)}원). 빠진 거래가 있을 수 있으니 알려주세요.`}/>
+        })()}
+        {pickedOut.length + depChanged.length + nonOpIn.length > 0 && (
+          <Banner status="warning" title="아직 저장 전이에요." description={`카테고리를 고른 뒤 맨 아래 "지출관리에 반영"을 눌러야 지출관리에 들어가요. 다 못 골라도 고른 것만 먼저 반영할 수 있어요.`}/>
+        )}
+        {!rulesOk && <Text type="supporting" color="secondary">카테고리 기억 기능을 쓸 수 없어요(Firebase 보안 규칙에 expenseImportRules 허용 필요). 지출 반영은 정상적으로 돼요.</Text>}
 
-          <div style={{fontSize:12,fontWeight:600,marginBottom:8,display:'flex',justifyContent:'space-between',flexWrap:'wrap',gap:6}}>
-            <span style={{color:'#B42318'}}>출금 {outs.length}건</span>
-            <span style={{color:'#6E6A63',fontWeight:400}}>
-              지출 {expOut.length}건 · {wonFmt(expOut.reduce((a,r)=>a+r.out,0))}원{nonOpOut.length ? ` / 영업 외 ${nonOpOut.length}건 · ${wonFmt(nonOpOut.reduce((a,r)=>a+r.out,0))}원` : ''}
-              {unassigned>0 && <b style={{color:'#B42318',marginLeft:6}}>미분류 {unassigned}건</b>}
-            </span>
-          </div>
-          <div style={{display:'flex',flexDirection:'column',gap:6,marginBottom:16}}>
-            {outs.map(r=>renderRow(r, r.out, '#B42318', true))}
-          </div>
+        {ins.length > 0 && period && (()=>{
+          const curSum = depDays.reduce((a,d)=>a+d.cur,0), pdfSum = depDays.reduce((a,d)=>a+d.pdf,0)
+          const excluded = ins.filter(r=>!r.include)
+          const shownDays = depDays.filter(d=>d.cur || d.pdf)
+          return (
+            <Card variant="muted" padding={3}>
+              <VStack gap={2}>
+                <CheckboxInput label={`실입금액을 PDF 입금으로 맞추기 (${+period[0].slice(5,7)}/${+period[0].slice(8)} ~ ${+period[1].slice(5,7)}/${+period[1].slice(8)})`} value={withDeposits} onChange={v=>setWithDeposits(v)}/>
+                <Text type="supporting" color="secondary">이 기간 날짜별 실입금액을 아래 'PDF' 금액으로 바꿔요(더하지 않아요). 직접 적어둔 금액은 PDF 금액으로 대체돼요. 매출이 아닌 입금(형 대여금·투자금·개인 이체 등)은 아래 입금 내역에서 체크를 빼고 종류를 고르면 '영업 외 거래'로 기록돼요. 다음부터 자동으로 빠져요.</Text>
+                {withDeposits && <>
+                  <HStack gap={3} wrap="wrap">
+                    <Text type="supporting" color="secondary" hasTabularNumbers>지금 적힌 합계 <Text weight="bold" color="primary">{wonFmt(curSum)}원</Text></Text>
+                    <Text type="supporting" color="secondary" hasTabularNumbers>PDF 기준 합계 <Text weight="bold" color="primary">{wonFmt(pdfSum)}원</Text></Text>
+                    <Badge variant={depChanged.length ? 'warning' : 'success'} label={depChanged.length ? `${depChanged.length}일 금액이 달라요` : '모든 날짜가 일치해요'}/>
+                  </HStack>
+                  <Table data={shownDays} idKey="date" density="compact"
+                    columns={[
+                      { key:'date', header:'날짜', renderCell: d => <Text hasTabularNumbers>{+d.date.slice(5,7)}/{+d.date.slice(8)}</Text> },
+                      { key:'cur', header:'지금 적힌 금액', align:'end', renderCell: d => <Text color="secondary" hasTabularNumbers>{d.cur ? wonFmt(d.cur) : '—'}</Text> },
+                      { key:'pdf', header:'PDF 금액', align:'end', renderCell: d => <Text hasTabularNumbers>{wonFmt(d.pdf)}</Text> },
+                      { key:'diff', header:'차이', align:'end', renderCell: d => { const diff = d.pdf - d.cur; return <Text weight={diff ? 'bold' : undefined} color={diff ? 'accent' : 'secondary'} hasTabularNumbers>{diff ? `${diff>0?'+':''}${wonFmt(diff)}` : '일치'}</Text> } },
+                    ]}/>
+                  <HStack><Button size="sm" variant="ghost" onClick={()=>setShowDepRows(v=>!v)}
+                    label={`${showDepRows ? '입금 내역 접기' : `입금 내역 ${ins.length}건 보기`}${excluded.length ? ` (제외 ${excluded.length}건 · ${wonFmt(excluded.reduce((a,r)=>a+r.in,0))}원)` : ''}${nonOpIn.length ? ` · 영업 외 입금 ${nonOpIn.length}건 기록 예정` : ''}`}/></HStack>
+                  {showDepRows && <List hasDividers edge="flush">{ins.map(r=>renderRow(r, r.in, false, false))}</List>}
+                </>}
+              </VStack>
+            </Card>
+          )
+        })()}
 
-          <div style={{display:'flex',gap:8}}>
-            <button onClick={save} disabled={busy}
-              style={{flex:1,background:'#2E7D45',color:'#FFFFFF',border:'none',borderRadius:4,padding:'11px',
-                fontSize:13,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
-              {busy ? '저장 중...' : `지출관리에 반영 (지출 ${expOut.length}건${depChanged.length?` · 실입금 ${depChanged.length}일`:''}${nonOpOut.length+nonOpIn.length?` · 영업외 ${nonOpOut.length+nonOpIn.length}건`:''})`}
-            </button>
-            <button onClick={()=>{ setRows(null); setFileName(''); if(fileRef.current) fileRef.current.value='' }}
-              style={{background:'#F3F1EC',color:'#6E6A63',border:'1px solid #DCD7CE',borderRadius:4,
-                padding:'11px 16px',fontSize:12,cursor:'pointer',fontFamily:'inherit'}}>
-              취소
-            </button>
-          </div>
-        </>
-      )}
-    </div>
+        <HStack hAlign="between" wrap="wrap" gap={2}>
+          <Text weight="bold">출금 {outs.length}건</Text>
+          <HStack gap={2} vAlign="center">
+            <Text type="supporting" color="secondary" hasTabularNumbers>지출 {expOut.length}건 · {wonFmt(expOut.reduce((a,r)=>a+r.out,0))}원{nonOpOut.length ? ` / 영업 외 ${nonOpOut.length}건 · ${wonFmt(nonOpOut.reduce((a,r)=>a+r.out,0))}원` : ''}</Text>
+            {unassigned > 0 && <Badge variant="error" label={`미분류 ${unassigned}건`}/>}
+          </HStack>
+        </HStack>
+        <List hasDividers edge="flush">{outs.map(r=>renderRow(r, r.out, true, true))}</List>
+
+        <VStack gap={2}>
+          <Button variant="primary" width="100%" isDisabled={busy} onClick={save}
+            label={busy ? '저장 중...' : `지출관리에 반영 (지출 ${expOut.length}건${depChanged.length?` · 실입금 ${depChanged.length}일`:''}${nonOpOut.length+nonOpIn.length?` · 영업외 ${nonOpOut.length+nonOpIn.length}건`:''})`}/>
+          <Button variant="ghost" width="100%" label="취소" onClick={()=>{ setRows(null); setFileName(''); if(fileRef.current) fileRef.current.value='' }}/>
+        </VStack>
+      </>}
+    </VStack>
   )
 }

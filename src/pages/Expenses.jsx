@@ -766,7 +766,6 @@ const [payingDate, setPayingDate]     = useState('')
         </TabList>}>
         <div id="expense-input" style={{scrollMarginTop:70}}/>
         {inputMode === 'bank' && (
-          <Legacy>
             <BankImport categories={categories} onSaved={months=>{
               // 반영한 달로 이동해서 바로 확인할 수 있게
               const last = months?.[months.length-1]
@@ -774,7 +773,6 @@ const [payingDate, setPayingDate]     = useState('')
               // 대여금 장부도 바뀌었을 수 있으니 다시 불러옴
               getDoc(doc(db,'loans','hyung')).then(s=>setLoanRecords(s.exists() ? (s.data().list||[]) : [])).catch(e=>console.error(e))
             }}/>
-          </Legacy>
         )}
         {inputMode === 'manual' && <>
           <Text type="supporting" color="secondary">현금으로 낸 것처럼 통장에 안 찍히는 지출만 여기서 적으세요. 이미 적힌 날을 고치려면 아래 일별 표의 수정을 누르세요.</Text>
