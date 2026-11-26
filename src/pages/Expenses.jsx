@@ -7,6 +7,10 @@ import { HStack } from '@astryxdesign/core/Layout'
 import { Badge } from '@astryxdesign/core/Badge'
 import { Divider } from '@astryxdesign/core/Divider'
 import { DateInput } from '@astryxdesign/core/DateInput'
+import { Card } from '@astryxdesign/core/Card'
+import { Table } from '@astryxdesign/core/Table'
+import { TextInput } from '@astryxdesign/core/TextInput'
+import { SegmentedControl, SegmentedControlItem } from '@astryxdesign/core/SegmentedControl'
 import { List, ListItem } from '@astryxdesign/core/List'
 import { AstryxPage, Legacy, PageHeader, MonthNav, LedgerCard, Ledger, LedgerRow } from '../astryx/AstryxPage'
 import CountUp from '../components/CountUp'
@@ -488,18 +492,6 @@ const [payingDate, setPayingDate]     = useState('')
       style={field({ width, textAlign:'right', ...num, ...extra })}/>
   )
   const leader = () => <span aria-hidden="true" style={{flex:1, borderBottom:`1px dotted ${T.faint}`, margin:'0 8px', minWidth:12, transform:'translateY(-4px)'}}/>
-  const line = (label, value, { strong, sub, minus, plus, color, note, key } = {}) => (
-    <div key={key||label} style={{display:'flex', alignItems:'baseline', padding: sub ? '3px 0 3px 14px' : '7px 0',
-      fontSize: strong ? 17 : sub ? 13 : 15, fontWeight: strong ? 800 : sub ? 400 : 600, color: sub ? T.sub : T.ink}}>
-      <span style={{whiteSpace:'nowrap'}}>{label}</span>
-      {note && <span style={{fontSize:12, color:T.sub, marginLeft:6, whiteSpace:'nowrap', fontWeight:400}}>{note}</span>}
-      {leader()}
-      <span style={{...num, whiteSpace:'nowrap', color: color || 'inherit'}}>{minus && value ? '− ' : plus && value ? '+ ' : ''}<CountUp value={value}/></span>
-    </div>
-  )
-  const total = (label, value, opts) => (
-    <div style={{borderTop:`3px double ${T.ink}`, marginTop:6, paddingTop:2}}>{line(label, value, { strong:true, ...opts })}</div>
-  )
   const sectionTitle = (text, right) => (
     <div style={{display:'flex', justifyContent:'space-between', alignItems:'baseline', gap:10, flexWrap:'wrap',
       borderBottom:`2px solid ${T.ink}`, paddingBottom:6, marginBottom:6}}>
@@ -514,7 +506,6 @@ const [payingDate, setPayingDate]     = useState('')
       {label}
     </button>
   )
-  const empty = text => <div style={{padding:'14px 0', color:T.sub, fontSize:13}}>{text}</div>
   const pctOf = (a,b) => b>0 ? Math.round(a/b*100) : 0
   const secTotal = sec => categories.filter(c=>c.sec===sec).reduce((a,c)=>a+(tot[c.id]||0),0)
   const carryNote = data.carryoverSource==='bank' ? '이 달 통장 시작 잔액'
@@ -523,6 +514,10 @@ const [payingDate, setPayingDate]     = useState('')
   const dayRows = Object.keys(data).filter(dd=>/^\d{2}$/.test(dd)).sort()
   const formExp = categories.reduce((a,f)=>a+(+form[f.id]||0),0)
 
+  // 금액 입력 (쉼표 찍어 보여주고 숫자만 받음)
+  const moneyField = (label, val, set) => (
+    <TextInput label={label} value={val === '' || val == null ? '' : val === '-' ? '-' : (+val).toLocaleString('ko-KR')} onChange={v => set(v.replace(/[^0-9]/g, ''))} inputMode="numeric" placeholder="0" width={150}/>
+  )
   // Astryx 장부 줄 (금액이 굴러가며 바뀜)
   const row = (label, value, o = {}) => <LedgerRow key={o.key || label} label={label} value={value} note={o.note} sub={o.sub} strong={o.strong} minus={o.minus} plus={o.plus} tone={o.tone}/>
 
@@ -718,126 +713,92 @@ const [payingDate, setPayingDate]     = useState('')
           )}
         </LedgerCard>
 
-        {/* 형과의 단기 대여금: 아직 예전 모양 */}
-        <Legacy>
-        {/* 형과의 단기 대여금 */}
-        <section>
-          {sectionTitle('형과의 단기 대여금', <>
-            {!loanOpen && <span style={{...num}}>남은 대여금 <b style={{color: loanBalance>0 ? T.red : loanBalance<0 ? T.green : T.ink}}>{won(loanBalance)}</b>원{loanFlow.open.length > 0 && ` · ${mdDot(loanFlow.open[0].rec.date)} 빌려준 돈부터 남음`}</span>}
-            {loanOpen && loanBalance > 0 && <Btn onClick={()=>{ setShowConvert(v=>!v); setConvertAmount(String(loanBalance)) }} small>투자금 회수로 전환</Btn>}
-            {loanOpen && loanBalance !== 0 && <Btn onClick={()=>{ setShowReset(v=>!v); setResetForm({ date:todayFullStr(), memo:'' }) }} small>0으로 정리</Btn>}
-            {loanOpen && <Btn onClick={()=>setShowLoanMgr(v=>!v)} small>{showLoanMgr ? '입력 닫기' : '기록 추가'}</Btn>}
-            <Btn onClick={toggleLoanOpen} small>{loanOpen ? '접기' : `펼치기 (${loanRecords.length}건)`}</Btn>
-          </>)}
+        {/* 형과의 단기 대여금 (Astryx) */}
+        <LedgerCard title="형과의 단기 대여금" right={<>
+          {!loanOpen && <Text type="supporting" color={loanBalance>0 ? 'accent' : 'secondary'} hasTabularNumbers>남은 대여금 {won(loanBalance)}원{loanFlow.open.length > 0 ? ` · ${mdDot(loanFlow.open[0].rec.date)} 빌려준 돈부터 남음` : ''}</Text>}
+          {loanOpen && loanBalance > 0 && <Button size="sm" label="투자금 회수로 전환" onClick={()=>{ setShowConvert(v=>!v); setConvertAmount(String(loanBalance)) }}/>}
+          {loanOpen && loanBalance !== 0 && <Button size="sm" label="0으로 정리" onClick={()=>{ setShowReset(v=>!v); setResetForm({ date:todayFullStr(), memo:'' }) }}/>}
+          {loanOpen && <Button size="sm" label={showLoanMgr ? '입력 닫기' : '기록 추가'} onClick={()=>setShowLoanMgr(v=>!v)}/>}
+          <Button size="sm" variant="ghost" label={loanOpen ? '접기' : `펼치기 (${loanRecords.length}건)`} onClick={toggleLoanOpen}/>
+        </>}>
           {loanOpen && <>
+            {showConvert && (
+              <Card variant="muted" padding={3}>
+                <VStack gap={2}>
+                  <Text weight="bold">잔액 중 일부(또는 전체)를 투자금 회수로 전환</Text>
+                  <HStack gap={2} vAlign="end" wrap="wrap">
+                    {moneyField('전환할 금액', convertAmount, setConvertAmount)}
+                    <Text type="supporting" color="secondary">/ 잔액 {won(loanBalance)}원</Text>
+                    <Button variant="primary" label={saving ? '처리 중...' : '전환'} isLoading={saving} onClick={convertToInvestment}/>
+                    <Button label="취소" onClick={()=>setShowConvert(false)}/>
+                  </HStack>
+                  <Text type="supporting" color="secondary">전환하면 대여금 잔액이 줄고, 투자관리의 형 "대출금 상환 회수"에 자동으로 적혀요.</Text>
+                </VStack>
+              </Card>
+            )}
 
-          {showConvert && (
-            <div style={{background:T.chip, borderRadius:4, padding:'12px 14px', margin:'8px 0'}}>
-              <div style={{fontSize:13, fontWeight:700, marginBottom:8}}>잔액 중 일부(또는 전체)를 투자금 회수로 전환</div>
-              <div style={{display:'flex', gap:8, alignItems:'center', flexWrap:'wrap'}}>
-                {money(convertAmount, setConvertAmount, { label:'전환할 금액', width:150 })}
-                <span style={{fontSize:12, color:T.sub}}>/ 잔액 {won(loanBalance)}원</span>
-                <Btn onClick={convertToInvestment} kind="primary" disabled={saving}>{saving ? '처리 중...' : '전환'}</Btn>
-                <Btn onClick={()=>setShowConvert(false)}>취소</Btn>
-              </div>
-              <div style={{fontSize:11, color:T.sub, marginTop:8}}>전환하면 대여금 잔액이 줄고, 투자관리의 형 "대출금 상환 회수"에 자동으로 적혀요.</div>
-            </div>
-          )}
+            {showReset && (
+              <Card variant="muted" padding={3}>
+                <VStack gap={2}>
+                  <Text weight="bold">남은 대여금을 0으로 정리하고 새로 시작</Text>
+                  <HStack gap={2} vAlign="end" wrap="wrap">
+                    <DateInput label="정리 날짜 (까지)" value={resetForm.date} onChange={v=>setResetForm(f=>({...f,date:v || ''}))}/>
+                    <TextInput label="메모" placeholder="예: 형과 정산 끝" value={resetForm.memo} onChange={v=>setResetForm(f=>({...f,memo:v}))}/>
+                    <Button variant="primary" label={saving ? '처리 중...' : '0으로 정리'} isLoading={saving} onClick={resetLoans}/>
+                    <Button label="취소" onClick={()=>setShowReset(false)}/>
+                  </HStack>
+                  <Text type="supporting" color="secondary">그 날짜까지 남은 돈은 모두 정리된 걸로 보고, 그 뒤 거래부터 새로 계산해요. 예전 기록은 지우지 않고 접어 두기만 해요 (지우면 계좌내역을 다시 올릴 때 같은 거래가 또 들어가요). 정리 기록을 삭제하면 원래대로 돌아가요.</Text>
+                </VStack>
+              </Card>
+            )}
 
-          {showReset && (
-            <div style={{background:T.chip, borderRadius:4, padding:'12px 14px', margin:'8px 0'}}>
-              <div style={{fontSize:13, fontWeight:700, marginBottom:8}}>남은 대여금을 0으로 정리하고 새로 시작</div>
-              <div style={{display:'flex', gap:8, alignItems:'center', flexWrap:'wrap'}}>
-                <input type="date" value={resetForm.date} onChange={e=>setResetForm(f=>({...f,date:e.target.value}))} aria-label="정리 날짜"
-                  style={field({ fontSize:13 })}/>
-                <span style={{fontSize:12, color:T.sub}}>까지</span>
-                <input value={resetForm.memo} onChange={e=>setResetForm(f=>({...f,memo:e.target.value}))}
-                  placeholder="메모 (예: 형과 정산 끝)" style={field({ flex:1, minWidth:120, fontSize:13 })}/>
-                <Btn onClick={resetLoans} kind="primary" disabled={saving}>{saving ? '처리 중...' : '0으로 정리'}</Btn>
-                <Btn onClick={()=>setShowReset(false)}>취소</Btn>
-              </div>
-              <div style={{fontSize:11, color:T.sub, marginTop:8, lineHeight:1.6}}>
-                그 날짜까지 남은 돈은 모두 정리된 걸로 보고, 그 뒤 거래부터 새로 계산해요. 예전 기록은 지우지 않고 접어 두기만 해요
-                (지우면 계좌내역을 다시 올릴 때 같은 거래가 또 들어가요). 정리 기록을 삭제하면 원래대로 돌아가요.
-              </div>
-            </div>
-          )}
+            {showLoanMgr && (
+              <Card variant="muted" padding={3}>
+                <HStack gap={2} vAlign="end" wrap="wrap">
+                  <DateInput label="날짜" value={loanForm.date} onChange={v=>setLoanForm(f=>({...f,date:v || ''}))}/>
+                  <SegmentedControl label="빌려줌·받음" value={loanForm.type} onChange={v=>setLoanForm(f=>({...f,type:v}))}>
+                    <SegmentedControlItem value="lent" label="빌려줌"/>
+                    <SegmentedControlItem value="received" label="받음"/>
+                  </SegmentedControl>
+                  {moneyField('금액', loanForm.amount, v=>setLoanForm(f=>({...f,amount:v})))}
+                  <TextInput label="메모" isOptional value={loanForm.memo} onChange={v=>setLoanForm(f=>({...f,memo:v}))}/>
+                  <Button variant="primary" label="추가" onClick={addLoanRecord}/>
+                </HStack>
+              </Card>
+            )}
 
-          {showLoanMgr && (
-            <div style={{background:T.chip, borderRadius:4, padding:'12px 14px', margin:'8px 0', display:'flex', gap:8, alignItems:'center', flexWrap:'wrap'}}>
-              <input type="date" value={loanForm.date} onChange={e=>setLoanForm(f=>({...f,date:e.target.value}))} aria-label="날짜"
-                style={field({ fontSize:13 })}/>
-              <div style={{display:'flex', gap:12}}>
-                {[['lent','빌려줌'],['received','받음']].map(([k,l])=>textTab(loanForm.type===k, l, ()=>setLoanForm(f=>({...f,type:k}))))}
-              </div>
-              {money(loanForm.amount, v=>setLoanForm(f=>({...f,amount:v})), { label:'금액', width:120, extra:{ fontSize:13 } })}
-              <input value={loanForm.memo} onChange={e=>setLoanForm(f=>({...f,memo:e.target.value}))}
-                placeholder="메모 (선택)" style={field({ flex:1, minWidth:100, fontSize:13 })}/>
-              <Btn onClick={addLoanRecord} kind="primary">추가</Btn>
-            </div>
-          )}
-
-          {loanRecords.length === 0 ? empty('기록 추가에서 빌려준 돈, 받은 돈을 적으세요') : (
-            <>
-              {/* 아직 남은 돈: 언제 빌려준 돈인지 */}
+            {loanRecords.length === 0 ? <Text color="secondary">기록 추가에서 빌려준 돈, 받은 돈을 적으세요</Text> : <>
+              {/* 아직 남은 돈: 언제 빌려준 돈인지 (받은 돈은 먼저 빌려준 것부터 갚은 걸로 계산) */}
               {loanFlow.open.length > 0 && (
-                <div style={{margin:'8px 0 14px'}}>
-                  <div style={{fontSize:12, fontWeight:700, color:T.sub, marginBottom:2}}>
-                    {loanFlow.open[0].dir > 0 ? '아직 못 받은 돈' : '내가 더 받은 돈'} <span style={{fontWeight:400}}>· 받은 돈은 먼저 빌려준 것부터 갚은 걸로 계산</span>
-                  </div>
-                  {loanFlow.open.map(o=>(
-                    <div key={o.rec.id} style={{borderLeft:`4px solid ${o.dir>0 ? T.red : T.green}`, background: o.dir>0 ? '#B4231810' : '#2E7D4510',
-                      borderRadius:'0 4px 4px 0', padding:'7px 12px', marginTop:4}}>
-                      <div style={{display:'flex', alignItems:'baseline', fontSize:14}}>
-                        <span style={{fontWeight:700, whiteSpace:'nowrap', ...num}}>{mdDot(o.rec.date)} {o.dir>0 ? '빌려준 돈' : '받은 돈'}</span>
-                        <span style={{fontSize:12, color:T.sub, marginLeft:6, whiteSpace:'nowrap', ...num}}>{daysSince(o.rec.date)}일째</span>
-                        {leader()}
-                        <span style={{fontSize:12, color:T.sub, marginRight:6}}>남은 돈</span>
-                        <span style={{...num, fontWeight:800, color: o.dir>0 ? T.red : T.green, whiteSpace:'nowrap'}}>{won(o.left)}</span>
-                      </div>
-                      <div style={{fontSize:12, color:T.sub, marginTop:2, lineHeight:1.6, ...num}}>
-                        원금 {won(o.rec.amount)}
-                        {o.paid.map((p,i)=><span key={i}> · {mdDot(p.date)} {won(p.amount)} {p.type==='converted' ? '투자전환' : p.type==='lent' ? '빌려줌' : '받음'}</span>)}
-                        {o.rec.memo && <span> · {o.rec.memo}</span>}
-                      </div>
-                    </div>
-                  ))}
-                </div>
+                <VStack gap={1}>
+                  <Text type="supporting" weight="bold" color="secondary">{loanFlow.open[0].dir > 0 ? '아직 못 받은 돈' : '내가 더 받은 돈'} · 받은 돈은 먼저 빌려준 것부터 갚은 걸로 계산</Text>
+                  <List hasDividers edge="flush">
+                    {loanFlow.open.map(o => (
+                      <ListItem key={o.rec.id}
+                        startContent={<Badge variant={o.dir>0 ? 'error' : 'success'} label={`${daysSince(o.rec.date)}일째`}/>}
+                        label={`${mdDot(o.rec.date)} ${o.dir>0 ? '빌려준 돈' : '받은 돈'}`}
+                        description={`원금 ${won(o.rec.amount)}${o.paid.map(p => ` · ${mdDot(p.date)} ${won(p.amount)} ${p.type==='converted' ? '투자전환' : p.type==='lent' ? '빌려줌' : '받음'}`).join('')}${o.rec.memo ? ` · ${o.rec.memo}` : ''}`}
+                        endContent={<Text weight="bold" color={o.dir>0 ? 'accent' : 'primary'} hasTabularNumbers>남은 돈 {won(o.left)}</Text>}/>
+                    ))}
+                  </List>
+                </VStack>
               )}
 
               {/* 전체 기록: 최근 것부터, 그때의 잔액과 함께 */}
-              <div style={{fontSize:12, fontWeight:700, color:T.sub, padding:'4px 0', borderBottom:`1px solid ${T.rule}`, display:'flex'}}>
-                <span style={{flex:1}}>전체 기록</span><span style={{width:96, textAlign:'right'}}>그때 잔액</span><span style={{width:30}}/>
-              </div>
-              {loanShown.map(r=>{
-                const c = r.type==='lent' ? T.red : r.type==='converted' ? T.accent : r.type==='reset' ? T.ink : T.green
-                return (
-                  <div key={r.id} style={{display:'flex', alignItems:'baseline', gap:8, padding:'7px 0', borderBottom:`1px solid ${T.soft}`, fontSize:13}}>
-                    <span style={{color:T.sub, ...num, whiteSpace:'nowrap'}}>{mdDot(r.date)}</span>
-                    <span style={{fontWeight:700, color:c, whiteSpace:'nowrap'}}>{LOAN_TYPE_LABEL[r.type]||'받음'}</span>
-                    <span style={{color:T.sub, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', minWidth:0, maxWidth:'35%'}}>{r.memo||''}</span>
-                    {leader()}
-                    <span style={{...num, fontWeight:600, color:c, whiteSpace:'nowrap'}}>{r.type==='reset' ? `${won(r.before ?? r.amount)} → 0` : `${r.type==='lent'?'+ ':'− '}${won(r.amount)}`}</span>
-                    <span style={{...num, color:T.sub, whiteSpace:'nowrap', width:88, textAlign:'right'}}>{won(loanFlow.after[r.id])}</span>
-                    <button onClick={()=>deleteLoanRecord(r.id, r.type==='reset')} aria-label={r.type==='reset' ? '정리 되돌리기' : '삭제'}
-                      style={{background:'transparent',border:'none',color:T.red,fontSize:11,cursor:'pointer',padding:0,fontFamily:'inherit',width:30,textAlign:'right',whiteSpace:'nowrap'}}>{r.type==='reset' ? '취소' : '삭제'}</button>
-                  </div>
-                )
-              })}
-              {loanHidden > 0 && (
-                <button type="button" onClick={()=>setShowOldLoans(v=>!v)}
-                  style={{background:'none', border:'none', borderBottom:`1px solid ${T.blue}`, color:T.blue, fontSize:12, cursor:'pointer', fontFamily:'inherit', padding:0, margin:'8px 0 4px'}}>
-                  {showOldLoans ? '정리 전 기록 접기' : `정리 전 기록 ${loanHidden}건 보기`}
-                </button>
-              )}
-              {total('남은 대여금', loanBalance, {
-                note: loanBalance>0 ? '형이 갚을 돈' : loanBalance<0 ? '내가 갚을 돈' : '없음',
-                color: loanBalance>0 ? T.red : loanBalance<0 ? T.green : undefined })}
-            </>
-          )}
+              <Table data={loanShown} idKey="id" density="compact" columns={[
+                { key:'d', header:'날짜', renderCell: r => <Text type="supporting" color="secondary" hasTabularNumbers>{mdDot(r.date)}</Text> },
+                { key:'t', header:'구분', renderCell: r => <Badge variant={r.type==='lent' ? 'error' : r.type==='reset' ? 'neutral' : r.type==='converted' ? 'info' : 'success'} label={LOAN_TYPE_LABEL[r.type]||'받음'}/> },
+                { key:'m', header:'메모', renderCell: r => <Text type="supporting" color="secondary" maxLines={1}>{r.memo||''}</Text> },
+                { key:'a', header:'금액', align:'end', renderCell: r => <Text weight="semibold" hasTabularNumbers>{r.type==='reset' ? `${won(r.before ?? r.amount)} → 0` : `${r.type==='lent'?'+ ':'− '}${won(r.amount)}`}</Text> },
+                { key:'b', header:'그때 잔액', align:'end', renderCell: r => <Text color="secondary" hasTabularNumbers>{won(loanFlow.after[r.id])}</Text> },
+                { key:'x', header:'', align:'end', renderCell: r => <Button size="sm" variant="ghost" label={r.type==='reset' ? '취소' : '삭제'} onClick={()=>deleteLoanRecord(r.id, r.type==='reset')}/> },
+              ]}/>
+              {loanHidden > 0 && <Button size="sm" variant="ghost" label={showOldLoans ? '정리 전 기록 접기' : `정리 전 기록 ${loanHidden}건 보기`} onClick={()=>setShowOldLoans(v=>!v)}/>}
+              <Divider variant="strong"/>
+              <LedgerRow label="남은 대여금" note={loanBalance>0 ? '형이 갚을 돈' : loanBalance<0 ? '내가 갚을 돈' : '없음'} value={loanBalance} strong tone={loanBalance>0 ? 'bad' : undefined}/>
+            </>}
           </>}
-        </section>
-        </Legacy>
+        </LedgerCard>
       </Grid>
 
       <Legacy>

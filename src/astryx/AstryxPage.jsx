@@ -3,6 +3,8 @@
 //  <Legacy>     : 아직 Astryx 로 안 옮긴 덩어리. 안쪽은 reset 영향 없이 예전 인라인 스타일 그대로 보임 (legacyCompat.css)
 //  <Ledger>/<LedgerRow> : 장부 줄 (왼쪽 이름·설명, 오른쪽 금액). 합계 줄은 strong, 아래 줄은 sub
 import { Theme } from '@astryxdesign/core/theme'
+import { InternationalizationProvider } from '@astryxdesign/core/i18n'
+import koKR from '@astryxdesign/core/locales/ko-KR.generated.js'
 import { VStack, HStack } from '@astryxdesign/core/Layout'
 import { Text, Heading } from '@astryxdesign/core/Text'
 import { Divider } from '@astryxdesign/core/Divider'
@@ -15,7 +17,12 @@ import CountUp from '../components/CountUp'
 
 export function AstryxPage({ children }) {
   const key = useTheme()
-  return <Theme theme={hongkongTheme(key)} mode="light">{children}</Theme>
+  // 한국어: 날짜 칸·'선택' 표시·빈 목록 문구 등 Astryx 기본 글자를 한국어로
+  return (
+    <InternationalizationProvider locale="ko-KR" messages={{ 'ko-KR': koKR }}>
+      <Theme theme={hongkongTheme(key)} mode="light">{children}</Theme>
+    </InternationalizationProvider>
+  )
 }
 
 export function Legacy({ children }) {
