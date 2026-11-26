@@ -424,10 +424,8 @@ export default function Dashboard() {
         )}
 
         {/* 건당 할인 목표 · 얼리 영업: 아직 예전 모양 */}
-        <Legacy>
-          <GoalLine/>
-          <EarlySales ym={curMonth}/>
-        </Legacy>
+        <Legacy><GoalLine/></Legacy>
+        <EarlySales ym={curMonth}/>
 
         {/* 지난달 같은 기간과 비교 */}
         <RevenuePace ym={curMonth}/>
