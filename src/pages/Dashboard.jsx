@@ -1,4 +1,13 @@
 import { useEffect, useState } from 'react'
+import { VStack, HStack } from '@astryxdesign/core/Layout'
+import { Text } from '@astryxdesign/core/Text'
+import { Grid } from '@astryxdesign/core/Grid'
+import { Badge } from '@astryxdesign/core/Badge'
+import { Button } from '@astryxdesign/core/Button'
+import { Selector } from '@astryxdesign/core/Selector'
+import { CheckboxInput } from '@astryxdesign/core/CheckboxInput'
+import { SegmentedControl, SegmentedControlItem } from '@astryxdesign/core/SegmentedControl'
+import { AstryxPage, Legacy, PageHeader, MonthNav, LedgerCard, Ledger, LedgerRow } from '../astryx/AstryxPage'
 import CountUp from '../components/CountUp'
 import RevenuePace from '../components/RevenuePace'
 import { GoalLine } from '../components/DiscountGoal'
@@ -111,7 +120,7 @@ export default function Dashboard() {
   const [compareSummary, setCompareSummary] = useState(null)  // {curTotal, prevTotal, diffPct}
   const [revDoc, setRevDoc] = useState({})                     // 이 달 revenue 문서 (카드형 보기의 날짜별 막대)
   // 보기 방식(카드형/장부형)과 카드형 강조색은 기기마다 기억
-  const view = 'bento'   // 장부형은 없앰: 늘 카드형 (손익·통장 장부는 아래 '자세히 보기'로 접혀 있음)
+  const [showLedger, setShowLedger] = useState(false)   // 손익·통장 장부 (카드 보드 아래에 접혀 있음)
   // Astryx 보드 라이트/다크 (도입 0단계 미리보기용, 기기마다). 아직 다른 화면은 밝은 화면만 있음
   const [boardMode, setBoardMode] = useState(() => { try { return localStorage.getItem('astryx.mode') === 'dark' ? 'dark' : 'light' } catch { return 'light' } })
   const toggleMode = () => setBoardMode(m => { const n = m === 'dark' ? 'light' : 'dark'; try { localStorage.setItem('astryx.mode', n) } catch { /* 저장 못 해도 됨 */ } return n })
@@ -359,185 +368,107 @@ export default function Dashboard() {
   const channels = CHANNELS.map(c => c.key === 'kiosk' || c.key === 'pos' ? { ...c, label: monthLabels(curMonth)[c.key] } : c)
   const ch = channels.find(c=>c.key===chartChannel)
   const won = n => (n||0).toLocaleString('ko-KR')
-  const num = { fontVariantNumeric:'tabular-nums' }
   const T = { ink:'#1D1B18', sub:'#6E6A63', faint:'#A8A39A', rule:'#DCD7CE', accent:'var(--hk-accent)', red:'#B42318', green:'#2E7D45', field:'#FFFFFF' }
-  const monthIdx = monthOpts.indexOf(curMonth)
   const SECS = ['재료비','관리비','인건비','기타']
 
-  // 장부 한 줄: 이름 ……… 금액 (영수증처럼 점선으로 이음)
-  const line = (label, value, { strong, sub, minus, color, note } = {}) => (
-    <div key={label} style={{display:'flex', alignItems:'baseline', padding: sub ? '3px 0 3px 14px' : '7px 0',
-      fontSize: strong ? 17 : sub ? 13 : 15, fontWeight: strong ? 800 : sub ? 400 : 600, color: sub ? T.sub : T.ink}}>
-      <span style={{whiteSpace:'nowrap'}}>{label}</span>
-      {note && <span style={{fontSize:12, color:T.sub, marginLeft:6, whiteSpace:'nowrap'}}>{note}</span>}
-      <span aria-hidden="true" style={{flex:1, borderBottom:`1px dotted ${T.faint}`, margin:'0 8px', minWidth:12, transform:'translateY(-4px)'}}/>
-      <span style={{...num, whiteSpace:'nowrap', color: color || 'inherit'}}>{minus && value ? '− ' : ''}<CountUp value={value}/></span>
-    </div>
-  )
-  const sectionTitle = (text, right) => (
-    <div style={{display:'flex', justifyContent:'space-between', alignItems:'baseline', gap:10, borderBottom:`2px solid ${T.ink}`, paddingBottom:6, marginBottom:6}}>
-      <h2 style={{fontSize:16, fontWeight:800, margin:0, fontFamily:'inherit', color:T.ink}}>{text}</h2>
-      {right}
-    </div>
-  )
-  const textTab = (on, label, onClick, key) => (
-    <button key={key||label} type="button" onClick={onClick}
-      style={{background:'none', border:'none', padding:'4px 0', cursor:'pointer', fontFamily:'inherit', fontSize:13,
-        fontWeight: on ? 800 : 500, color: on ? T.ink : T.sub, borderBottom:`2px solid ${on ? T.accent : 'transparent'}`}}>
-      {label}
-    </button>
-  )
+  const row = (label, value, o = {}) => <LedgerRow key={o.key || label} label={label} value={value} note={o.note} sub={o.sub} strong={o.strong} minus={o.minus} tone={o.tone}/>
 
   return (
-    <div style={{maxWidth:1040}}>
-      {/* 머리: 이 달 장부 */}
-      <header style={{display:'flex', alignItems:'center', justifyContent:'space-between', gap:12, flexWrap:'wrap',
-        paddingBottom:10, borderBottom:`3px double ${T.ink}`, marginBottom:22}}>
-        <h1 style={{fontSize:24, fontWeight:800, margin:0, letterSpacing:'-0.01em', fontFamily:'inherit', color:T.ink}}>{mLabel(curMonth)} {view === 'bento' ? '한눈에' : '장부'}</h1>
-        <div style={{display:'flex', alignItems:'center', gap:6, flexWrap:'wrap'}}>
-          <div role="group" aria-label="보드 밝기 (미리보기)" style={{display:'flex', gap:12, marginRight:8}}>
-            {textTab(boardMode==='light', '라이트', ()=>boardMode!=='light' && toggleMode(), 'm-light')}
-            {textTab(boardMode==='dark', '다크', ()=>boardMode!=='dark' && toggleMode(), 'm-dark')}
-          </div>
-          {view === 'bento' && <ThemeDots style={{marginRight:8}}/>}
-          <button type="button" aria-label="이전 달" disabled={monthIdx<=0} onClick={()=>setCurMonth(monthOpts[monthIdx-1])}
-            style={{background:'none', border:`1px solid ${T.rule}`, borderRadius:4, padding:'6px 10px', cursor:'pointer', fontFamily:'inherit', color:T.ink}}>이전</button>
-          <select value={curMonth} onChange={e=>setCurMonth(e.target.value)} aria-label="달 고르기"
-            style={{background:T.field, border:`1px solid ${T.rule}`, borderRadius:4, color:T.ink, padding:'7px 10px', fontSize:13, fontFamily:'inherit', outline:'none'}}>
-            {monthOpts.map(m=><option key={m} value={m}>{mLabel(m)}</option>)}
-          </select>
-          <button type="button" aria-label="다음 달" disabled={monthIdx>=monthOpts.length-1} onClick={()=>setCurMonth(monthOpts[monthIdx+1])}
-            style={{background:'none', border:`1px solid ${T.rule}`, borderRadius:4, padding:'6px 10px', cursor:'pointer', fontFamily:'inherit', color:T.ink}}>다음</button>
-        </div>
-      </header>
+    <AstryxPage>
+    <VStack gap={5} maxWidth={1040}>
+      {/* 머리: 이 달 한눈에 */}
+      <PageHeader title={`${mLabel(curMonth)} 한눈에`} right={<>
+        <SegmentedControl label="보드 밝기" size="sm" value={boardMode} onChange={v => v !== boardMode && toggleMode()}>
+          <SegmentedControlItem value="light" label="라이트"/>
+          <SegmentedControlItem value="dark" label="다크"/>
+        </SegmentedControl>
+        <Legacy><ThemeDots/></Legacy>
+        <MonthNav value={curMonth} options={monthOpts} onChange={setCurMonth} label={mLabel}/>
+      </>}/>
 
-      {/* 지난달 개근 포상: 할지 묻기·진행 상황 */}
-      <RewardPrompt/>
+      {/* 지난달 개근 포상: 할지 묻기·진행 상황 (아직 예전 모양) */}
+      <Legacy><RewardPrompt/></Legacy>
 
-      {loading ? <div style={{color:T.sub, padding:'40px 0'}}>불러오는 중...</div> : (
-        <>
-          {view === 'bento' && (
-            <BentoBoard ym={curMonth} rev={rev} exp={exp} profit={profit} labor={totalLaborCost} staffCount={staff.length} revDoc={revDoc} theme={theme} mode={boardMode}/>
-          )}
-          <details open={view !== 'bento'} key={view} style={{marginBottom: view === 'bento' ? 28 : 0}}>
-          {view === 'bento' && <summary style={{cursor:'pointer', fontSize:14, fontWeight:700, color:T.ink, padding:'4px 0 12px'}}>손익·통장 장부로 자세히 보기</summary>}
-          <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(min(100%, 380px), 1fr))', gap:'28px 40px', marginBottom:34}}>
-            {/* 손익 */}
-            <section>
-              {sectionTitle('이 달 손익')}
-              {line('매출', rev.total)}
-              {monthScheme(curMonth) === 'mixed' && rev.cut
-                ? <>{line(mixedLabel('kiosk', false), rev.cut.before.kiosk, { sub:true })}{line(mixedLabel('kiosk', true), rev.cut.after.kiosk, { sub:true })}</>
-                : line(monthLabels(curMonth).kiosk, rev.kiosk, { sub:true, note:`${pct(rev.kiosk,rev.total)}%` })}
-              {line('배달', rev.del, { sub:true, note:`${pct(rev.del,rev.total)}%` })}
-              {monthScheme(curMonth) === 'mixed' && rev.cut
-                ? <>{line(mixedLabel('pos', false), rev.cut.before.pos, { sub:true })}{line(mixedLabel('pos', true), rev.cut.after.pos, { sub:true })}</>
-                : line(monthLabels(curMonth).pos, rev.pos, { sub:true, note:`${pct(rev.pos,rev.total)}%` })}
-              {line('지출', exp.total, { minus:true, note: rev.total>0 ? `매출의 ${pct(exp.total,rev.total)}%` : undefined })}
-              {SECS.filter(sec => (exp.bySec?.[sec]||0) > 0).map(sec => line(sec, exp.bySec[sec], { sub:true, minus:true, note: rev.total>0 ? `${pct(exp.bySec[sec],rev.total)}%` : undefined }))}
-              <div style={{borderTop:`3px double ${T.ink}`, marginTop:8, paddingTop:4}}>
-                <div style={{display:'flex', alignItems:'baseline', justifyContent:'space-between', gap:10, padding:'6px 0'}}>
-                  <span style={{fontSize:16, fontWeight:800}}>{profit >= 0 ? '남은 돈' : '모자란 돈'} <span style={{fontSize:12, fontWeight:400, color:T.sub}}>매출 − 지출</span></span>
-                  <span style={{fontSize:34, fontWeight:800, letterSpacing:'-0.02em', color: profit>=0 ? T.ink : T.red, ...num}}>
-                    {profit<0 ? '− ' : ''}{won(Math.abs(profit))}<span style={{fontSize:16, fontWeight:600, marginLeft:2}}>원</span>
-                  </span>
-                </div>
-                <div style={{fontSize:12, color:T.sub, lineHeight:1.6}}>
-                  인건비(근무기록 기준) {won(totalLaborCost)}원 · 매출의 {pct(totalLaborCost,rev.total)}% · {staff.length}명
-                </div>
-              </div>
-            </section>
+      {loading ? <Text color="secondary">불러오는 중...</Text> : <>
+        <BentoBoard ym={curMonth} rev={rev} exp={exp} profit={profit} labor={totalLaborCost} staffCount={staff.length} revDoc={revDoc} theme={theme} mode={boardMode}/>
 
-            {/* 통장 */}
-            <section>
-              {sectionTitle('통장', exp.bank?.closing!=null && (
-                <span style={{fontSize:12, fontWeight:700, color: exp.bank.diff===0 ? T.green : T.red}}>
-                  {exp.bank.diff===0 ? '통장과 일치해요' : `통장과 ${won(Math.abs(exp.bank.diff))}원 차이`}
-                </span>
-              ))}
-              {line('전월 이월', exp.carryover)}
-              {line('실입금', exp.deposit, { note:'수수료 빼고 들어온 돈' })}
-              {line('지출', exp.total, { minus:true })}
-              <div style={{borderTop:`1px solid ${T.ink}`, marginTop:6}}>
-                {line('영업 잔액', exp.balance, { strong:true, color:(exp.balance||0) < 0 ? T.red : undefined })}
-              </div>
+        <Button variant="ghost" label={showLedger ? '손익·통장 장부 접기' : '손익·통장 장부로 자세히 보기'} onClick={()=>setShowLedger(v=>!v)}/>
+        {showLedger && (
+          <Grid columns={{ minWidth: 340, max: 2, repeat: 'fit' }} gap={4}>
+            <LedgerCard title="이 달 손익">
+              <Ledger rows={<>
+                {row('매출', rev.total)}
+                {monthScheme(curMonth) === 'mixed' && rev.cut
+                  ? <>{row(mixedLabel('kiosk', false), rev.cut.before.kiosk, { sub:true })}{row(mixedLabel('kiosk', true), rev.cut.after.kiosk, { sub:true })}</>
+                  : row(monthLabels(curMonth).kiosk, rev.kiosk, { sub:true, note:`${pct(rev.kiosk,rev.total)}%` })}
+                {row('배달', rev.del, { sub:true, note:`${pct(rev.del,rev.total)}%` })}
+                {monthScheme(curMonth) === 'mixed' && rev.cut
+                  ? <>{row(mixedLabel('pos', false), rev.cut.before.pos, { sub:true })}{row(mixedLabel('pos', true), rev.cut.after.pos, { sub:true })}</>
+                  : row(monthLabels(curMonth).pos, rev.pos, { sub:true, note:`${pct(rev.pos,rev.total)}%` })}
+                {row('지출', exp.total, { minus:true, note: rev.total>0 ? `매출의 ${pct(exp.total,rev.total)}%` : undefined })}
+                {SECS.filter(sec => (exp.bySec?.[sec]||0) > 0).map(sec => row(sec, exp.bySec[sec], { key:`sec-${sec}`, sub:true, minus:true, note: rev.total>0 ? `${pct(exp.bySec[sec],rev.total)}%` : undefined }))}
+              </>} total={row(profit >= 0 ? '남은 돈' : '모자란 돈', profit, { strong:true, note:'매출 − 지출', tone: profit < 0 ? 'bad' : undefined })}/>
+              <Text type="supporting" color="secondary" hasTabularNumbers>인건비(근무기록 기준) {won(totalLaborCost)}원 · 매출의 {pct(totalLaborCost,rev.total)}% · {staff.length}명</Text>
+            </LedgerCard>
+            <LedgerCard title="통장" right={exp.bank?.closing!=null && <Badge variant={exp.bank.diff===0 ? 'success' : 'error'} label={exp.bank.diff===0 ? '통장과 일치해요' : `통장과 ${won(Math.abs(exp.bank.diff))}원 차이`}/>}>
+              <Ledger rows={<>
+                {row('전월 이월', exp.carryover)}
+                {row('실입금', exp.deposit, { note:'수수료 빼고 들어온 돈' })}
+                {row('지출', exp.total, { minus:true })}
+              </>} total={row('영업 잔액', exp.balance, { strong:true, tone:(exp.balance||0) < 0 ? 'bad' : undefined })}/>
               {exp.bank?.closing!=null
-                ? line('실제 통장 잔액', exp.bank.closing, { note:'계좌내역 기준' })
-                : <p style={{fontSize:12, color:T.sub, margin:'6px 0 0', lineHeight:1.6}}>지출관리에서 계좌내역을 올리면 실제 통장 잔액과 맞춰볼 수 있어요</p>}
-            </section>
-          </div>
+                ? row('실제 통장 잔액', exp.bank.closing, { note:'계좌내역 기준' })
+                : <Text type="supporting" color="secondary">지출관리에서 계좌내역을 올리면 실제 통장 잔액과 맞춰볼 수 있어요</Text>}
+            </LedgerCard>
+          </Grid>
+        )}
 
-          </details>
-
-          {/* 건당 할인 목표 (매출분석의 할인 일정) */}
+        {/* 건당 할인 목표 · 얼리 영업: 아직 예전 모양 */}
+        <Legacy>
           <GoalLine/>
-
-          {/* 얼리 영업 (9:00~10:30) */}
           <EarlySales ym={curMonth}/>
+        </Legacy>
 
-          {/* 지난달 같은 기간과 비교 */}
-          <RevenuePace ym={curMonth}/>
+        {/* 지난달 같은 기간과 비교 */}
+        <RevenuePace ym={curMonth}/>
 
-          {/* 매출 추이 */}
-          <section>
-            {sectionTitle('매출 추이', (
-              <div style={{display:'flex', gap:14, alignItems:'center', flexWrap:'wrap'}}>
-                {[['daily','일별'],['monthly','최근 12개월']].map(([k,l]) => textTab(chartTab===k, l, ()=>setChartTab(k), k))}
-                <span style={{width:1, height:14, background:T.rule}}/>
-                {CHART_TYPES.map(t => textTab(chartType===t.key, t.label, ()=>setChartType(t.key), t.key))}
-              </div>
-            ))}
-            <div style={{display:'flex', gap:10, alignItems:'center', flexWrap:'wrap', margin:'10px 0 12px'}}>
-              <select value={chartChannel} onChange={e=>setChartChannel(e.target.value)} aria-label="매출 구분"
-                style={{background:T.field, border:`1px solid ${T.rule}`, borderRadius:4, color:T.ink, padding:'6px 10px', fontSize:13, fontFamily:'inherit', outline:'none'}}>
-                {channels.map(c => <option key={c.key} value={c.key}>{c.label}</option>)}
-              </select>
-              <label style={{display:'flex', alignItems:'center', gap:6, fontSize:13, color:T.ink, cursor:'pointer'}}>
-                <input type="checkbox" checked={showCompare} onChange={e=>setShowCompare(e.target.checked)} style={{accentColor:T.accent}}/>
-                {chartTab==='daily' ? '지난달과 비교' : '작년과 비교'}
-              </label>
-              {showCompare && compareSummary && (
-                <span style={{fontSize:13, color:T.sub, ...num}}>
-                  이번 {won(compareSummary.curTotal)}원 · {compareSummary.prevLabel} {won(compareSummary.prevTotal)}원
-                  {compareSummary.diffPct !== null && (
-                    <b style={{marginLeft:6, color: compareSummary.diffPct>=0 ? T.green : T.red}}>
-                      {compareSummary.diffPct>=0 ? '▲' : '▼'} {Math.abs(compareSummary.diffPct)}%
-                    </b>
-                  )}
-                </span>
-              )}
-            </div>
-            {chartLoading ? (
-              <div style={{color:T.sub, padding:'40px 0'}}>불러오는 중...</div>
-            ) : chartData.length === 0 ? (
-              <div style={{color:T.sub, padding:'40px 0'}}>이 기간엔 매출 기록이 없어요</div>
-            ) : (
-              <ResponsiveContainer width="100%" height={260}>
-                <ComposedChart data={chartData} margin={{top:4,right:4,left:0,bottom:0}}>
-                  <CartesianGrid stroke="#ECE8E1" vertical={false}/>
-                  <XAxis dataKey="label" tick={{fill:T.sub,fontSize:11}} axisLine={{stroke:T.ink}} tickLine={false}
-                    interval={chartTab==='daily'?3:0}/>
-                  <YAxis tickFormatter={wonK} tick={{fill:T.sub,fontSize:11}} axisLine={false} tickLine={false} width={48}/>
-                  <Tooltip content={<CustomTooltip/>} cursor={{fill:'rgba(0,0,0,0.04)'}}/>
-                  {chartType==='bar' && (
-                    <Bar dataKey="value" name={ch?.label||'매출'} fill={T.accent} radius={[2,2,0,0]} maxBarSize={22}/>
-                  )}
-                  {chartType==='line' && (
-                    <Line type="monotone" dataKey="value" name={ch?.label||'매출'} stroke={T.accent} strokeWidth={2} dot={{r:3,fill:T.accent}}/>
-                  )}
-                  {chartType==='area' && (
-                    <Area type="monotone" dataKey="value" name={ch?.label||'매출'} stroke={T.accent} fill={T.accent} fillOpacity={0.12} strokeWidth={2}/>
-                  )}
-                  {showCompare && (
-                    <Line type="monotone" dataKey="compareValue" name={chartTab==='daily'?'지난달':'작년 같은 달'}
-                      stroke={T.sub} strokeWidth={1.5} strokeDasharray="5 4" dot={false}/>
-                  )}
-                </ComposedChart>
-              </ResponsiveContainer>
+        {/* 매출 추이 */}
+        <LedgerCard title="매출 추이" right={<>
+          <SegmentedControl label="기간" size="sm" value={chartTab} onChange={setChartTab}>
+            <SegmentedControlItem value="daily" label="일별"/>
+            <SegmentedControlItem value="monthly" label="최근 12개월"/>
+          </SegmentedControl>
+          <SegmentedControl label="그래프 모양" size="sm" value={chartType} onChange={setChartType}>
+            {CHART_TYPES.map(t => <SegmentedControlItem key={t.key} value={t.key} label={t.label}/>)}
+          </SegmentedControl>
+        </>}>
+          <HStack gap={3} vAlign="center" wrap="wrap">
+            <Selector label="매출 구분" isLabelHidden size="sm" value={chartChannel} onChange={v => v && setChartChannel(v)} options={channels.map(c => ({ value:c.key, label:c.label }))}/>
+            <CheckboxInput label={chartTab==='daily' ? '지난달과 비교' : '작년과 비교'} value={showCompare} onChange={v=>setShowCompare(v)}/>
+            {showCompare && compareSummary && (
+              <HStack gap={2} vAlign="center">
+                <Text type="supporting" color="secondary" hasTabularNumbers>이번 {won(compareSummary.curTotal)}원 · {compareSummary.prevLabel} {won(compareSummary.prevTotal)}원</Text>
+                {compareSummary.diffPct !== null && <Badge variant={compareSummary.diffPct>=0 ? 'success' : 'error'} label={`${compareSummary.diffPct>=0 ? '+' : '−'}${Math.abs(compareSummary.diffPct)}%`}/>}
+              </HStack>
             )}
-          </section>
-        </>
-      )}
-    </div>
+          </HStack>
+          {chartLoading ? <Text color="secondary">불러오는 중...</Text> : chartData.length === 0 ? <Text color="secondary">이 기간엔 매출 기록이 없어요</Text> : (
+            <ResponsiveContainer width="100%" height={260}>
+              <ComposedChart data={chartData} margin={{top:4,right:4,left:0,bottom:0}}>
+                <CartesianGrid stroke="var(--color-border)" vertical={false}/>
+                <XAxis dataKey="label" tick={{fill:'var(--color-text-secondary)',fontSize:11}} axisLine={{stroke:'var(--color-border)'}} tickLine={false} interval={chartTab==='daily'?3:0}/>
+                <YAxis tickFormatter={wonK} tick={{fill:'var(--color-text-secondary)',fontSize:11}} axisLine={false} tickLine={false} width={48}/>
+                <Tooltip content={<CustomTooltip/>} cursor={{fill:'var(--color-background-muted)'}}/>
+                {chartType==='bar' && <Bar dataKey="value" name={ch?.label||'매출'} fill="var(--color-accent)" radius={[6,6,0,0]} maxBarSize={22}/>}
+                {chartType==='line' && <Line type="monotone" dataKey="value" name={ch?.label||'매출'} stroke="var(--color-accent)" strokeWidth={2} dot={{r:3,fill:'var(--color-accent)'}}/>}
+                {chartType==='area' && <Area type="monotone" dataKey="value" name={ch?.label||'매출'} stroke="var(--color-accent)" fill="var(--color-accent)" fillOpacity={0.12} strokeWidth={2}/>}
+                {showCompare && <Line type="monotone" dataKey="compareValue" name={chartTab==='daily'?'지난달':'작년 같은 달'} stroke="var(--color-text-secondary)" strokeWidth={1.5} strokeDasharray="5 4" dot={false}/>}
+              </ComposedChart>
+            </ResponsiveContainer>
+          )}
+        </LedgerCard>
+      </>}
+    </VStack>
+    </AstryxPage>
   )
 }
