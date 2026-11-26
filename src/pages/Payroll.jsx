@@ -1,4 +1,9 @@
 import { useEffect, useState } from 'react'
+import { VStack } from '@astryxdesign/core/Layout'
+import { Button } from '@astryxdesign/core/Button'
+import { Badge } from '@astryxdesign/core/Badge'
+import { Selector } from '@astryxdesign/core/Selector'
+import { AstryxPage, Legacy, PageHeader } from '../astryx/AstryxPage'
 import CountUp from '../components/CountUp'
 import { db } from '../firebase'
 import { doc, getDoc, setDoc, collection, getDocs } from 'firebase/firestore'
@@ -793,50 +798,18 @@ if(!isActive && !isRetired) return
   const bonusGrandTotal = Object.values(bonuses).reduce((a,list)=>a+(list||[]).reduce((b,r)=>b+(r.amount||0),0),0)
 
   return (
-    <div>
-      {/* 헤더 */}
-      <div style={{display:'flex',alignItems:'flex-end',justifyContent:'space-between',marginBottom:22}}>
-        <div>
-          <div style={{fontSize:20,fontWeight:700}}>급여관리</div>
-          <div style={{fontSize:12,color:'#6E6A63',marginTop:2}}>
-            {mLabel(curMonth)} — 사장 전용
-            {inquiryCount>0 && (
-              <span style={{marginLeft:8,background:'rgba(180,35,24,0.2)',color:'#B42318',
-                fontSize:11,padding:'2px 8px',borderRadius:4,fontWeight:600}}>
-                문의 {inquiryCount}건
-              </span>
-            )}
-          </div>
-        </div>
-        <div style={{display:'flex',gap:8,alignItems:'center'}}>
-          <button onClick={()=>setShowTaxReport(true)}
-            style={{background:'#F3F1EC',border:'1px solid #DCD7CE',color:'#1D1B18',borderRadius:4,
-              padding:'8px 14px',fontSize:12,cursor:'pointer',fontFamily:'inherit'}}>
-            세무 보고서
-          </button>
-          <button onClick={()=>setShowMyStatement(true)}
-            style={{background:'#F3F1EC',border:'1px solid #DCD7CE',color:'#1D1B18',borderRadius:4,
-              padding:'8px 14px',fontSize:12,cursor:'pointer',fontFamily:'inherit'}}>
-            내 임금명세서
-          </button>
-          <button onClick={()=>setShowWithholding(true)}
-            style={{background:'#F3F1EC',border:'1px solid #DCD7CE',color:'#1D1B18',borderRadius:4,
-              padding:'8px 14px',fontSize:12,cursor:'pointer',fontFamily:'inherit'}}>
-            원천징수영수증
-          </button>
-          <button onClick={confirmAll} disabled={saving}
-            style={{background:'var(--hk-accent)',color:'#FFFFFF',border:'none',borderRadius:4,
-              padding:'8px 16px',fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
-            전체 급여 확정
-          </button>
-          <select value={curMonth} onChange={e=>setCurMonth(e.target.value)}
-            style={{background:'#F3F1EC',border:'1px solid #DCD7CE',borderRadius:4,color:'#1D1B18',
-              padding:'8px 12px',fontSize:12,fontFamily:'inherit',outline:'none'}}>
-            {monthOpts.map(m=><option key={m} value={m}>{mLabel(m)}</option>)}
-          </select>
-        </div>
-      </div>
+    <AstryxPage>
+    <VStack gap={4}>
+      <PageHeader title="급여관리" sub={`${mLabel(curMonth)} — 사장 전용`} right={<>
+        {inquiryCount>0 && <Badge variant="error" label={`문의 ${inquiryCount}건`}/>}
+        <Button size="sm" label="세무 보고서" onClick={()=>setShowTaxReport(true)}/>
+        <Button size="sm" label="내 임금명세서" onClick={()=>setShowMyStatement(true)}/>
+        <Button size="sm" label="원천징수영수증" onClick={()=>setShowWithholding(true)}/>
+        <Button size="sm" variant="primary" label="전체 급여 확정" isLoading={saving} onClick={confirmAll}/>
+        <Selector label="달 고르기" isLabelHidden size="sm" value={curMonth} onChange={v => v && setCurMonth(v)} options={monthOpts.map(m => ({ value:m, label:mLabel(m) }))}/>
+      </>}/>
 
+      <Legacy>
       {/* 이달 인건비 요약 (장부 줄) */}
       {(()=>{
         const unpaidN = pays.filter(x=>x.unpaid>0).length
@@ -1301,6 +1274,8 @@ setOwnerConfig={setOwnerConfig}
           onClose={()=>setShowTaxReport(false)}
         />
       )}
-    </div>
+      </Legacy>
+    </VStack>
+    </AstryxPage>
   )
 }

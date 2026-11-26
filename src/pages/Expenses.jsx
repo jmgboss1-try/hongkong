@@ -1,4 +1,9 @@
 import { Fragment, useEffect, useState } from 'react'
+import { VStack } from '@astryxdesign/core/Layout'
+import { Text } from '@astryxdesign/core/Text'
+import { Grid } from '@astryxdesign/core/Grid'
+import { Button } from '@astryxdesign/core/Button'
+import { AstryxPage, Legacy, PageHeader, MonthNav, LedgerCard, Ledger, LedgerRow } from '../astryx/AstryxPage'
 import CountUp from '../components/CountUp'
 import BankImport from '../components/BankImport'
 import BankReconCard from '../components/BankReconCard'
@@ -468,7 +473,6 @@ const [payingDate, setPayingDate]     = useState('')
     red:'#B42318', green:'#2E7D45', blue:'#2B5C9E', chip:'#F3F1EC' }
   const num = { fontVariantNumeric:'tabular-nums' }
   const won = n => (n||0).toLocaleString('ko-KR')
-  const monthIdx = monthOpts.indexOf(curMonth)
   const field = extra => ({ background:'#FFFFFF', border:'1px solid #CBC5BA', borderRadius:4, color:T.ink, padding:'8px 10px',
     fontSize:14, outline:'none', fontFamily:'inherit', boxSizing:'border-box', ...extra })
   // 금액 입력: 쉼표로 보여주고 숫자만 저장 (neg: 앞에 − 허용)
@@ -514,33 +518,24 @@ const [payingDate, setPayingDate]     = useState('')
   const dayRows = Object.keys(data).filter(dd=>/^\d{2}$/.test(dd)).sort()
   const formExp = categories.reduce((a,f)=>a+(+form[f.id]||0),0)
 
+  // Astryx 장부 줄 (금액이 굴러가며 바뀜)
+  const row = (label, value, o = {}) => <LedgerRow key={o.key || label} label={label} value={value} note={o.note} sub={o.sub} strong={o.strong} minus={o.minus} plus={o.plus} tone={o.tone}/>
+
   return (
-    <div style={{maxWidth:1100}}>
-      {/* 머리 */}
-      <header style={{display:'flex', alignItems:'center', justifyContent:'space-between', gap:12, flexWrap:'wrap',
-        paddingBottom:10, borderBottom:`3px double ${T.ink}`, marginBottom:22}}>
-        <h1 style={{fontSize:24, fontWeight:800, margin:0, letterSpacing:'-0.01em', fontFamily:'inherit', color:T.ink}}>{mLabel(curMonth)} 지출</h1>
-        <div style={{display:'flex', alignItems:'center', gap:6}}>
-          <button type="button" aria-label="이전 달" disabled={monthIdx<=0} onClick={()=>setCurMonth(monthOpts[monthIdx-1])}
-            style={{background:'none', border:`1px solid ${T.rule}`, borderRadius:4, padding:'6px 10px', cursor:'pointer', fontFamily:'inherit', color:T.ink}}>이전</button>
-          <select value={curMonth} onChange={e=>setCurMonth(e.target.value)} aria-label="달 고르기"
-            style={{background:'#FFFFFF', border:`1px solid ${T.rule}`, borderRadius:4, color:T.ink, padding:'7px 10px', fontSize:13, fontFamily:'inherit', outline:'none'}}>
-            {monthOpts.map(m=><option key={m} value={m}>{mLabel(m)}</option>)}
-          </select>
-          <button type="button" aria-label="다음 달" disabled={monthIdx>=monthOpts.length-1} onClick={()=>setCurMonth(monthOpts[monthIdx+1])}
-            style={{background:'none', border:`1px solid ${T.rule}`, borderRadius:4, padding:'6px 10px', cursor:'pointer', fontFamily:'inherit', color:T.ink}}>다음</button>
-        </div>
-      </header>
+    <AstryxPage>
+    <VStack gap={5} maxWidth={1100}>
+      <PageHeader title={`${mLabel(curMonth)} 지출`} right={<MonthNav value={curMonth} options={monthOpts} onChange={setCurMonth} label={mLabel}/>}/>
 
       {/* 요약: 통장 흐름 · 지출 구분 */}
-      <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(min(100%, 380px), 1fr))', gap:'28px 40px', marginBottom:30}}>
-        <section>
-          {sectionTitle('이 달 돈의 흐름')}
-          {line('전월 이월', carryoverAmt, { note: carryNote })}
-          {line('실입금', totalDeposit, { plus:true, note:'수수료 빼고 들어온 돈' })}
-          {line('지출', grand, { minus:true })}
-          {total('영업 잔액', currentBalance, { color: currentBalance<0 ? T.red : undefined })}
-          <div style={{display:'flex', gap:8, alignItems:'center', flexWrap:'wrap', marginTop:8, fontSize:12, color:T.sub}}>
+      <Grid columns={{ minWidth: 340, max: 2, repeat: 'fit' }} gap={4}>
+        <LedgerCard title="이 달 돈의 흐름">
+          <Ledger rows={<>
+            {row('전월 이월', carryoverAmt, { note: carryNote })}
+            {row('실입금', totalDeposit, { plus:true, note:'수수료 빼고 들어온 돈' })}
+            {row('지출', grand, { minus:true })}
+          </>} total={row('영업 잔액', currentBalance, { strong:true, tone: currentBalance<0 ? 'bad' : undefined })}/>
+          <Legacy>
+          <div style={{display:'flex', gap:8, alignItems:'center', flexWrap:'wrap', fontSize:12, color:T.sub}}>
             {editCarry ? (
               <>
                 <span>전월 이월</span>
@@ -557,25 +552,26 @@ const [payingDate, setPayingDate]     = useState('')
               </>
             )}
           </div>
-        </section>
+          </Legacy>
+        </LedgerCard>
 
-        <section>
-          {sectionTitle('지출 구분', <Btn onClick={()=>setShowCatMgr(v=>!v)} small>{showCatMgr ? '카테고리 닫기' : '카테고리 관리'}</Btn>)}
-          {grand === 0 && empty('이 달 지출이 아직 없어요')}
-          {grand > 0 && secs.map(sec => {
-            const st = secTotal(sec)
-            if(!st) return null
-            return (
-              <Fragment key={sec}>
-                {line(sec, st, { note:`${pctOf(st,grand)}%` })}
-                {categories.filter(c=>c.sec===sec && tot[c.id]).map(c => line(c.label, tot[c.id], { sub:true, key:c.id }))}
-              </Fragment>
-            )
-          })}
-          {grand > 0 && total('지출 합계', grand)}
-        </section>
-      </div>
+        <LedgerCard title="지출 구분" right={<Button size="sm" label={showCatMgr ? '카테고리 닫기' : '카테고리 관리'} onClick={()=>setShowCatMgr(v=>!v)}/>}>
+          {grand === 0 ? <Text color="secondary">이 달 지출이 아직 없어요</Text> : (
+            <Ledger rows={secs.map(sec => {
+              const st = secTotal(sec)
+              if(!st) return null
+              return (
+                <Fragment key={sec}>
+                  {row(sec, st, { note:`${pctOf(st,grand)}%` })}
+                  {categories.filter(c=>c.sec===sec && tot[c.id]).map(c => row(c.label, tot[c.id], { sub:true, key:c.id }))}
+                </Fragment>
+              )
+            })} total={row('지출 합계', grand, { strong:true })}/>
+          )}
+        </LedgerCard>
+      </Grid>
 
+      <Legacy>
       {/* 카테고리 관리 */}
       {showCatMgr && (
         <section style={{background:'#FFFFFF', border:`1px solid ${T.rule}`, borderRadius:6, marginBottom:30, padding:18}}>
@@ -977,6 +973,8 @@ const [payingDate, setPayingDate]     = useState('')
           </div>
         )}
       </section>
-    </div>
+      </Legacy>
+    </VStack>
+    </AstryxPage>
   )
 }

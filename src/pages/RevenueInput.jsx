@@ -1,4 +1,18 @@
 import { useEffect, useRef, useState } from 'react'
+import { VStack, HStack } from '@astryxdesign/core/Layout'
+import { Text, Heading } from '@astryxdesign/core/Text'
+import { Card } from '@astryxdesign/core/Card'
+import { Button } from '@astryxdesign/core/Button'
+import { TextInput } from '@astryxdesign/core/TextInput'
+import { Selector } from '@astryxdesign/core/Selector'
+import { Banner } from '@astryxdesign/core/Banner'
+import { Divider } from '@astryxdesign/core/Divider'
+import { StatusDot } from '@astryxdesign/core/StatusDot'
+import { Table } from '@astryxdesign/core/Table'
+import { TabList, Tab } from '@astryxdesign/core/TabList'
+import { Stepper, Step } from '@astryxdesign/core/Stepper'
+import { AstryxPage, Legacy, PageHeader } from '../astryx/AstryxPage'
+import CountUp from '../components/CountUp'
 import { db, auth } from '../firebase'
 import { compressImage, PhoneReceiveModal } from '../components/PhotoAttach'
 import { doc, getDoc, setDoc } from 'firebase/firestore'
@@ -29,44 +43,14 @@ const fieldKey = (session, base) => {
   return p + base.charAt(0).toUpperCase() + base.slice(1)
 }
 
-// ── 움직임 ── (움직임 줄이기 설정이면 모두 꺼짐)
-//  합계 숫자는 바뀔 때 굴러가듯 올라가고, 저장하면 가운데에 '저장 완료' 도장이 찍힌 뒤 위 진행 단계에 체크가 들어감
-const reduceMotion = () => typeof window !== 'undefined' && !!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
-function useCountUp(value, ms = 320) {
-  const [v, setV] = useState(value)
-  const from = useRef(value)
-  useEffect(() => {
-    const dur = reduceMotion() ? 1 : ms
-    const start = performance.now(), a = from.current, b = value
-    let raf
-    const step = t => {
-      const k = Math.min(1, (t - start) / dur), e = 1 - Math.pow(1 - k, 3)
-      const cur = Math.round(a + (b - a) * e)
-      from.current = cur
-      setV(cur)
-      if (k < 1) raf = requestAnimationFrame(step)
-    }
-    raf = requestAnimationFrame(step)
-    return () => cancelAnimationFrame(raf)
-  }, [value, ms])
-  return v
-}
-function Count({ value, ms }) { return <>{won(useCountUp(value, ms))}</> }
-const RI_CSS = `@keyframes riIn { from { opacity:0; transform: translateY(8px) } to { opacity:1; transform:none } }
-@keyframes riPop { 0% { transform: scale(.3) } 60% { transform: scale(1.25) } 100% { transform: scale(1) } }
-@keyframes riPulse { 0% { box-shadow: 0 0 0 0 rgba(var(--hk-accent-rgb), .45) } 100% { box-shadow: 0 0 0 10px rgba(var(--hk-accent-rgb), 0) } }
-@keyframes riFade { 0% { opacity:0 } 12% { opacity:1 } 82% { opacity:1 } 100% { opacity:0 } }
+// 저장 완료 도장 (가운데에 찍혔다가 사라짐, 움직임 줄이기 설정이면 움직이지 않음)
+const RI_CSS = `@keyframes riFade { 0% { opacity:0 } 12% { opacity:1 } 82% { opacity:1 } 100% { opacity:0 } }
 @keyframes riStamp { 0% { opacity:0; transform: scale(1.8) rotate(-8deg) } 55% { opacity:1; transform: scale(.94) rotate(-3deg) } 75% { transform: scale(1.03) rotate(-3deg) } 100% { opacity:1; transform: scale(1) rotate(-3deg) } }
 @keyframes riDraw { to { stroke-dashoffset: 0 } }
-.ri-in { animation: riIn .3s ease-out both }
-.ri-pop { animation: riPop .36s cubic-bezier(.3,1.6,.5,1) both }
-.ri-pulse { animation: riPulse 1.4s ease-out infinite }
 .ri-stamp-wrap { animation: riFade 1.9s ease both }
 .ri-stamp { animation: riStamp .5s cubic-bezier(.2,.9,.3,1.2) both }
 .ri-check { stroke-dasharray: 60; stroke-dashoffset: 60; animation: riDraw .4s .25s ease-out forwards }
-.ri-bar { transition: transform .32s cubic-bezier(.4,0,.2,1) }
-.ri-line { transition: width .5s cubic-bezier(.4,0,.2,1) .1s }
-@media (prefers-reduced-motion: reduce) { .ri-in, .ri-pop, .ri-pulse, .ri-stamp, .ri-stamp-wrap { animation: none } .ri-check { animation: none; stroke-dashoffset: 0 } .ri-bar, .ri-line { transition: none } }`
+@media (prefers-reduced-motion: reduce) { .ri-stamp, .ri-stamp-wrap { animation: none } .ri-check { animation: none; stroke-dashoffset: 0 } }`
 
 export default function RevenueInput() {
   const { userData } = useAuth()
@@ -84,6 +68,7 @@ export default function RevenueInput() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [stamp, setStamp] = useState(null)   // 저장 완료 도장 {id, label, amount}
+  const fileRef = useRef(null)               // 이 기기에서 사진 고르기 (숨긴 파일 칸)
 
   const [kiosk, setKiosk] = useState('')
   const [pos, setPos]     = useState('')
@@ -256,335 +241,194 @@ export default function RevenueInput() {
   const num = { fontVariantNumeric:'tabular-nums', fontFeatureSettings:'"tnum"' }
   const subtotal = (+kiosk||0) + delTotal + (+pos||0)
   const morningTotal = (rec.morningKiosk||0)+(rec.morningDel||0)+(rec.morningPos||0)
-
-  const field = (extra) => ({ background:T.field, border:`1px solid ${T.fieldLine}`, borderRadius:4, color:T.ink,
-    padding:'9px 10px', fontSize:16, outline:'none', fontFamily:'inherit', textAlign:'right', boxSizing:'border-box', ...num, ...extra })
-  // 금액 칸: 쉼표 찍어 보여주고 숫자만 받음 (값은 숫자 문자열 그대로)
-  const money = (val, set, label, extra) => (
-    <input type="text" inputMode="numeric" value={val === '' || val == null ? '' : won(+val)} placeholder="0" aria-label={label}
-      onChange={e=>set(e.target.value.replace(/[^0-9]/g,''))} style={field(extra)}/>
-  )
-  const leader = () => T.leader
-    ? <span aria-hidden="true" style={{flex:1, borderBottom:`1px dotted ${T.faint}`, margin:'0 6px', alignSelf:'flex-end', marginBottom:12, minWidth:4}}/>
-    : <span style={{flex:1, minWidth:4}}/>
-  // 컴포넌트가 아니라 함수로 그림 (렌더마다 새 컴포넌트가 되면 입력칸이 다시 만들어져 포커스가 빠짐)
-  const row = (label, control) => (
-    <div style={{display:'flex', alignItems:'center', padding:'6px 0', minHeight:46}}>
-      <span style={{fontSize:14, color:T.ink, whiteSpace:'nowrap'}}>{label}</span>
-      {leader()}
-      {control}
-    </div>
-  )
-
-  function DeliveryDetail({ session }) {
-    const val = k => session === 'morning' ? netM(k) : (rec[fieldKey(session,k)]||0)
-    const parts = DELIVERY_PLATFORMS.filter(p => val(p.key) > 0)
-    if (!parts.length) return null
-    return (
-      <div style={{marginTop:2, display:'flex', flexDirection:'column', gap:1}}>
-        {parts.map(p => (
-          <div key={p.key} style={{display:'flex', justifyContent:'space-between', gap:8, fontSize:11, color:T.sub}}>
-            <span>{p.label}</span><span style={num}>{won(val(p.key))}</span>
-          </div>
-        ))}
-      </div>
-    )
-  }
-
   const summary = [
     { key:'early',   label:'얼리',  val:earlySum,   filled:hasEarly,   by:rec.earlyBy },
     { key:'morning', label: hasEarly ? '오전 10:30~' : '오전', val: hasEarly ? morningSum - earlySum : morningSum, filled:hasMorning, by:rec.morningBy },
     { key:'middle',  label:'미들',  val:middleSum,  filled:hasMiddle,  by:rec.middleBy },
     { key:'close',   label:'마감 (하루 합계)', val:closeSum, filled:hasClose, by:rec.closeBy },
   ]
-  const cell = { padding:'10px 12px', borderBottom:`1px solid ${T.rule}`, textAlign:'right', ...num }
+
+  const sessionKeys = Object.keys(sessionInfo)
+  const doneOf = k => (k==='early'&&hasEarly)||(k==='morning'&&hasMorning)||(k==='middle'&&hasMiddle)||(k==='close'&&hasClose)
+  const digits = v => v.replace(/[^0-9]/g, '')
+  // 금액 칸: 쉼표 찍어 보여주고 숫자만 받음 (값은 숫자 문자열 그대로)
+  const money = (label, val, set, extra = {}) => (
+    <TextInput label={label} value={val === '' || val == null ? '' : won(+val)} onChange={v=>set(digits(v))}
+      inputMode="numeric" placeholder="0" size="lg" {...extra}/>
+  )
+  // 배달앱별 금액 (오전은 얼리를 뺀 10:30 이후 금액)
+  const appParts = session => DELIVERY_PLATFORMS
+    .map(p => ({ ...p, v: session === 'morning' ? netM(p.key) : (rec[fieldKey(session, p.key)] || 0) }))
+    .filter(p => p.v > 0)
+  const delCell = (v, session) => (
+    <VStack gap={0} hAlign="end">
+      <Text hasTabularNumbers>{won(v)}</Text>
+      {session && appParts(session).map(p => <Text key={p.key} type="supporting" color="secondary" hasTabularNumbers>{p.label} {won(p.v)}</Text>)}
+    </VStack>
+  )
+  const historyRows = [
+    hasEarly && { id:'early', name:'얼리', note:'9~10:30', k:rec.earlyKiosk, d:delCell(rec.earlyDel, 'early'), p:rec.earlyPos, t:earlySum, by:rec.earlyBy },
+    hasMorning && { id:'morning', name:'오전', note: hasEarly ? '10:30~' : '', k:netM('kiosk'), d:delCell(netM('del'), 'morning'), p:netM('pos'), t: hasEarly ? morningSum - earlySum : morningSum, by:rec.morningBy },
+    hasMiddle && { id:'middle', name:'미들', note:'', k:rec.middleKiosk, d:delCell(rec.middleDel, 'middle'), p:rec.middlePos, t:middleSum, by:rec.middleBy },
+    hasAfternoon && { id:'afternoon', name:'오후', note:'자동 계산', k:afternoonKiosk, d:delCell(afternoonDel), p:afternoonPos, t:afternoonSum, by: isNegative ? '마감이 오전보다 작아요' : '', bad:isNegative },
+    hasClose && { id:'close', name:'하루 합계', note:'', k:rec.kiosk, d:delCell(rec.del, 'close'), p:rec.pos, t:closeSum, by:rec.closeBy, strong:true },
+  ].filter(Boolean)
+  const money2 = v => <Text hasTabularNumbers>{won(v)}</Text>
 
   return (
-    <div className="page-surface" style={{background:T.bg, color:T.ink}}>
-      <div style={{maxWidth:640}}>
-        <header style={{display:'flex', justifyContent:'space-between', alignItems:'baseline', gap:12, paddingBottom:10,
-          borderBottom: T.leader ? `3px double ${T.strong}` : `1px solid ${T.rule}`}}>
-          <h1 style={{fontSize:22, fontWeight:800, margin:0, letterSpacing:'-0.01em', fontFamily:'inherit', color:T.ink}}>매출 입력</h1>
-          <span style={{fontSize:14, color:T.sub}}>{todayLabel}</span>
-        </header>
+    <AstryxPage>
+      <VStack gap={5} maxWidth={640}>
+        <PageHeader title="매출 입력" right={<Text color="secondary">{todayLabel}</Text>}/>
         {/* 매출 칸이 바뀐 첫 일주일 안내 (11월 9일 ~ 15일) */}
         {newCh && `${today}-${todayDD}` <= CHANGE_NOTICE_UNTIL && (
-          <div style={{margin:'12px 0 0', padding:'10px 12px', border:'1.5px solid #B45309', background:'#FFF8EC', borderRadius:6, fontSize:14, lineHeight:1.6, color:T.ink}}>
-            <b style={{color:'#B45309'}}>매출 칸이 바뀌었어요</b><br/>
-            <b>홀</b>에는 매출 프로그램 합계만, 현금·이체·페이·전화배달은 <b>기타</b>에 적어 주세요.
-          </div>
+          <Banner status="warning" title="매출 칸이 바뀌었어요" description="홀에는 매출 프로그램 합계만, 현금·이체·페이·전화배달은 기타에 적어 주세요."/>
         )}
 
-        {/* 오늘 진행: 얼리 → 오전 → 미들 → 마감. 적은 단계는 초록 체크, 지금 탭은 강조색으로 깜박임 */}
-        <div style={{display:'grid', gridTemplateColumns:'repeat(4, minmax(0, 1fr))', margin:'18px 0 20px'}}>
-          {summary.map((k,i) => {
-            const on = activeSession === k.key
-            const nextFilled = summary[i+1]?.filled
-            return (
-              <button key={k.key} type="button" onClick={()=>setActiveSession(k.key)} aria-label={`${k.label} ${k.filled ? '입력됨' : '미입력'}`}
-                style={{position:'relative', background:'none', border:'none', padding:0, cursor:'pointer', fontFamily:'inherit', textAlign:'center', color:T.ink, minWidth:0}}>
-                {i < summary.length - 1 && (
-                  <span aria-hidden="true" style={{position:'absolute', top:13, left:'calc(50% + 17px)', right:'calc(-50% + 17px)', height:3, borderRadius:2, background:T.rule}}>
-                    <span className="ri-line" style={{display:'block', height:'100%', borderRadius:2, background:'#2E7D45', width: k.filled && nextFilled ? '100%' : k.filled ? '35%' : '0%'}}/>
-                  </span>
-                )}
-                <span key={k.filled ? 'y' : 'n'} className={k.filled ? 'ri-pop' : on ? 'ri-pulse' : undefined}
-                  style={{position:'relative', zIndex:1, width:28, height:28, borderRadius:14, margin:'0 auto', display:'grid', placeItems:'center',
-                    background: k.filled ? '#2E7D45' : '#FFFFFF', border: k.filled ? 'none' : `2px solid ${on ? T.accent : T.fieldLine}`,
-                    color:'#FFFFFF', fontSize:14, fontWeight:900}}>
-                  {k.filled ? '✓' : <span style={{width:8, height:8, borderRadius:4, background: on ? T.accent : 'transparent'}}/>}
-                </span>
-                <div style={{fontSize:12, color: on ? T.ink : T.sub, fontWeight: on ? 800 : 500, marginTop:6, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis'}}>{k.key==='close' ? '마감' : k.label}</div>
-                <div style={{fontSize: k.key==='close' ? 15 : 13, fontWeight:700, marginTop:1, color: k.filled ? T.ink : T.faint, ...num}}>
-                  {k.filled ? <Count value={k.val} ms={600}/> : '미입력'}
-                </div>
-                {k.by && <div style={{fontSize:11, color:T.sub, marginTop:1, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis'}}>{k.by}</div>}
-              </button>
-            )
-          })}
-        </div>
+        {/* 오늘 진행: 얼리 → 오전 → 미들 → 마감 (누르면 그 탭으로) */}
+        <Stepper activeStep={sessionKeys.indexOf(activeSession)} onStepClick={i => setActiveSession(sessionKeys[i])} label="오늘 매출 입력 진행" density="compact">
+          {summary.map((k, i) => (
+            <Step key={k.key} step={i} label={k.key === 'close' ? '마감' : k.label} status={k.filled ? 'success' : undefined}
+              description={k.filled ? `${won(k.val)}원${k.by ? ` · ${k.by}` : ''}` : '미입력'}/>
+          ))}
+        </Stepper>
 
-        {/* 오전 · 미들 · 마감 탭 — 밑줄이 미끄러지듯 옮겨감 */}
-        {(() => {
-          const keys = Object.keys(sessionInfo), idx = Math.max(0, keys.indexOf(activeSession))
-          return (
-            <div role="tablist" style={{position:'relative', display:'grid', gridTemplateColumns:`repeat(${keys.length}, minmax(0, 1fr))`, borderBottom:`1px solid ${T.rule}`, marginBottom:18}}>
-              {keys.map(key => {
-                const s = sessionInfo[key], on = activeSession===key
-                const done = (key==='early'&&hasEarly)||(key==='morning'&&hasMorning)||(key==='middle'&&hasMiddle)||(key==='close'&&hasClose)
-                return (
-                  <button key={key} role="tab" aria-selected={on} onClick={()=>setActiveSession(key)}
-                    style={{background:'none', border:'none', padding:'10px 0 12px', cursor:'pointer', fontFamily:'inherit',
-                      fontSize:16, fontWeight: on ? 800 : 500, color: on ? T.ink : T.sub, transition:'color .2s'}}>
-                    {s.label}
-                    {done && <span style={{fontSize:11, fontWeight:600, color:T.ok, marginLeft:4}}>✓</span>}
-                  </button>
-                )
-              })}
-              <span aria-hidden="true" className="ri-bar" style={{position:'absolute', left:0, bottom:-1, height:3, width:`${100 / keys.length}%`,
-                transform:`translateX(${idx * 100}%)`, display:'flex', justifyContent:'center'}}>
-                <span style={{width:'60%', height:'100%', borderRadius:2, background:T.accent}}/>
-              </span>
-            </div>
-          )
-        })()}
-        <style>{RI_CSS}</style>
+        <TabList value={activeSession} onChange={setActiveSession} layout="fill" hasDivider size="lg">
+          {sessionKeys.map(key => (
+            <Tab key={key} value={key} label={sessionInfo[key].label} endContent={doneOf(key) ? <StatusDot variant="success" label="입력됨"/> : undefined}/>
+          ))}
+        </TabList>
 
-        {/* 저장 완료 도장 */}
-        {stamp && (
-          <div key={stamp.id} className="ri-stamp-wrap" onClick={()=>setStamp(null)} role="status"
-            style={{position:'fixed', inset:0, zIndex:1000, display:'grid', placeItems:'center', background:'rgba(250,249,246,.55)', cursor:'pointer'}}>
-            <div className="ri-stamp" style={{background:'#FFFFFF', border:`3px solid ${T.accent}`, borderRadius:16, padding:'22px 30px', textAlign:'center',
-              boxShadow:'0 20px 50px rgba(29,27,24,.18)', minWidth:220}}>
-              <svg width="56" height="56" viewBox="0 0 56 56" aria-hidden="true" style={{display:'block', margin:'0 auto 8px'}}>
-                <circle cx="28" cy="28" r="26" fill={T.accent}/>
-                <path className="ri-check" d="M16 29 l8 8 l16 -17" fill="none" stroke="#FFFFFF" strokeWidth="5" strokeLinecap="round" strokeLinejoin="round"/>
-              </svg>
-              <div style={{fontSize:15, fontWeight:800, color:T.accent}}>{stamp.label} 매출 저장 완료</div>
-              <div style={{fontSize:28, fontWeight:800, letterSpacing:'-0.02em', marginTop:4, color:T.ink, ...num}}><Count value={stamp.amount} ms={700}/><span style={{fontSize:15, marginLeft:2}}>원</span></div>
-            </div>
-          </div>
-        )}
+        {loading ? <Text color="secondary">불러오는 중...</Text> : (
+          <Card key={activeSession}>
+            <VStack gap={4}>
+              <Text color="secondary">
+                {si.hint}
+                {activeSession==='morning' && hasEarly && ` · 얼리(${won(earlySum)}원)는 오전 매출에서 자동으로 빠져서 보여요`}
+                {activeSession==='middle' && ` · 오전 매출(${hasMorning ? `${won(morningTotal)}원` : '미입력'})을 빼서 미들타임 매출만 저장해요`}
+              </Text>
 
-        {loading ? (
-          <div style={{color:T.sub, padding:'40px 0'}}>불러오는 중...</div>
-        ) : (
-          <section key={activeSession} className="ri-in">
-            <p style={{fontSize:13, color:T.sub, margin:'0 0 14px', lineHeight:1.6}}>
-              {si.hint}
-              {activeSession==='morning' && hasEarly && <> · 얼리({won(earlySum)}원)는 오전 매출에서 자동으로 빠져서 보여요</>}
-              {activeSession==='middle' && <> · 오전 매출({hasMorning ? `${won(morningTotal)}원` : '미입력'})을 빼서 미들타임 매출만 저장해요</>}
-            </p>
-
-            {activeSession==='early' && (
-              <div style={{display:'flex', alignItems:'center', gap:8, flexWrap:'wrap', marginBottom:14, fontSize:14}}>
-                <span style={{color:T.sub}}>날짜</span>
-                <select value={earlyDay} onChange={e=>setEarlyDay(e.target.value)} aria-label="얼리 매출 날짜"
-                  style={{background:T.field, border:`1px solid ${T.fieldLine}`, borderRadius:4, color:T.ink, padding:'8px 10px', fontSize:15, fontFamily:'inherit'}}>
-                  {Array.from({ length: +todayDD }, (_, i) => pad(+todayDD - i)).map(dd => {
-                    const r = data[dd] || {}
-                    const done = (r.earlyKiosk||0)+(r.earlyDel||0)+(r.earlyPos||0) > 0
-                    const dow = DAYS_KR[new Date(+today.slice(0,4), +today.slice(5)-1, +dd).getDay()]
-                    return <option key={dd} value={dd}>{dd === todayDD ? '오늘' : `${+dd}일`} ({dow}){done ? ' · 입력됨' : ''}</option>
-                  })}
-                </select>
-                {earlyDay !== todayDD && <span style={{fontSize:13, color:'#B45309'}}>{+earlyDay}일 얼리 매출을 적고 있어요</span>}
-              </div>
-            )}
-            {activeSession==='close' && (
-              <div style={{marginBottom:16}}>
-                <div style={{display:'flex', gap:10, alignItems:'center', flexWrap:'wrap'}}>
-                  <button type="button" disabled={!!scan?.busy} onClick={()=>setPhoneOpen(true)}
-                    style={{background:'transparent', border:`1.5px solid ${T.accent}`, color:T.accent, borderRadius:4,
-                      padding:'10px 14px', fontSize:14, fontWeight:700, cursor: scan?.busy ? 'default' : 'pointer', fontFamily:'inherit'}}>
-                    {scan?.busy ? '사진 읽는 중... (10~30초)' : '폰으로 마감 출력물 찍어서 채우기'}
-                  </button>
-                  {!scan?.busy && (
-                    <label style={{fontSize:13, color:T.sub, cursor:'pointer', textDecoration:'underline', textUnderlineOffset:3}}>
-                      이 기기에서 사진 고르기
-                      <input type="file" accept="image/*" capture="environment" style={{display:'none'}}
-                        onChange={async e=>{ const f = e.target.files?.[0]; e.target.value=''; if (f) readPhoto(await compressImage(f, 1600, 450)) }}/>
-                    </label>
-                  )}
-                </div>
-                {phoneOpen && (
-                  <PhoneReceiveModal hiRes title="마감 출력물 사진 받기"
-                    hint={<>폰 카메라로 QR을 찍고 마감 출력물을 찍어 보내세요.<br/>받으면 바로 숫자를 읽어 칸을 채워요.</>}
-                    onAdd={fresh=>{ setPhoneOpen(false); readPhoto(fresh[fresh.length-1]); return '' }}
-                    onClose={()=>setPhoneOpen(false)}/>
-                )}
-                {scan?.error && <div style={{fontSize:13, color:T.accent, marginTop:8}}>{scan.error}</div>}
-                {scan?.result && (()=>{
-                  const r = scan.result
-                  const warns = []
-                  if (r.total != null && r.total !== subtotal) warns.push(`출력물 합계 ${won(r.total)}원과 아래 합계 ${won(subtotal)}원이 달라요`)
-                  if (r.delivery != null && r.delivery !== delTotal) warns.push(`출력물 배달 합계 ${won(r.delivery)}원과 배달 칸 합계 ${won(delTotal)}원이 달라요`)
-                  if (r.date && r.date !== `${today}-${todayDD}`) warns.push(`출력물 날짜가 ${r.date}예요. 오늘 출력물이 맞는지 확인하세요`)
-                  if (r.notes) warns.push(r.notes)
-                  return (
-                    <div style={{display:'flex', gap:12, marginTop:12, padding:'10px 0', borderTop:`1px solid ${T.rule}`, borderBottom:`1px solid ${T.rule}`}}>
-                      <img src={scan.photo} alt="받은 출력물" style={{width:52, height:68, objectFit:'cover', borderRadius:2, flexShrink:0}}/>
-                      <div style={{fontSize:13, lineHeight:1.6, minWidth:0}}>
-                        <div style={{fontWeight:700}}>출력물에서 읽은 숫자로 채웠어요. 확인하고 저장하세요</div>
-                        {warns.map((w,i) => <div key={i} style={{color:T.warn}}>{w}</div>)}
-                      </div>
-                    </div>
-                  )
-                })()}
-              </div>
-            )}
-
-            {row(newCh ? `홀 (${HALL_HINT})` : '키오스크',
-              money(kiosk, setKiosk, `${CH.kiosk} 매출`, {width:'min(170px, 46vw)'}))}
-
-            <div style={{marginTop:6}}>
-              <div style={{display:'flex', alignItems:'baseline', justifyContent:'space-between', padding:'8px 0 2px'}}>
-                <span style={{fontSize:14}}>배달</span>
-                <span style={{fontSize:13, color:T.sub, ...num}}>{delTotal > 0 ? `${won(delTotal)}원` : ''}</span>
-              </div>
-              {[
-                [baemin,   setBaemin,   '배달의민족', 'baemin'],
-                [coupang,  setCoupang,  '쿠팡이츠',   'coupang'],
-                [yogiyo,   setYogiyo,   '요기요',     'yogiyo'],
-                [ddangyeo, setDdangyeo, '땡겨요',     'ddangyeo'],
-              ].map(([val, set, label, key]) => (
-                <div key={key} style={{display:'flex', alignItems:'center', gap:6, padding:'4px 0 4px 12px', minHeight:46, flexWrap:'wrap'}}>
-                  <span style={{fontSize:14, color:T.ink, whiteSpace:'nowrap'}}>{label}</span>
-                  {leader()}
-                  {activeSession==='close' && (
-                    <span style={{display:'flex', alignItems:'center', gap:4}}>
-                      <input type="text" inputMode="numeric" value={orders[key]} placeholder="0"
-                        onChange={e=>{ const v = e.target.value.replace(/[^0-9]/g,''); setOrders(o=>({ ...o, [key]: v })) }}
-                        aria-label={`${label} 주문 건수`} style={field({width:48, fontSize:15, padding:'8px 6px'})}/>
-                      <span style={{fontSize:13, color:T.sub}}>건</span>
-                    </span>
-                  )}
-                  {money(val, set, `${label} 매출`, {width:'min(150px, 34vw)'})}
-                  {activeSession==='close' && +orders[key] > 0 && +val > 0 && (
-                    <span style={{width:'100%', textAlign:'right', fontSize:12, color:T.sub, marginTop:-2, ...num}}>
-                      객단가 {won(Math.round(+val / +orders[key]))}원
-                    </span>
-                  )}
-                </div>
-              ))}
-            </div>
-
-            {row(newCh ? '기타' : '포스 (현장)',
-              money(pos, setPos, `${CH.pos} 매출`, {width:'min(170px, 46vw)'}))}
-            {newCh && <div style={{fontSize:12, color:T.sub, margin:'-4px 0 4px'}}>기타: {ETC_HINT}</div>}
-
-            <div style={{marginTop:10, paddingTop:12, borderTop: T.leader ? `3px double ${T.strong}` : `1px solid ${T.strong}`}}>
-              <div style={{display:'flex', justifyContent:'space-between', alignItems:'baseline'}}>
-                <span style={{fontSize:15, fontWeight:700}}>{activeSession==='middle' ? '입력한 누적 금액' : '합계'}</span>
-                <span style={{fontSize:32, fontWeight:800, letterSpacing:'-0.02em', ...num}}><Count value={subtotal}/><span style={{fontSize:16, fontWeight:600, marginLeft:2}}>원</span></span>
-              </div>
-              {activeSession==='middle' && (
-                <div style={{display:'flex', justifyContent:'space-between', alignItems:'baseline', marginTop:4, color:T.sub}}>
-                  <span style={{fontSize:13}}>저장될 미들타임 매출 (오전 제외)</span>
-                  <span style={{fontSize:18, fontWeight:700, color:T.ink, ...num}}>{won(Math.max(0, subtotal - morningTotal))}원</span>
-                </div>
+              {activeSession==='early' && (
+                <HStack gap={3} vAlign="end" wrap="wrap">
+                  <Selector label="얼리 매출 날짜" value={earlyDay} onChange={v => v && setEarlyDay(v)}
+                    options={Array.from({ length: +todayDD }, (_, i) => pad(+todayDD - i)).map(dd => {
+                      const r = data[dd] || {}
+                      const done = (r.earlyKiosk||0)+(r.earlyDel||0)+(r.earlyPos||0) > 0
+                      const dow = DAYS_KR[new Date(+today.slice(0,4), +today.slice(5)-1, +dd).getDay()]
+                      return { value: dd, label: `${dd === todayDD ? '오늘' : `${+dd}일`} (${dow})${done ? ' · 입력됨' : ''}` }
+                    })}/>
+                  {earlyDay !== todayDD && <Text color="accent">{+earlyDay}일 얼리 매출을 적고 있어요</Text>}
+                </HStack>
               )}
-            </div>
 
-            <button onClick={save} disabled={saving}
-              style={{width:'100%', marginTop:16, background:T.accent, color:T.onAccent, border:'none', borderRadius:4,
-                padding:'14px', fontSize:16, fontWeight:800, cursor:'pointer', fontFamily:'inherit'}}>
-              {saving ? '저장 중...' : `${si.label} 매출 저장`}
-            </button>
-          </section>
+              {activeSession==='close' && (
+                <VStack gap={2}>
+                  <HStack gap={2} vAlign="center" wrap="wrap">
+                    <Button label={scan?.busy ? '사진 읽는 중... (10~30초)' : '폰으로 마감 출력물 찍어서 채우기'} isLoading={!!scan?.busy} onClick={()=>setPhoneOpen(true)}/>
+                    {!scan?.busy && <Button variant="ghost" label="이 기기에서 사진 고르기" onClick={()=>fileRef.current?.click()}/>}
+                  </HStack>
+                  {scan?.error && <Banner status="error" title={scan.error}/>}
+                  {scan?.result && (()=>{
+                    const r = scan.result
+                    const warns = []
+                    if (r.total != null && r.total !== subtotal) warns.push(`출력물 합계 ${won(r.total)}원과 아래 합계 ${won(subtotal)}원이 달라요`)
+                    if (r.delivery != null && r.delivery !== delTotal) warns.push(`출력물 배달 합계 ${won(r.delivery)}원과 배달 칸 합계 ${won(delTotal)}원이 달라요`)
+                    if (r.date && r.date !== `${today}-${todayDD}`) warns.push(`출력물 날짜가 ${r.date}예요. 오늘 출력물이 맞는지 확인하세요`)
+                    if (r.notes) warns.push(r.notes)
+                    return <Banner status={warns.length ? 'warning' : 'success'} title="출력물에서 읽은 숫자로 채웠어요. 확인하고 저장하세요" description={warns.join(' · ') || undefined}/>
+                  })()}
+                </VStack>
+              )}
+
+              {money(newCh ? `홀 (${HALL_HINT})` : '키오스크', kiosk, setKiosk)}
+
+              <VStack gap={2}>
+                <HStack hAlign="between" vAlign="center">
+                  <Heading level={5}>배달</Heading>
+                  {delTotal > 0 && <Text color="secondary" hasTabularNumbers>{won(delTotal)}원</Text>}
+                </HStack>
+                {[
+                  [baemin,   setBaemin,   '배달의민족', 'baemin'],
+                  [coupang,  setCoupang,  '쿠팡이츠',   'coupang'],
+                  [yogiyo,   setYogiyo,   '요기요',     'yogiyo'],
+                  [ddangyeo, setDdangyeo, '땡겨요',     'ddangyeo'],
+                ].map(([val, set, label, key]) => (
+                  <VStack key={key} gap={1}>
+                    <HStack gap={2} vAlign="end">
+                      <VStack gap={0} width="100%">{money(label, val, set)}</VStack>
+                      {activeSession==='close' && (
+                        <TextInput label="주문 건수" value={orders[key]} onChange={v=>setOrders(o=>({ ...o, [key]: digits(v) }))}
+                          inputMode="numeric" placeholder="0" size="lg" width={96}/>
+                      )}
+                    </HStack>
+                    {activeSession==='close' && +orders[key] > 0 && +val > 0 && (
+                      <Text type="supporting" color="secondary" hasTabularNumbers justify="end">객단가 {won(Math.round(+val / +orders[key]))}원</Text>
+                    )}
+                  </VStack>
+                ))}
+              </VStack>
+
+              {money(newCh ? '기타' : '포스 (현장)', pos, setPos, newCh ? { description: `기타: ${ETC_HINT}` } : {})}
+
+              <Divider variant="strong"/>
+              <HStack hAlign="between" vAlign="center">
+                <Text type="large" weight="bold">{activeSession==='middle' ? '입력한 누적 금액' : '합계'}</Text>
+                <Text type="display-2" hasTabularNumbers textWrap="nowrap"><CountUp value={subtotal} ms={320}/><Text type="large" color="inherit"> 원</Text></Text>
+              </HStack>
+              {activeSession==='middle' && (
+                <HStack hAlign="between" vAlign="center">
+                  <Text color="secondary">저장될 미들타임 매출 (오전 제외)</Text>
+                  <Text type="large" weight="bold" hasTabularNumbers>{won(Math.max(0, subtotal - morningTotal))}원</Text>
+                </HStack>
+              )}
+              <Button variant="primary" size="lg" width="100%" label={saving ? '저장 중...' : `${si.label} 매출 저장`} isLoading={saving} onClick={save}/>
+            </VStack>
+          </Card>
         )}
 
         {/* 오늘 입력 내역 */}
-        {(hasEarly || hasMorning || hasMiddle || hasClose) && (
-          <section style={{marginTop:34}}>
-            <h2 style={{fontSize:15, fontWeight:800, margin:'0 0 6px', fontFamily:'inherit', color:T.ink}}>오늘 입력 내역</h2>
-            <div style={{overflowX:'auto'}}>
-              <table style={{width:'100%', borderCollapse:'collapse', fontSize:13, minWidth:480}}>
-                <thead>
-                  <tr style={{borderTop:`2px solid ${T.strong}`}}>
-                    {['구분',CH.kiosk,'배달',CH.pos,'합계','입력'].map(h => (
-                      <th key={h} style={{padding:'8px 12px', fontSize:12, fontWeight:600, color:T.sub, borderBottom:`1px solid ${T.rule}`,
-                        textAlign:['구분','입력'].includes(h) ? 'left' : 'right'}}>{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {hasEarly && (
-                    <tr>
-                      <td style={{...cell, textAlign:'left', fontWeight:600}}>얼리 <span style={{fontSize:11, color:T.sub, fontWeight:400}}>9~10:30</span></td>
-                      <td style={cell}>{won(rec.earlyKiosk)}</td>
-                      <td style={cell}>{won(rec.earlyDel)}<DeliveryDetail session="early"/></td>
-                      <td style={cell}>{won(rec.earlyPos)}</td>
-                      <td style={{...cell, fontWeight:700}}>{won(earlySum)}</td>
-                      <td style={{...cell, textAlign:'left', color:T.sub}}>{rec.earlyBy||'–'}</td>
-                    </tr>
-                  )}
-                  {hasMorning && (
-                    <tr>
-                      <td style={{...cell, textAlign:'left', fontWeight:600}}>오전{hasEarly && <span style={{fontSize:11, color:T.sub, fontWeight:400}}> 10:30~</span>}</td>
-                      <td style={cell}>{won(netM('kiosk'))}</td>
-                      <td style={cell}>{won(netM('del'))}<DeliveryDetail session="morning"/></td>
-                      <td style={cell}>{won(netM('pos'))}</td>
-                      <td style={{...cell, fontWeight:700}}>{won(hasEarly ? morningSum - earlySum : morningSum)}</td>
-                      <td style={{...cell, textAlign:'left', color:T.sub}}>{rec.morningBy||'–'}</td>
-                    </tr>
-                  )}
-                  {hasMiddle && (
-                    <tr>
-                      <td style={{...cell, textAlign:'left', fontWeight:600}}>미들</td>
-                      <td style={cell}>{won(rec.middleKiosk)}</td>
-                      <td style={cell}>{won(rec.middleDel)}<DeliveryDetail session="middle"/></td>
-                      <td style={cell}>{won(rec.middlePos)}</td>
-                      <td style={{...cell, fontWeight:700}}>{won(middleSum)}</td>
-                      <td style={{...cell, textAlign:'left', color:T.sub}}>{rec.middleBy||'–'}</td>
-                    </tr>
-                  )}
-                  {hasAfternoon && (
-                    <tr style={{color: isNegative ? T.accent : T.ink}}>
-                      <td style={{...cell, textAlign:'left', fontWeight:600}}>오후 <span style={{fontSize:11, color:T.sub, fontWeight:400}}>자동 계산</span></td>
-                      <td style={cell}>{won(afternoonKiosk)}</td>
-                      <td style={cell}>{won(afternoonDel)}</td>
-                      <td style={cell}>{won(afternoonPos)}</td>
-                      <td style={{...cell, fontWeight:700}}>{won(afternoonSum)}</td>
-                      <td style={{...cell, textAlign:'left', color:T.sub}}>{isNegative ? '마감이 오전보다 작아요' : '–'}</td>
-                    </tr>
-                  )}
-                  {hasClose && (
-                    <tr>
-                      <td style={{...cell, textAlign:'left', fontWeight:800, borderBottom:`2px solid ${T.strong}`}}>하루 합계</td>
-                      <td style={{...cell, borderBottom:`2px solid ${T.strong}`}}>{won(rec.kiosk)}</td>
-                      <td style={{...cell, borderBottom:`2px solid ${T.strong}`}}>{won(rec.del)}<DeliveryDetail session="close"/></td>
-                      <td style={{...cell, borderBottom:`2px solid ${T.strong}`}}>{won(rec.pos)}</td>
-                      <td style={{...cell, fontWeight:800, borderBottom:`2px solid ${T.strong}`}}>{won(closeSum)}</td>
-                      <td style={{...cell, textAlign:'left', color:T.sub, borderBottom:`2px solid ${T.strong}`}}>{rec.closeBy||'–'}</td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </section>
+        {historyRows.length > 0 && (
+          <Card>
+            <VStack gap={3}>
+              <Heading level={4}>오늘 입력 내역</Heading>
+              <Table data={historyRows} idKey="id" density="compact" columns={[
+                { key:'name', header:'구분', renderCell: r => <VStack gap={0}><Text weight={r.strong ? 'bold' : 'semibold'} color={r.bad ? 'accent' : 'primary'}>{r.name}</Text>{r.note && <Text type="supporting" color="secondary">{r.note}</Text>}</VStack> },
+                { key:'k', header:CH.kiosk, align:'end', renderCell: r => money2(r.k) },
+                { key:'d', header:'배달', align:'end', renderCell: r => r.d },
+                { key:'p', header:CH.pos, align:'end', renderCell: r => money2(r.p) },
+                { key:'t', header:'합계', align:'end', renderCell: r => <Text weight="bold" hasTabularNumbers color={r.bad ? 'accent' : 'primary'}>{won(r.t)}</Text> },
+                { key:'by', header:'입력', renderCell: r => <Text type="supporting" color={r.bad ? 'accent' : 'secondary'}>{r.by || '–'}</Text> },
+              ]}/>
+            </VStack>
+          </Card>
         )}
-      </div>
-    </div>
+      </VStack>
+
+      {/* 숨긴 파일 고르기 (이 기기에서 사진 고르기 버튼이 누름) · 폰 사진 받기 창 · 저장 완료 도장: 아직 옛 방식 */}
+      <Legacy>
+        <input ref={fileRef} type="file" accept="image/*" capture="environment" style={{display:'none'}}
+          onChange={async e=>{ const f = e.target.files?.[0]; e.target.value=''; if (f) readPhoto(await compressImage(f, 1600, 450)) }}/>
+        {phoneOpen && (
+          <PhoneReceiveModal hiRes title="마감 출력물 사진 받기"
+            hint={<>폰 카메라로 QR을 찍고 마감 출력물을 찍어 보내세요.<br/>받으면 바로 숫자를 읽어 칸을 채워요.</>}
+            onAdd={fresh=>{ setPhoneOpen(false); readPhoto(fresh[fresh.length-1]); return '' }}
+            onClose={()=>setPhoneOpen(false)}/>
+        )}
+        <style>{RI_CSS}</style>
+        {stamp && (
+          <div key={stamp.id} className="ri-stamp-wrap" onClick={()=>setStamp(null)} role="status"
+            style={{position:'fixed', inset:0, zIndex:1000, display:'grid', placeItems:'center', background:'rgba(250,249,246,.55)', cursor:'pointer'}}>
+            <div className="ri-stamp" style={{background:'#FFFFFF', border:'3px solid var(--hk-accent)', borderRadius:16, padding:'22px 30px', textAlign:'center',
+              boxShadow:'0 20px 50px rgba(29,27,24,.18)', minWidth:220}}>
+              <svg width="56" height="56" viewBox="0 0 56 56" aria-hidden="true" style={{display:'block', margin:'0 auto 8px'}}>
+                <circle cx="28" cy="28" r="26" fill="var(--hk-accent)"/>
+                <path className="ri-check" d="M16 29 l8 8 l16 -17" fill="none" stroke="#FFFFFF" strokeWidth="5" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+              <div style={{fontSize:15, fontWeight:800, color:'var(--hk-accent)'}}>{stamp.label} 매출 저장 완료</div>
+              <div style={{fontSize:28, fontWeight:800, letterSpacing:'-0.02em', marginTop:4, color:'#1D1B18', ...num}}><CountUp value={stamp.amount} ms={700}/><span style={{fontSize:15, marginLeft:2}}>원</span></div>
+            </div>
+          </div>
+        )}
+      </Legacy>
+    </AstryxPage>
   )
 }

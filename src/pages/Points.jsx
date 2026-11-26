@@ -1,4 +1,9 @@
 import { useEffect, useState } from 'react'
+import { VStack } from '@astryxdesign/core/Layout'
+import { Text } from '@astryxdesign/core/Text'
+import { Banner } from '@astryxdesign/core/Banner'
+import { TabList, Tab } from '@astryxdesign/core/TabList'
+import { AstryxPage, Legacy, PageHeader } from '../astryx/AstryxPage'
 import { db } from '../firebase'
 import { collection, doc, getDoc, getDocs, setDoc, arrayUnion } from 'firebase/firestore'
 import { useAuth } from '../AuthContext'
@@ -65,20 +70,15 @@ export default function Points() {
     : [['mine','내 포인트'], ['shop','포인트 상점'], ['history','교환 이력']]
 
   return (
-    <div style={{maxWidth:900}}>
-      <header style={{display:'flex', alignItems:'baseline', justifyContent:'space-between', gap:12, flexWrap:'wrap', paddingBottom:10, borderBottom:`3px double ${T.ink}`, marginBottom:8}}>
-        <h1 style={{fontSize:24, fontWeight:800, margin:0, fontFamily:'inherit'}}>포인트</h1>
-        <div style={{fontSize:13, color:T.sub}}>{config.start.replace('-', '년 ').replace(/^(\d+년 )0?/, '$1')}월부터 적립</div>
-      </header>
-      <div style={{display:'flex', gap:16, borderBottom:`1px solid ${T.rule}`, marginBottom:10, flexWrap:'wrap'}}>
-        {tabs.map(([k, l]) => (
-          <button key={k} type="button" onClick={()=>setTab(k)}
-            style={{background:'none', border:'none', borderBottom:`2px solid ${tab===k ? T.accent : 'transparent'}`, padding:'8px 0', fontFamily:'inherit', fontSize:15,
-              fontWeight: tab===k ? 800 : 500, color: tab===k ? T.ink : T.sub, cursor:'pointer'}}>{l}</button>
-        ))}
-      </div>
-      {msg && <div style={{fontSize:13, color: msg.includes('못') ? T.red : T.green, margin:'4px 0'}}>{msg}</div>}
+    <AstryxPage>
+    <VStack gap={4} maxWidth={900}>
+      <PageHeader title="포인트" right={<Text color="secondary">{config.start.replace('-', '년 ').replace(/^(\d+년 )0?/, '$1')}월부터 적립</Text>}/>
+      <TabList value={tab} onChange={setTab} hasDivider overflow="auto">
+        {tabs.map(([k, l]) => <Tab key={k} value={k} label={l}/>)}
+      </TabList>
+      {msg && <Banner status={msg.includes('못') ? 'error' : 'success'} title={msg}/>}
 
+      <Legacy>
       {tab === 'mine' && <Mine me={staff[0]} ledger={ledgerOf(staff[0])} requests={shop.requests.filter(r => r.uid === user.uid)} uid={user.uid} personalOk={personal[user.uid]?.ok}/>}
       {tab === 'shop' && !isOwner && <Shop shop={shop} balance={ledgerOf(staff[0]).balance} me={staff[0]} onDone={(m)=>{ setMsg(m); refresh() }}/>}
       {tab === 'shop' && isOwner && <ShopAdmin shop={shop} onDone={(m)=>{ setMsg(m); refresh() }}/>}
@@ -86,7 +86,9 @@ export default function Points() {
       {tab === 'people' && isOwner && <People staff={staff} ledgerOf={ledgerOf} personal={personal} onDone={(m)=>{ setMsg(m); refresh() }}/>}
       {tab === 'history' && <History requests={shop.requests}/>}
       {tab === 'settings' && isOwner && <Settings config={config} onDone={(m)=>{ setMsg(m); refresh() }}/>}
-    </div>
+      </Legacy>
+    </VStack>
+    </AstryxPage>
   )
 }
 

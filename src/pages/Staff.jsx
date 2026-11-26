@@ -1,4 +1,7 @@
 import { useEffect, useState } from 'react'
+import { VStack } from '@astryxdesign/core/Layout'
+import { Button } from '@astryxdesign/core/Button'
+import { AstryxPage, Legacy, PageHeader } from '../astryx/AstryxPage'
 import { db } from '../firebase'
 import { doc, getDoc, setDoc, collection, query, where, getDocs } from 'firebase/firestore'
 import { useAuth } from '../AuthContext'
@@ -302,17 +305,16 @@ export default function Staff() {
   const td = { padding:'7px 8px', borderBottom:`1px solid ${T.soft}`, textAlign:'center', verticalAlign:'top', whiteSpace:'nowrap', fontSize:12, ...num }
 
   return (
-    <div style={{maxWidth:1100}}>
-      <style>{ST_CSS}</style>
-      <header style={{display:'flex', alignItems:'center', justifyContent:'space-between', gap:12, flexWrap:'wrap', paddingBottom:10, borderBottom:`3px double ${T.ink}`, marginBottom:22}}>
-        <h1 style={{fontSize:24, fontWeight:800, margin:0, fontFamily:'inherit', color:T.ink}}>스케쥴</h1>
-        <div style={{display:'flex', alignItems:'center', gap:6, flexWrap:'wrap'}}>
-          {navBtn('이전 주', ()=>goWeek(weekOffset-1))}
-          {navBtn('이번 주', ()=>goWeek(0), weekOffset===0)}
-          {navBtn('다음 주', ()=>goWeek(weekOffset+1))}
-        </div>
-      </header>
+    <AstryxPage>
+    <VStack gap={4} maxWidth={1100}>
+      <PageHeader title="스케쥴" right={<>
+        <Button size="sm" label="이전 주" onClick={()=>goWeek(weekOffset-1)}/>
+        <Button size="sm" label="이번 주" variant={weekOffset===0 ? 'primary' : 'secondary'} onClick={()=>goWeek(0)}/>
+        <Button size="sm" label="다음 주" onClick={()=>goWeek(weekOffset+1)}/>
+      </>}/>
 
+      <Legacy>
+      <style>{ST_CSS}</style>
       {/* 사장: 가입 승인 대기 */}
       {isOwner && pending.length>0 && (
         <section style={{marginBottom:28}}>
@@ -529,6 +531,8 @@ export default function Staff() {
           </section>
         )}
       </>}
-    </div>
+      </Legacy>
+    </VStack>
+    </AstryxPage>
   )
 }

@@ -1,4 +1,10 @@
 import { useEffect, useState } from 'react'
+import { VStack, HStack } from '@astryxdesign/core/Layout'
+import { Text } from '@astryxdesign/core/Text'
+import { Card } from '@astryxdesign/core/Card'
+import { Button } from '@astryxdesign/core/Button'
+import { AstryxPage, Legacy, PageHeader } from '../astryx/AstryxPage'
+import CountUp from '../components/CountUp'
 import { avgHoursFromPattern } from '../lib/attendance'
 import { POSITIONS } from '../lib/avatar'
 import TimePick from '../components/TimePick'
@@ -437,27 +443,23 @@ export default function Members() {
     a+calcSeverance(m.joinDate,null,m.wage||10030,m.avgHours||8),0)
 
   return (
-    <div>
-      <div style={{display:'flex',alignItems:'flex-end',justifyContent:'space-between',marginBottom:22}}>
-        <div>
-          <div style={{fontSize:20,fontWeight:700}}>인원관리</div>
-          <div style={{fontSize:12,color:'#6E6A63',marginTop:2}}>사장 전용 — 승인된 직원 정보</div>
-        </div>
-        <button onClick={()=>{ setShowAddForm(v=>!v); setAddForm({payType:'hourly',employType:'part',workDays:[1,2,3,4,5]}) }}
-          style={{background:'var(--hk-accent)',color:'#FFFFFF',border:'none',borderRadius:4,
-            padding:'8px 16px',fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
-          + 직원 추가
-        </button>
-      </div>
+    <AstryxPage>
+    <VStack gap={4}>
+      <PageHeader title="인원관리" sub="사장 전용 — 승인된 직원 정보"
+        right={<Button variant="primary" label="+ 직원 추가" onClick={()=>{ setShowAddForm(v=>!v); setAddForm({payType:'hourly',employType:'part',workDays:[1,2,3,4,5]}) }}/>}/>
 
       {/* 총 퇴직금 */}
-      <div style={{background:'#FFFFFF',border:'1px solid #DCD7CE',borderRadius:6,padding:'18px 20px',marginBottom:18,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
-        <div>
-          <div style={{fontSize:11,color:'#6E6A63',marginBottom:4}}>전체 예상 퇴직금 합계</div>
-          <div style={{fontSize:22,fontWeight:700,color:'var(--hk-accent)',fontFamily:'inherit',fontVariantNumeric:'tabular-nums'}}>{totalSeverance.toLocaleString()}원</div>
-        </div>
-        <div style={{fontSize:11,color:'#6E6A63'}}>재직 {members.length}명 · 퇴직 {retired.length}명</div>
-      </div>
+      <Card>
+        <HStack hAlign="between" vAlign="center" gap={3} wrap="wrap">
+          <VStack gap={1}>
+            <Text type="label" color="secondary">전체 예상 퇴직금 합계</Text>
+            <Text type="display-3" hasTabularNumbers><CountUp value={totalSeverance}/><Text type="large" color="inherit"> 원</Text></Text>
+          </VStack>
+          <Text color="secondary">재직 {members.length}명 · 퇴직 {retired.length}명</Text>
+        </HStack>
+      </Card>
+
+      <Legacy>
 
       {/* 직원 추가 폼 */}
       {showAddForm && (
@@ -892,6 +894,8 @@ export default function Members() {
           </div>
         )}
       </div>
-    </div>
+      </Legacy>
+    </VStack>
+    </AstryxPage>
   )
 }

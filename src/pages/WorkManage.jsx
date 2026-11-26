@@ -1,4 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
+import { VStack } from '@astryxdesign/core/Layout'
+import { Text } from '@astryxdesign/core/Text'
+import { Card } from '@astryxdesign/core/Card'
+import { Grid } from '@astryxdesign/core/Grid'
+import { Selector } from '@astryxdesign/core/Selector'
+import { TabList, Tab } from '@astryxdesign/core/TabList'
+import { AstryxPage, Legacy, PageHeader } from '../astryx/AstryxPage'
 import { db } from '../firebase'
 import { doc, getDoc, setDoc, collection, getDocs, deleteField } from 'firebase/firestore'
 import AttendancePanel from '../components/AttendancePanel'
@@ -387,37 +394,42 @@ function getEmpStats(emp) {
   const grandHoliday = allStats.reduce((a,s)=>a+s.totalWeeklyHoliday,0)
   const grandTotal = allStats.reduce((a,s)=>a+s.totalPay,0)
 
+  const viewKey = showTodayOnly ? 'today' : activeEmp ?? 'all'
+  const setViewKey = v => { if (v === 'today') { setShowTodayOnly(true); setActiveEmp(null) } else if (v === 'all') { setShowTodayOnly(false); setActiveEmp(null) } else { setShowTodayOnly(false); setActiveEmp(v) } }
+
   return (
-    <div>
-      <div style={{display:'flex',alignItems:'flex-end',justifyContent:'space-between',marginBottom:22}}>
-        <div>
-          <div style={{fontSize:20,fontWeight:700}}>근무관리</div>
-          <div style={{fontSize:12,color:'#6E6A63',marginTop:2}}>{mLabel(curMonth)} — 사장 전용</div>
-        </div>
-        <select value={curMonth} onChange={e=>setCurMonth(e.target.value)}
-          style={{background:'#F3F1EC',border:'1px solid #DCD7CE',borderRadius:4,color:'#1D1B18',padding:'8px 12px',fontSize:12,fontFamily:'inherit',outline:'none'}}>
-          {monthOpts.map(m=><option key={m} value={m}>{mLabel(m)}</option>)}
-        </select>
-      </div>
+    <AstryxPage>
+    <VStack gap={5}>
+      <PageHeader title="근무관리" sub={`${mLabel(curMonth)} — 사장 전용`}
+        right={<Selector label="달 고르기" isLabelHidden size="sm" value={curMonth} onChange={v => v && setCurMonth(v)} options={monthOpts.map(m => ({ value:m, label:mLabel(m) }))}/>}/>
 
       {/* NFC 출퇴근: 승인 대기·퇴근 누락·설정 (찍힌 시간은 아래 근무시간에 자동 반영) */}
-      <AttendancePanel curMonth={curMonth} nameMap={nameMap} onApplied={load}/>
+      <Legacy><AttendancePanel curMonth={curMonth} nameMap={nameMap} onApplied={load}/></Legacy>
 
       {/* 월 합계 */}
-      <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:14,marginBottom:20}}>
+      <Grid columns={{ minWidth: 200, max: 3, repeat: 'fit' }} gap={4}>
         {[
-          {label:'기본급 합계', val:grandBase, color:'var(--hk-accent)'},
-          {label:'주휴수당 합계', val:grandHoliday, color:'#2B5C9E'},
-          {label:'총 인건비', val:grandTotal, color:'#2E7D45'},
-        ].map(k=>(
-          <div key={k.label} style={{background:'#FFFFFF',border:'1px solid #DCD7CE',borderRadius:6,padding:'18px 20px',position:'relative',overflow:'hidden'}}>
-            <div className="wm-grow" style={{position:'absolute',top:0,left:0,right:0,height:3,background:k.color}}></div>
-            <div style={{fontSize:10,fontWeight:600,color:'#6E6A63',textTransform:'uppercase',letterSpacing:.8,marginBottom:6}}>{k.label}</div>
-            <div style={{fontSize:20,fontWeight:700,color:k.color,fontFamily:'inherit',fontVariantNumeric:'tabular-nums'}}><Count value={k.val}/>원</div>
-          </div>
+          { label:'기본급 합계', val:grandBase },
+          { label:'주휴수당 합계', val:grandHoliday },
+          { label:'총 인건비', val:grandTotal, filled:true },
+        ].map(k => (
+          <Card key={k.label} variant={k.filled ? 'red' : 'default'}>
+            <VStack gap={1}>
+              <Text type="label" color={k.filled ? 'inherit' : 'secondary'}>{k.label}</Text>
+              <Text type="display-3" color={k.filled ? 'inherit' : 'primary'} hasTabularNumbers textWrap="nowrap"><Count value={k.val}/><Text type="large" color="inherit"> 원</Text></Text>
+            </VStack>
+          </Card>
         ))}
-      </div>
+      </Grid>
 
+      {/* 보기: 오늘 근무 · 전체 요약 · 직원별 */}
+      <TabList value={viewKey} onChange={setViewKey} hasDivider overflow="auto">
+        <Tab value="today" label="오늘 근무"/>
+        <Tab value="all" label="전체 요약"/>
+        {employees.map(e => <Tab key={e.uid} value={e.uid} label={e.name}/>)}
+      </TabList>
+
+      <Legacy>
       {/* 이번달 퇴직금 지급 내역 */}
       {Object.keys(severance).length > 0 && (
         <div style={{background:'#FFFFFF',border:'1px solid rgba(180,83,9,0.3)',borderRadius:6,
@@ -450,27 +462,6 @@ function getEmpStats(emp) {
           </div>
         </div>
       )}
-
-      {/* 직원 탭 */}
-      <div style={{display:'flex',gap:8,marginBottom:14,flexWrap:'wrap'}}>
-        <button className="wm-pill" onClick={()=>{ setShowTodayOnly(v=>!v); setActiveEmp(null) }}
-          style={{padding:'7px 14px',borderRadius:4,border:'none',fontSize:12,fontWeight:600,cursor:'pointer',fontFamily:'inherit',
-            background:showTodayOnly?'#2E7D45':'#F3F1EC',color:showTodayOnly?'#FFFFFF':'#6E6A63'}}>
-          오늘 근무
-        </button>
-        <button className="wm-pill" onClick={()=>{ setActiveEmp(null); setShowTodayOnly(false) }}
-          style={{padding:'7px 14px',borderRadius:4,border:'none',fontSize:12,fontWeight:600,cursor:'pointer',fontFamily:'inherit',
-            background:activeEmp===null&&!showTodayOnly?'var(--hk-accent)':'#F3F1EC',color:activeEmp===null&&!showTodayOnly?'#FFFFFF':'#6E6A63'}}>
-          전체 요약
-        </button>
-        {employees.map(e=>(
-          <button key={e.uid} className="wm-pill" onClick={()=>setActiveEmp(e.uid)}
-            style={{padding:'7px 14px',borderRadius:4,border:'none',fontSize:12,fontWeight:600,cursor:'pointer',fontFamily:'inherit',
-              background:activeEmp===e.uid?'var(--hk-accent)':'#F3F1EC',color:activeEmp===e.uid?'#FFFFFF':'#6E6A63'}}>
-            {e.name}
-          </button>
-        ))}
-      </div>
 
       {loading ? <div style={{textAlign:'center',color:'#6E6A63',padding:60}}>로딩 중...</div> : (
         <>
@@ -677,6 +668,8 @@ function getEmpStats(emp) {
           })()}
         </>
       )}
-    </div>
+      </Legacy>
+    </VStack>
+    </AstryxPage>
   )
 }

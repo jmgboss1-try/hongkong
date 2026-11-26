@@ -1,4 +1,8 @@
 import { useEffect, useState } from 'react'
+import { VStack } from '@astryxdesign/core/Layout'
+import { Grid } from '@astryxdesign/core/Grid'
+import { Banner } from '@astryxdesign/core/Banner'
+import { AstryxPage, Legacy, PageHeader, MonthNav, LedgerCard, Ledger, LedgerRow } from '../astryx/AstryxPage'
 import CountUp from '../components/CountUp'
 import { db } from '../firebase'
 import { doc, getDoc, setDoc } from 'firebase/firestore'
@@ -310,7 +314,6 @@ export default function Revenue() {
     red:'#B42318', green:'#2E7D45', blue:'#2B5C9E', purple:'#6B4FA0' }
   const num = { fontVariantNumeric:'tabular-nums' }
   const won = n => (n||0).toLocaleString('ko-KR')
-  const monthIdx = monthOpts.indexOf(curMonth)
   const field = extra => ({ background:'#FFFFFF', border:'1px solid #CBC5BA', borderRadius:4, color:T.ink, padding:'8px 10px',
     fontSize:14, outline:'none', fontFamily:'inherit', boxSizing:'border-box', ...extra })
   const money = (val, set, label) => (
@@ -373,53 +376,44 @@ export default function Revenue() {
   const yest = (()=>{ const y=new Date(); y.setDate(y.getDate()-1); return pad(y.getDate()) })()
   const typeLabel = t => t==='early' ? '얼리' : t==='morning' ? '오전' : t==='middle' ? '미들타임' : '마감'
 
+  // Astryx 장부 줄 (금액이 굴러가며 바뀜)
+  const row = (label, value, o = {}) => <LedgerRow key={o.key || label} label={label} value={value} note={o.note} sub={o.sub} strong={o.strong} text={o.text}/>
+
   return (
-    <div style={{maxWidth:1100}}>
-      {/* 머리 */}
-      <header style={{display:'flex', alignItems:'center', justifyContent:'space-between', gap:12, flexWrap:'wrap',
-        paddingBottom:10, borderBottom:`3px double ${T.ink}`, marginBottom:22}}>
-        <h1 style={{fontSize:24, fontWeight:800, margin:0, letterSpacing:'-0.01em', fontFamily:'inherit', color:T.ink}}>{mLabel(curMonth)} 매출</h1>
-        <div style={{display:'flex', alignItems:'center', gap:6}}>
-          <button type="button" aria-label="이전 달" disabled={monthIdx<=0} onClick={()=>setCurMonth(monthOpts[monthIdx-1])}
-            style={{background:'none', border:`1px solid ${T.rule}`, borderRadius:4, padding:'6px 10px', cursor:'pointer', fontFamily:'inherit', color:T.ink}}>이전</button>
-          <select value={curMonth} onChange={e=>setCurMonth(e.target.value)} aria-label="달 고르기"
-            style={{background:'#FFFFFF', border:`1px solid ${T.rule}`, borderRadius:4, color:T.ink, padding:'7px 10px', fontSize:13, fontFamily:'inherit', outline:'none'}}>
-            {monthOpts.map(m=><option key={m} value={m}>{mLabel(m)}</option>)}
-          </select>
-          <button type="button" aria-label="다음 달" disabled={monthIdx>=monthOpts.length-1} onClick={()=>setCurMonth(monthOpts[monthIdx+1])}
-            style={{background:'none', border:`1px solid ${T.rule}`, borderRadius:4, padding:'6px 10px', cursor:'pointer', fontFamily:'inherit', color:T.ink}}>다음</button>
-        </div>
-      </header>
+    <AstryxPage>
+    <VStack gap={5} maxWidth={1100}>
+      <PageHeader title={`${mLabel(curMonth)} 매출`} right={<MonthNav value={curMonth} options={monthOpts} onChange={setCurMonth} label={mLabel}/>}/>
 
       {/* 이 달 요약 */}
       {!loading && (
-        <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(min(100%, 380px), 1fr))', gap:'28px 40px', marginBottom:30}}>
-          <section>
-            {sectionTitle('채널별 매출')}
-            {mixedMonth
-              ? <>{line(mixedLabel('kiosk', false), totCut.before.kiosk)}{line(mixedLabel('kiosk', true), totCut.after.kiosk)}</>
-              : line(CH.kiosk, tot.kiosk, { note: grand ? `${Math.round(tot.kiosk/grand*100)}%` : undefined })}
-            {line('배달', tot.del, { note: grand ? `${Math.round(tot.del/grand*100)}%` : undefined })}
-            {platTot.filter(p=>p.sum>0).map(p=>line(p.label, p.sum, { sub:true, key:p.key }))}
-            {mixedMonth
-              ? <>{line(mixedLabel('pos', false), totCut.before.pos)}{line(mixedLabel('pos', true), totCut.after.pos)}</>
-              : line(CH.pos, tot.pos, { note: grand ? `${Math.round(tot.pos/grand*100)}%` : undefined })}
-            <div style={{borderTop:`3px double ${T.ink}`, marginTop:6, paddingTop:2}}>{line('매출 합계', grand, { strong:true })}</div>
-          </section>
-          <section>
-            {sectionTitle('한눈에')}
-            {line('마감 입력한 날', 0, { text:`${dayTotals.length}일` })}
-            {line('하루 평균', avg)}
-            {best && line('가장 많이 판 날', best.sum, { note:`${+best.dd}일 (${getDow(curMonth,best.dd)})` })}
+        <Grid columns={{ minWidth: 340, max: 2, repeat: 'fit' }} gap={4}>
+          <LedgerCard title="채널별 매출">
+            <Ledger rows={<>
+              {mixedMonth
+                ? <>{row(mixedLabel('kiosk', false), totCut.before.kiosk)}{row(mixedLabel('kiosk', true), totCut.after.kiosk)}</>
+                : row(CH.kiosk, tot.kiosk, { note: grand ? `${Math.round(tot.kiosk/grand*100)}%` : undefined })}
+              {row('배달', tot.del, { note: grand ? `${Math.round(tot.del/grand*100)}%` : undefined })}
+              {platTot.filter(p=>p.sum>0).map(p=>row(p.label, p.sum, { sub:true, key:p.key }))}
+              {mixedMonth
+                ? <>{row(mixedLabel('pos', false), totCut.before.pos)}{row(mixedLabel('pos', true), totCut.after.pos)}</>
+                : row(CH.pos, tot.pos, { note: grand ? `${Math.round(tot.pos/grand*100)}%` : undefined })}
+            </>} total={row('매출 합계', grand, { strong:true })}/>
+          </LedgerCard>
+          <LedgerCard title="한눈에">
+            <Ledger rows={<>
+              {row('마감 입력한 날', 0, { text:`${dayTotals.length}일` })}
+              {row('하루 평균', avg)}
+              {best && row('가장 많이 판 날', best.sum, { note:`${+best.dd}일 (${getDow(curMonth,best.dd)})` })}
+            </>}/>
             {isNewMonth && activeDays.some(dd=>(hasMorningData(dd)||hasMiddleData(dd)) && !hasTotalData(dd)) && (
-              <div style={{marginTop:8, fontSize:13, color:T.red}}>
-                마감이 빠진 날: {activeDays.filter(dd=>(hasMorningData(dd)||hasMiddleData(dd)) && !hasTotalData(dd)).map(dd=>`${+dd}일`).join(', ')}
-              </div>
+              <Banner status="warning" title="마감이 빠진 날"
+                description={activeDays.filter(dd=>(hasMorningData(dd)||hasMiddleData(dd)) && !hasTotalData(dd)).map(dd=>`${+dd}일`).join(', ')}/>
             )}
-          </section>
-        </div>
+          </LedgerCard>
+        </Grid>
       )}
 
+      <Legacy>
       {/* 지난달 같은 기간과 비교 */}
       {!loading && <RevenuePace ym={curMonth}/>}
 
@@ -627,6 +621,8 @@ export default function Revenue() {
           </div>
         )}
       </section>
-    </div>
+      </Legacy>
+    </VStack>
+    </AstryxPage>
   )
 }
