@@ -597,11 +597,8 @@ const [payingDate, setPayingDate]     = useState('')
         </LedgerCard>
       )}
 
-      <Legacy>
       {/* 통장 잔액 맞추기 (영업 잔액 vs 실제 통장) */}
       <BankReconCard ym={curMonth} data={data} categories={categories} onChanged={refreshData}/>
-
-      </Legacy>
 
       <Grid columns={{ minWidth: 420, max: 2, repeat: 'fit' }} gap={4}>
         {/* 고정지출: 납부/미납, 냈어요 → 날짜 고르고 확인, 항목 관리 */}

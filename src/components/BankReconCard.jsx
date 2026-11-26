@@ -3,12 +3,20 @@ import { db } from '../firebase'
 import { doc, getDoc, setDoc } from 'firebase/firestore'
 import { bankSummary, offBankDetail, NONOP_LABELS, INVEST_OPTIONS, investOption, appendInvestmentRecords } from '../lib/bankRecon'
 import BankTxList from './BankTxList'
+import { VStack, HStack } from '@astryxdesign/core/Layout'
+import { Text, Heading } from '@astryxdesign/core/Text'
+import { Card } from '@astryxdesign/core/Card'
+import { Grid } from '@astryxdesign/core/Grid'
+import { Badge } from '@astryxdesign/core/Badge'
+import { Banner } from '@astryxdesign/core/Banner'
+import { Button } from '@astryxdesign/core/Button'
+import { Selector } from '@astryxdesign/core/Selector'
+import { List, ListItem } from '@astryxdesign/core/List'
+import { Legacy, LedgerCard, Ledger, LedgerRow } from '../astryx/AstryxPage'
 import OffBankList from './OffBankList'
 
 const wonFmt = n => (n||0).toLocaleString('ko-KR')
 const sign = n => n > 0 ? `+${wonFmt(n)}` : n < 0 ? `−${wonFmt(-n)}` : '0'
-const T = { ink:'#1D1B18', sub:'#6E6A63', faint:'#A8A39A', rule:'#DCD7CE', soft:'#ECE8E1', accent:'var(--hk-accent)', red:'#B42318', green:'#2E7D45', blue:'#2B5C9E' }
-const num = { fontVariantNumeric:'tabular-nums' }
 const md = d => d ? `${+d.slice(5,7)}/${+d.slice(8,10)}` : ''
 
 // 영업 외 종류 → 연결되는 대여금 장부 (BankImport와 같음)
@@ -28,19 +36,6 @@ export default function BankReconCard({ ym, data, categories, onChanged }) {
   const b = s.bank
   const nonOp = (data?.nonOp || []).slice().sort((a,b)=>a.date.localeCompare(b.date))
 
-  // 장부 한 줄: 이름 ……… 금액 (지출관리·대시보드와 같은 모양)
-  const line = (label, value, { sub, strong, color, note, prefix } = {}) => (
-    <div key={label} style={{display:'flex', alignItems:'baseline', padding: sub ? '3px 0 3px 14px' : '6px 0',
-      fontSize: strong ? 16 : sub ? 13 : 14, fontWeight: strong ? 800 : sub ? 400 : 600, color: sub ? T.sub : T.ink}}>
-      <span style={{whiteSpace:'nowrap'}}>{label}</span>
-      {note && <span style={{fontSize:12, color:T.sub, marginLeft:6, whiteSpace:'nowrap', fontWeight:400}}>{note}</span>}
-      <span aria-hidden="true" style={{flex:1, borderBottom:`1px dotted ${T.faint}`, margin:'0 8px', minWidth:12, transform:'translateY(-4px)'}}/>
-      <span style={{...num, whiteSpace:'nowrap', color: color || 'inherit'}}>{prefix && value ? prefix : ''}{wonFmt(value)}</span>
-    </div>
-  )
-  const total = (label, value, opts) => (
-    <div style={{borderTop:`3px double ${T.ink}`, marginTop:6, paddingTop:2}}>{line(label, value, { strong:true, ...opts })}</div>
-  )
   const kinds = Object.entries(s.byKind)
 
   // 아직 정리 안 된 출금: 통장에는 있는데 지출(importedKeys)에도 영업 외(nonOp)에도 없는 것
@@ -110,133 +105,104 @@ export default function BankReconCard({ ym, data, categories, onChanged }) {
 
   const pickedCount = Object.values(picks).filter(Boolean).length
 
+  const pickOptions = [
+    ...secs.map(sec => ({ type:'section', title:sec, options: categories.filter(c=>c.sec===sec).map(c=>({ value:c.id, label:c.label })) })),
+    { type:'section', title:'영업 외 (지출 아님)', options: Object.entries(NONOP_LABELS).map(([k,l])=>({ value:`nonop:${k}`, label:l })) },
+    { type:'section', title:'투자관리 회수로 기록 (영업 외)', options: INVEST_OPTIONS.map(o=>({ value:o.value, label:o.label })) },
+    { value:'ack', label:'이미 지출에 있음 (금액 안 더함)' },
+  ]
+  const reasons = b && b.diff ? [
+    [b.reasons.carryover, `통장 시작 잔액은 ${wonFmt(b.opening)}원인데 전월 이월은 ${wonFmt(s.carryover)}원이에요. 전월 이월을 ${wonFmt(b.opening)}원으로 고치면 맞아요.`],
+    [b.reasons.unhandledIn, '아직 정리 안 된 입금이 있어요. 계좌내역 탭에서 다시 올려 실입금으로 맞추거나 영업 외 입금으로 기록하세요.'],
+    [b.reasons.unhandledOut, '아직 정리 안 된 출금이 있어요. 아래 목록에서 바로 골라주세요.'],
+    [b.reasons.offBank, '통장이 아닌 곳에서 낸 지출이에요(현금·직접 입력·고정지출 납부 등). 이 중 통장에서 나간 건은 정리 안 된 출금과 서로 상쇄돼요.'],
+  ].map(([v,text],i)=>({ v, text, i })).filter(x=>x.v) : []
+
   return (
-    <section style={{marginBottom:30}}>
-      <div style={{display:'flex', justifyContent:'space-between', alignItems:'baseline', gap:10, flexWrap:'wrap',
-        borderBottom:`2px solid ${T.ink}`, paddingBottom:6, marginBottom:6}}>
-        <h2 style={{fontSize:16, fontWeight:800, margin:0, fontFamily:'inherit', color:T.ink}}>통장 잔액 맞추기</h2>
-        {b && b.diff !== null && (
-          <span style={{fontSize:13, fontWeight:700, ...num, color: b.diff===0 ? T.green : T.accent}}>
-            {b.diff===0 ? '통장과 일치해요' : `통장과 ${wonFmt(Math.abs(b.diff))}원 차이`}
-          </span>
-        )}
-      </div>
+    <LedgerCard title="통장 잔액 맞추기" right={b && b.diff !== null && (
+      <Badge variant={b.diff===0 ? 'success' : 'warning'} label={b.diff===0 ? '통장과 일치해요' : `통장과 ${wonFmt(Math.abs(b.diff))}원 차이`}/>
+    )}>
+      <Grid columns={{ minWidth: 320, max: 2, repeat: 'fit' }} gap={6}>
+        <Ledger rows={<>
+          <LedgerRow label="영업 잔액" note="이월 + 실입금 − 지출" value={s.operating} tone={s.operating<0 ? 'bad' : undefined}/>
+          <LedgerRow label="영업 외 입금" value={s.nonOpIn} plus/>
+          {kinds.filter(([,v])=>v.in).map(([k,v])=><LedgerRow key={'i'+k} label={NONOP_LABELS[k]||k} value={v.in} sub/>)}
+          <LedgerRow label="영업 외 출금" value={s.nonOpOut} minus/>
+          {kinds.filter(([,v])=>v.out).map(([k,v])=><LedgerRow key={'o'+k} label={NONOP_LABELS[k]||k} value={v.out} sub/>)}
+        </>} total={<>
+          <LedgerRow label="계산상 통장 잔액" value={s.expected} strong/>
+          {b && b.closing !== null && <LedgerRow label="실제 통장 잔액" note={`${md(b.to)} 기준`} value={b.closing} tone="accent"/>}
+        </>}/>
 
-      <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(min(100%, 340px), 1fr))', gap:'12px 40px'}}>
-        <div>
-          {line('영업 잔액', s.operating, { note:'이월 + 실입금 − 지출', color: s.operating<0 ? T.red : undefined })}
-          {line('영업 외 입금', s.nonOpIn, { prefix:'+ ' })}
-          {kinds.filter(([,v])=>v.in).map(([k,v])=>line(NONOP_LABELS[k]||k, v.in, { sub:true }))}
-          {line('영업 외 출금', s.nonOpOut, { prefix:'− ' })}
-          {kinds.filter(([,v])=>v.out).map(([k,v])=>line(NONOP_LABELS[k]||k, v.out, { sub:true }))}
-          {total('계산상 통장 잔액', s.expected)}
-          {b && b.closing !== null && line('실제 통장 잔액', b.closing, { note:`${md(b.to)} 기준`, color:T.blue })}
-        </div>
-
-        <div style={{fontSize:13, color:T.sub, lineHeight:1.7, paddingTop:6}}>
+        <VStack gap={2}>
           {!b ? (
-            <>
-              아래 <b style={{color:T.ink}}>계좌내역 엑셀·PDF</b> 탭에서 이 달 통장 거래내역을 올리면 실제 통장 잔액과 비교해 드려요.
-              영업 잔액은 장사 성적(실입금 − 지출)이고, 통장에는 형 대여금·투자금 같은 영업 외 거래도 있어서 둘은 다를 수 있어요.
-            </>
+            <Text color="secondary">아래 <b>계좌내역 엑셀·PDF</b> 탭에서 이 달 통장 거래내역을 올리면 실제 통장 잔액과 비교해 드려요.
+              영업 잔액은 장사 성적(실입금 − 지출)이고, 통장에는 형 대여금·투자금 같은 영업 외 거래도 있어서 둘은 다를 수 있어요.</Text>
           ) : b.closing === null ? (
-            <>이 은행 파일에는 잔액 칸이 없어서 실제 통장 잔액을 계산할 수 없어요. 잔액이 있는 PDF로 올려주세요.</>
+            <Text color="secondary">이 은행 파일에는 잔액 칸이 없어서 실제 통장 잔액을 계산할 수 없어요. 잔액이 있는 PDF로 올려주세요.</Text>
           ) : b.diff === 0 ? (
-            <>
-              <div style={{color:T.green, fontWeight:700}}>장부가 통장과 정확히 맞아요.</div>
-              {md(b.from)}~{md(b.to)} 통장 거래 {b.count}건 기준이에요.
-            </>
+            <Banner status="success" title="장부가 통장과 정확히 맞아요." description={`${md(b.from)}~${md(b.to)} 통장 거래 ${b.count}건 기준이에요.`}/>
           ) : (
             <>
-              <div style={{color:T.ink, fontWeight:700, marginBottom:4}}>차이가 나는 이유 <span style={{fontWeight:400, color:T.sub, fontSize:12}}>({md(b.from)}~{md(b.to)} 통장 거래 {b.count}건 기준)</span></div>
-              {[
-                [b.reasons.carryover, `통장 시작 잔액은 ${wonFmt(b.opening)}원인데 전월 이월은 ${wonFmt(s.carryover)}원이에요. 전월 이월을 ${wonFmt(b.opening)}원으로 고치면 맞아요.`],
-                [b.reasons.unhandledIn, '아직 정리 안 된 입금이 있어요. 계좌내역 탭에서 다시 올려 실입금으로 맞추거나 영업 외 입금으로 기록하세요.'],
-                [b.reasons.unhandledOut, '아직 정리 안 된 출금이 있어요. 아래 목록에서 바로 골라주세요.'],
-                [b.reasons.offBank, '통장이 아닌 곳에서 낸 지출이에요(현금·직접 입력·고정지출 납부 등). 이 중 통장에서 나간 건은 정리 안 된 출금과 서로 상쇄돼요.'],
-              ].map(([v,text],i)=>[v,text,i]).filter(([v])=>v).map(([v,text,i])=>(
-                <div key={i} style={{display:'flex', gap:12, padding:'6px 0', borderTop:`1px solid ${T.soft}`}}>
-                  <b style={{...num, color: v>0 ? T.accent : T.red, minWidth:92, textAlign:'right', flexShrink:0}}>{sign(v)}</b>
-                  <span>{text}
-                    {i===3 && <><br/><button type="button" onClick={()=>setShowOff(v=>!v)}
-                      style={{background:'none', border:'none', borderBottom:`1px solid ${T.blue}`, color:T.blue, fontSize:13, cursor:'pointer', fontFamily:'inherit', padding:0, marginTop:4}}>
-                      {showOff ? '접기' : '어느 지출인지 찾아보기'}</button></>}
-                  </span>
-                </div>
-              ))}
+              <HStack gap={2} vAlign="center" wrap="wrap"><Heading level={5}>차이가 나는 이유</Heading><Text type="supporting" color="secondary">({md(b.from)}~{md(b.to)} 통장 거래 {b.count}건 기준)</Text></HStack>
+              <List hasDividers edge="flush">
+                {reasons.map(({ v, text, i }) => (
+                  <ListItem key={i} align="start" startContent={<Text weight="bold" color={v>0 ? 'accent' : 'primary'} hasTabularNumbers>{sign(v)}</Text>}
+                    label={<Text>{text}</Text>}
+                    description={i===3 ? <Button size="sm" variant="ghost" label={showOff ? '접기' : '어느 지출인지 찾아보기'} onClick={()=>setShowOff(v=>!v)}/> : undefined}/>
+                ))}
+              </List>
             </>
           )}
-        </div>
-      </div>
+        </VStack>
+      </Grid>
 
       {b && showOff && !!b.reasons.offBank && (
-        <OffBankList ym={ym} data={data} categories={categories} detail={offBankDetail(data, categories)} total={b.reasons.offBank} onChanged={onChanged}/>
+        <Legacy><OffBankList ym={ym} data={data} categories={categories} detail={offBankDetail(data, categories)} total={b.reasons.offBank} onChanged={onChanged}/></Legacy>
       )}
 
       {b && unhandled.length > 0 && (
-        <div style={{marginTop:16, borderLeft:`4px solid ${T.accent}`, background:'rgba(var(--hk-accent-rgb),0.051)', padding:'10px 14px', borderRadius:'0 4px 4px 0'}}>
-          <div style={{display:'flex', justifyContent:'space-between', alignItems:'baseline', gap:8, flexWrap:'wrap'}}>
-            <span style={{fontSize:14, fontWeight:800, color:T.accent}}>아직 정리 안 된 출금 {unhandled.length}건</span>
-            <span style={{fontSize:14, fontWeight:700, ...num}}>{wonFmt(unhandled.reduce((a,t)=>a+t.out,0))}원</span>
-          </div>
-          <div style={{fontSize:12, color:T.sub, margin:'2px 0 6px', lineHeight:1.6}}>
-            여기서 골라 저장하면 돼요 (PDF를 다시 올리지 않아도 돼요). 임대료처럼 이미 고정지출·직접 입력으로 적어둔 지출이면 <b>'이미 지출에 있음'</b>을 고르세요. 금액은 더하지 않고 연결만 해요.
-          </div>
-          {unhandled.map(t=>(
-            <div key={t.key} style={{display:'flex', alignItems:'center', gap:10, padding:'7px 0', borderTop:`1px solid ${T.rule}`, flexWrap:'wrap'}}>
-              <span style={{fontSize:12, color:T.sub, ...num, minWidth:76}}>{md(t.date)} {t.time.slice(0,5)}</span>
-              <span style={{flex:1, fontSize:13, color:T.ink, minWidth:120}}>{t.desc || '—'}</span>
-              <span style={{fontSize:14, fontWeight:700, ...num}}>{wonFmt(t.out)}</span>
-              <select value={picks[t.key]||''} onChange={e=>setPicks(p=>({ ...p, [t.key]: e.target.value }))} aria-label="분류"
-                style={{background:'#FFFFFF', border:`1px solid ${picks[t.key] ? '#CBC5BA' : T.red}`, borderRadius:4, color:T.ink,
-                  padding:'6px 8px', fontSize:12, outline:'none', fontFamily:'inherit', minWidth:150}}>
-                <option value="">골라주세요</option>
-                {secs.map(sec=>(
-                  <optgroup key={sec} label={sec}>
-                    {categories.filter(c=>c.sec===sec).map(c=><option key={c.id} value={c.id}>{c.label}</option>)}
-                  </optgroup>
-                ))}
-                <optgroup label="영업 외 (지출 아님)">
-                  {Object.entries(NONOP_LABELS).map(([k,l])=><option key={k} value={`nonop:${k}`}>{l}</option>)}
-                </optgroup>
-                <optgroup label="투자관리 회수로 기록 (영업 외)">
-                  {INVEST_OPTIONS.map(o=><option key={o.value} value={o.value}>{o.label}</option>)}
-                </optgroup>
-                <option value="ack">이미 지출에 있음 (금액 안 더함)</option>
-              </select>
-            </div>
-          ))}
-          <button onClick={savePicks} disabled={saving || !pickedCount}
-            style={{marginTop:8, background:T.accent, color:'#FFFFFF', border:'none', borderRadius:4, padding:'7px 16px',
-              fontSize:13, fontWeight:700, cursor:'pointer', fontFamily:'inherit', opacity: pickedCount ? 1 : 0.5}}>
-            {saving ? '저장 중...' : `고른 ${pickedCount}건 저장`}
-          </button>
-        </div>
+        <Card variant="muted" padding={3}>
+          <VStack gap={2}>
+            <HStack gap={2} vAlign="center" hAlign="between" wrap="wrap">
+              <Heading level={5}>아직 정리 안 된 출금 {unhandled.length}건</Heading>
+              <Text weight="bold" hasTabularNumbers>{wonFmt(unhandled.reduce((a,t)=>a+t.out,0))}원</Text>
+            </HStack>
+            <Text type="supporting" color="secondary">여기서 골라 저장하면 돼요 (PDF를 다시 올리지 않아도 돼요). 임대료처럼 이미 고정지출·직접 입력으로 적어둔 지출이면 '이미 지출에 있음'을 고르세요. 금액은 더하지 않고 연결만 해요.</Text>
+            <List hasDividers edge="flush">
+              {unhandled.map(t=>(
+                <ListItem key={t.key} label={<Text>{t.desc || '—'}</Text>}
+                  description={<Text type="supporting" color="secondary" hasTabularNumbers>{md(t.date)} {t.time.slice(0,5)}</Text>}
+                  endContent={<HStack gap={2} vAlign="center">
+                    <Text weight="bold" hasTabularNumbers>{wonFmt(t.out)}</Text>
+                    <Selector label="분류" isLabelHidden size="sm" placeholder="골라주세요" value={picks[t.key] || undefined} onChange={v=>setPicks(p=>({ ...p, [t.key]: v || '' }))} options={pickOptions}/>
+                  </HStack>}/>
+              ))}
+            </List>
+            <HStack><Button variant="primary" label={saving ? '저장 중...' : `고른 ${pickedCount}건 저장`} isDisabled={saving || !pickedCount} onClick={savePicks}/></HStack>
+          </VStack>
+        </Card>
       )}
 
-      <BankTxList ym={ym} data={data} categories={categories} onChanged={onChanged}/>
+      <Legacy><BankTxList ym={ym} data={data} categories={categories} onChanged={onChanged}/></Legacy>
 
       {nonOp.length > 0 && (
-        <div style={{marginTop:10}}>
-          <button type="button" onClick={()=>setShowList(v=>!v)}
-            style={{background:'none', border:'none', borderBottom:`1px solid ${T.blue}`, color:T.blue, fontSize:13, cursor:'pointer', fontFamily:'inherit', padding:0}}>
-            {showList ? '영업 외 거래 접기' : `영업 외 거래 ${nonOp.length}건 보기`}
-          </button>
-          <span style={{fontSize:12, color:T.sub, marginLeft:8}}>투자·정산은 투자관리 탭에 옮겨 적을 때 참고하세요</span>
+        <VStack gap={1}>
+          <HStack gap={2} vAlign="center" wrap="wrap">
+            <Button size="sm" variant="ghost" label={showList ? '영업 외 거래 접기' : `영업 외 거래 ${nonOp.length}건 보기`} onClick={()=>setShowList(v=>!v)}/>
+            <Text type="supporting" color="secondary">투자·정산은 투자관리 탭에 옮겨 적을 때 참고하세요</Text>
+          </HStack>
           {showList && (
-            <div style={{marginTop:6}}>
+            <List hasDividers edge="flush">
               {nonOp.map(x=>(
-                <div key={x.key} style={{display:'flex', gap:10, fontSize:13, padding:'6px 0', borderBottom:`1px solid ${T.soft}`, alignItems:'baseline'}}>
-                  <span style={{color:T.sub, ...num, minWidth:44}}>{md(x.date)}</span>
-                  <span style={{minWidth:90, color:T.sub}}>{NONOP_LABELS[x.kind==='loan_sangam'?'loan':x.kind]||x.kind}</span>
-                  <span style={{flex:1, color:T.ink, minWidth:0}}>{x.desc}</span>
-                  <span style={{...num, fontWeight:600, color: x.dir==='in' ? T.green : T.red}}>{x.dir==='in'?'+ ':'− '}{wonFmt(x.amount)}</span>
-                </div>
+                <ListItem key={x.key} label={<Text>{x.desc}</Text>}
+                  description={<Text type="supporting" color="secondary" hasTabularNumbers>{md(x.date)} · {NONOP_LABELS[x.kind==='loan_sangam'?'loan':x.kind]||x.kind}</Text>}
+                  endContent={<Text weight="bold" hasTabularNumbers color={x.dir==='in' ? 'accent' : 'primary'}>{x.dir==='in'?'+ ':'− '}{wonFmt(x.amount)}</Text>}/>
               ))}
-            </div>
+            </List>
           )}
-        </div>
+        </VStack>
       )}
-    </section>
+    </LedgerCard>
   )
 }
