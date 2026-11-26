@@ -1,6 +1,14 @@
 import { useEffect, useState } from 'react'
 import { db } from '../firebase'
 import { doc, getDoc, setDoc } from 'firebase/firestore'
+import { VStack, HStack } from '@astryxdesign/core/Layout'
+import { Text } from '@astryxdesign/core/Text'
+import { Card } from '@astryxdesign/core/Card'
+import { Button } from '@astryxdesign/core/Button'
+import { Selector } from '@astryxdesign/core/Selector'
+import { TextInput } from '@astryxdesign/core/TextInput'
+import { DateInput } from '@astryxdesign/core/DateInput'
+import { List, ListItem } from '@astryxdesign/core/List'
 
 const pad = n => String(n).padStart(2,'0')
 const DAYS_KR = ['일','월','화','수','목','금','토']
@@ -104,57 +112,33 @@ export default function MissedExpenseInput({ curMonth, onSaved }) {
     setSaving(false)
   }
 
-  const inputStyle = {background:'#FFFFFF',border:'1px solid #CBC5BA',borderRadius:4,color:'#1D1B18',
-    padding:'9px 10px',fontSize:14,outline:'none',fontFamily:'inherit',boxSizing:'border-box'}
   const secs = ['재료비','관리비','인건비']
+  const catOpts = secs.map(sec => ({ type:'section', title:sec, options: categories.filter(c=>c.sec===sec).map(c => ({ value:c.id, label:c.label })) }))
 
   return (
-    <div>
-      <div style={{padding:'10px 0 0',display:'flex',flexDirection:'column',gap:12}}>
-        {/* 입력 폼 */}
-        <div style={{display:'flex',gap:8,flexWrap:'wrap',alignItems:'center'}}>
-          <input type="date" value={date} onChange={e=>e.target.value && setDate(e.target.value)} style={inputStyle}/>
-          <select value={catId} onChange={e=>setCatId(e.target.value)} style={inputStyle}>
-            {secs.map(sec=>(
-              <optgroup key={sec} label={sec}>
-                {categories.filter(c=>c.sec===sec).map(c=><option key={c.id} value={c.id}>{c.label}</option>)}
-              </optgroup>
-            ))}
-          </select>
-          <input type="text" inputMode="numeric" placeholder="금액" aria-label="금액"
-            value={amount === '' ? '' : (+amount).toLocaleString('ko-KR')}
-            onChange={e=>setAmount(e.target.value.replace(/[^0-9]/g,''))}
-            onKeyDown={e=>e.key==='Enter' && save()}
-            style={{...inputStyle,width:150,textAlign:'right',fontVariantNumeric:'tabular-nums'}}/>
-          <button onClick={save} disabled={saving}
-            style={{background:'var(--hk-accent)',color:'#FFFFFF',border:'none',borderRadius:4,padding:'8px 18px',
-              fontSize:14,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
-            {saving ? '저장 중...' : '지출 추가'}
-          </button>
-        </div>
-
-        {/* 선택한 날짜의 현재 지출 */}
-        <div style={{borderTop:'1px solid #DCD7CE',borderBottom:'1px solid #DCD7CE',padding:'8px 0'}}>
-          <div style={{display:'flex',justifyContent:'space-between',fontSize:13,color:'#6E6A63',marginBottom:dayItems.length?6:0}}>
-            <span>{+m}월 {+dd}일 ({DAYS_KR[new Date(y,m-1,+dd).getDay()]}) 기록된 지출</span>
-            <span style={{color:'#B42318',fontWeight:700,fontFamily:'inherit',fontVariantNumeric:'tabular-nums'}}>
-              {dayTotal>0 ? `${dayTotal.toLocaleString()}원` : '없음'}
-            </span>
-          </div>
-          {dayItems.map(c=>(
-            <div key={c.id} style={{display:'flex',alignItems:'center',gap:10,padding:'6px 0 6px 14px',fontSize:14}}>
-              <span style={{flex:1,color:'#1D1B18'}}>{c.label}</span>
-              <span style={{color:'#B42318',fontFamily:'inherit',fontVariantNumeric:'tabular-nums'}}>{dayEntry[c.id].toLocaleString()}</span>
-              <button onClick={()=>removeItem(c.id)} disabled={saving}
-                style={{background:'transparent',border:'1px solid #E8C4BF',color:'#B42318',
-                  padding:'2px 8px',fontSize:10,borderRadius:4,cursor:'pointer',fontFamily:'inherit'}}>
-                삭제
-              </button>
-            </div>
-          ))}
-        </div>
-
-      </div>
-    </div>
+    <VStack gap={3}>
+      <HStack gap={2} vAlign="end" wrap="wrap">
+        <DateInput label="날짜" value={date} onChange={v=>v && setDate(v)}/>
+        <Selector label="카테고리" value={catId} onChange={v=>v && setCatId(v)} options={catOpts}/>
+        <TextInput label="금액" inputMode="numeric" placeholder="0" width={150} value={amount === '' ? '' : (+amount).toLocaleString('ko-KR')}
+          onChange={v=>setAmount(v.replace(/[^0-9]/g,''))} onEnter={save}/>
+        <Button variant="primary" label={saving ? '저장 중...' : '지출 추가'} isDisabled={saving} onClick={save}/>
+      </HStack>
+      <Card variant="muted" padding={3}>
+        <VStack gap={1}>
+          <HStack hAlign="between">
+            <Text type="supporting" color="secondary">{+m}월 {+dd}일 ({DAYS_KR[new Date(y,m-1,+dd).getDay()]}) 기록된 지출</Text>
+            <Text weight="bold" hasTabularNumbers>{dayTotal>0 ? `${dayTotal.toLocaleString()}원` : '없음'}</Text>
+          </HStack>
+          {dayItems.length > 0 && (
+            <List hasDividers edge="flush">
+              {dayItems.map(c => (
+                <ListItem key={c.id} label={c.label} endContent={<HStack gap={1} vAlign="center"><Text hasTabularNumbers>{dayEntry[c.id].toLocaleString()}</Text><Button size="sm" variant="ghost" label="삭제" isDisabled={saving} onClick={()=>removeItem(c.id)}/></HStack>}/>
+              ))}
+            </List>
+          )}
+        </VStack>
+      </Card>
+    </VStack>
   )
 }

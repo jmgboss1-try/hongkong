@@ -2,10 +2,14 @@ import { useState } from 'react'
 import { db } from '../firebase'
 import { doc, getDoc, setDoc } from 'firebase/firestore'
 import { parseTxKey, currentClass, classLabel } from '../lib/bankReclass'
+import { VStack, HStack } from '@astryxdesign/core/Layout'
+import { Text, Heading } from '@astryxdesign/core/Text'
+import { Card } from '@astryxdesign/core/Card'
+import { Badge } from '@astryxdesign/core/Badge'
+import { Button } from '@astryxdesign/core/Button'
+import { List, ListItem } from '@astryxdesign/core/List'
 
 const wonFmt = n => (n||0).toLocaleString('ko-KR')
-const T = { ink:'#1D1B18', sub:'#6E6A63', faint:'#A8A39A', rule:'#DCD7CE', soft:'#ECE8E1', accent:'var(--hk-accent)', red:'#B42318', green:'#2E7D45', blue:'#2B5C9E', amber:'#B45309' }
-const num = { fontVariantNumeric:'tabular-nums' }
 const md = d => d && d.length >= 10 ? `${+d.slice(5,7)}/${+d.slice(8,10)}` : d
 const dayDiff = (a, b) => Math.round((new Date(a) - new Date(b)) / 86400000)
 
@@ -49,107 +53,67 @@ export default function OffBankList({ ym, data, categories, detail, total, onCha
     setBusy(null)
   }
 
-  const head = { fontSize:11, color:T.sub, fontWeight:600 }
+  const txList = list => (
+    <List hasDividers edge="flush">
+      {list.map(t => <ListItem key={t.key} label={t.desc||'—'} description={<Text type="supporting" color="secondary" hasTabularNumbers>{md(t.date)} {t.time.slice(0,5)}</Text>} endContent={<Text hasTabularNumbers>{wonFmt(t.amount)}</Text>}/>)}
+    </List>
+  )
   return (
-    <div style={{marginTop:16, borderTop:`1px solid ${T.ink}`, paddingTop:8}}>
-      <div style={{display:'flex', justifyContent:'space-between', alignItems:'baseline', gap:8, flexWrap:'wrap'}}>
-        <span style={{fontSize:14, fontWeight:800, color:T.ink}}>통장 밖 지출 찾기</span>
-        <span style={{fontSize:14, fontWeight:700, ...num, color:T.accent}}>{wonFmt(total)}원</span>
-      </div>
-      <div style={{fontSize:12, color:T.sub, margin:'2px 0 8px', lineHeight:1.6}}>
-        지출 칸에 적힌 금액 중 통장 출금으로 들어오지 않은 부분이에요. 현금으로 냈다면 맞는 것이고, 직원 지출입력·직접 입력으로 적었는데
-        같은 돈이 통장 출금으로도 들어왔다면 <b style={{color:T.ink}}>두 번 적힌 것</b>이라 빼야 해요.
-        <b style={{color:T.amber}}> 두 번 적힘 의심</b>은 3일 안에 같은 금액이 통장에서 나간 경우예요.
-      </div>
+    <Card variant="muted" padding={3}>
+      <VStack gap={3}>
+        <HStack hAlign="between" vAlign="center" gap={2}>
+          <Heading level={5}>통장 밖 지출 찾기</Heading>
+          <Text weight="bold" color="accent" hasTabularNumbers>{wonFmt(total)}원</Text>
+        </HStack>
+        <Text type="supporting" color="secondary">
+          지출 칸에 적힌 금액 중 통장 출금으로 들어오지 않은 부분이에요. 현금으로 냈다면 맞는 것이고, 직원 지출입력·직접 입력으로 적었는데
+          같은 돈이 통장 출금으로도 들어왔다면 두 번 적힌 것이라 빼야 해요. '두 번 적힘 의심'은 3일 안에 같은 금액이 통장에서 나간 경우예요.
+        </Text>
 
-      <div style={{display:'grid', gridTemplateColumns:'38px minmax(50px,1fr) 68px 68px 76px', gap:'0 5px', alignItems:'baseline',
-        borderBottom:`1px solid ${T.rule}`, paddingBottom:4}}>
-        <span style={head}>날짜</span><span style={head}>칸</span>
-        <span style={{...head, textAlign:'right'}}>적힌 금액</span><span style={{...head, textAlign:'right'}}>통장 출금</span>
-        <span style={{...head, textAlign:'right'}}>통장 밖</span>
-      </div>
-      {[...plus, ...minus].map(r => {
-        const sus = suspects(r)
-        return (
-          <div key={r.day+r.cat} style={{borderBottom:`1px solid ${T.soft}`, padding:'6px 0', background: sus.length ? '#B453090D' : 'transparent'}}>
-            <div style={{display:'grid', gridTemplateColumns:'38px minmax(50px,1fr) 68px 68px 76px', gap:'0 5px', alignItems:'baseline', fontSize:13}}>
-              <span style={{...num, color:T.sub}}>{md(r.date)}</span>
-              <span style={{color:T.ink}}>{r.label}</span>
-              <span style={{...num, textAlign:'right'}}>{wonFmt(r.entered)}</span>
-              <span style={{...num, textAlign:'right', color:T.sub}}>{r.bank ? wonFmt(r.bank) : '—'}</span>
-              <b style={{...num, textAlign:'right', color: r.amount>0 ? T.accent : T.red}}>{r.amount>0 ? '+' : '−'}{wonFmt(Math.abs(r.amount))}</b>
-            </div>
-            {r.amount < 0 && (
-              <div style={{fontSize:12, color:T.red, paddingLeft:43, marginTop:2}}>
-                칸 금액이 통장 출금보다 적어요. 칸에서 금액을 손으로 줄였을 수 있어요.
-              </div>
-            )}
-            {sus.map(t => (
-              <div key={t.key} style={{fontSize:12, color:T.amber, paddingLeft:43, marginTop:2}}>
-                두 번 적힘 의심: {md(t.date)} {t.time.slice(0,5)} 통장 출금 '{t.desc||'—'}' {wonFmt(t.out)}원 → 지금 '{classLabel(currentClass(data, t).value, categories)}'
-              </div>
-            ))}
-            {r.amount > 0 && (
-              <div style={{paddingLeft:43, marginTop:3}}>
-                <button type="button" onClick={()=>takeOut(r)} disabled={busy===r.day+r.cat}
-                  style={{background:'#F3F1EC', border:`1px solid ${T.rule}`, borderRadius:4, color:T.ink, padding:'3px 9px',
-                    fontSize:12, cursor:'pointer', fontFamily:'inherit'}}>
-                  {busy===r.day+r.cat ? '...' : `두 번 적힌 거면 이 칸에서 ${wonFmt(r.amount)}원 빼기`}
-                </button>
-              </div>
-            )}
-          </div>
-        )
-      })}
-      {!plus.length && !minus.length && <div style={{fontSize:13, color:T.sub, padding:'8px 0'}}>통장 출금으로 설명 안 되는 칸이 없어요.</div>}
+        {!plus.length && !minus.length ? <Text color="secondary">통장 출금으로 설명 안 되는 칸이 없어요.</Text> : (
+          <List hasDividers edge="flush">
+            {[...plus, ...minus].map(r => {
+              const sus = suspects(r)
+              return (
+                <ListItem key={r.day+r.cat} align="start"
+                  label={<HStack gap={2} vAlign="center" wrap="wrap"><Text type="supporting" color="secondary" hasTabularNumbers>{md(r.date)}</Text><Text weight="bold">{r.label}</Text>{sus.length > 0 && <Badge variant="warning" label="두 번 적힘 의심"/>}</HStack>}
+                  description={<VStack gap={1}>
+                    <Text type="supporting" color="secondary" hasTabularNumbers>적힌 금액 {wonFmt(r.entered)} · 통장 출금 {r.bank ? wonFmt(r.bank) : '—'}</Text>
+                    {r.amount < 0 && <Text type="supporting" color="accent">칸 금액이 통장 출금보다 적어요. 칸에서 금액을 손으로 줄였을 수 있어요.</Text>}
+                    {sus.map(t => <Text key={t.key} type="supporting">{md(t.date)} {t.time.slice(0,5)} 통장 출금 '{t.desc||'—'}' {wonFmt(t.out)}원 → 지금 '{classLabel(currentClass(data, t).value, categories)}'</Text>)}
+                    {r.amount > 0 && <HStack><Button size="sm" label={busy===r.day+r.cat ? '...' : `두 번 적힌 거면 이 칸에서 ${wonFmt(r.amount)}원 빼기`} isDisabled={busy===r.day+r.cat} onClick={()=>takeOut(r)}/></HStack>}
+                  </VStack>}
+                  endContent={<Text weight="bold" color={r.amount > 0 ? 'accent' : 'primary'} hasTabularNumbers>{r.amount>0 ? '+' : '−'}{wonFmt(Math.abs(r.amount))}</Text>}/>
+              )
+            })}
+          </List>
+        )}
 
-      {okRows.length > 0 && (
-        <div style={{marginTop:12}}>
-          <div style={{fontSize:13, fontWeight:700, color:T.ink}}>
-            통장 출금과 짝이 맞는 칸 {okRows.length}건 <span style={{fontWeight:400, color:T.sub, fontSize:12}}>('이미 지출에 있음'으로 연결한 출금, 정상)</span>
-          </div>
-          {okRows.map(r=>{ const t = paired[r.day+r.cat]; return (
-            <div key={r.day+r.cat} style={{display:'flex', gap:8, fontSize:12, padding:'4px 0', borderBottom:`1px solid ${T.soft}`, color:T.sub, flexWrap:'wrap'}}>
-              <span style={{...num, minWidth:38}}>{md(r.date)}</span>
-              <span style={{color:T.ink}}>{r.label} {wonFmt(r.amount)}</span>
-              <span>= {md(t.date)} 통장 출금 '{t.desc||'—'}'</span>
-            </div>
-          )})}
-        </div>
-      )}
-
-      {restAcks.length > 0 && (
-        <div style={{marginTop:12}}>
-          <div style={{fontSize:13, fontWeight:700, color:T.ink}}>
-            '이미 지출에 있음'으로 연결했지만 짝을 못 찾은 통장 출금 {restAcks.length}건 <span style={{...num, color:T.green}}>− {wonFmt(sum(restAcks))}</span>
-          </div>
-          <div style={{fontSize:12, color:T.sub, margin:'2px 0 4px'}}>
-            위 목록의 금액 중 이만큼은 이 출금들로 설명돼요(날짜나 금액이 조금 달라 짝을 못 맞춘 것). 연결한 지출이 실제로 적혀 있는지 확인해 보세요.
-          </div>
-          {restAcks.map(t=>(
-            <div key={t.key} style={{display:'flex', gap:10, fontSize:13, padding:'4px 0', borderBottom:`1px solid ${T.soft}`}}>
-              <span style={{...num, color:T.sub, minWidth:84}}>{md(t.date)} {t.time.slice(0,5)}</span>
-              <span style={{flex:1}}>{t.desc||'—'}</span>
-              <span style={{...num}}>{wonFmt(t.amount)}</span>
-            </div>
-          ))}
-        </div>
-      )}
-      {unknown.length > 0 && (
-        <div style={{marginTop:12}}>
-          <div style={{fontSize:13, fontWeight:700, color:T.ink}}>
-            어느 칸인지 기록이 없는 통장 출금 {unknown.length}건 <span style={{...num, color:T.green}}>− {wonFmt(sum(unknown))}</span>
-          </div>
-          <div style={{fontSize:12, color:T.sub, margin:'2px 0 4px'}}>아래 '통장 거래 분류 보기·바꾸기'에서 칸을 확인하면 위 목록이 정확해져요.</div>
-          {unknown.map(t=>(
-            <div key={t.key} style={{display:'flex', gap:10, fontSize:13, padding:'4px 0', borderBottom:`1px solid ${T.soft}`}}>
-              <span style={{...num, color:T.sub, minWidth:84}}>{md(t.date)} {t.time.slice(0,5)}</span>
-              <span style={{flex:1}}>{t.desc||'—'}</span>
-              <span style={{...num}}>{wonFmt(t.amount)}</span>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
+        {okRows.length > 0 && (
+          <VStack gap={1}>
+            <Text weight="bold">통장 출금과 짝이 맞는 칸 {okRows.length}건 <Text type="supporting" color="secondary">('이미 지출에 있음'으로 연결한 출금, 정상)</Text></Text>
+            <List hasDividers edge="flush">
+              {okRows.map(r => { const t = paired[r.day+r.cat]; return (
+                <ListItem key={r.day+r.cat} label={<Text type="supporting" hasTabularNumbers>{md(r.date)} {r.label} {wonFmt(r.amount)}</Text>} description={`= ${md(t.date)} 통장 출금 '${t.desc||'—'}'`}/>
+              )})}
+            </List>
+          </VStack>
+        )}
+        {restAcks.length > 0 && (
+          <VStack gap={1}>
+            <Text weight="bold">'이미 지출에 있음'으로 연결했지만 짝을 못 찾은 통장 출금 {restAcks.length}건 <Text hasTabularNumbers>− {wonFmt(sum(restAcks))}</Text></Text>
+            <Text type="supporting" color="secondary">위 목록의 금액 중 이만큼은 이 출금들로 설명돼요(날짜나 금액이 조금 달라 짝을 못 맞춘 것). 연결한 지출이 실제로 적혀 있는지 확인해 보세요.</Text>
+            {txList(restAcks)}
+          </VStack>
+        )}
+        {unknown.length > 0 && (
+          <VStack gap={1}>
+            <Text weight="bold">어느 칸인지 기록이 없는 통장 출금 {unknown.length}건 <Text hasTabularNumbers>− {wonFmt(sum(unknown))}</Text></Text>
+            <Text type="supporting" color="secondary">아래 '통장 거래 분류 보기·바꾸기'에서 칸을 확인하면 위 목록이 정확해져요.</Text>
+            {txList(unknown)}
+          </VStack>
+        )}
+      </VStack>
+    </Card>
   )
 }

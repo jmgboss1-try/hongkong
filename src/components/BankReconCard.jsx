@@ -12,7 +12,7 @@ import { Banner } from '@astryxdesign/core/Banner'
 import { Button } from '@astryxdesign/core/Button'
 import { Selector } from '@astryxdesign/core/Selector'
 import { List, ListItem } from '@astryxdesign/core/List'
-import { Legacy, LedgerCard, Ledger, LedgerRow } from '../astryx/AstryxPage'
+import { LedgerCard, Ledger, LedgerRow } from '../astryx/AstryxPage'
 import OffBankList from './OffBankList'
 
 const wonFmt = n => (n||0).toLocaleString('ko-KR')
@@ -158,7 +158,7 @@ export default function BankReconCard({ ym, data, categories, onChanged }) {
       </Grid>
 
       {b && showOff && !!b.reasons.offBank && (
-        <Legacy><OffBankList ym={ym} data={data} categories={categories} detail={offBankDetail(data, categories)} total={b.reasons.offBank} onChanged={onChanged}/></Legacy>
+        <OffBankList ym={ym} data={data} categories={categories} detail={offBankDetail(data, categories)} total={b.reasons.offBank} onChanged={onChanged}/>
       )}
 
       {b && unhandled.length > 0 && (
@@ -184,7 +184,7 @@ export default function BankReconCard({ ym, data, categories, onChanged }) {
         </Card>
       )}
 
-      <Legacy><BankTxList ym={ym} data={data} categories={categories} onChanged={onChanged}/></Legacy>
+      <BankTxList ym={ym} data={data} categories={categories} onChanged={onChanged}/>
 
       {nonOp.length > 0 && (
         <VStack gap={1}>

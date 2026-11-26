@@ -504,7 +504,7 @@ const [payingDate, setPayingDate]     = useState('')
           {r.txCount > 0 && <Text type="supporting" color="secondary">통장에서 가져온 금액은 '거래 보기'에서 한 건씩 옮기는 게 더 정확해요</Text>}
         </HStack>
       </VStack>
-    ) : openDay === r.dd ? <Legacy><BankTxList ym={curMonth} data={data} categories={categories} day={r.dd} onChanged={refreshData}/></Legacy> : null,
+    ) : openDay === r.dd ? <BankTxList ym={curMonth} data={data} categories={categories} day={r.dd} onChanged={refreshData}/> : null,
   })
 
   // 금액 입력 (쉼표 찍어 보여주고 숫자만 받음)
@@ -778,7 +778,7 @@ const [payingDate, setPayingDate]     = useState('')
         )}
         {inputMode === 'manual' && <>
           <Text type="supporting" color="secondary">현금으로 낸 것처럼 통장에 안 찍히는 지출만 여기서 적으세요. 이미 적힌 날을 고치려면 아래 일별 표의 수정을 누르세요.</Text>
-          <Legacy><MissedExpenseInput curMonth={curMonth} onSaved={refreshData}/></Legacy>
+          <MissedExpenseInput curMonth={curMonth} onSaved={refreshData}/>
         </>}
       </LedgerCard>
 
