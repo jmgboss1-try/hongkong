@@ -3,6 +3,14 @@ import { useState } from 'react'
 import { auth, db } from '../firebase'
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword, sendPasswordResetEmail } from 'firebase/auth'
 import { doc, setDoc } from 'firebase/firestore'
+import { VStack, HStack } from '@astryxdesign/core/Layout'
+import { Text, Heading } from '@astryxdesign/core/Text'
+import { Card } from '@astryxdesign/core/Card'
+import { Banner } from '@astryxdesign/core/Banner'
+import { Button } from '@astryxdesign/core/Button'
+import { TextInput } from '@astryxdesign/core/TextInput'
+import { SegmentedControl, SegmentedControlItem } from '@astryxdesign/core/SegmentedControl'
+import { AstryxPage, Legacy } from '../astryx/AstryxPage'
 
 export default function Login() {
   const [mode, setMode] = useState('login') // 'login' | 'register'
@@ -68,93 +76,53 @@ export default function Login() {
     setLoading(false)
   }
 
-  const inputStyle = {
-    background:'#F3F1EC', border:'1px solid #DCD7CE', borderRadius:4,
-    color:'#1D1B18', padding:'10px 12px', fontSize:13, outline:'none', width:'100%', boxSizing:'border-box'
-  }
-
   return (
-    <div style={{minHeight:'100vh', background:'#FAF9F6', display:'flex', alignItems:'center', justifyContent:'center', fontFamily:'Noto Sans KR, sans-serif'}}>
-      <div style={{background:'#FFFFFF', border:'1px solid #DCD7CE', borderRadius:6, padding:'40px 36px', width:380}}>
-        <div style={{textAlign:'center', marginBottom:28}}>
-          <div style={{fontSize:28, marginBottom:6}}></div>
-          <div style={{fontSize:18, fontWeight:700, color:'var(--hk-accent)'}}>홍콩반점 중앙대점</div>
-          <div style={{fontSize:11, color:'#6E6A63', marginTop:4, letterSpacing:1}}>STORE MANAGEMENT</div>
-        </div>
+    <AstryxPage>
+    <VStack hAlign="center" vAlign="center" minHeight="100vh" padding={4}>
+      <Card padding={6} width={380} maxWidth="100%">
+        <VStack gap={5}>
+          <VStack gap={1} hAlign="center">
+            <Heading level={2}>홍콩반점 중앙대점</Heading>
+            <Text type="supporting" color="secondary">STORE MANAGEMENT</Text>
+          </VStack>
 
-        {/* 탭 */}
-        <div style={{display:'flex', border:'1px solid #DCD7CE', borderRadius:4, overflow:'hidden', marginBottom:24}}>
-          {[['login','로그인'],['register','회원가입']].map(([m,label])=>(
-            <button key={m} onClick={()=>{setMode(m);setError('');setResetMsg('');setDone(false)}}
-              style={{flex:1, padding:'9px', fontSize:12, fontWeight:600, border:'none', cursor:'pointer', fontFamily:'inherit',
-                background: mode===m ? 'var(--hk-accent)' : 'transparent',
-                color: mode===m ? '#FFFFFF' : '#6E6A63'}}>
-              {label}
-            </button>
-          ))}
-        </div>
+          <SegmentedControl label="로그인·회원가입" value={mode} onChange={m=>{ if (!m) return; setMode(m); setError(''); setResetMsg(''); setDone(false) }}>
+            <SegmentedControlItem value="login" label="로그인"/>
+            <SegmentedControlItem value="register" label="회원가입"/>
+          </SegmentedControl>
 
-        {done ? (
-          <div style={{textAlign:'center', padding:'20px 0'}}>
-            <div style={{fontSize:32, marginBottom:12}}></div>
-            <div style={{fontSize:14, fontWeight:700, color:'#2E7D45', marginBottom:8}}>가입 신청 완료!</div>
-            <div style={{fontSize:12, color:'#6E6A63', lineHeight:1.8}}>
-              사장님 승인 후 로그인 가능합니다.<br/>
-              승인이 완료되면 알려드릴게요.
-            </div>
-            <button onClick={()=>{setMode('login');setDone(false);setEmail('');setPassword('');setName('')}}
-              style={{marginTop:20, background:'var(--hk-accent)', color:'#FFFFFF', border:'none', borderRadius:4, padding:'10px 24px', fontSize:12, fontWeight:700, cursor:'pointer', fontFamily:'inherit'}}>
-              로그인 화면으로
-            </button>
-          </div>
-        ) : (
-          <form onSubmit={mode==='login' ? handleLogin : handleRegister}
-            style={{display:'flex', flexDirection:'column', gap:12}}>
-            {mode==='register' && (
-              <div style={{display:'flex', flexDirection:'column', gap:4}}>
-                <label style={{fontSize:11, color:'#6E6A63', fontWeight:600}}>이름</label>
-                <input type="text" value={name} onChange={e=>setName(e.target.value)}
-                  placeholder="실명 입력" required style={inputStyle}/>
-              </div>
-            )}
-            <div style={{display:'flex', flexDirection:'column', gap:4}}>
-              <label style={{fontSize:11, color:'#6E6A63', fontWeight:600}}>이메일</label>
-              <input type="email" value={email} onChange={e=>setEmail(e.target.value)}
-                placeholder="이메일 입력" required style={inputStyle}/>
-            </div>
-            <div style={{display:'flex', flexDirection:'column', gap:4}}>
-              <label style={{fontSize:11, color:'#6E6A63', fontWeight:600}}>비밀번호</label>
-              <input type="password" value={password} onChange={e=>setPassword(e.target.value)}
-                placeholder={mode==='register' ? '6자 이상' : '비밀번호 입력'} required style={inputStyle}/>
-            </div>
+          {done ? (
+            <VStack gap={3} hAlign="center">
+              <Heading level={4}>가입 신청 완료!</Heading>
+              <Text color="secondary" justify="center">사장님 승인 후 로그인 가능합니다. 승인이 완료되면 알려드릴게요.</Text>
+              <Button variant="primary" label="로그인 화면으로" onClick={()=>{setMode('login');setDone(false);setEmail('');setPassword('');setName('')}}/>
+            </VStack>
+          ) : (
+            <form onSubmit={mode==='login' ? handleLogin : handleRegister}>
+              <VStack gap={3}>
+                {mode==='register' && <TextInput label="이름" placeholder="실명 입력" isRequired value={name} onChange={v=>setName(v)}/>}
+                <TextInput type="email" label="이메일" placeholder="이메일 입력" isRequired value={email} onChange={v=>setEmail(v)}/>
+                <TextInput type="password" label="비밀번호" placeholder={mode==='register' ? '6자 이상' : '비밀번호 입력'} isRequired value={password} onChange={v=>setPassword(v)}/>
+                {error && <Banner status="error" title={error}/>}
+                {resetMsg && <Banner status="success" title={resetMsg}/>}
+                <Button type="submit" variant="primary" width="100%" label={loading ? '처리 중...' : mode==='login' ? '로그인' : '가입 신청'} isDisabled={loading}/>
+                {mode==='login' && <HStack hAlign="center"><Button variant="ghost" label="비밀번호를 잊으셨나요?" isDisabled={loading} onClick={handleReset}/></HStack>}
+              </VStack>
+            </form>
+          )}
 
-            {error && <div style={{fontSize:12, color:'#B42318', textAlign:'center'}}>{error}</div>}
-            {resetMsg && <div style={{fontSize:12, color:'#2E7D45', textAlign:'center', lineHeight:1.6}}>{resetMsg}</div>}
-
-            <button type="submit" disabled={loading}
-              style={{background:'var(--hk-accent)', color:'#FFFFFF', border:'none', borderRadius:4, padding:'11px', fontSize:13, fontWeight:700, cursor:'pointer', marginTop:6, fontFamily:'inherit'}}>
-              {loading ? '처리 중...' : mode==='login' ? '로그인' : '가입 신청'}
-            </button>
-            {mode==='login' && (
-              <button type="button" onClick={handleReset} disabled={loading}
-                style={{background:'none', border:'none', color:'#6E6A63', fontSize:12, cursor:'pointer', fontFamily:'inherit',
-                  textDecoration:'underline', padding:0, alignSelf:'center'}}>
-                비밀번호를 잊으셨나요?
-              </button>
-            )}
-          </form>
-        )}
-
-        {mode==='login' && !done && (
-          <div style={{fontSize:11, color:'#6E6A63', textAlign:'center', marginTop:20, lineHeight:1.8}}>
-            아이디(가입한 이메일)를 잊었으면 사장님께 물어보세요.<br/>
-            계정이 없으신가요?<br/>
-            <span style={{color:'var(--hk-accent)', cursor:'pointer'}} onClick={()=>setMode('register')}>회원가입 신청하기</span>
-          </div>
-        )}
-        {/* 이 기기에서 고른 색 테마 (로그인 전에도 바꿀 수 있음) */}
-        <ThemeDots size={18} style={{justifyContent:'center', marginTop:18}}/>
-      </div>
-    </div>
+          {mode==='login' && !done && (
+            <VStack gap={1} hAlign="center">
+              <Text type="supporting" color="secondary" justify="center">아이디(가입한 이메일)를 잊었으면 사장님께 물어보세요.</Text>
+              <Text type="supporting" color="secondary">계정이 없으신가요?</Text>
+              <Button size="sm" variant="ghost" label="회원가입 신청하기" onClick={()=>setMode('register')}/>
+            </VStack>
+          )}
+          {/* 이 기기에서 고른 색 테마 (로그인 전에도 바꿀 수 있음) */}
+          <HStack hAlign="center"><Legacy><ThemeDots size={18} style={{justifyContent:'center'}}/></Legacy></HStack>
+        </VStack>
+      </Card>
+    </VStack>
+    </AstryxPage>
   )
 }
