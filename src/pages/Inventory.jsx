@@ -1,11 +1,34 @@
 import { useEffect, useState } from 'react'
 import { db } from '../firebase'
 import { collection, addDoc, getDocs, doc, setDoc, deleteDoc, orderBy, query, where } from 'firebase/firestore'
+import { VStack, HStack } from '@astryxdesign/core/Layout'
+import { Text } from '@astryxdesign/core/Text'
+import { Badge } from '@astryxdesign/core/Badge'
+import { Button } from '@astryxdesign/core/Button'
+import { TextInput } from '@astryxdesign/core/TextInput'
+import { DateInput } from '@astryxdesign/core/DateInput'
+import { Table } from '@astryxdesign/core/Table'
+import { TabList, Tab } from '@astryxdesign/core/TabList'
+import { EmptyState } from '@astryxdesign/core/EmptyState'
+import { SegmentedControl, SegmentedControlItem } from '@astryxdesign/core/SegmentedControl'
+import { AstryxPage, PageHeader, LedgerCard } from '../astryx/AstryxPage'
 
 const pad = n => String(n).padStart(2,'0')
 const today = () => {
   const now = new Date()
   return `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}`
+}
+
+// 재고 직접 고치기: 바꾸면 저장 버튼이 나옴
+function StockEdit({ item, onSave }) {
+  const [v, setV] = useState(String(item.stock ?? ''))
+  const changed = v !== String(item.stock ?? '')
+  return (
+    <HStack gap={1} vAlign="center">
+      <TextInput label={`${item.name} 재고`} isLabelHidden size="sm" inputMode="decimal" width={80} value={v} onChange={x=>setV(x.replace(/[^0-9.]/g, ''))} onEnter={()=>changed && onSave(v)}/>
+      {changed && <Button size="sm" variant="primary" label="저장" onClick={()=>onSave(v)}/>}
+    </HStack>
+  )
 }
 
 export default function Inventory() {
@@ -126,324 +149,96 @@ export default function Inventory() {
     return { ...item, totalIn, totalUse, logCount: itemLogs.length }
   }).filter(s=>s.logCount>0)
 
+  const stockText = item => <Text weight="bold" color={item.stock <= 5 ? 'accent' : 'primary'} hasTabularNumbers>{item.stock}{item.unit}</Text>
+  const numIn = v => v.replace(/[^0-9.]/g, '')
+
   return (
-    <div>
-      <div style={{display:'flex',alignItems:'flex-end',justifyContent:'space-between',marginBottom:22}}>
-        <div>
-          <div style={{fontSize:20,fontWeight:700}}>재고관리</div>
-          <div style={{fontSize:12,color:'#6E6A63',marginTop:2}}>사장 전용 — 식재료/소스 관리</div>
-        </div>
-      </div>
+    <AstryxPage>
+    <VStack gap={4}>
+      <PageHeader title="재고관리" sub="사장 전용 — 식재료/소스 관리"/>
+      <TabList value={activeTab} onChange={v=>v && setActiveTab(v)}>
+        <Tab value="list" label="품목 목록"/>
+        <Tab value="log" label="입고/사용 기록"/>
+        <Tab value="history" label="기록 내역"/>
+        <Tab value="stats" label="기간별 통계"/>
+      </TabList>
 
-      {/* 탭 */}
-      <div style={{display:'flex',gap:8,marginBottom:18,flexWrap:'wrap'}}>
-        {[
-          {key:'list',   label:'품목 목록'},
-          {key:'log',    label:'입고/사용 기록'},
-          {key:'history',label:'기록 내역'},
-          {key:'stats',  label:'기간별 통계'},
-        ].map(t=>(
-          <button key={t.key} onClick={()=>setActiveTab(t.key)}
-            style={{padding:'9px 18px',borderRadius:4,border:'none',fontSize:13,fontWeight:600,cursor:'pointer',fontFamily:'inherit',
-              background:activeTab===t.key?'var(--hk-accent)':'#F3F1EC',
-              color:activeTab===t.key?'#FFFFFF':'#6E6A63'}}>
-            {t.label}
-          </button>
-        ))}
-      </div>
+      {loading ? <Text color="secondary">불러오는 중...</Text> : <>
+        {activeTab==='list' && <>
+          <LedgerCard title="품목 추가">
+            <HStack gap={2} vAlign="end" wrap="wrap">
+              <TextInput label="품목명" placeholder="예: 춘장, 식용유" value={newItemName} onChange={v=>setNewItemName(v)} onEnter={addItem}/>
+              <TextInput label="단위" placeholder="kg, L, 개" width={100} value={newItemUnit} onChange={v=>setNewItemUnit(v)}/>
+              <TextInput label="초기 재고" inputMode="decimal" placeholder="0" width={110} value={newItemStock} onChange={v=>setNewItemStock(numIn(v))}/>
+              <Button variant="primary" label="추가" onClick={addItem}/>
+            </HStack>
+          </LedgerCard>
+          <LedgerCard title={`등록된 품목 (${items.length}개)`}>
+            <Table data={items} idKey="id" density="compact" emptyState={<EmptyState title="등록된 품목이 없습니다" isCompact/>}
+              columns={[
+                { key:'name', header:'품목명', renderCell: it => <Text weight="bold">{it.name}</Text> },
+                { key:'unit', header:'단위', renderCell: it => <Text color="secondary">{it.unit}</Text> },
+                { key:'stock', header:'현재 재고', align:'end', renderCell: it => stockText(it) },
+                { key:'edit', header:'직접 수정', renderCell: it => <StockEdit key={it.id + ':' + it.stock} item={it} onSave={v=>updateStock(it.id, v)}/> },
+                { key:'act', header:'', align:'end', renderCell: it => <Button size="sm" variant="ghost" label="삭제" onClick={()=>deleteItem(it.id)}/> },
+              ]}/>
+          </LedgerCard>
+        </>}
 
-      {loading ? <div style={{textAlign:'center',color:'#6E6A63',padding:60}}>로딩 중...</div> : (
-        <>
-          {/* 품목 목록 */}
-          {activeTab==='list' && (
-            <div>
-              {/* 품목 추가 */}
-              <div style={{background:'#FFFFFF',border:'1px solid #DCD7CE',borderRadius:6,padding:'18px',marginBottom:16}}>
-                <div style={{fontSize:13,fontWeight:600,marginBottom:14}}>품목 추가</div>
-                <div style={{display:'grid',gridTemplateColumns:'1fr 100px 120px auto',gap:10,alignItems:'flex-end'}}>
-                  <div>
-                    <label style={{fontSize:10,color:'#6E6A63',fontWeight:600,display:'block',marginBottom:6}}>품목명</label>
-                    <input type="text" value={newItemName} onChange={e=>setNewItemName(e.target.value)}
-                      placeholder="예: 춘장, 식용유"
-                      onKeyDown={e=>e.key==='Enter'&&addItem()}
-                      style={{background:'#F3F1EC',border:'1px solid #DCD7CE',borderRadius:4,color:'#1D1B18',
-                        padding:'8px 10px',fontSize:12,outline:'none',width:'100%',fontFamily:'inherit'}}/>
-                  </div>
-                  <div>
-                    <label style={{fontSize:10,color:'#6E6A63',fontWeight:600,display:'block',marginBottom:6}}>단위</label>
-                    <input type="text" value={newItemUnit} onChange={e=>setNewItemUnit(e.target.value)}
-                      placeholder="kg, L, 개"
-                      style={{background:'#F3F1EC',border:'1px solid #DCD7CE',borderRadius:4,color:'#1D1B18',
-                        padding:'8px 10px',fontSize:12,outline:'none',width:'100%',fontFamily:'inherit'}}/>
-                  </div>
-                  <div>
-                    <label style={{fontSize:10,color:'#6E6A63',fontWeight:600,display:'block',marginBottom:6}}>초기 재고</label>
-                    <input type="number" value={newItemStock} onChange={e=>setNewItemStock(e.target.value)}
-                      placeholder="0" min="0" step="0.1"
-                      style={{background:'#F3F1EC',border:'1px solid #DCD7CE',borderRadius:4,color:'#1D1B18',
-                        padding:'8px 10px',fontSize:12,outline:'none',width:'100%',fontFamily:'inherit'}}/>
-                  </div>
-                  <button onClick={addItem}
-                    style={{background:'var(--hk-accent)',color:'#FFFFFF',border:'none',borderRadius:4,
-                      padding:'9px 16px',fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'inherit',whiteSpace:'nowrap'}}>
-                    추가
-                  </button>
-                </div>
-              </div>
+        {activeTab==='log' && (
+          <LedgerCard title="입고 / 사용 기록">
+            <HStack><SegmentedControl label="유형" value={logType} onChange={v=>v && setLogType(v)}>
+              <SegmentedControlItem value="use" label="사용"/>
+              <SegmentedControlItem value="in" label="입고"/>
+            </SegmentedControl></HStack>
+            <HStack><DateInput label="날짜" value={logDate} onChange={v=>setLogDate(v||logDate)}/></HStack>
+            <VStack gap={2}>
+              <Text type="label">품목</Text>
+              <HStack gap={1} wrap="wrap">
+                {items.map(it => <Button key={it.id} size="sm" variant={logItem===it.id ? 'primary' : 'secondary'} label={`${it.name} (${it.stock}${it.unit})`} onClick={()=>setLogItem(it.id)}/>)}
+              </HStack>
+            </VStack>
+            <TextInput label={`${logType==='in'?'입고':'사용'} 수량${logItem ? ` (현재: ${items.find(i=>i.id===logItem)?.stock}${items.find(i=>i.id===logItem)?.unit})` : ''}`}
+              inputMode="decimal" placeholder="0" value={logQty} onChange={v=>setLogQty(numIn(v))}/>
+            <TextInput label="메모" isOptional placeholder="특이사항..." value={logMemo} onChange={v=>setLogMemo(v)}/>
+            <Button variant="primary" width="100%" label={`${logType==='in'?'입고 기록':'사용 기록'} 저장`} onClick={addLog}/>
+          </LedgerCard>
+        )}
 
-              {/* 품목 목록 */}
-              <div style={{background:'#FFFFFF',border:'1px solid #DCD7CE',borderRadius:6,overflow:'hidden'}}>
-                <div style={{padding:'14px 18px',borderBottom:'1px solid #DCD7CE',fontSize:13,fontWeight:600}}>
-                  등록된 품목 ({items.length}개)
-                </div>
-                {items.length===0 ? (
-                  <div style={{textAlign:'center',color:'#6E6A63',padding:40}}>등록된 품목이 없습니다</div>
-                ) : (
-                  <table style={{width:'100%',borderCollapse:'collapse',fontSize:12}}>
-                    <thead>
-                      <tr style={{background:'#F3F1EC'}}>
-                        {['품목명','단위','현재 재고','직접 수정',''].map(h=>(
-                          <th key={h} style={{padding:'8px 14px',fontSize:10,fontWeight:600,color:'#6E6A63',
-                            textAlign:h==='품목명'?'left':'center',whiteSpace:'nowrap'}}>{h}</th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {items.map(item=>(
-                        <tr key={item.id}>
-                          <td style={{padding:'10px 14px',borderBottom:'1px solid #DCD7CE',color:'#1D1B18',fontWeight:600}}>{item.name}</td>
-                          <td style={{padding:'10px 14px',borderBottom:'1px solid #DCD7CE',textAlign:'center',color:'#6E6A63'}}>{item.unit}</td>
-                          <td style={{padding:'10px 14px',borderBottom:'1px solid #DCD7CE',textAlign:'center'}}>
-                            <span style={{
-                              color: item.stock<=0?'#B42318':item.stock<=5?'var(--hk-accent)':'#2E7D45',
-                              fontFamily:'inherit',fontVariantNumeric:'tabular-nums',fontWeight:700,fontSize:14
-                            }}>
-                              {item.stock}{item.unit}
-                            </span>
-                          </td>
-                          <td style={{padding:'8px 14px',borderBottom:'1px solid #DCD7CE',textAlign:'center'}}>
-                            <input type="number" defaultValue={item.stock} min="0" step="0.1"
-                              onBlur={e=>updateStock(item.id,e.target.value)}
-                              onKeyDown={e=>e.key==='Enter'&&e.target.blur()}
-                              style={{width:70,background:'#F3F1EC',border:'1px solid #DCD7CE',borderRadius:5,
-                                color:'#1D1B18',padding:'4px 6px',fontSize:11,textAlign:'center',
-                                outline:'none',fontFamily:'inherit',fontVariantNumeric:'tabular-nums'}}/>
-                          </td>
-                          <td style={{padding:'10px 14px',borderBottom:'1px solid #DCD7CE',textAlign:'center'}}>
-                            <button onClick={()=>deleteItem(item.id)}
-                              style={{background:'transparent',border:'1px solid #E8C4BF',color:'#B42318',
-                                borderRadius:5,padding:'3px 8px',fontSize:10,cursor:'pointer',fontFamily:'inherit'}}>
-                              삭제
-                            </button>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                )}
-              </div>
-            </div>
-          )}
+        {activeTab==='history' && (
+          <LedgerCard title="전체 기록 내역">
+            <Table data={logs} idKey="id" density="compact" emptyState={<EmptyState title="기록이 없습니다" isCompact/>}
+              columns={[
+                { key:'date', header:'날짜', renderCell: l => <Text hasTabularNumbers textWrap="nowrap">{l.date}</Text> },
+                { key:'item', header:'품목', renderCell: l => <Text weight="bold">{l.itemName}</Text> },
+                { key:'type', header:'유형', renderCell: l => <Badge variant={l.type==='in' ? 'success' : 'error'} label={l.type==='in' ? '입고' : '사용'}/> },
+                { key:'qty', header:'수량', align:'end', renderCell: l => <Text weight="bold" hasTabularNumbers>{l.type==='in'?'+':'−'}{l.qty}{l.unit}</Text> },
+                { key:'memo', header:'메모', renderCell: l => <Text type="supporting" color="secondary">{l.memo||'—'}</Text> },
+                { key:'act', header:'', align:'end', renderCell: l => <Button size="sm" variant="ghost" label="삭제" onClick={()=>deleteLog(l.id, l)}/> },
+              ]}/>
+          </LedgerCard>
+        )}
 
-          {/* 입고/사용 기록 */}
-          {activeTab==='log' && (
-            <div style={{background:'#FFFFFF',border:'1px solid #DCD7CE',borderRadius:6,padding:'20px'}}>
-              <div style={{fontSize:13,fontWeight:600,marginBottom:16}}>입고 / 사용 기록</div>
-
-              {/* 유형 선택 */}
-              <div style={{display:'flex',gap:8,marginBottom:16}}>
-                {[
-                  {key:'use', label:'사용', color:'#B42318', bg:'rgba(180,35,24,0.12)'},
-                  {key:'in',  label:'입고', color:'#2E7D45', bg:'rgba(46,125,69,0.12)'},
-                ].map(t=>(
-                  <button key={t.key} onClick={()=>setLogType(t.key)}
-                    style={{flex:1,padding:'10px',borderRadius:4,border:'none',fontSize:13,fontWeight:600,cursor:'pointer',fontFamily:'inherit',
-                      background:logType===t.key?t.bg:'#F3F1EC',
-                      color:logType===t.key?t.color:'#6E6A63',
-                      outline:logType===t.key?`1px solid ${t.color}`:'none'}}>
-                    {t.label}
-                  </button>
-                ))}
-              </div>
-
-              <div style={{display:'flex',flexDirection:'column',gap:12}}>
-                {/* 날짜 */}
-                <div>
-                  <label style={{fontSize:10,color:'#6E6A63',fontWeight:600,display:'block',marginBottom:6}}>날짜</label>
-                  <input type="date" value={logDate} onChange={e=>setLogDate(e.target.value)}
-                    style={{background:'#F3F1EC',border:'1px solid #DCD7CE',borderRadius:4,color:'#1D1B18',
-                      padding:'8px 10px',fontSize:12,outline:'none',width:'100%',fontFamily:'inherit'}}/>
-                </div>
-
-                {/* 품목 선택 */}
-                <div>
-                  <label style={{fontSize:10,color:'#6E6A63',fontWeight:600,display:'block',marginBottom:6}}>품목</label>
-                  <div style={{display:'flex',gap:8,flexWrap:'wrap',marginBottom:8}}>
-                    {items.map(item=>(
-                      <button key={item.id} onClick={()=>setLogItem(item.id)}
-                        style={{padding:'6px 14px',borderRadius:6,border:'none',fontSize:12,fontWeight:600,cursor:'pointer',fontFamily:'inherit',
-                          background:logItem===item.id?'var(--hk-accent)':'#F3F1EC',
-                          color:logItem===item.id?'#FFFFFF':'#6E6A63'}}>
-                        {item.name}
-                        <span style={{fontSize:10,marginLeft:4,opacity:.7}}>({item.stock}{item.unit})</span>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                {/* 수량 */}
-                <div>
-                  <label style={{fontSize:10,color:'#6E6A63',fontWeight:600,display:'block',marginBottom:6}}>
-                    {logType==='in'?'입고':'사용'} 수량
-                    {logItem && ` (현재: ${items.find(i=>i.id===logItem)?.stock}${items.find(i=>i.id===logItem)?.unit})`}
-                  </label>
-                  <input type="number" value={logQty} onChange={e=>setLogQty(e.target.value)}
-                    placeholder="0" min="0" step="0.1"
-                    style={{background:'#F3F1EC',border:'1px solid #DCD7CE',borderRadius:4,color:'#1D1B18',
-                      padding:'8px 10px',fontSize:12,outline:'none',width:'100%',fontFamily:'inherit'}}/>
-                </div>
-
-                {/* 메모 */}
-                <div>
-                  <label style={{fontSize:10,color:'#6E6A63',fontWeight:600,display:'block',marginBottom:6}}>메모 (선택)</label>
-                  <input type="text" value={logMemo} onChange={e=>setLogMemo(e.target.value)}
-                    placeholder="특이사항..."
-                    style={{background:'#F3F1EC',border:'1px solid #DCD7CE',borderRadius:4,color:'#1D1B18',
-                      padding:'8px 10px',fontSize:12,outline:'none',width:'100%',fontFamily:'inherit'}}/>
-                </div>
-
-                <button onClick={addLog}
-                  style={{background:'var(--hk-accent)',color:'#FFFFFF',border:'none',borderRadius:4,
-                    padding:'12px',fontSize:13,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
-                  {logType==='in'?'입고 기록':'사용 기록'} 저장
-                </button>
-              </div>
-            </div>
-          )}
-
-          {/* 기록 내역 */}
-          {activeTab==='history' && (
-            <div style={{background:'#FFFFFF',border:'1px solid #DCD7CE',borderRadius:6,overflow:'hidden'}}>
-              <div style={{padding:'14px 18px',borderBottom:'1px solid #DCD7CE',fontSize:13,fontWeight:600}}>
-                전체 기록 내역
-              </div>
-              {logs.length===0 ? (
-                <div style={{textAlign:'center',color:'#6E6A63',padding:40}}>기록이 없습니다</div>
-              ) : (
-                <div style={{overflowX:'auto'}}>
-                  <table style={{width:'100%',borderCollapse:'collapse',fontSize:12}}>
-                    <thead>
-                      <tr style={{background:'#F3F1EC'}}>
-                        {['날짜','품목','유형','수량','메모',''].map(h=>(
-                          <th key={h} style={{padding:'8px 14px',fontSize:10,fontWeight:600,color:'#6E6A63',
-                            textAlign:h==='날짜'||h==='품목'||h==='메모'?'left':'center',whiteSpace:'nowrap'}}>{h}</th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {logs.map(log=>(
-                        <tr key={log.id}>
-                          <td style={{padding:'9px 14px',borderBottom:'1px solid #DCD7CE',color:'#1D1B18',fontFamily:'inherit',fontVariantNumeric:'tabular-nums'}}>{log.date}</td>
-                          <td style={{padding:'9px 14px',borderBottom:'1px solid #DCD7CE',color:'#1D1B18',fontWeight:600}}>{log.itemName}</td>
-                          <td style={{padding:'9px 14px',borderBottom:'1px solid #DCD7CE',textAlign:'center'}}>
-                            <span style={{
-                              background:log.type==='in'?'rgba(46,125,69,0.15)':'rgba(180,35,24,0.15)',
-                              color:log.type==='in'?'#2E7D45':'#B42318',
-                              padding:'2px 8px',borderRadius:4,fontSize:11,fontWeight:600
-                            }}>
-                              {log.type==='in'?'입고':'사용'}
-                            </span>
-                          </td>
-                          <td style={{padding:'9px 14px',borderBottom:'1px solid #DCD7CE',textAlign:'center',
-                            color:log.type==='in'?'#2E7D45':'#B42318',fontFamily:'inherit',fontVariantNumeric:'tabular-nums',fontWeight:700}}>
-                            {log.type==='in'?'+':'-'}{log.qty}{log.unit}
-                          </td>
-                          <td style={{padding:'9px 14px',borderBottom:'1px solid #DCD7CE',color:'#6E6A63'}}>{log.memo||'—'}</td>
-                          <td style={{padding:'9px 14px',borderBottom:'1px solid #DCD7CE',textAlign:'center'}}>
-                            <button onClick={()=>deleteLog(log.id,log)}
-                              style={{background:'transparent',border:'1px solid #E8C4BF',color:'#B42318',
-                                borderRadius:5,padding:'3px 8px',fontSize:10,cursor:'pointer',fontFamily:'inherit'}}>
-                              삭제
-                            </button>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* 기간별 통계 */}
-          {activeTab==='stats' && (
-            <div>
-              {/* 기간 설정 */}
-              <div style={{background:'#FFFFFF',border:'1px solid #DCD7CE',borderRadius:6,padding:'18px',marginBottom:16}}>
-                <div style={{fontSize:13,fontWeight:600,marginBottom:12}}>기간 설정</div>
-                <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12}}>
-                  <div>
-                    <label style={{fontSize:10,color:'#6E6A63',fontWeight:600,display:'block',marginBottom:6}}>시작일</label>
-                    <input type="date" value={startDate} onChange={e=>setStartDate(e.target.value)}
-                      style={{background:'#F3F1EC',border:'1px solid #DCD7CE',borderRadius:4,color:'#1D1B18',
-                        padding:'8px 10px',fontSize:12,outline:'none',width:'100%',fontFamily:'inherit'}}/>
-                  </div>
-                  <div>
-                    <label style={{fontSize:10,color:'#6E6A63',fontWeight:600,display:'block',marginBottom:6}}>종료일</label>
-                    <input type="date" value={endDate} onChange={e=>setEndDate(e.target.value)}
-                      style={{background:'#F3F1EC',border:'1px solid #DCD7CE',borderRadius:4,color:'#1D1B18',
-                        padding:'8px 10px',fontSize:12,outline:'none',width:'100%',fontFamily:'inherit'}}/>
-                  </div>
-                </div>
-              </div>
-
-              {statsByItem.length===0 ? (
-                <div style={{background:'#FFFFFF',border:'1px solid #DCD7CE',borderRadius:6,padding:40,textAlign:'center',color:'#6E6A63'}}>
-                  해당 기간에 기록이 없습니다
-                </div>
-              ) : (
-                <div style={{background:'#FFFFFF',border:'1px solid #DCD7CE',borderRadius:6,overflow:'hidden'}}>
-                  <div style={{padding:'14px 18px',borderBottom:'1px solid #DCD7CE',fontSize:13,fontWeight:600}}>
-                    {startDate} ~ {endDate} 품목별 현황
-                  </div>
-                  <table style={{width:'100%',borderCollapse:'collapse',fontSize:12}}>
-                    <thead>
-                      <tr style={{background:'#F3F1EC'}}>
-                        {['품목','단위','입고량','사용량','현재 재고'].map(h=>(
-                          <th key={h} style={{padding:'8px 14px',fontSize:10,fontWeight:600,color:'#6E6A63',
-                            textAlign:h==='품목'?'left':'center',whiteSpace:'nowrap'}}>{h}</th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {statsByItem.map(item=>(
-                        <tr key={item.id}>
-                          <td style={{padding:'10px 14px',borderBottom:'1px solid #DCD7CE',color:'#1D1B18',fontWeight:600}}>{item.name}</td>
-                          <td style={{padding:'10px 14px',borderBottom:'1px solid #DCD7CE',textAlign:'center',color:'#6E6A63'}}>{item.unit}</td>
-                          <td style={{padding:'10px 14px',borderBottom:'1px solid #DCD7CE',textAlign:'center',color:'#2E7D45',fontFamily:'inherit',fontVariantNumeric:'tabular-nums',fontWeight:700}}>
-                            +{item.totalIn}{item.unit}
-                          </td>
-                          <td style={{padding:'10px 14px',borderBottom:'1px solid #DCD7CE',textAlign:'center',color:'#B42318',fontFamily:'inherit',fontVariantNumeric:'tabular-nums',fontWeight:700}}>
-                            -{item.totalUse}{item.unit}
-                          </td>
-                          <td style={{padding:'10px 14px',borderBottom:'1px solid #DCD7CE',textAlign:'center'}}>
-                            <span style={{
-                              color:item.stock<=0?'#B42318':item.stock<=5?'var(--hk-accent)':'#2E7D45',
-                              fontFamily:'inherit',fontVariantNumeric:'tabular-nums',fontWeight:700,fontSize:14
-                            }}>
-                              {item.stock}{item.unit}
-                            </span>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </div>
-          )}
-        </>
-      )}
-    </div>
+        {activeTab==='stats' && <>
+          <LedgerCard title="기간 설정">
+            <HStack gap={2} wrap="wrap">
+              <DateInput label="시작일" value={startDate} onChange={v=>v && setStartDate(v)}/>
+              <DateInput label="종료일" value={endDate} onChange={v=>v && setEndDate(v)}/>
+            </HStack>
+          </LedgerCard>
+          <LedgerCard title={`${startDate} ~ ${endDate} 품목별 현황`}>
+            <Table data={statsByItem} idKey="id" density="compact" emptyState={<EmptyState title="해당 기간에 기록이 없습니다" isCompact/>}
+              columns={[
+                { key:'name', header:'품목', renderCell: it => <Text weight="bold">{it.name}</Text> },
+                { key:'unit', header:'단위', renderCell: it => <Text color="secondary">{it.unit}</Text> },
+                { key:'in', header:'입고량', align:'end', renderCell: it => <Text hasTabularNumbers>+{it.totalIn}{it.unit}</Text> },
+                { key:'use', header:'사용량', align:'end', renderCell: it => <Text hasTabularNumbers>−{it.totalUse}{it.unit}</Text> },
+                { key:'stock', header:'현재 재고', align:'end', renderCell: it => stockText(it) },
+              ]}/>
+          </LedgerCard>
+        </>}
+      </>}
+    </VStack>
+    </AstryxPage>
   )
 }

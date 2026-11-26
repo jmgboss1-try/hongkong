@@ -3,6 +3,20 @@ import { db } from '../firebase'
 import { doc, getDoc, setDoc } from 'firebase/firestore'
 import { Navigate } from 'react-router-dom'
 import { useAuth } from '../AuthContext'
+import { VStack, HStack } from '@astryxdesign/core/Layout'
+import { Text } from '@astryxdesign/core/Text'
+import { Card } from '@astryxdesign/core/Card'
+import { ClickableCard } from '@astryxdesign/core/ClickableCard'
+import { Grid } from '@astryxdesign/core/Grid'
+import { Badge } from '@astryxdesign/core/Badge'
+import { Banner } from '@astryxdesign/core/Banner'
+import { Button } from '@astryxdesign/core/Button'
+import { TextInput } from '@astryxdesign/core/TextInput'
+import { DateInput } from '@astryxdesign/core/DateInput'
+import { Table } from '@astryxdesign/core/Table'
+import { EmptyState } from '@astryxdesign/core/EmptyState'
+import { SegmentedControl, SegmentedControlItem } from '@astryxdesign/core/SegmentedControl'
+import { AstryxPage, PageHeader, LedgerCard } from '../astryx/AstryxPage'
 
 const pad = n => String(n).padStart(2,'0')
 const todayStr = () => { const n=new Date(); return `${n.getFullYear()}-${pad(n.getMonth()+1)}-${pad(n.getDate())}` }
@@ -28,10 +42,6 @@ function totalUsed(vendor) {
   return (vendor.entries||[]).filter(e=>e.kind==='use').reduce((s,e)=>s+e.amount,0)
 }
 
-const inputStyle = {
-  background:'#F3F1EC',border:'1px solid #DCD7CE',borderRadius:4,color:'#1D1B18',
-  padding:'8px 10px',fontSize:12,outline:'none',fontFamily:'inherit'
-}
 
 export default function Prepaid() {
   const { isOwner, isStore } = useAuth()
@@ -159,263 +169,143 @@ export default function Prepaid() {
     const low = v.lowAlert>0 && bal<=v.lowAlert
     const isSel = v.id===selectedId
     return (
-      <div key={v.id} onClick={()=>setSelectedId(isSel ? null : v.id)}
-        style={{
-          background: isSel ? 'rgba(var(--hk-accent-rgb),0.10)' : '#F3F1EC',
-          border: isSel ? '1.5px solid var(--hk-accent)' : low ? '1px solid rgba(180,35,24,0.5)' : '1px solid #DCD7CE',
-          borderRadius:6,padding:'12px 14px',cursor:'pointer',opacity: v.archived ? 0.6 : 1,
-        }}>
-        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',gap:8}}>
-          <span style={{fontSize:13,fontWeight:700,color:'#1D1B18'}}>{v.name}</span>
-          {low && <span style={{fontSize:10,color:'#B42318',fontWeight:700}}>잔액 부족</span>}
-        </div>
-        <div style={{fontSize:20,fontWeight:800,marginTop:6,
-          color: bal<=0 ? '#6E6A63' : low ? '#B42318' : '#2E7D45'}}>
-          {wonFmt(bal)}<span style={{fontSize:11,fontWeight:400,color:'#6E6A63'}}> 원</span>
-        </div>
-        <div style={{fontSize:10,color:'#6E6A63',marginTop:4}}>
-          충전 {wonFmt(totalCharged(v))} · 사용 {wonFmt(totalUsed(v))}
-        </div>
-      </div>
+      <ClickableCard key={v.id} variant={isSel ? 'red' : 'default'} padding={4} label={v.name} onClick={()=>setSelectedId(isSel ? null : v.id)}>
+        <VStack gap={1}>
+          <HStack gap={2} vAlign="center" hAlign="between">
+            <Text weight="bold" color={isSel ? 'inherit' : 'primary'}>{v.name}</Text>
+            {low && <Badge variant="error" label="잔액 부족"/>}
+          </HStack>
+          <Text type="display-3" color={isSel ? 'inherit' : bal <= 0 ? 'secondary' : 'primary'} hasTabularNumbers>{wonFmt(bal)}원</Text>
+          <Text type="supporting" color={isSel ? 'inherit' : 'secondary'} hasTabularNumbers>충전 {wonFmt(totalCharged(v))} · 사용 {wonFmt(totalUsed(v))}</Text>
+        </VStack>
+      </ClickableCard>
     )
   }
+  const moneyIn = (label, val, set, o = {}) => (
+    <TextInput label={label} isLabelHidden={o.hide} inputMode="numeric" placeholder={o.placeholder || '금액'} width={o.width || 130}
+      value={val ? (+String(val).replace(/,/g,'')).toLocaleString('ko-KR') : ''} onChange={v=>set(v.replace(/[^0-9]/g,''))}/>
+  )
 
   // 직원 계정은 접근 불가 (사장·매장 계정만)
   if(!isOwner && !isStore) return <Navigate to="/my-schedule" />
 
   return (
-    <div>
-      <div style={{display:'flex',alignItems:'flex-end',justifyContent:'space-between',marginBottom:22,flexWrap:'wrap',gap:10}}>
-        <div>
-          <div style={{fontSize:20,fontWeight:700}}>선결제 관리</div>
-          <div style={{fontSize:12,color:'#6E6A63',marginTop:2}}>업체·개인별 선결제 충전 / 차감 장부</div>
-        </div>
-        {canEdit && (
-          <button onClick={openNewVendor}
-            style={{background:'#2E7D45',color:'#FFFFFF',border:'none',borderRadius:4,
-              padding:'9px 16px',fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
-            + 업체 추가
-          </button>
-        )}
-      </div>
+    <AstryxPage>
+    <VStack gap={4}>
+      <PageHeader title="선결제 관리" sub="업체·개인별 선결제 충전 / 차감 장부" right={canEdit && <Button variant="primary" label="+ 업체 추가" onClick={openNewVendor}/>}/>
 
-      {/* 업체 추가/수정 폼 */}
+      {/* 업체 추가/수정 */}
       {showVendorForm && (
-        <div style={{background:'#FFFFFF',border:'1px solid var(--hk-accent)',borderRadius:6,padding:18,marginBottom:18}}>
-          <div style={{fontSize:13,fontWeight:600,color:'var(--hk-accent)',marginBottom:12}}>
-            {vendorEditId ? '업체 정보 수정' : '새 업체 추가'}
-          </div>
-          <div style={{display:'flex',gap:8,flexWrap:'wrap',marginBottom:8}}>
-            <input value={vendorForm.name} onChange={e=>setVendorForm(f=>({...f,name:e.target.value}))}
-              placeholder="업체명 (예: 소망 이비인후과)" style={{...inputStyle,flex:2,minWidth:180}}/>
-            <input value={vendorForm.contact} onChange={e=>setVendorForm(f=>({...f,contact:e.target.value}))}
-              placeholder="연락처/담당자 (선택)" style={{...inputStyle,flex:1,minWidth:140}}/>
-          </div>
-          <div style={{display:'flex',gap:8,flexWrap:'wrap',alignItems:'center',marginBottom:12}}>
-            <input value={vendorForm.memo} onChange={e=>setVendorForm(f=>({...f,memo:e.target.value}))}
-              placeholder="메모 (할인 조건, 유효기간 등)" style={{...inputStyle,flex:2,minWidth:180}}/>
-            <span style={{fontSize:10,color:'#6E6A63'}}>잔액 알림 기준</span>
-            <input type="number" value={vendorForm.lowAlert} onChange={e=>setVendorForm(f=>({...f,lowAlert:e.target.value}))}
-              placeholder="예: 30000" style={{...inputStyle,width:100}}/>
-            <span style={{fontSize:10,color:'#6E6A63'}}>원 이하</span>
-          </div>
-          <div style={{display:'flex',gap:8}}>
-            <button onClick={submitVendor} disabled={saving}
-              style={{background:'var(--hk-accent)',color:'#FFFFFF',border:'none',borderRadius:4,padding:'8px 18px',fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
-              저장
-            </button>
-            <button onClick={()=>{setShowVendorForm(false);setVendorEditId(null)}}
-              style={{background:'transparent',border:'1px solid #DCD7CE',color:'#6E6A63',borderRadius:4,padding:'8px 18px',fontSize:12,cursor:'pointer',fontFamily:'inherit'}}>
-              취소
-            </button>
-          </div>
-        </div>
+        <LedgerCard title={vendorEditId ? '업체 정보 수정' : '새 업체 추가'}>
+          <HStack gap={2} vAlign="end" wrap="wrap">
+            <TextInput label="업체명" placeholder="예: 소망 이비인후과" value={vendorForm.name} onChange={v=>setVendorForm(f=>({...f,name:v}))}/>
+            <TextInput label="연락처/담당자" isOptional value={vendorForm.contact} onChange={v=>setVendorForm(f=>({...f,contact:v}))}/>
+          </HStack>
+          <HStack gap={2} vAlign="end" wrap="wrap">
+            <TextInput label="메모" isOptional placeholder="할인 조건, 유효기간 등" value={vendorForm.memo} onChange={v=>setVendorForm(f=>({...f,memo:v}))}/>
+            <TextInput label="잔액 알림 기준 (원 이하)" inputMode="numeric" placeholder="예: 30,000" width={180}
+              value={vendorForm.lowAlert ? (+vendorForm.lowAlert).toLocaleString('ko-KR') : ''} onChange={v=>setVendorForm(f=>({...f,lowAlert:v.replace(/[^0-9]/g,'')}))}/>
+          </HStack>
+          <HStack gap={2}>
+            <Button variant="primary" label="저장" isDisabled={saving} onClick={submitVendor}/>
+            <Button label="취소" onClick={()=>{setShowVendorForm(false);setVendorEditId(null)}}/>
+          </HStack>
+        </LedgerCard>
       )}
 
-      {loading ? (
-        <div style={{textAlign:'center',color:'#6E6A63',padding:60}}>로딩 중...</div>
-      ) : (
-        <>
-          {/* 요약 */}
-          <div style={{display:'flex',gap:10,flexWrap:'wrap',marginBottom:18}}>
-            <div style={{background:'#FFFFFF',border:'1px solid #DCD7CE',borderRadius:6,padding:'12px 18px'}}>
-              <div style={{fontSize:10,color:'#6E6A63',marginBottom:2}}>전체 선결제 잔액</div>
-              <div style={{fontSize:20,fontWeight:800,color:'var(--hk-accent)'}}>{wonFmt(totalBalance)}<span style={{fontSize:11,fontWeight:400,color:'#6E6A63'}}> 원</span></div>
-            </div>
-            <div style={{background:'#FFFFFF',border:'1px solid #DCD7CE',borderRadius:6,padding:'12px 18px'}}>
-              <div style={{fontSize:10,color:'#6E6A63',marginBottom:2}}>관리 중인 업체</div>
-              <div style={{fontSize:20,fontWeight:800,color:'#1D1B18'}}>{activeVendors.length}<span style={{fontSize:11,fontWeight:400,color:'#6E6A63'}}> 곳</span></div>
-            </div>
-          </div>
+      {loading ? <Text color="secondary">불러오는 중...</Text> : <>
+        <Grid columns={{ minWidth: 180, max: 2, repeat: 'fit' }} gap={3}>
+          <Card variant="red" padding={4}><VStack gap={1}><Text type="label" color="inherit">전체 선결제 잔액</Text><Text type="display-3" color="inherit" hasTabularNumbers>{wonFmt(totalBalance)}원</Text></VStack></Card>
+          <Card padding={4}><VStack gap={1}><Text type="label" color="secondary">관리 중인 업체</Text><Text type="display-3" hasTabularNumbers>{activeVendors.length}곳</Text></VStack></Card>
+        </Grid>
 
-          {lowVendors.length>0 && (
-            <div style={{background:'rgba(180,35,24,0.10)',border:'1.5px solid rgba(180,35,24,0.35)',
-              borderRadius:6,padding:'12px 16px',marginBottom:18,fontSize:12,color:'#B42318',fontWeight:700}}>
-              잔액이 기준 이하인 업체: {lowVendors.map(v=>`${v.name}(${wonFmt(balanceOf(v))}원)`).join(', ')}
-            </div>
+        {lowVendors.length>0 && <Banner status="error" title="잔액이 기준 이하인 업체" description={lowVendors.map(v=>`${v.name}(${wonFmt(balanceOf(v))}원)`).join(', ')}/>}
+
+        {activeVendors.length===0 ? <EmptyState title="등록된 업체가 없습니다" description={canEdit ? '오른쪽 위 "+ 업체 추가"로 시작하세요.' : undefined}/> : (
+          <Grid columns={{ minWidth: 220, repeat: 'fill' }} gap={3}>{activeVendors.map(v=>VendorCard(v))}</Grid>
+        )}
+
+        {/* 선택한 업체 장부 */}
+        {selected && (
+          <LedgerCard title={selected.name} right={<Text type="large" weight="bold" hasTabularNumbers>잔액 {wonFmt(balanceOf(selected))}원</Text>}>
+            {(selected.contact || selected.memo) && <Text type="supporting" color="secondary">{[selected.contact, selected.memo].filter(Boolean).join(' · ')}</Text>}
+            {selected.lowAlert>0 && <Text type="supporting" color="secondary">잔액 {wonFmt(selected.lowAlert)}원 이하일 때 알림</Text>}
+            {canEdit && (
+              <HStack gap={2} wrap="wrap">
+                <Button size="sm" label="업체 정보 수정" onClick={()=>openEditVendor(selected)}/>
+                <Button size="sm" label="보관 처리" onClick={()=>toggleArchive(selected)}/>
+                <Button size="sm" variant="destructive" label="업체 삭제" onClick={()=>deleteVendor(selected)}/>
+              </HStack>
+            )}
+
+            {/* 기록 추가 */}
+            <Card variant="muted" padding={3}>
+              <HStack gap={2} vAlign="end" wrap="wrap">
+                <DateInput label="날짜" value={entryForm.date} onChange={v=>setEntryForm(f=>({...f,date:v||f.date}))}/>
+                <SegmentedControl label="충전·차감" value={entryForm.kind} onChange={v=>v && setEntryForm(f=>({...f,kind:v}))}>
+                  <SegmentedControlItem value="charge" label="충전"/>
+                  <SegmentedControlItem value="use" label="차감"/>
+                </SegmentedControl>
+                {moneyIn('금액', entryForm.amount, v=>setEntryForm(f=>({...f,amount:v})))}
+                <TextInput label="메모" isOptional value={entryForm.memo} onChange={v=>setEntryForm(f=>({...f,memo:v}))}/>
+                <Button variant="primary" label="기록" isDisabled={saving} onClick={addEntry}/>
+              </HStack>
+            </Card>
+
+            {/* 고치는 기록 */}
+            {editEntryId && editEntryForm && (
+              <Card variant="muted" padding={3}>
+                <VStack gap={2}>
+                  <Text weight="bold">기록 고치기</Text>
+                  <HStack gap={2} vAlign="end" wrap="wrap">
+                    <DateInput label="날짜" value={editEntryForm.date} onChange={v=>setEditEntryForm(f=>({...f,date:v||f.date}))}/>
+                    <SegmentedControl label="충전·차감" value={editEntryForm.kind} onChange={v=>v && setEditEntryForm(f=>({...f,kind:v}))}>
+                      <SegmentedControlItem value="charge" label="충전"/>
+                      <SegmentedControlItem value="use" label="차감"/>
+                    </SegmentedControl>
+                    {moneyIn('금액', editEntryForm.amount, v=>setEditEntryForm(f=>({...f,amount:v})))}
+                    <TextInput label="메모" isOptional value={editEntryForm.memo} onChange={v=>setEditEntryForm(f=>({...f,memo:v}))}/>
+                    <Button variant="primary" label="저장" isDisabled={saving} onClick={saveEditEntry}/>
+                    <Button label="취소" onClick={()=>{setEditEntryId(null);setEditEntryForm(null)}}/>
+                  </HStack>
+                </VStack>
+              </Card>
+            )}
+
+            {ledgerShown.length===0 ? <Text color="secondary">아직 기록이 없습니다. 기존 잔액이 있으면 "충전"으로 이월 금액을 먼저 기록하세요.</Text> : (
+              <Table data={ledgerShown} idKey="id" density="compact"
+                columns={[
+                  { key:'date', header:'일자', renderCell: e => <Text hasTabularNumbers textWrap="nowrap">{e.date}</Text> },
+                  { key:'charge', header:'충전', align:'end', renderCell: e => <Text weight="bold" hasTabularNumbers>{e.kind==='charge' ? wonFmt(e.amount) : ''}</Text> },
+                  { key:'use', header:'차감', align:'end', renderCell: e => <Text weight="bold" color="accent" hasTabularNumbers>{e.kind==='use' ? wonFmt(e.amount) : ''}</Text> },
+                  { key:'balance', header:'잔액', align:'end', renderCell: e => <Text hasTabularNumbers>{wonFmt(e.balance)}</Text> },
+                  { key:'memo', header:'메모', renderCell: e => <Text type="supporting" color="secondary">{e.memo}</Text> },
+                  ...(canEdit ? [{ key:'act', header:'', align:'end', renderCell: e => (
+                    <HStack gap={0}>
+                      <Button size="sm" variant="ghost" label="수정" onClick={()=>startEditEntry(e)}/>
+                      <Button size="sm" variant="ghost" label="삭제" onClick={()=>deleteEntry(e.id)}/>
+                    </HStack>) }] : []),
+                ]}/>
+            )}
+          </LedgerCard>
+        )}
+
+        {/* 보관된 업체 */}
+        {archivedVendors.length>0 && <>
+          <HStack><Button variant="ghost" label={`${showArchived ? '접기' : '보기'} · 보관된 업체 (${archivedVendors.length})`} onClick={()=>setShowArchived(v=>!v)}/></HStack>
+          {showArchived && (
+            <Grid columns={{ minWidth: 220, repeat: 'fill' }} gap={3}>
+              {archivedVendors.map(v => (
+                <VStack key={v.id} gap={1}>
+                  {VendorCard(v)}
+                  {canEdit && <HStack><Button size="sm" label="보관 해제" onClick={()=>toggleArchive(v)}/></HStack>}
+                </VStack>
+              ))}
+            </Grid>
           )}
-
-          {activeVendors.length===0 ? (
-            <div style={{background:'#FFFFFF',border:'1px solid #DCD7CE',borderRadius:6,padding:40,textAlign:'center',color:'#6E6A63',fontSize:13}}>
-              등록된 업체가 없습니다. {canEdit ? '오른쪽 위 "+ 업체 추가"로 시작하세요.' : ''}
-            </div>
-          ) : (
-            <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(220px,1fr))',gap:10,marginBottom:18}}>
-              {activeVendors.map(v=>VendorCard(v))}
-            </div>
-          )}
-
-          {/* 선택한 업체 장부 */}
-          {selected && (
-            <div style={{background:'#FFFFFF',border:'1px solid #DCD7CE',borderRadius:6,padding:18,marginBottom:18}}>
-              <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',gap:10,flexWrap:'wrap',marginBottom:14}}>
-                <div>
-                  <div style={{fontSize:15,fontWeight:800,color:'var(--hk-accent)'}}>{selected.name}</div>
-                  {(selected.contact||selected.memo) && (
-                    <div style={{fontSize:11,color:'#6E6A63',marginTop:3,lineHeight:1.6}}>
-                      {selected.contact && <span>{selected.contact}</span>}
-                      {selected.contact && selected.memo && <span> · </span>}
-                      {selected.memo && <span>{selected.memo}</span>}
-                    </div>
-                  )}
-                  {selected.lowAlert>0 && (
-                    <div style={{fontSize:10,color:'#6E6A63',marginTop:2}}>잔액 {wonFmt(selected.lowAlert)}원 이하일 때 알림</div>
-                  )}
-                </div>
-                <div style={{textAlign:'right'}}>
-                  <div style={{fontSize:10,color:'#6E6A63'}}>현재 잔액</div>
-                  <div style={{fontSize:22,fontWeight:800,color:'#2E7D45'}}>{wonFmt(balanceOf(selected))}<span style={{fontSize:11,fontWeight:400,color:'#6E6A63'}}> 원</span></div>
-                </div>
-              </div>
-
-              {canEdit && (
-                <div style={{display:'flex',gap:8,marginBottom:14,flexWrap:'wrap'}}>
-                  <button onClick={()=>openEditVendor(selected)}
-                    style={{background:'#F3F1EC',border:'1px solid #DCD7CE',color:'#1D1B18',borderRadius:6,padding:'5px 12px',fontSize:11,cursor:'pointer',fontFamily:'inherit'}}>업체 정보 수정</button>
-                  <button onClick={()=>toggleArchive(selected)}
-                    style={{background:'#F3F1EC',border:'1px solid #DCD7CE',color:'#2B5C9E',borderRadius:6,padding:'5px 12px',fontSize:11,cursor:'pointer',fontFamily:'inherit'}}>보관 처리</button>
-                  <button onClick={()=>deleteVendor(selected)}
-                    style={{background:'#F3F1EC',border:'1px solid #DCD7CE',color:'#B42318',borderRadius:6,padding:'5px 12px',fontSize:11,cursor:'pointer',fontFamily:'inherit'}}>업체 삭제</button>
-                </div>
-              )}
-
-              {/* 기록 추가 */}
-              <div style={{background:'#F3F1EC',borderRadius:6,padding:12,marginBottom:14}}>
-                <div style={{display:'flex',gap:8,flexWrap:'wrap',alignItems:'center'}}>
-                  <input type="date" value={entryForm.date} onChange={e=>setEntryForm(f=>({...f,date:e.target.value}))} style={inputStyle}/>
-                  <div style={{display:'flex',gap:0}}>
-                    <button onClick={()=>setEntryForm(f=>({...f,kind:'charge'}))}
-                      style={{border:'none',cursor:'pointer',fontFamily:'inherit',fontSize:12,fontWeight:700,padding:'8px 14px',
-                        borderRadius:'7px 0 0 7px',
-                        background: entryForm.kind==='charge' ? '#2E7D45' : '#FAF9F6',
-                        color: entryForm.kind==='charge' ? '#FFFFFF' : '#6E6A63'}}>＋ 충전</button>
-                    <button onClick={()=>setEntryForm(f=>({...f,kind:'use'}))}
-                      style={{border:'none',cursor:'pointer',fontFamily:'inherit',fontSize:12,fontWeight:700,padding:'8px 14px',
-                        borderRadius:'0 7px 7px 0',
-                        background: entryForm.kind==='use' ? '#B42318' : '#FAF9F6',
-                        color: entryForm.kind==='use' ? '#FFFFFF' : '#6E6A63'}}>－ 차감</button>
-                  </div>
-                  <input type="number" value={entryForm.amount} onChange={e=>setEntryForm(f=>({...f,amount:e.target.value}))}
-                    placeholder="금액" style={{...inputStyle,width:110}}/>
-                  <input value={entryForm.memo} onChange={e=>setEntryForm(f=>({...f,memo:e.target.value}))}
-                    placeholder="메모 (선택)" style={{...inputStyle,flex:1,minWidth:120}}/>
-                  <button onClick={addEntry} disabled={saving}
-                    style={{background:'var(--hk-accent)',color:'#FFFFFF',border:'none',borderRadius:4,padding:'8px 16px',fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'inherit',whiteSpace:'nowrap'}}>
-                    기록
-                  </button>
-                </div>
-              </div>
-
-              {/* 장부 표 */}
-              {ledgerShown.length===0 ? (
-                <div style={{fontSize:12,color:'#6E6A63',padding:'10px 0'}}>아직 기록이 없습니다. 기존 잔액이 있으면 "충전"으로 이월 금액을 먼저 기록하세요.</div>
-              ) : (
-                <div style={{overflowX:'auto'}}>
-                  <table style={{width:'100%',borderCollapse:'collapse',fontSize:12,minWidth:420}}>
-                    <thead>
-                      <tr style={{color:'#6E6A63',fontSize:10,textAlign:'right'}}>
-                        <th style={{textAlign:'left',padding:'6px 8px',fontWeight:600}}>일자</th>
-                        <th style={{padding:'6px 8px',fontWeight:600}}>충전</th>
-                        <th style={{padding:'6px 8px',fontWeight:600}}>차감</th>
-                        <th style={{padding:'6px 8px',fontWeight:600}}>잔액</th>
-                        <th style={{textAlign:'left',padding:'6px 8px',fontWeight:600}}>메모</th>
-                        {canEdit && <th style={{width:56}}></th>}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {ledgerShown.map(e=>{
-                        if(editEntryId===e.id) {
-                          return (
-                            <tr key={e.id} style={{borderTop:'1px solid #F3F1EC'}}>
-                              <td colSpan={canEdit?6:5} style={{padding:'8px'}}>
-                                <div style={{display:'flex',gap:6,flexWrap:'wrap',alignItems:'center'}}>
-                                  <input type="date" value={editEntryForm.date} onChange={ev=>setEditEntryForm(f=>({...f,date:ev.target.value}))} style={inputStyle}/>
-                                  <select value={editEntryForm.kind} onChange={ev=>setEditEntryForm(f=>({...f,kind:ev.target.value}))} style={inputStyle}>
-                                    <option value="charge">충전</option>
-                                    <option value="use">차감</option>
-                                  </select>
-                                  <input type="number" value={editEntryForm.amount} onChange={ev=>setEditEntryForm(f=>({...f,amount:ev.target.value}))} style={{...inputStyle,width:100}}/>
-                                  <input value={editEntryForm.memo} onChange={ev=>setEditEntryForm(f=>({...f,memo:ev.target.value}))} placeholder="메모" style={{...inputStyle,flex:1,minWidth:100}}/>
-                                  <button onClick={saveEditEntry} disabled={saving}
-                                    style={{background:'var(--hk-accent)',color:'#FFFFFF',border:'none',borderRadius:5,padding:'6px 12px',fontSize:11,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>저장</button>
-                                  <button onClick={()=>{setEditEntryId(null);setEditEntryForm(null)}}
-                                    style={{background:'transparent',border:'1px solid #DCD7CE',color:'#6E6A63',borderRadius:5,padding:'6px 12px',fontSize:11,cursor:'pointer',fontFamily:'inherit'}}>취소</button>
-                                </div>
-                              </td>
-                            </tr>
-                          )
-                        }
-                        return (
-                          <tr key={e.id} style={{borderTop:'1px solid #F3F1EC',textAlign:'right'}}>
-                            <td style={{textAlign:'left',padding:'8px',color:'#1D1B18'}}>{e.date}</td>
-                            <td style={{padding:'8px',color:'#2E7D45',fontWeight:700}}>{e.kind==='charge' ? wonFmt(e.amount) : ''}</td>
-                            <td style={{padding:'8px',color:'#B42318',fontWeight:700}}>{e.kind==='use' ? wonFmt(e.amount) : ''}</td>
-                            <td style={{padding:'8px',color:'#1D1B18',fontWeight:700}}>{wonFmt(e.balance)}</td>
-                            <td style={{textAlign:'left',padding:'8px',color:'#6E6A63'}}>{e.memo}</td>
-                            {canEdit && (
-                              <td style={{padding:'8px',whiteSpace:'nowrap'}}>
-                                <button onClick={()=>startEditEntry(e)}
-                                  style={{background:'transparent',border:'none',color:'#6E6A63',fontSize:12,cursor:'pointer',padding:'0 4px'}}>수정</button>
-                                <button onClick={()=>deleteEntry(e.id)}
-                                  style={{background:'transparent',border:'none',color:'#B42318',fontSize:12,cursor:'pointer',padding:'0 4px'}}>삭제</button>
-                              </td>
-                            )}
-                          </tr>
-                        )
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* 보관된 업체 */}
-          {archivedVendors.length>0 && (
-            <div style={{marginTop:8}}>
-              <button onClick={()=>setShowArchived(v=>!v)}
-                style={{background:'transparent',border:'none',color:'#6E6A63',fontSize:12,cursor:'pointer',fontFamily:'inherit',padding:0,marginBottom:10}}>
-                {showArchived ? '▾' : '▸'} 보관된 업체 ({archivedVendors.length})
-              </button>
-              {showArchived && (
-                <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(220px,1fr))',gap:10}}>
-                  {archivedVendors.map(v=>(
-                    <div key={v.id}>
-                      {VendorCard(v)}
-                      {canEdit && (
-                        <button onClick={()=>toggleArchive(v)}
-                          style={{marginTop:6,background:'#F3F1EC',border:'1px solid #DCD7CE',color:'#2B5C9E',borderRadius:6,padding:'4px 10px',fontSize:11,cursor:'pointer',fontFamily:'inherit'}}>
-                          보관 해제
-                        </button>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
-        </>
-      )}
-    </div>
+        </>}
+      </>}
+    </VStack>
+    </AstryxPage>
   )
 }

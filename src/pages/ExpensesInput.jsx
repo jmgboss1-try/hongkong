@@ -1,6 +1,14 @@
 import { useState } from 'react'
 import { db } from '../firebase'
 import { doc, setDoc } from 'firebase/firestore'
+import { VStack, HStack } from '@astryxdesign/core/Layout'
+import { Text, Heading } from '@astryxdesign/core/Text'
+import { Card } from '@astryxdesign/core/Card'
+import { Grid } from '@astryxdesign/core/Grid'
+import { Banner } from '@astryxdesign/core/Banner'
+import { Button } from '@astryxdesign/core/Button'
+import { TextInput } from '@astryxdesign/core/TextInput'
+import { AstryxPage, PageHeader, LedgerCard } from '../astryx/AstryxPage'
 
 const pad = n => String(n).padStart(2,'0')
 
@@ -41,63 +49,38 @@ export default function ExpensesInput() {
   }
 
   const secs = ['재료비','관리비','인건비']
-  const secIcons = {'재료비':'','관리비':'','인건비':''}
-
-  if(done) return (
-    <div style={{display:'flex',alignItems:'center',justifyContent:'center',minHeight:'60vh'}}>
-      <div style={{textAlign:'center'}}>
-        <div style={{fontSize:48,marginBottom:16}}></div>
-        <div style={{fontSize:16,fontWeight:700,color:'#2E7D45',marginBottom:8}}>오늘 지출 입력 완료!</div>
-        <div style={{fontSize:12,color:'#6E6A63',marginBottom:24}}>{now.getMonth()+1}월 {now.getDate()}일 지출이 저장됐어요.</div>
-        <button onClick={()=>setDone(false)}
-          style={{background:'var(--hk-accent)',color:'#FFFFFF',border:'none',borderRadius:4,padding:'10px 24px',fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
-          다시 입력
-        </button>
-      </div>
-    </div>
-  )
+  const total = FIELDS.reduce((a,f)=>a+(+form[f.id]||0),0)
 
   return (
-    <div>
-      <div style={{marginBottom:22}}>
-        <div style={{fontSize:20,fontWeight:700}}>오늘 지출 입력</div>
-        <div style={{fontSize:12,color:'#6E6A63',marginTop:2}}>
-          {now.getFullYear()}년 {now.getMonth()+1}월 {now.getDate()}일 — 당일만 입력 가능
-        </div>
-      </div>
-
-      <div style={{background:'rgba(var(--hk-accent-rgb),0.08)',border:'1px solid rgba(var(--hk-accent-rgb),0.2)',borderRadius:6,padding:'12px 16px',marginBottom:20,fontSize:12,color:'var(--hk-accent)'}}>
-        당일 지출만 입력 가능합니다. 입력한 내역은 사장님만 조회할 수 있어요.
-      </div>
-
-      <div style={{background:'#FFFFFF',border:'1px solid #DCD7CE',borderRadius:6}}>
-        <div style={{padding:'14px 18px',borderBottom:'1px solid #DCD7CE',fontSize:13,fontWeight:600}}>지출 입력</div>
-        <div style={{padding:18}}>
-          {secs.map(sec=>(
-            <div key={sec}>
-              <div style={{fontSize:10,fontWeight:600,color:'#6E6A63',textTransform:'uppercase',letterSpacing:.8,margin:'14px 0 8px',paddingBottom:6,borderBottom:'1px solid #DCD7CE'}}>
-                {secIcons[sec]} {sec}
-              </div>
-              <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(140px,1fr))',gap:10}}>
-                {FIELDS.filter(f=>f.sec===sec).map(f=>(
-                  <div key={f.id} style={{display:'flex',flexDirection:'column',gap:4}}>
-                    <label style={{fontSize:10,color:'#6E6A63',fontWeight:600}}>{f.label}</label>
-                    <input type="number" value={form[f.id]||''} onChange={e=>setF(f.id,e.target.value)}
-                      placeholder="0" min="0"
-                      style={{background:'#F3F1EC',border:'1px solid #DCD7CE',borderRadius:4,color:'#1D1B18',padding:'8px 10px',fontSize:12,outline:'none',width:'100%'}}/>
-                  </div>
+    <AstryxPage>
+    <VStack gap={4}>
+      <PageHeader title="오늘 지출 입력" sub={`${now.getFullYear()}년 ${now.getMonth()+1}월 ${now.getDate()}일 — 당일만 입력 가능`}/>
+      {done ? (
+        <Card padding={6}>
+          <VStack gap={3} hAlign="center">
+            <Heading level={3}>오늘 지출 입력 완료!</Heading>
+            <Text color="secondary">{now.getMonth()+1}월 {now.getDate()}일 지출이 저장됐어요.</Text>
+            <Button variant="primary" label="다시 입력" onClick={()=>setDone(false)}/>
+          </VStack>
+        </Card>
+      ) : <>
+        <Banner status="info" title="당일 지출만 입력 가능합니다." description="입력한 내역은 사장님만 조회할 수 있어요."/>
+        <LedgerCard title="지출 입력" right={total > 0 && <Text weight="bold" hasTabularNumbers>합계 {total.toLocaleString('ko-KR')}원</Text>}>
+          {secs.map(sec => (
+            <VStack key={sec} gap={2}>
+              <Heading level={5}>{sec}</Heading>
+              <Grid columns={{ minWidth: 150, repeat: 'fill' }} gap={2}>
+                {FIELDS.filter(f=>f.sec===sec).map(f => (
+                  <TextInput key={f.id} label={f.label} inputMode="numeric" placeholder="0"
+                    value={form[f.id] ? (+form[f.id]).toLocaleString('ko-KR') : ''} onChange={v=>setF(f.id, v.replace(/[^0-9]/g,''))}/>
                 ))}
-              </div>
-            </div>
+              </Grid>
+            </VStack>
           ))}
-        </div>
-        <div style={{padding:'0 18px 18px'}}>
-          <button onClick={save} disabled={saving}
-            style={{background:'var(--hk-accent)',color:'#FFFFFF',border:'none',borderRadius:4,padding:'10px 24px',fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
-            {saving?'저장 중...':'오늘 지출 저장'}
-          </button>
-        </div>
-      </div>
-    </div>
+          <HStack><Button variant="primary" label={saving?'저장 중...':'오늘 지출 저장'} isDisabled={saving} onClick={save}/></HStack>
+        </LedgerCard>
+      </>}
+    </VStack>
+    </AstryxPage>
   )
 }

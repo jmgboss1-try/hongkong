@@ -2,9 +2,23 @@ import { useEffect, useState } from 'react'
 import { db, auth } from '../firebase'
 import { doc, getDoc, setDoc } from 'firebase/firestore'
 import { useAuth } from '../AuthContext'
+import { VStack, HStack } from '@astryxdesign/core/Layout'
+import { Text } from '@astryxdesign/core/Text'
+import { Card } from '@astryxdesign/core/Card'
+import { Grid } from '@astryxdesign/core/Grid'
+import { Badge } from '@astryxdesign/core/Badge'
+import { Button } from '@astryxdesign/core/Button'
+import { Selector } from '@astryxdesign/core/Selector'
+import { TextInput } from '@astryxdesign/core/TextInput'
+import { Table } from '@astryxdesign/core/Table'
+import { List, ListItem } from '@astryxdesign/core/List'
+import { EmptyState } from '@astryxdesign/core/EmptyState'
+import { SegmentedControl, SegmentedControlItem } from '@astryxdesign/core/SegmentedControl'
+import { AstryxPage, PageHeader, LedgerCard, Ledger, LedgerRow } from '../astryx/AstryxPage'
 
 const pad = n => String(n).padStart(2,'0')
 const mLabel = ym => { const[y,m]=ym.split('-'); return `${y}년 ${+m}월` }
+const diffLabel = d => d == null ? '—' : d === 0 ? '일치' : d > 0 ? `+${d.toLocaleString()}원` : `${d.toLocaleString()}원`
 
 const BILLS = [
   { id:'w50000', label:'오만원권', value:50000 },
@@ -35,70 +49,38 @@ function CashForm({ type, baseAmount, onSave, existing }) {
   }
 
   return (
-    <div style={{display:'flex',flexDirection:'column',gap:14}}>
+    <VStack gap={3}>
       {/* 권종 입력 */}
-      <div style={{display:'flex',flexDirection:'column',gap:8}}>
-        {BILLS.map(b=>(
-          <div key={b.id} style={{display:'flex',alignItems:'center',gap:12,background:'#F3F1EC',borderRadius:4,padding:'10px 14px'}}>
-            <div style={{flex:1}}>
-              <div style={{fontSize:12,fontWeight:600}}>{b.label}</div>
-              <div style={{fontSize:10,color:'#6E6A63'}}>{b.value.toLocaleString()}원</div>
-            </div>
-            <div style={{display:'flex',alignItems:'center',gap:8}}>
-              <button onClick={()=>setCounts(c=>({...c,[b.id]:Math.max(0,(c[b.id]||0)-1)}))}
-                style={{width:28,height:28,borderRadius:6,background:'#DCD7CE',border:'none',color:'#1D1B18',fontSize:16,cursor:'pointer',fontFamily:'inherit'}}>−</button>
-              <input type="number" value={counts[b.id]||''} min="0"
-                onChange={e=>setCounts(c=>({...c,[b.id]:+e.target.value||0}))}
-                style={{width:50,background:'#FAF9F6',border:'1px solid #DCD7CE',borderRadius:6,color:'#1D1B18',padding:'4px 0',fontSize:13,textAlign:'center',outline:'none',fontFamily:'inherit',fontVariantNumeric:'tabular-nums'}}/>
-              <button onClick={()=>setCounts(c=>({...c,[b.id]:(c[b.id]||0)+1}))}
-                style={{width:28,height:28,borderRadius:6,background:'#DCD7CE',border:'none',color:'#1D1B18',fontSize:16,cursor:'pointer',fontFamily:'inherit'}}>＋</button>
-              <div style={{width:70,textAlign:'right',fontFamily:'inherit',fontVariantNumeric:'tabular-nums',fontSize:11,color:'var(--hk-accent)'}}>
-                {((counts[b.id]||0)*b.value).toLocaleString()}원
-              </div>
-            </div>
-          </div>
+      <List hasDividers edge="flush">
+        {BILLS.map(b => (
+          <ListItem key={b.id} label={<Text weight="bold">{b.label}</Text>}
+            description={<Text type="supporting" color="secondary" hasTabularNumbers>{b.value.toLocaleString()}원</Text>}
+            endContent={<HStack gap={1} vAlign="center">
+              <Button size="sm" label="−" onClick={()=>setCounts(c=>({...c,[b.id]:Math.max(0,(c[b.id]||0)-1)}))}/>
+              <TextInput label={`${b.label} 장수`} isLabelHidden size="sm" inputMode="numeric" width={64} value={counts[b.id] ? String(counts[b.id]) : ''}
+                onChange={v=>setCounts(c=>({...c,[b.id]:+v.replace(/[^0-9]/g,'')||0}))}/>
+              <Button size="sm" label="+" onClick={()=>setCounts(c=>({...c,[b.id]:(c[b.id]||0)+1}))}/>
+              <Text type="supporting" color="accent" hasTabularNumbers textWrap="nowrap">{((counts[b.id]||0)*b.value).toLocaleString()}원</Text>
+            </HStack>}/>
         ))}
-      </div>
+      </List>
 
       {/* 현금 매출 (마감시에만) */}
       {type==='close' && (
-        <div style={{background:'#F3F1EC',borderRadius:4,padding:'12px 14px'}}>
-          <label style={{fontSize:10,color:'#6E6A63',fontWeight:600,display:'block',marginBottom:6}}>현금 매출 (원)</label>
-          <input type="number" value={cashSales} onChange={e=>setCashSales(e.target.value)} placeholder="0" min="0"
-            style={{background:'#FAF9F6',border:'1px solid #DCD7CE',borderRadius:4,color:'#1D1B18',padding:'8px 10px',fontSize:12,outline:'none',width:'100%'}}/>
-        </div>
+        <TextInput label="현금 매출 (원)" inputMode="numeric" placeholder="0" value={cashSales ? (+cashSales).toLocaleString('ko-KR') : ''} onChange={v=>setCashSales(v.replace(/[^0-9]/g,''))}/>
       )}
-
-      {/* 메모 */}
-      <div style={{background:'#F3F1EC',borderRadius:4,padding:'12px 14px'}}>
-        <label style={{fontSize:10,color:'#6E6A63',fontWeight:600,display:'block',marginBottom:6}}>메모</label>
-        <input type="text" value={memo} onChange={e=>setMemo(e.target.value)} placeholder="특이사항 입력..."
-          style={{background:'#FAF9F6',border:'1px solid #DCD7CE',borderRadius:4,color:'#1D1B18',padding:'8px 10px',fontSize:12,outline:'none',width:'100%',fontFamily:'inherit'}}/>
-      </div>
+      <TextInput label="메모" placeholder="특이사항 입력..." value={memo} onChange={v=>setMemo(v)}/>
 
       {/* 합계 & 차액 */}
-      <div style={{background:'#FFFFFF',border:'1px solid #DCD7CE',borderRadius:6,padding:'14px 16px',display:'flex',flexDirection:'column',gap:8}}>
-        <div style={{display:'flex',justifyContent:'space-between',fontSize:12}}>
-          <span style={{color:'#6E6A63'}}>실제 시재 합계</span>
-          <span style={{fontFamily:'inherit',fontVariantNumeric:'tabular-nums',fontWeight:700,color:'#1D1B18'}}>{total.toLocaleString()}원</span>
-        </div>
-        <div style={{display:'flex',justifyContent:'space-between',fontSize:12}}>
-          <span style={{color:'#6E6A63'}}>기준 시재{type==='close'?'+현금매출':''}</span>
-          <span style={{fontFamily:'inherit',fontVariantNumeric:'tabular-nums',color:'#6E6A63'}}>{expected.toLocaleString()}원</span>
-        </div>
-        <div style={{borderTop:'1px solid #DCD7CE',paddingTop:8,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
-          <span style={{fontSize:13,fontWeight:700}}>차액 (오차)</span>
-          <span style={{fontFamily:'inherit',fontVariantNumeric:'tabular-nums',fontSize:16,fontWeight:700,color:diff===0?'#2E7D45':diff>0?'var(--hk-accent)':'#B42318'}}>
-            {diff===0?'일치':diff>0?`+${diff.toLocaleString()}원`:`${diff.toLocaleString()}원`}
-          </span>
-        </div>
-      </div>
+      <Card variant="muted" padding={3}>
+        <Ledger rows={<>
+          <LedgerRow label="실제 시재 합계" value={total}/>
+          <LedgerRow label={`기준 시재${type==='close'?'+현금매출':''}`} value={expected} sub/>
+        </>} total={<LedgerRow label="차액 (오차)" text={diffLabel(diff)} strong tone={diff < 0 ? 'bad' : diff > 0 ? 'accent' : undefined}/>}/>
+      </Card>
 
-      <button onClick={save} disabled={saving}
-        style={{background:'var(--hk-accent)',color:'#FFFFFF',border:'none',borderRadius:4,padding:'12px',fontSize:13,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
-        {saving?'저장 중...':`${type==='open'?'오픈':'마감'} 시재 저장`}
-      </button>
-    </div>
+      <Button variant="primary" width="100%" label={saving?'저장 중...':`${type==='open'?'오픈':'마감'} 시재 저장`} isDisabled={saving} onClick={save}/>
+    </VStack>
   )
 }
 
@@ -197,167 +179,83 @@ async function saveRecord(type, data) {
   }
   monthOpts.reverse()
 
+  const histDays = Object.keys(shownRecords).filter(k=>/^\d{2}$/.test(k)).sort().map(dd => ({ dd, r: shownRecords[dd] }))
+  const diffCell = d => d === undefined ? <Text color="secondary">—</Text> : <Text hasTabularNumbers color={d < 0 ? 'accent' : d === 0 ? 'secondary' : 'primary'}>{diffLabel(d)}</Text>
+
   return (
-    <div>
-      <div style={{display:'flex',alignItems:'flex-end',justifyContent:'space-between',marginBottom:22}}>
-        <div>
-          <div style={{fontSize:20,fontWeight:700}}>현금시재</div>
-          <div style={{fontSize:12,color:'#6E6A63',marginTop:2}}>
-            {now.getFullYear()}년 {now.getMonth()+1}월 {now.getDate()}일
-          </div>
-        </div>
-      </div>
+    <AstryxPage>
+    <VStack gap={4}>
+      <PageHeader title="현금시재" sub={`${now.getFullYear()}년 ${now.getMonth()+1}월 ${now.getDate()}일`}/>
 
       {/* 기준 시재 설정 (사장만) */}
       {isOwner && (
-        <div style={{background:'#FFFFFF',border:'1px solid #DCD7CE',borderRadius:6,padding:'16px 18px',marginBottom:18}}>
-          <div style={{fontSize:13,fontWeight:600,marginBottom:10}}>기준 시재 설정</div>
-          <div style={{display:'flex',gap:10,alignItems:'center'}}>
-            <div style={{flex:1}}>
-              <input type="number" value={tempBase} onChange={e=>setTempBase(e.target.value)}
-                placeholder={`현재: ${baseAmount.toLocaleString()}원`}
-                style={{background:'#F3F1EC',border:'1px solid #DCD7CE',borderRadius:4,color:'#1D1B18',padding:'9px 12px',fontSize:12,outline:'none',width:'100%'}}/>
-            </div>
-            <button onClick={saveBaseAmount}
-              style={{background:'var(--hk-accent)',color:'#FFFFFF',border:'none',borderRadius:4,padding:'9px 16px',fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'inherit',whiteSpace:'nowrap'}}>
-              설정
-            </button>
-          </div>
-          <div style={{fontSize:10,color:'#6E6A63',marginTop:6}}>현재 기준 시재: {baseAmount.toLocaleString()}원</div>
-        </div>
+        <LedgerCard title="기준 시재 설정" right={<Text type="supporting" color="secondary" hasTabularNumbers>현재 {baseAmount.toLocaleString()}원</Text>}>
+          <HStack gap={2} vAlign="end">
+            <TextInput label="기준 시재" isLabelHidden inputMode="numeric" placeholder={`현재: ${baseAmount.toLocaleString()}원`}
+              value={tempBase ? (+tempBase).toLocaleString('ko-KR') : ''} onChange={v=>setTempBase(v.replace(/[^0-9]/g,''))}/>
+            <Button variant="primary" label="설정" onClick={saveBaseAmount}/>
+          </HStack>
+        </LedgerCard>
       )}
 
       {/* 오늘 현황 요약 */}
-      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12,marginBottom:18}}>
-        {['open','close'].map(type=>{
+      <Grid columns={2} gap={3}>
+        {['open','close'].map(type => {
           const rec = todayRecord[type]
-          return(
-            <div key={type} style={{background:'#FFFFFF',border:`1px solid ${rec?'#2E7D45':'#DCD7CE'}`,borderRadius:6,padding:'14px 16px'}}>
-              <div style={{fontSize:11,fontWeight:600,color:'#6E6A63',marginBottom:6}}>{type==='open'?'오픈 시재':'마감 시재'}</div>
-{rec ? (
-  <>
-    <div style={{fontSize:16,fontWeight:700,color:'#2E7D45',fontFamily:'inherit',fontVariantNumeric:'tabular-nums'}}>{rec.total?.toLocaleString()}원</div>
-    <div style={{fontSize:10,color:'#6E6A63',marginTop:4}}>{rec.recordedAt} · {rec.recordedByName||rec.recordedBy||'?'}</div>
-    <div style={{fontSize:11,marginTop:4,color:rec.diff===0?'#2E7D45':rec.diff>0?'var(--hk-accent)':'#B42318'}}>
-      차액: {rec.diff===0?'일치':rec.diff>0?`+${rec.diff?.toLocaleString()}원`:`${rec.diff?.toLocaleString()}원`}
-    </div>
-    {rec.memo && <div style={{fontSize:11,marginTop:6,color:'#1D1B18',lineHeight:1.5}}>{rec.memo}</div>}
-  </>
-) : (
-  <div style={{fontSize:12,color:'#6E6A63'}}>미입력</div>
-)}
-            </div>
+          return (
+            <Card key={type} padding={4}>
+              <VStack gap={1}>
+                <HStack gap={2} vAlign="center"><Text type="label" color="secondary">{type==='open'?'오픈 시재':'마감 시재'}</Text>{rec ? <Badge variant="success" label="입력됨"/> : <Badge label="미입력"/>}</HStack>
+                {rec && <>
+                  <Text type="large" weight="bold" hasTabularNumbers>{rec.total?.toLocaleString()}원</Text>
+                  <Text type="supporting" color="secondary">{rec.recordedAt} · {rec.recordedByName||rec.recordedBy||'?'}</Text>
+                  <Text type="supporting" color={rec.diff < 0 ? 'accent' : 'secondary'} hasTabularNumbers>차액: {diffLabel(rec.diff)}</Text>
+                  {rec.memo && <Text type="supporting">{rec.memo}</Text>}
+                </>}
+              </VStack>
+            </Card>
           )
         })}
-      </div>
+      </Grid>
 
-      {/* 오픈/마감 탭 */}
-      <div style={{display:'flex',border:'1px solid #DCD7CE',borderRadius:6,overflow:'hidden',marginBottom:16}}>
-        {[['open','오픈 시재'],['close','마감 시재']].map(([type,label])=>(
-          <button key={type} onClick={()=>setActiveType(type)}
-            style={{flex:1,padding:'10px',fontSize:12,fontWeight:600,border:'none',cursor:'pointer',fontFamily:'inherit',transition:'.15s',
-              background:activeType===type?'var(--hk-accent)':'transparent',
-              color:activeType===type?'#FFFFFF':'#6E6A63'}}>
-            {label}
-          </button>
-        ))}
-      </div>
+      {/* 오픈/마감 */}
+      <SegmentedControl label="오픈·마감" value={activeType} onChange={v=>v && setActiveType(v)}>
+        <SegmentedControlItem value="open" label="오픈 시재"/>
+        <SegmentedControlItem value="close" label="마감 시재"/>
+      </SegmentedControl>
 
-      {/* 입력 폼 */}
-      {loading ? <div style={{textAlign:'center',color:'#6E6A63',padding:40}}>로딩 중...</div> : (
-        <div style={{background:'#FFFFFF',border:'1px solid #DCD7CE',borderRadius:6,padding:'18px'}}>
-          <div style={{fontSize:13,fontWeight:600,marginBottom:14}}>
-            {activeType==='open'?'오픈 시재 입력':'마감 시재 입력'}
-            {todayRecord[activeType] && <span style={{fontSize:10,color:'#2E7D45',marginLeft:8}}>저장됨</span>}
-          </div>
-          <CashForm
-            key={activeType}
-            type={activeType}
-            baseAmount={baseAmount}
-            existing={todayRecord[activeType]}
-            onSave={(data)=>saveRecord(activeType,data)}
-          />
-        </div>
+      {loading ? <Text color="secondary">불러오는 중...</Text> : (
+        <LedgerCard title={activeType==='open'?'오픈 시재 입력':'마감 시재 입력'} right={todayRecord[activeType] && <Badge variant="success" label="저장됨"/>}>
+          <CashForm key={activeType} type={activeType} baseAmount={baseAmount} existing={todayRecord[activeType]} onSave={(data)=>saveRecord(activeType,data)}/>
+        </LedgerCard>
       )}
 
-      {/* 사장만: 이전 기록 조회 */}
-      {isOwner && (
-        <div style={{marginTop:18}}>
-          <button onClick={()=>setShowHistory(v=>!v)}
-            style={{background:'#F3F1EC',border:'1px solid #DCD7CE',borderRadius:4,color:'#6E6A63',padding:'8px 16px',fontSize:12,cursor:'pointer',fontFamily:'inherit',width:'100%'}}>
-            {showHistory?'▲ 이전 기록 닫기':'▼ 이전 기록 보기'}
-          </button>
-          {showHistory && (
-            <div style={{background:'#FFFFFF',border:'1px solid #DCD7CE',borderRadius:6,marginTop:10,overflow:'hidden'}}>
-              <div style={{padding:'12px 18px',borderBottom:'1px solid #DCD7CE',display:'flex',justifyContent:'space-between',alignItems:'center',gap:10}}>
-                <span style={{fontSize:13,fontWeight:600}}>{mLabel(histMonth)} 시재 기록</span>
-                <select value={histMonth} onChange={e=>{ setHistRecords(null); setHistMonth(e.target.value) }}
-                  style={{background:'#F3F1EC',border:'1px solid #DCD7CE',borderRadius:4,color:'#1D1B18',
-                    padding:'6px 10px',fontSize:12,fontFamily:'inherit',outline:'none'}}>
-                  {monthOpts.map(m=><option key={m} value={m}>{mLabel(m)}</option>)}
-                </select>
-              </div>
-              <div style={{overflowX:'auto'}}>
-                <table style={{width:'100%',borderCollapse:'collapse',fontSize:12}}>
-                  <thead>
-                    <tr style={{background:'#F3F1EC'}}>
-                      {['날짜','오픈 시재','오픈 입력자','오픈 차액','마감 시재','마감 입력자','마감 차액','현금매출','메모'].map(h=>(
-                        <th key={h} style={{padding:'8px 14px',fontSize:10,fontWeight:600,color:'#6E6A63',textAlign:'right',whiteSpace:'nowrap'}}>
-                          {h==='날짜'?<span style={{float:'left'}}>{h}</span>:h}
-                        </th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {Object.keys(shownRecords).filter(k=>/^\d{2}$/.test(k)).sort().map(dd=>{
-                      const r=shownRecords[dd]
-                      return(
-                        <tr key={dd}>
-                          <td style={{padding:'9px 14px',borderBottom:'1px solid #DCD7CE',color:'#1D1B18'}}>{+dd}일</td>
-                          <td style={{padding:'9px 14px',borderBottom:'1px solid #DCD7CE',textAlign:'right',fontFamily:'inherit',fontVariantNumeric:'tabular-nums'}}>{r.open?.total?.toLocaleString()||'—'}</td>
-                          <td style={{padding:'9px 14px',borderBottom:'1px solid #DCD7CE',textAlign:'right',fontSize:11,
-                            color:r.open?.diff!==0&&r.open?.diff!==undefined?'#B42318':'#6E6A63'}}>
-                            {r.open?.recordedByName||r.open?.recordedBy||'—'}
-                          </td>
-                          <td style={{padding:'9px 14px',borderBottom:'1px solid #DCD7CE',textAlign:'right',fontFamily:'inherit',fontVariantNumeric:'tabular-nums',
-                            color:r.open?.diff===0?'#2E7D45':r.open?.diff>0?'var(--hk-accent)':'#B42318'}}>
-                            {r.open?.diff===undefined?'—':r.open.diff===0?'일치':r.open.diff>0?`+${r.open.diff.toLocaleString()}`:r.open.diff.toLocaleString()}
-                          </td>
-                          <td style={{padding:'9px 14px',borderBottom:'1px solid #DCD7CE',textAlign:'right',fontFamily:'inherit',fontVariantNumeric:'tabular-nums'}}>{r.close?.total?.toLocaleString()||'—'}</td>
-                          <td style={{padding:'9px 14px',borderBottom:'1px solid #DCD7CE',textAlign:'right',fontSize:11,
-                            color:r.close?.diff!==0&&r.close?.diff!==undefined?'#B42318':'#6E6A63'}}>
-                            {r.close?.recordedByName||r.close?.recordedBy||'—'}
-                          </td>
-                          <td style={{padding:'9px 14px',borderBottom:'1px solid #DCD7CE',textAlign:'right',fontFamily:'inherit',fontVariantNumeric:'tabular-nums',
-                            color:r.close?.diff===0?'#2E7D45':r.close?.diff>0?'var(--hk-accent)':'#B42318'}}>
-                            {r.close?.diff===undefined?'—':r.close.diff===0?'일치':r.close.diff>0?`+${r.close.diff.toLocaleString()}`:r.close.diff.toLocaleString()}
-                          </td>
-                          <td style={{padding:'9px 14px',borderBottom:'1px solid #DCD7CE',textAlign:'right',fontFamily:'inherit',fontVariantNumeric:'tabular-nums',color:'var(--hk-accent)'}}>
-                            {r.close?.cashSales?r.close.cashSales.toLocaleString()+'원':'—'}
-                          </td>
-                          <td style={{padding:'9px 14px',borderBottom:'1px solid #DCD7CE',fontSize:11,color:'#1D1B18',minWidth:160,lineHeight:1.5}}>
-                            {!r.open?.memo && !r.close?.memo ? <span style={{color:'#6E6A63'}}>—</span> : (
-                              <>
-                                {r.open?.memo && <div>{r.open.memo}</div>}
-                                {r.close?.memo && <div>{r.close.memo}</div>}
-                              </>
-                            )}
-                          </td>
-                        </tr>
-                      )
-                    })}
-                    {histMonth!==today && histRecords===null ? (
-                      <tr><td colSpan={9} style={{padding:24,textAlign:'center',color:'#6E6A63'}}>불러오는 중...</td></tr>
-                    ) : Object.keys(shownRecords).length===0 && (
-                      <tr><td colSpan={9} style={{padding:24,textAlign:'center',color:'#6E6A63'}}>기록 없음</td></tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
-        </div>
-      )}
-    </div>
+      {/* 사장만: 이전 기록 */}
+      {isOwner && <>
+        <Button width="100%" label={showHistory ? '이전 기록 닫기' : '이전 기록 보기'} onClick={()=>setShowHistory(v=>!v)}/>
+        {showHistory && (
+          <LedgerCard title={`${mLabel(histMonth)} 시재 기록`} right={
+            <Selector label="달 고르기" isLabelHidden size="sm" value={histMonth} onChange={v=>{ if (!v) return; setHistRecords(null); setHistMonth(v) }} options={monthOpts.map(m=>({ value:m, label:mLabel(m) }))}/>}>
+            {histMonth!==today && histRecords===null ? <Text color="secondary">불러오는 중...</Text> : (
+              <HStack isScrollable>
+                <Table data={histDays} idKey="dd" density="compact" emptyState={<EmptyState title="기록 없음" isCompact/>}
+                  columns={[
+                    { key:'dd', header:'날짜', width:64, renderCell: x => <Text textWrap="nowrap">{+x.dd}일</Text> },
+                    { key:'ot', header:'오픈 시재', width:100, align:'end', renderCell: x => <Text hasTabularNumbers>{x.r.open?.total?.toLocaleString()||'—'}</Text> },
+                    { key:'ob', header:'오픈 입력자', width:96, align:'end', renderCell: x => <Text type="supporting" color="secondary">{x.r.open?.recordedByName||x.r.open?.recordedBy||'—'}</Text> },
+                    { key:'od', header:'오픈 차액', width:96, align:'end', renderCell: x => diffCell(x.r.open?.diff) },
+                    { key:'ct', header:'마감 시재', width:100, align:'end', renderCell: x => <Text hasTabularNumbers>{x.r.close?.total?.toLocaleString()||'—'}</Text> },
+                    { key:'cb', header:'마감 입력자', width:96, align:'end', renderCell: x => <Text type="supporting" color="secondary">{x.r.close?.recordedByName||x.r.close?.recordedBy||'—'}</Text> },
+                    { key:'cd', header:'마감 차액', width:96, align:'end', renderCell: x => diffCell(x.r.close?.diff) },
+                    { key:'cs', header:'현금매출', width:110, align:'end', renderCell: x => <Text hasTabularNumbers>{x.r.close?.cashSales ? x.r.close.cashSales.toLocaleString()+'원' : '—'}</Text> },
+                    { key:'memo', header:'메모', width:200, renderCell: x => <Text type="supporting">{[x.r.open?.memo, x.r.close?.memo].filter(Boolean).join(' / ') || '—'}</Text> },
+                  ]}/>
+              </HStack>
+            )}
+          </LedgerCard>
+        )}
+      </>}
+    </VStack>
+    </AstryxPage>
   )
 }

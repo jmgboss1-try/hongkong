@@ -2,6 +2,17 @@ import { useEffect, useState } from 'react'
 import { db } from '../firebase'
 import { collection, addDoc, getDocs, doc, updateDoc, deleteDoc, orderBy, query } from 'firebase/firestore'
 import { useAuth } from '../AuthContext'
+import { VStack, HStack } from '@astryxdesign/core/Layout'
+import { Text } from '@astryxdesign/core/Text'
+import { Card } from '@astryxdesign/core/Card'
+import { Grid } from '@astryxdesign/core/Grid'
+import { Badge } from '@astryxdesign/core/Badge'
+import { Button } from '@astryxdesign/core/Button'
+import { TextInput } from '@astryxdesign/core/TextInput'
+import { TabList, Tab } from '@astryxdesign/core/TabList'
+import { EmptyState } from '@astryxdesign/core/EmptyState'
+import { SegmentedControl, SegmentedControlItem } from '@astryxdesign/core/SegmentedControl'
+import { AstryxPage, PageHeader, LedgerCard } from '../astryx/AstryxPage'
 
 const URGENCY = {
   normal: { label:'일반', color:'#6E6A63', bg:'rgba(94,101,133,0.15)' },
@@ -112,251 +123,106 @@ export default function Order() {
   const pendingCount = orders.filter(o=>o.status==='pending').length
   const urgentCount = orders.filter(o=>o.status==='pending'&&o.urgency==='urgent').length
 
+  const STATUS_BADGE = { pending:'warning', checked:'info', done:'success' }
+
   return (
-    <div>
-      <div style={{display:'flex',alignItems:'flex-end',justifyContent:'space-between',marginBottom:22}}>
-        <div>
-          <div style={{fontSize:20,fontWeight:700}}>발주 요청</div>
-          <div style={{fontSize:12,color:'#6E6A63',marginTop:2}}>재고 부족 및 주문 요청 관리</div>
-        </div>
-      </div>
+    <AstryxPage>
+    <VStack gap={4}>
+      <PageHeader title="발주 요청" sub="재고 부족 및 주문 요청 관리"/>
 
-      {/* 요약 카드 */}
-      <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:14,marginBottom:20}}>
-        {[
-          {label:'대기중 요청', val:pendingCount, color:'var(--hk-accent)'},
-          {label:'긴급 요청', val:urgentCount, color:'#B42318'},
-          {label:'전체 요청', val:orders.length, color:'#2B5C9E'},
-        ].map(k=>(
-          <div key={k.label} style={{background:'#FFFFFF',border:'1px solid #DCD7CE',borderRadius:6,padding:'16px 20px',position:'relative',overflow:'hidden'}}>
-            <div style={{position:'absolute',top:0,left:0,right:0,height:3,background:k.color}}></div>
-            <div style={{fontSize:10,fontWeight:600,color:'#6E6A63',textTransform:'uppercase',letterSpacing:.8,marginBottom:6}}>{k.label}</div>
-            <div style={{fontSize:22,fontWeight:700,color:k.color,fontFamily:'inherit',fontVariantNumeric:'tabular-nums'}}>{k.val}건</div>
-          </div>
+      <Grid columns={{ minWidth: 150, max: 3, repeat: 'fit' }} gap={3}>
+        {[['대기중 요청', pendingCount, true], ['긴급 요청', urgentCount], ['전체 요청', orders.length]].map(([label, val, filled]) => (
+          <Card key={label} variant={filled ? 'red' : 'default'} padding={4}>
+            <VStack gap={1}><Text type="label" color={filled ? 'inherit' : 'secondary'}>{label}</Text><Text type="display-3" color={filled ? 'inherit' : 'primary'} hasTabularNumbers>{val}건</Text></VStack>
+          </Card>
         ))}
-      </div>
+      </Grid>
 
-      {/* 탭 */}
-      <div style={{display:'flex',gap:8,marginBottom:18,flexWrap:'wrap'}}>
-        {[
-          {key:'list', label:'요청 목록'},
-          {key:'add', label:'요청 등록'},
-          ...(isOwner ? [{key:'preset', label:'품목 관리'}] : []),
-        ].map(t=>(
-          <button key={t.key} onClick={()=>setActiveTab(t.key)}
-            style={{padding:'9px 18px',borderRadius:4,border:'none',fontSize:13,fontWeight:600,cursor:'pointer',fontFamily:'inherit',
-              background:activeTab===t.key?'var(--hk-accent)':'#F3F1EC',
-              color:activeTab===t.key?'#FFFFFF':'#6E6A63'}}>
-            {t.label}
-          </button>
-        ))}
-      </div>
+      <TabList value={activeTab} onChange={v=>v && setActiveTab(v)}>
+        <Tab value="list" label="요청 목록"/>
+        <Tab value="add" label="요청 등록"/>
+        {isOwner && <Tab value="preset" label="품목 관리"/>}
+      </TabList>
 
-      {/* 요청 목록 */}
-      {activeTab==='list' && (
-        <div>
-          {/* 상태 필터 */}
-          <div style={{display:'flex',gap:8,marginBottom:14,flexWrap:'wrap'}}>
-            {[['all','전체'],['pending','대기중'],['checked','확인완료'],['done','완료']].map(([key,label])=>(
-              <button key={key} onClick={()=>setFilterStatus(key)}
-                style={{padding:'5px 12px',borderRadius:6,border:'none',fontSize:11,fontWeight:600,cursor:'pointer',fontFamily:'inherit',
-                  background:filterStatus===key?'var(--hk-accent)':'#F3F1EC',color:filterStatus===key?'#FFFFFF':'#6E6A63'}}>
-                {label}
-              </button>
+      {activeTab==='list' && <>
+        <HStack>
+          <SegmentedControl label="상태" value={filterStatus} onChange={v=>v && setFilterStatus(v)}>
+            {[['all','전체'],['pending','대기중'],['checked','확인완료'],['done','완료']].map(([key,label]) => <SegmentedControlItem key={key} value={key} label={label}/>)}
+          </SegmentedControl>
+        </HStack>
+        {loading ? <Text color="secondary">불러오는 중...</Text> : filtered.length===0 ? <EmptyState title="요청이 없습니다" isCompact/> : (
+          <VStack gap={2}>
+            {filtered.map(o => (
+              <Card key={o.id} padding={4}>
+                <HStack gap={3} vAlign="start" hAlign="between" wrap="wrap">
+                  <VStack gap={1}>
+                    <HStack gap={2} vAlign="center" wrap="wrap">
+                      <Badge variant={o.urgency==='urgent' ? 'error' : 'neutral'} label={URGENCY[o.urgency]?.label || '일반'}/>
+                      <Badge variant={STATUS_BADGE[o.status] || 'neutral'} label={STATUS[o.status]?.label || o.status}/>
+                      <Text type="supporting" color="secondary">{timeAgo(o.createdAt)}</Text>
+                    </HStack>
+                    <Text type="large" weight="bold">{o.itemName} <Text color="accent" hasTabularNumbers>{o.qty}{o.unit}</Text></Text>
+                    {o.memo && <Text color="secondary">{o.memo}</Text>}
+                    <Text type="supporting" color="secondary">요청자: {o.authorName}</Text>
+                  </VStack>
+                  <HStack gap={1}>
+                    {isOwner && o.status==='pending' && <Button size="sm" variant="primary" label="확인" onClick={()=>updateStatus(o.id,'checked')}/>}
+                    {isOwner && o.status==='checked' && <Button size="sm" variant="primary" label="완료" onClick={()=>updateStatus(o.id,'done')}/>}
+                    {isOwner && <Button size="sm" variant="ghost" label="삭제" onClick={()=>deleteOrder(o.id)}/>}
+                    {!isOwner && o.authorUid===user.uid && o.status==='pending' && <Button size="sm" variant="ghost" label="취소" onClick={()=>deleteOrder(o.id)}/>}
+                  </HStack>
+                </HStack>
+              </Card>
             ))}
-          </div>
+          </VStack>
+        )}
+      </>}
 
-          {loading ? <div style={{textAlign:'center',color:'#6E6A63',padding:40}}>로딩 중...</div> : (
-            <div style={{display:'flex',flexDirection:'column',gap:10}}>
-              {filtered.length===0 && (
-                <div style={{textAlign:'center',color:'#6E6A63',padding:40}}>요청이 없습니다</div>
-              )}
-              {filtered.map(o=>(
-                <div key={o.id} style={{background:'#FFFFFF',border:'1px solid #DCD7CE',borderRadius:6,padding:'16px 18px',
-                  borderLeft:`4px solid ${o.urgency==='urgent'?'#B42318':'#DCD7CE'}`}}>
-                  <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',flexWrap:'wrap',gap:8}}>
-                    <div style={{flex:1}}>
-                      <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:6,flexWrap:'wrap'}}>
-                        {/* 긴급도 */}
-                        <span style={{fontSize:10,fontWeight:700,padding:'2px 8px',borderRadius:999,
-                          background:URGENCY[o.urgency]?.bg,color:URGENCY[o.urgency]?.color}}>
-                          {URGENCY[o.urgency]?.label}
-                        </span>
-                        {/* 상태 */}
-                        <span style={{fontSize:10,fontWeight:700,padding:'2px 8px',borderRadius:999,
-                          background:STATUS[o.status]?.bg,color:STATUS[o.status]?.color}}>
-                          {STATUS[o.status]?.label}
-                        </span>
-                        <span style={{fontSize:10,color:'#6E6A63'}}>{timeAgo(o.createdAt)}</span>
-                      </div>
-                      <div style={{fontSize:15,fontWeight:700,color:'#1D1B18',marginBottom:4}}>
-                        {o.itemName} <span style={{fontSize:13,color:'var(--hk-accent)',fontFamily:'inherit',fontVariantNumeric:'tabular-nums'}}>{o.qty}{o.unit}</span>
-                      </div>
-                      {o.memo && <div style={{fontSize:12,color:'#6E6A63',marginBottom:4}}>{o.memo}</div>}
-                      <div style={{fontSize:11,color:'#6E6A63'}}>요청자: {o.authorName}</div>
-                    </div>
-
-                    {/* 사장 액션 버튼 */}
-                    <div style={{display:'flex',flexDirection:'column',gap:6,alignItems:'flex-end'}}>
-                      {isOwner && (
-                        <>
-                          {o.status==='pending' && (
-                            <button onClick={()=>updateStatus(o.id,'checked')}
-                              style={{background:'rgba(43,92,158,0.15)',border:'1px solid #2B5C9E',color:'#2B5C9E',
-                                borderRadius:6,padding:'5px 12px',fontSize:11,cursor:'pointer',fontFamily:'inherit',fontWeight:600}}>
-                              확인
-                            </button>
-                          )}
-                          {o.status==='checked' && (
-                            <button onClick={()=>updateStatus(o.id,'done')}
-                              style={{background:'rgba(46,125,69,0.15)',border:'1px solid #2E7D45',color:'#2E7D45',
-                                borderRadius:6,padding:'5px 12px',fontSize:11,cursor:'pointer',fontFamily:'inherit',fontWeight:600}}>
-                              완료
-                            </button>
-                          )}
-                          <button onClick={()=>deleteOrder(o.id)}
-                            style={{background:'transparent',border:'1px solid #E8C4BF',color:'#B42318',
-                              borderRadius:6,padding:'5px 12px',fontSize:11,cursor:'pointer',fontFamily:'inherit'}}>
-                            삭제
-                          </button>
-                        </>
-                      )}
-                      {!isOwner && o.authorUid===user.uid && o.status==='pending' && (
-                        <button onClick={()=>deleteOrder(o.id)}
-                          style={{background:'transparent',border:'1px solid #E8C4BF',color:'#B42318',
-                            borderRadius:6,padding:'5px 12px',fontSize:11,cursor:'pointer',fontFamily:'inherit'}}>
-                          취소
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* 요청 등록 */}
       {activeTab==='add' && (
-        <div style={{background:'#FFFFFF',border:'1px solid #DCD7CE',borderRadius:6,padding:'20px'}}>
-          <div style={{fontSize:13,fontWeight:600,marginBottom:16}}>발주 요청 등록</div>
-          <div style={{display:'flex',flexDirection:'column',gap:14}}>
-
-            {/* 품목 선택 */}
-            <div>
-              <label style={{fontSize:10,color:'#6E6A63',fontWeight:600,display:'block',marginBottom:6}}>품목 선택</label>
-              <div style={{display:'flex',gap:8,flexWrap:'wrap',marginBottom:8}}>
-                {presets.map(p=>(
-                  <button key={p.id} onClick={()=>{setSelPreset(p.name);setCustomItem('')}}
-                    style={{padding:'6px 12px',borderRadius:6,border:'none',fontSize:11,fontWeight:600,cursor:'pointer',fontFamily:'inherit',
-                      background:selPreset===p.name?'var(--hk-accent)':'#F3F1EC',color:selPreset===p.name?'#FFFFFF':'#6E6A63'}}>
-                    {p.name}
-                  </button>
-                ))}
-              </div>
-              <input type="text" value={customItem} onChange={e=>{setCustomItem(e.target.value);setSelPreset('')}}
-                placeholder="목록에 없으면 직접 입력..."
-                style={{background:'#F3F1EC',border:'1px solid #DCD7CE',borderRadius:4,color:'#1D1B18',
-                  padding:'8px 10px',fontSize:12,outline:'none',width:'100%',fontFamily:'inherit'}}/>
-            </div>
-
-            {/* 수량 */}
-            <div>
-              <label style={{fontSize:10,color:'#6E6A63',fontWeight:600,display:'block',marginBottom:6}}>수량</label>
-              <input type="number" value={qty} onChange={e=>setQty(e.target.value)} placeholder="0" min="1"
-                style={{background:'#F3F1EC',border:'1px solid #DCD7CE',borderRadius:4,color:'#1D1B18',
-                  padding:'8px 10px',fontSize:12,outline:'none',width:'100%',fontFamily:'inherit'}}/>
-            </div>
-
-            {/* 긴급도 */}
-            <div>
-              <label style={{fontSize:10,color:'#6E6A63',fontWeight:600,display:'block',marginBottom:6}}>긴급도</label>
-              <div style={{display:'flex',gap:8}}>
-                {Object.entries(URGENCY).map(([key,v])=>(
-                  <button key={key} onClick={()=>setUrgency(key)}
-                    style={{flex:1,padding:'8px',borderRadius:4,border:'none',fontSize:12,fontWeight:600,cursor:'pointer',fontFamily:'inherit',
-                      background:urgency===key?v.bg:'#F3F1EC',
-                      color:urgency===key?v.color:'#6E6A63',
-                      outline:urgency===key?`1px solid ${v.color}`:'none'}}>
-                    {v.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* 메모 */}
-            <div>
-              <label style={{fontSize:10,color:'#6E6A63',fontWeight:600,display:'block',marginBottom:6}}>메모 (선택)</label>
-              <input type="text" value={memo} onChange={e=>setMemo(e.target.value)}
-                placeholder="추가 설명..."
-                style={{background:'#F3F1EC',border:'1px solid #DCD7CE',borderRadius:4,color:'#1D1B18',
-                  padding:'8px 10px',fontSize:12,outline:'none',width:'100%',fontFamily:'inherit'}}/>
-            </div>
-
-            <button onClick={addOrder}
-              style={{background:'var(--hk-accent)',color:'#FFFFFF',border:'none',borderRadius:4,
-                padding:'12px',fontSize:13,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
-              요청 등록
-            </button>
-          </div>
-        </div>
+        <LedgerCard title="발주 요청 등록">
+          <VStack gap={2}>
+            <Text type="label">품목 선택</Text>
+            <HStack gap={1} wrap="wrap">
+              {presets.map(p => <Button key={p.id} size="sm" variant={selPreset===p.name ? 'primary' : 'secondary'} label={p.name} onClick={()=>{setSelPreset(p.name);setCustomItem('')}}/>)}
+            </HStack>
+            <TextInput label="직접 입력" isLabelHidden placeholder="목록에 없으면 직접 입력..." value={customItem} onChange={v=>{setCustomItem(v);setSelPreset('')}}/>
+          </VStack>
+          <TextInput label="수량" inputMode="numeric" placeholder="0" value={qty} onChange={v=>setQty(v.replace(/[^0-9]/g,''))}/>
+          <VStack gap={2}>
+            <Text type="label">긴급도</Text>
+            <HStack><SegmentedControl label="긴급도" value={urgency} onChange={v=>v && setUrgency(v)}>
+              {Object.entries(URGENCY).map(([key,v]) => <SegmentedControlItem key={key} value={key} label={v.label}/>)}
+            </SegmentedControl></HStack>
+          </VStack>
+          <TextInput label="메모" isOptional placeholder="추가 설명..." value={memo} onChange={v=>setMemo(v)}/>
+          <Button variant="primary" width="100%" label="요청 등록" onClick={addOrder}/>
+        </LedgerCard>
       )}
 
-      {/* 품목 관리 (사장만) */}
-      {activeTab==='preset' && isOwner && (
-        <div>
-          <div style={{background:'#FFFFFF',border:'1px solid #DCD7CE',borderRadius:6,padding:'20px',marginBottom:16}}>
-            <div style={{fontSize:13,fontWeight:600,marginBottom:14}}>품목 추가</div>
-            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr auto',gap:10,alignItems:'flex-end'}}>
-              <div>
-                <label style={{fontSize:10,color:'#6E6A63',fontWeight:600,display:'block',marginBottom:6}}>품목명</label>
-                <input type="text" value={newPreset} onChange={e=>setNewPreset(e.target.value)}
-                  placeholder="예: 춘장, 양파, 식용유"
-                  style={{background:'#F3F1EC',border:'1px solid #DCD7CE',borderRadius:4,color:'#1D1B18',
-                    padding:'8px 10px',fontSize:12,outline:'none',width:'100%',fontFamily:'inherit'}}/>
-              </div>
-              <div>
-                <label style={{fontSize:10,color:'#6E6A63',fontWeight:600,display:'block',marginBottom:6}}>단위</label>
-                <input type="text" value={newPresetUnit} onChange={e=>setNewPresetUnit(e.target.value)}
-                  placeholder="예: 개, kg, 박스"
-                  style={{background:'#F3F1EC',border:'1px solid #DCD7CE',borderRadius:4,color:'#1D1B18',
-                    padding:'8px 10px',fontSize:12,outline:'none',width:'100%',fontFamily:'inherit'}}/>
-              </div>
-              <button onClick={addPreset}
-                style={{background:'var(--hk-accent)',color:'#FFFFFF',border:'none',borderRadius:4,
-                  padding:'9px 16px',fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'inherit',whiteSpace:'nowrap'}}>
-                추가
-              </button>
-            </div>
-          </div>
-
-          <div style={{background:'#FFFFFF',border:'1px solid #DCD7CE',borderRadius:6,overflow:'hidden'}}>
-            <div style={{padding:'14px 18px',borderBottom:'1px solid #DCD7CE',fontSize:13,fontWeight:600}}>
-              등록된 품목 ({presets.length}개)
-            </div>
-            {presets.length===0 ? (
-              <div style={{textAlign:'center',color:'#6E6A63',padding:30}}>등록된 품목이 없습니다</div>
-            ) : (
-              <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(160px,1fr))',gap:10,padding:16}}>
-                {presets.map(p=>(
-                  <div key={p.id} style={{background:'#F3F1EC',borderRadius:4,padding:'10px 12px',
-                    display:'flex',justifyContent:'space-between',alignItems:'center'}}>
-                    <div>
-                      <div style={{fontSize:12,fontWeight:600,color:'#1D1B18'}}>{p.name}</div>
-                      <div style={{fontSize:10,color:'#6E6A63'}}>{p.unit}</div>
-                    </div>
-                    <button onClick={()=>deletePreset(p.id)}
-                      style={{background:'transparent',border:'none',color:'#B42318',cursor:'pointer',fontSize:14}}>
-                        ✕
-                      </button>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-    </div>
+      {activeTab==='preset' && isOwner && <>
+        <LedgerCard title="품목 추가">
+          <HStack gap={2} vAlign="end" wrap="wrap">
+            <TextInput label="품목명" placeholder="예: 춘장, 양파, 식용유" value={newPreset} onChange={v=>setNewPreset(v)}/>
+            <TextInput label="단위" placeholder="예: 개, kg, 박스" value={newPresetUnit} onChange={v=>setNewPresetUnit(v)} width={140}/>
+            <Button variant="primary" label="추가" onClick={addPreset}/>
+          </HStack>
+        </LedgerCard>
+        <LedgerCard title={`등록된 품목 (${presets.length}개)`}>
+          {presets.length===0 ? <Text color="secondary">등록된 품목이 없습니다</Text> : (
+            <Grid columns={{ minWidth: 170, repeat: 'fill' }} gap={2}>
+              {presets.map(p => (
+                <Card key={p.id} variant="muted" padding={3}>
+                  <HStack gap={2} vAlign="center" hAlign="between">
+                    <VStack gap={0}><Text weight="bold">{p.name}</Text><Text type="supporting" color="secondary">{p.unit}</Text></VStack>
+                    <Button size="sm" variant="ghost" label="삭제" onClick={()=>deletePreset(p.id)}/>
+                  </HStack>
+                </Card>
+              ))}
+            </Grid>
+          )}
+        </LedgerCard>
+      </>}
+    </VStack>
+    </AstryxPage>
   )
 }
