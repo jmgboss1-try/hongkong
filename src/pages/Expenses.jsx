@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useState } from 'react'
 import { VStack } from '@astryxdesign/core/Layout'
-import { Text } from '@astryxdesign/core/Text'
+import { Text, Heading } from '@astryxdesign/core/Text'
 import { Grid } from '@astryxdesign/core/Grid'
 import { Button } from '@astryxdesign/core/Button'
 import { HStack } from '@astryxdesign/core/Layout'
@@ -8,10 +8,13 @@ import { Badge } from '@astryxdesign/core/Badge'
 import { Divider } from '@astryxdesign/core/Divider'
 import { DateInput } from '@astryxdesign/core/DateInput'
 import { Card } from '@astryxdesign/core/Card'
-import { Table } from '@astryxdesign/core/Table'
 import { TextInput } from '@astryxdesign/core/TextInput'
+import { Table, useTableRowExpansion } from '@astryxdesign/core/Table'
+import { TabList, Tab } from '@astryxdesign/core/TabList'
+import { Selector } from '@astryxdesign/core/Selector'
 import { SegmentedControl, SegmentedControlItem } from '@astryxdesign/core/SegmentedControl'
 import { List, ListItem } from '@astryxdesign/core/List'
+import { EmptyState } from '@astryxdesign/core/EmptyState'
 import { AstryxPage, Legacy, PageHeader, MonthNav, LedgerCard, Ledger, LedgerRow } from '../astryx/AstryxPage'
 import CountUp from '../components/CountUp'
 import BankImport from '../components/BankImport'
@@ -80,21 +83,6 @@ function loanFifo(records) {
 const daysSince = date => Math.max(0, Math.round((new Date(todayFullStr()) - new Date(date)) / 86400000))
 const mdDot = date => `${+date.slice(5,7)}.${+date.slice(8,10)}`
 
-// 장부 화면의 작은 버튼 (primary: 빨강, ok: 초록, danger: 빨간 글씨)
-function Btn({ children, onClick, kind = 'plain', disabled, small }) {
-  const solid = kind==='primary' || kind==='ok'
-  return (
-    <button type="button" onClick={onClick} disabled={disabled}
-      style={{fontFamily:'inherit', cursor:'pointer', borderRadius:4, whiteSpace:'nowrap',
-        fontSize: small ? 11 : 12, padding: small ? '3px 8px' : '6px 12px', fontWeight: kind==='primary' ? 700 : 500,
-        background: kind==='primary' ? 'var(--hk-accent)' : kind==='ok' ? '#2E7D45' : '#FFFFFF',
-        color: solid ? '#FFFFFF' : kind==='danger' ? '#B42318' : '#1D1B18',
-        border: solid ? 'none' : `1px solid ${kind==='danger' ? '#E8C4BF' : '#DCD7CE'}`,
-        opacity: disabled ? 0.6 : 1}}>
-      {children}
-    </button>
-  )
-}
 
 export default function Expenses() {
   const [curMonth, setCurMonth] = useState(() => {
@@ -474,38 +462,7 @@ const [payingDate, setPayingDate]     = useState('')
   const totalFixedAmt = fixedItems.reduce((a,i)=>a+i.amount,0)
   const paidFixedAmt  = fixedItems.filter(i=>fixedPayments[i.id]?.paid).reduce((a,i)=>a+i.amount,0)
 
-  const getDow      = dd => { const[y,m]=curMonth.split('-').map(Number); return DAYS_KR[new Date(y,m-1,+dd).getDay()] }
-  const getDowColor = dd => { const[y,m]=curMonth.split('-').map(Number); const dow=new Date(y,m-1,+dd).getDay(); return dow===0?'#B42318':dow===6?'#2B5C9E':'#1D1B18' }
-
-  // ── 장부 화면 조각 (대시보드와 같은 모양). 컴포넌트가 아니라 함수로 그려야 입력칸 포커스가 안 빠짐 ──
-  const T = { ink:'#1D1B18', sub:'#6E6A63', faint:'#A8A39A', rule:'#DCD7CE', soft:'#ECE8E1', accent:'var(--hk-accent)',
-    red:'#B42318', green:'#2E7D45', blue:'#2B5C9E', chip:'#F3F1EC' }
-  const num = { fontVariantNumeric:'tabular-nums' }
   const won = n => (n||0).toLocaleString('ko-KR')
-  const field = extra => ({ background:'#FFFFFF', border:'1px solid #CBC5BA', borderRadius:4, color:T.ink, padding:'8px 10px',
-    fontSize:14, outline:'none', fontFamily:'inherit', boxSizing:'border-box', ...extra })
-  // 금액 입력: 쉼표로 보여주고 숫자만 저장 (neg: 앞에 − 허용)
-  const money = (val, set, { label, width = 150, neg = false, extra } = {}) => (
-    <input type="text" inputMode="numeric" placeholder="0" aria-label={label}
-      value={val === '' || val == null ? '' : val === '-' ? '-' : (+val).toLocaleString('ko-KR')}
-      onChange={e=>{ const s = e.target.value.trim(); const d = s.replace(/[^0-9]/g,''); set((neg && s.startsWith('-') ? '-' : '') + d) }}
-      style={field({ width, textAlign:'right', ...num, ...extra })}/>
-  )
-  const leader = () => <span aria-hidden="true" style={{flex:1, borderBottom:`1px dotted ${T.faint}`, margin:'0 8px', minWidth:12, transform:'translateY(-4px)'}}/>
-  const sectionTitle = (text, right) => (
-    <div style={{display:'flex', justifyContent:'space-between', alignItems:'baseline', gap:10, flexWrap:'wrap',
-      borderBottom:`2px solid ${T.ink}`, paddingBottom:6, marginBottom:6}}>
-      <h2 style={{fontSize:16, fontWeight:800, margin:0, fontFamily:'inherit', color:T.ink}}>{text}</h2>
-      {right && <div style={{display:'flex', alignItems:'center', gap:8, flexWrap:'wrap', fontSize:12, color:T.sub}}>{right}</div>}
-    </div>
-  )
-  const textTab = (on, label, onClick) => (
-    <button key={label} type="button" onClick={onClick}
-      style={{background:'none', border:'none', padding:'4px 0', cursor:'pointer', fontFamily:'inherit', fontSize:13,
-        fontWeight: on ? 800 : 500, color: on ? T.ink : T.sub, borderBottom:`2px solid ${on ? T.accent : 'transparent'}`}}>
-      {label}
-    </button>
-  )
   const pctOf = (a,b) => b>0 ? Math.round(a/b*100) : 0
   const secTotal = sec => categories.filter(c=>c.sec===sec).reduce((a,c)=>a+(tot[c.id]||0),0)
   const carryNote = data.carryoverSource==='bank' ? '이 달 통장 시작 잔액'
@@ -514,10 +471,49 @@ const [payingDate, setPayingDate]     = useState('')
   const dayRows = Object.keys(data).filter(dd=>/^\d{2}$/.test(dd)).sort()
   const formExp = categories.reduce((a,f)=>a+(+form[f.id]||0),0)
 
+  // 일별 표 줄 (+ 맨 아래 합계 줄)
+  const dayTableRows = (() => {
+    const [y, m] = curMonth.split('-').map(Number)
+    const rows = dayRows.map(dd => {
+      const e = data[dd]
+      if (typeof e !== 'object' || !e) return null
+      const exp = categories.reduce((a,f)=>a+(e[f.id]||0),0), dep = e.deposit||0
+      if (!exp && !dep) return null
+      return { dd, e, exp, dep, profit: dep - exp, dow: new Date(y, m-1, +dd).getDay(), txCount: (data.bankSeen||[]).filter(k=>k.startsWith(`${curMonth}-${dd}|`)).length }
+    }).filter(Boolean)
+    return rows.length ? [...rows, { dd:'_total', e:tot, exp:grand, dep:totalDeposit, profit:realProfit }] : []
+  })()
+  const dayExpansion = useTableRowExpansion({
+    expandedKeys: new Set([editRow, openDay].filter(Boolean)),
+    onToggle: key => { if (key === editRow) setEditRow(null); else if (key === openDay) setOpenDay(null); else if ((data.bankSeen||[]).some(k=>k.startsWith(`${curMonth}-${key}|`))) setOpenDay(key); else editDay(key) },
+    getRowKey: r => r.dd,
+    getRowLabel: r => `${+r.dd}일`,
+    getIsItemExpandable: r => r.dd !== '_total',
+    panelVariant: 'muted',
+    renderExpanded: r => editRow === r.dd ? (
+      <VStack gap={3} maxWidth={820}>
+        <Heading level={5}>{+r.dd}일 ({DAYS_KR[r.dow]}) 고치기</Heading>
+        <Grid columns={{ minWidth: 150, repeat: 'fill' }} gap={2}>
+          {moneyField('실입금', deposit, setDeposit, { width:'100%' })}
+          {categories.map(f => <Fragment key={f.id}>{moneyField(f.label, form[f.id] ?? '', v=>setForm(p=>({...p,[f.id]:v})), { width:'100%' })}</Fragment>)}
+        </Grid>
+        <HStack gap={2} vAlign="center" wrap="wrap">
+          <Button variant="primary" label={saving ? '저장 중...' : '저장'} isDisabled={saving} onClick={save}/>
+          <Button label="취소" onClick={()=>setEditRow(null)}/>
+          <Text type="supporting" color="secondary" hasTabularNumbers>지출 {won(formExp)}원</Text>
+          {r.txCount > 0 && <Text type="supporting" color="secondary">통장에서 가져온 금액은 '거래 보기'에서 한 건씩 옮기는 게 더 정확해요</Text>}
+        </HStack>
+      </VStack>
+    ) : openDay === r.dd ? <Legacy><BankTxList ym={curMonth} data={data} categories={categories} day={r.dd} onChanged={refreshData}/></Legacy> : null,
+  })
+
   // 금액 입력 (쉼표 찍어 보여주고 숫자만 받음)
-  const moneyField = (label, val, set) => (
-    <TextInput label={label} value={val === '' || val == null ? '' : val === '-' ? '-' : (+val).toLocaleString('ko-KR')} onChange={v => set(v.replace(/[^0-9]/g, ''))} inputMode="numeric" placeholder="0" width={150}/>
+  const moneyField = (label, val, set, o = {}) => (
+    <TextInput label={label} isLabelHidden={o.hideLabel} value={val === '' || val == null ? '' : val === '-' ? '-' : (+val).toLocaleString('ko-KR')}
+      onChange={v => { const d = v.replace(/[^0-9]/g, ''); set(o.neg && v.trim().startsWith('-') ? '-' + d : d) }} inputMode={o.neg ? 'text' : 'numeric'} placeholder="0" width={o.width || 150}/>
   )
+  const catOptions = categories.map(c=>({ value:c.id, label:c.label }))
+  const secOptions = secs.map(x=>({ value:x, label:x }))
   // Astryx 장부 줄 (금액이 굴러가며 바뀜)
   const row = (label, value, o = {}) => <LedgerRow key={o.key || label} label={label} value={value} note={o.note} sub={o.sub} strong={o.strong} minus={o.minus} plus={o.plus} tone={o.tone}/>
 
@@ -534,25 +530,22 @@ const [payingDate, setPayingDate]     = useState('')
             {row('실입금', totalDeposit, { plus:true, note:'수수료 빼고 들어온 돈' })}
             {row('지출', grand, { minus:true })}
           </>} total={row('영업 잔액', currentBalance, { strong:true, tone: currentBalance<0 ? 'bad' : undefined })}/>
-          <Legacy>
-          <div style={{display:'flex', gap:8, alignItems:'center', flexWrap:'wrap', fontSize:12, color:T.sub}}>
+          <HStack gap={2} vAlign="end" wrap="wrap">
             {editCarry ? (
               <>
-                <span>전월 이월</span>
-                {money(carryover, setCarryover, { label:'전월 이월 잔액', neg:true })}
-                <Btn onClick={async()=>{ await saveCarryover(); setEditCarry(false) }} kind="primary">저장</Btn>
-                <Btn onClick={()=>{ setCarryover(data.carryover||''); setEditCarry(false) }}>취소</Btn>
+                {moneyField('전월 이월 잔액', carryover, setCarryover, { neg:true })}
+                <Button variant="primary" label="저장" onClick={async()=>{ await saveCarryover(); setEditCarry(false) }}/>
+                <Button label="취소" onClick={()=>{ setCarryover(data.carryover||''); setEditCarry(false) }}/>
               </>
             ) : (
               <>
-                <Btn onClick={()=>setEditCarry(true)} small>이월 고치기</Btn>
+                <Button size="sm" label="이월 고치기" onClick={()=>setEditCarry(true)}/>
                 {data.carryoverSource==='manual'
-                  ? <Btn onClick={resetCarryoverAuto} small>통장 잔액 기준으로 되돌리기</Btn>
-                  : !data.carryoverSource && <span>통장 PDF를 올리면 이월이 자동으로 채워져요</span>}
+                  ? <Button size="sm" label="통장 잔액 기준으로 되돌리기" onClick={resetCarryoverAuto}/>
+                  : !data.carryoverSource && <Text type="supporting" color="secondary">통장 PDF를 올리면 이월이 자동으로 채워져요</Text>}
               </>
             )}
-          </div>
-          </Legacy>
+          </HStack>
         </LedgerCard>
 
         <LedgerCard title="지출 구분" right={<Button size="sm" label={showCatMgr ? '카테고리 닫기' : '카테고리 관리'} onClick={()=>setShowCatMgr(v=>!v)}/>}>
@@ -571,118 +564,85 @@ const [payingDate, setPayingDate]     = useState('')
         </LedgerCard>
       </Grid>
 
-      <Legacy>
       {/* 카테고리 관리 */}
       {showCatMgr && (
-        <section style={{background:'#FFFFFF', border:`1px solid ${T.rule}`, borderRadius:6, marginBottom:30, padding:18}}>
-          <div style={{fontSize:14, fontWeight:800, marginBottom:12}}>카테고리 관리</div>
-          <div style={{display:'flex', flexDirection:'column', gap:12, marginBottom:14}}>
-            {secs.map(sec=>(
-              <div key={sec}>
-                <div style={{fontSize:12, color:T.sub, fontWeight:700, marginBottom:6}}>{sec}</div>
-                <div style={{display:'flex', flexWrap:'wrap', gap:6}}>
-                  {categories.filter(c=>c.sec===sec).map(cat=>(
-                    <div key={cat.id} style={{background:T.chip, border:`1px solid ${T.rule}`, borderRadius:4,
-                      padding:'6px 10px', display:'flex', alignItems:'center', gap:8}}>
-                      {editCatId===cat.id ? (
-                        <>
-                          <input value={editCatLabel} onChange={e=>setEditCatLabel(e.target.value)} aria-label="카테고리 이름"
-                            style={field({ padding:'3px 7px', fontSize:12, width:90 })}/>
-                          <select value={editCatSec} onChange={e=>setEditCatSec(e.target.value)} aria-label="구분"
-                            style={field({ padding:'3px', fontSize:12 })}>
-                            {secs.map(s=><option key={s} value={s}>{s}</option>)}
-                          </select>
-                          <Btn onClick={saveEditCat} kind="primary" small>저장</Btn>
-                          <Btn onClick={()=>setEditCatId(null)} small>취소</Btn>
-                        </>
-                      ) : (
-                        <>
-                          <span style={{fontSize:13}}>{cat.label}</span>
-                          <button onClick={()=>{setEditCatId(cat.id);setEditCatLabel(cat.label);setEditCatSec(cat.sec)}} style={{background:'transparent',border:'none',color:T.sub,fontSize:11,cursor:'pointer',padding:0,fontFamily:'inherit'}}>수정</button>
-                          <button onClick={()=>deleteCategory(cat.id)} style={{background:'transparent',border:'none',color:T.red,fontSize:11,cursor:'pointer',padding:0,fontFamily:'inherit'}}>삭제</button>
-                        </>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ))}
-          </div>
-          <div style={{display:'flex', gap:8, alignItems:'center', flexWrap:'wrap', paddingTop:12, borderTop:`1px solid ${T.rule}`}}>
-            <input value={newCatLabel} onChange={e=>setNewCatLabel(e.target.value)} placeholder="새 카테고리 이름"
-              style={field({ flex:1, minWidth:140, fontSize:13 })}/>
-            <select value={newCatSec} onChange={e=>setNewCatSec(e.target.value)} aria-label="구분" style={field({ fontSize:13 })}>
-              {secs.map(s=><option key={s} value={s}>{s}</option>)}
-            </select>
-            <Btn onClick={addCategory} kind="primary">추가</Btn>
-          </div>
-        </section>
+        <LedgerCard title="카테고리 관리">
+          {secs.map(sec=>(
+            <VStack key={sec} gap={1}>
+              <Heading level={5}>{sec}</Heading>
+              <List hasDividers edge="flush">
+                {categories.filter(c=>c.sec===sec).map(cat=>(
+                  <ListItem key={cat.id}
+                    label={editCatId===cat.id ? (
+                      <HStack gap={2} vAlign="end" wrap="wrap">
+                        <TextInput label="카테고리 이름" isLabelHidden value={editCatLabel} onChange={v=>setEditCatLabel(v)} width={160}/>
+                        <Selector label="구분" isLabelHidden value={editCatSec} onChange={v=>v && setEditCatSec(v)} options={secOptions}/>
+                        <Button size="sm" variant="primary" label="저장" onClick={saveEditCat}/>
+                        <Button size="sm" label="취소" onClick={()=>setEditCatId(null)}/>
+                      </HStack>
+                    ) : <Text>{cat.label}</Text>}
+                    endContent={editCatId!==cat.id && <HStack gap={1}>
+                      <Button size="sm" variant="ghost" label="수정" onClick={()=>{setEditCatId(cat.id);setEditCatLabel(cat.label);setEditCatSec(cat.sec)}}/>
+                      <Button size="sm" variant="ghost" label="삭제" onClick={()=>deleteCategory(cat.id)}/>
+                    </HStack>}/>
+                ))}
+              </List>
+            </VStack>
+          ))}
+          <HStack gap={2} vAlign="end" wrap="wrap">
+            <TextInput label="새 카테고리 이름" value={newCatLabel} onChange={v=>setNewCatLabel(v)}/>
+            <Selector label="구분" value={newCatSec} onChange={v=>v && setNewCatSec(v)} options={secOptions}/>
+            <Button variant="primary" label="추가" onClick={addCategory}/>
+          </HStack>
+        </LedgerCard>
       )}
 
+      <Legacy>
       {/* 통장 잔액 맞추기 (영업 잔액 vs 실제 통장) */}
       <BankReconCard ym={curMonth} data={data} categories={categories} onChanged={refreshData}/>
 
       </Legacy>
 
       <Grid columns={{ minWidth: 420, max: 2, repeat: 'fit' }} gap={4}>
-        {/* 고정지출 (Astryx): 납부/미납, 냈어요 → 날짜 고르고 확인. 항목 관리 창은 아직 예전 모양 */}
+        {/* 고정지출: 납부/미납, 냈어요 → 날짜 고르고 확인, 항목 관리 */}
         <LedgerCard title="고정지출" right={<>
           {fixedItems.length > 0 && <Badge variant={unpaidFixed.length > 0 ? 'error' : 'success'} label={unpaidFixed.length > 0 ? `미납 ${unpaidFixed.length}건` : '모두 납부'}/>}
           <Button size="sm" label={showFixedMgr ? '관리 닫기' : '항목 관리'} onClick={()=>setShowFixedMgr(v=>!v)}/>
         </>}>
-          {showFixedMgr && <Legacy>
           {showFixedMgr && (
-            <div style={{background:T.chip, borderRadius:4, padding:'12px 14px', margin:'8px 0'}}>
-              {fixedItems.map(item=>(
-                <div key={item.id} style={{display:'flex', alignItems:'center', gap:8, flexWrap:'wrap', padding:'6px 0', borderBottom:`1px solid ${T.rule}`}}>
-                  {editFixedId===item.id ? (
-                    <>
-                      <input value={editFixed.label||''} onChange={e=>setEditFixed(f=>({...f,label:e.target.value}))}
-                        placeholder="항목명" aria-label="항목명" style={field({ width:110, fontSize:13, padding:'5px 8px' })}/>
-                      <span style={{fontSize:12, color:T.sub}}>매월</span>
-                      <input type="number" value={editFixed.dueDay||''} onChange={e=>setEditFixed(f=>({...f,dueDay:e.target.value}))}
-                        aria-label="예정일" min="1" max="31" style={field({ width:56, fontSize:13, padding:'5px 8px' })}/>
-                      <span style={{fontSize:12, color:T.sub}}>일</span>
-                      {money(editFixed.amount ?? '', v=>setEditFixed(f=>({...f,amount:v})), { label:'금액', width:110, extra:{ fontSize:13, padding:'5px 8px' } })}
-                      <select value={editFixed.categoryId||''} onChange={e=>setEditFixed(f=>({...f,categoryId:e.target.value}))}
-                        aria-label="카테고리" style={field({ fontSize:13, padding:'5px 8px' })}>
-                        {categories.map(c=><option key={c.id} value={c.id}>{c.label}</option>)}
-                      </select>
-                      <Btn onClick={saveEditFixed} kind="primary" small>저장</Btn>
-                      <Btn onClick={()=>setEditFixedId(null)} small>취소</Btn>
-                    </>
-                  ) : (
-                    <>
-                      <span style={{fontSize:13, fontWeight:600, flex:1}}>{item.label}</span>
-                      <span style={{fontSize:12, color:T.sub}}>매월 {item.dueDay}일 · {categories.find(c=>c.id===item.categoryId)?.label||'미분류'}</span>
-                      <span style={{fontSize:13, ...num}}>{won(item.amount)}</span>
-                      <button onClick={()=>{setEditFixedId(item.id);setEditFixed({...item})}}
-                        style={{background:'transparent',border:'none',color:T.sub,fontSize:12,cursor:'pointer',padding:0,fontFamily:'inherit'}}>수정</button>
-                      <button onClick={()=>deleteFixedItem(item.id)}
-                        style={{background:'transparent',border:'none',color:T.red,fontSize:12,cursor:'pointer',padding:0,fontFamily:'inherit'}}>삭제</button>
-                    </>
-                  )}
-                </div>
-              ))}
-              <div style={{display:'flex', gap:8, alignItems:'center', flexWrap:'wrap', paddingTop:10}}>
-                <input value={newFixed.label} onChange={e=>setNewFixed(f=>({...f,label:e.target.value}))}
-                  placeholder="새 항목 (예: 임대료)" style={field({ flex:1, minWidth:120, fontSize:13 })}/>
-                <span style={{fontSize:12, color:T.sub}}>매월</span>
-                <input type="number" value={newFixed.dueDay} onChange={e=>setNewFixed(f=>({...f,dueDay:e.target.value}))}
-                  placeholder="1" min="1" max="31" aria-label="예정일" style={field({ width:56, fontSize:13 })}/>
-                <span style={{fontSize:12, color:T.sub}}>일</span>
-                {money(newFixed.amount, v=>setNewFixed(f=>({...f,amount:v})), { label:'금액', width:120, extra:{ fontSize:13 } })}
-                <select value={newFixed.categoryId} onChange={e=>setNewFixed(f=>({...f,categoryId:e.target.value}))}
-                  aria-label="카테고리" style={field({ fontSize:13 })}>
-                  <option value="">카테고리</option>
-                  {categories.map(c=><option key={c.id} value={c.id}>{c.label}</option>)}
-                </select>
-                <Btn onClick={addFixedItem} kind="primary">추가</Btn>
-              </div>
-            </div>
+            <Card variant="muted" padding={3}>
+              <VStack gap={2}>
+                <List hasDividers edge="flush">
+                  {fixedItems.map(item=>(
+                    <ListItem key={item.id} align="start"
+                      label={editFixedId===item.id ? (
+                        <HStack gap={2} vAlign="end" wrap="wrap">
+                          <TextInput label="항목명" value={editFixed.label||''} onChange={v=>setEditFixed(f=>({...f,label:v}))} width={130}/>
+                          <TextInput label="매월 며칠" inputMode="numeric" value={String(editFixed.dueDay||'')} onChange={v=>setEditFixed(f=>({...f,dueDay:v.replace(/[^0-9]/g,'').slice(0,2)}))} width={90}/>
+                          {moneyField('금액', editFixed.amount ?? '', v=>setEditFixed(f=>({...f,amount:v})), { width:130 })}
+                          <Selector label="카테고리" value={editFixed.categoryId||undefined} onChange={v=>v && setEditFixed(f=>({...f,categoryId:v}))} options={catOptions}/>
+                          <Button size="sm" variant="primary" label="저장" onClick={saveEditFixed}/>
+                          <Button size="sm" label="취소" onClick={()=>setEditFixedId(null)}/>
+                        </HStack>
+                      ) : <Text weight="bold">{item.label}</Text>}
+                      description={editFixedId!==item.id && `매월 ${item.dueDay}일 · ${categories.find(c=>c.id===item.categoryId)?.label||'미분류'}`}
+                      endContent={editFixedId!==item.id && <HStack gap={1} vAlign="center">
+                        <Text hasTabularNumbers>{won(item.amount)}</Text>
+                        <Button size="sm" variant="ghost" label="수정" onClick={()=>{setEditFixedId(item.id);setEditFixed({...item})}}/>
+                        <Button size="sm" variant="ghost" label="삭제" onClick={()=>deleteFixedItem(item.id)}/>
+                      </HStack>}/>
+                  ))}
+                </List>
+                <HStack gap={2} vAlign="end" wrap="wrap">
+                  <TextInput label="새 항목" placeholder="예: 임대료" value={newFixed.label} onChange={v=>setNewFixed(f=>({...f,label:v}))} width={150}/>
+                  <TextInput label="매월 며칠" inputMode="numeric" placeholder="1" value={String(newFixed.dueDay||'')} onChange={v=>setNewFixed(f=>({...f,dueDay:v.replace(/[^0-9]/g,'').slice(0,2)}))} width={90}/>
+                  {moneyField('금액', newFixed.amount, v=>setNewFixed(f=>({...f,amount:v})), { width:130 })}
+                  <Selector label="카테고리" placeholder="카테고리" value={newFixed.categoryId||undefined} onChange={v=>setNewFixed(f=>({...f,categoryId:v||''}))} options={catOptions}/>
+                  <Button variant="primary" label="추가" onClick={addFixedItem}/>
+                </HStack>
+              </VStack>
+            </Card>
           )}
-
-          </Legacy>}
           {fixedItems.length === 0 ? <Text color="secondary">항목 관리에서 매달 나가는 돈(임대료 등)을 추가하세요</Text> : (
             <VStack gap={2}>
               <List hasDividers edge="flush">
@@ -801,140 +761,55 @@ const [payingDate, setPayingDate]     = useState('')
         </LedgerCard>
       </Grid>
 
-      <Legacy>
       {/* 지출 입력 */}
-      <section id="expense-input" style={{marginBottom:30, scrollMarginTop:70}}>
-        {sectionTitle('지출 입력', <div style={{display:'flex', gap:14}}>
-          {textTab(inputMode==='bank', '계좌내역 엑셀·PDF', ()=>setInputMode('bank'))}
-          {textTab(inputMode==='manual', '직접 입력', ()=>setInputMode('manual'))}
-        </div>)}
-
+      <LedgerCard title="지출 입력" right={
+        <TabList value={inputMode} onChange={v=>v && setInputMode(v)}>
+          <Tab value="bank" label="계좌내역 엑셀·PDF"/>
+          <Tab value="manual" label="직접 입력"/>
+        </TabList>}>
+        <div id="expense-input" style={{scrollMarginTop:70}}/>
         {inputMode === 'bank' && (
-          <BankImport categories={categories} onSaved={months=>{
-            // 반영한 달로 이동해서 바로 확인할 수 있게
-            const last = months?.[months.length-1]
-            if(last && last!==curMonth) setCurMonth(last); else load()
-            // 대여금 장부도 바뀌었을 수 있으니 다시 불러옴
-            getDoc(doc(db,'loans','hyung')).then(s=>setLoanRecords(s.exists() ? (s.data().list||[]) : [])).catch(e=>console.error(e))
-          }}/>
+          <Legacy>
+            <BankImport categories={categories} onSaved={months=>{
+              // 반영한 달로 이동해서 바로 확인할 수 있게
+              const last = months?.[months.length-1]
+              if(last && last!==curMonth) setCurMonth(last); else load()
+              // 대여금 장부도 바뀌었을 수 있으니 다시 불러옴
+              getDoc(doc(db,'loans','hyung')).then(s=>setLoanRecords(s.exists() ? (s.data().list||[]) : [])).catch(e=>console.error(e))
+            }}/>
+          </Legacy>
         )}
+        {inputMode === 'manual' && <>
+          <Text type="supporting" color="secondary">현금으로 낸 것처럼 통장에 안 찍히는 지출만 여기서 적으세요. 이미 적힌 날을 고치려면 아래 일별 표의 수정을 누르세요.</Text>
+          <Legacy><MissedExpenseInput curMonth={curMonth} onSaved={refreshData}/></Legacy>
+        </>}
+      </LedgerCard>
 
-        {inputMode === 'manual' && (
-          <div style={{paddingTop:6}}>
-            <div style={{fontSize:12, color:T.sub, marginBottom:4}}>
-              현금으로 낸 것처럼 통장에 안 찍히는 지출만 여기서 적으세요. 이미 적힌 날을 고치려면 아래 일별 표의 수정을 누르세요.
-            </div>
-            <MissedExpenseInput curMonth={curMonth} onSaved={refreshData}/>
-          </div>
+      {/* 일별 지출 내역: 수정·거래 보기는 그 줄 밑에 펼쳐짐 */}
+      <LedgerCard title="일별 지출 내역" right={<Text hasTabularNumbers>합계 <b>{won(grand)}</b>원</Text>}>
+        {loading ? <Text color="secondary">불러오는 중...</Text> : (
+          <HStack isScrollable>
+          <Table data={dayTableRows} idKey="dd" density="compact" plugins={{ expansion: dayExpansion }}
+            emptyState={<EmptyState title="입력된 내역이 없어요" isCompact/>}
+            columns={[
+              { key:'dd', header:'날짜', width:110, renderCell: r => r.dd === '_total' ? <Text textWrap="nowrap" weight="bold">합계</Text> : (
+                <VStack gap={0}>
+                  <Text textWrap="nowrap" weight="bold" color={r.dow === 0 ? 'accent' : 'primary'}>{+r.dd}일 ({DAYS_KR[r.dow]})</Text>
+                  {r.txCount > 0 && <Button size="sm" variant="ghost" label={`거래 ${r.txCount}건 ${openDay===r.dd ? '접기' : '보기'}`} onClick={()=>{ setEditRow(null); setOpenDay(openDay===r.dd?null:r.dd) }}/>}
+                </VStack>) },
+              { key:'dep', width:112, header:'실입금', align:'end', renderCell: r => <Text textWrap="nowrap" hasTabularNumbers weight={r.dd==='_total' ? 'bold' : undefined}>{r.dep>0 ? won(r.dep) : '—'}</Text> },
+              { key:'exp', width:112, header:'지출', align:'end', renderCell: r => <Text textWrap="nowrap" hasTabularNumbers weight="bold">{r.exp>0 ? won(r.exp) : '—'}</Text> },
+              { key:'profit', width:112, header:'남은 돈', align:'end', renderCell: r => <Text textWrap="nowrap" hasTabularNumbers color={r.profit<0 ? 'accent' : 'primary'} weight={r.dd==='_total' ? 'bold' : undefined}>{r.dep>0 || r.dd==='_total' ? won(r.profit) : '—'}</Text> },
+              ...categories.map(f=>({ key:'c_'+f.id, width:100, header:f.label, align:'end', renderCell: r => <Text textWrap="nowrap" hasTabularNumbers color={r.e[f.id] ? 'primary' : 'secondary'}>{wonCell(r.e[f.id])}</Text> })),
+              { key:'act', width:150, header:'', align:'end', renderCell: r => r.dd === '_total' ? null : (
+                <HStack gap={0} wrap="nowrap">
+                  <Button size="sm" variant={editRow===r.dd ? 'primary' : 'ghost'} label={editRow===r.dd ? '닫기' : '수정'} onClick={()=>editDay(r.dd)}/>
+                  <Button size="sm" variant="ghost" label="삭제" onClick={()=>del_row(r.dd)}/>
+                </HStack>) },
+            ]}/>
+          </HStack>
         )}
-      </section>
-
-      {/* 일별 내역 */}
-      <section>
-        {sectionTitle('일별 지출 내역', <span style={{...num}}>합계 <b style={{color:T.ink}}>{won(grand)}</b>원</span>)}
-        {loading ? <div style={{color:T.sub, padding:'30px 0'}}>불러오는 중...</div> : (
-          <div style={{overflowX:'auto'}}>
-            <table style={{width:'100%', borderCollapse:'collapse', fontSize:13, ...num}}>
-              <thead>
-                <tr>
-                  {['날짜','실입금','지출','남은 돈',...categories.map(f=>f.label),''].map((h,i)=>(
-                    <th key={h+i} style={{padding:'8px 10px', fontSize:12, fontWeight:600, color:T.sub, borderBottom:`1px solid ${T.ink}`,
-                      textAlign:i===0?'left':'right', whiteSpace:'nowrap'}}>{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {dayRows.map(dd=>{
-                  const e = data[dd]
-                  if(typeof e !== 'object' || !e) return null
-                  const expSum = categories.reduce((a,f)=>a+(e[f.id]||0),0)
-                  const dep = e.deposit||0
-                  const profit = dep - expSum
-                  if(!expSum && !dep) return null
-                  const txCount = (data.bankSeen||[]).filter(k=>k.startsWith(`${curMonth}-${dd}|`)).length
-                  const td = { padding:'8px 10px', borderBottom:`1px solid ${T.soft}`, textAlign:'right', whiteSpace:'nowrap' }
-                  return (
-                    <Fragment key={dd}>
-                    <tr>
-                      <td style={{...td, textAlign:'left', color:getDowColor(dd), fontWeight:600}}>
-                        {+dd}일 ({getDow(dd)})
-                        {txCount>0 && (
-                          <button onClick={()=>setOpenDay(openDay===dd?null:dd)}
-                            style={{marginLeft:8, background:'none', border:'none', borderBottom:`1px solid ${T.blue}`, color:T.blue,
-                              padding:0, fontSize:11, cursor:'pointer', fontFamily:'inherit', fontWeight:500}}>
-                            거래 {txCount}건 {openDay===dd ? '접기' : '보기'}
-                          </button>
-                        )}
-                      </td>
-                      <td style={{...td, color:T.green}}>{dep>0 ? won(dep) : '—'}</td>
-                      <td style={{...td, color:T.red, fontWeight:600}}>{expSum>0 ? won(expSum) : '—'}</td>
-                      <td style={{...td, color:profit<0 ? T.red : T.ink}}>{dep>0 ? won(profit) : '—'}</td>
-                      {categories.map(f=>(
-                        <td key={f.id} style={{...td, color: e[f.id] ? T.ink : T.faint}}>{wonCell(e[f.id])}</td>
-                      ))}
-                      <td style={{...td}}>
-                        <button onClick={()=>editDay(dd)}
-                          style={{background:'transparent',border:'none',color: editRow===dd ? T.accent : T.sub,fontSize:12,cursor:'pointer',padding:'0 6px',fontFamily:'inherit',fontWeight: editRow===dd ? 700 : 400}}>{editRow===dd ? '닫기' : '수정'}</button>
-                        <button onClick={()=>del_row(dd)}
-                          style={{background:'transparent',border:'none',color:T.red,fontSize:12,cursor:'pointer',padding:'0 0 0 6px',fontFamily:'inherit'}}>삭제</button>
-                      </td>
-                    </tr>
-                    {editRow===dd && (
-                      <tr>
-                        <td colSpan={5+categories.length} style={{padding:'10px 10px 14px', borderBottom:`1px solid ${T.rule}`, background:'#FFFFFF'}}>
-                          <div style={{fontSize:13, fontWeight:700, marginBottom:6}}>{+dd}일 ({getDow(dd)}) 고치기</div>
-                          <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(200px, 1fr))', gap:'2px 24px', width:'min(820px, 78vw)'}}>
-                            {[{ id:'__deposit', label:'실입금' }, ...categories].map(f=>(
-                              <div key={f.id} style={{display:'flex', alignItems:'center', padding:'3px 0'}}>
-                                <span style={{fontSize:13, whiteSpace:'nowrap', color: f.id==='__deposit' ? T.green : T.ink}}>{f.label}</span>
-                                {leader()}
-                                {f.id==='__deposit'
-                                  ? money(deposit, setDeposit, { label:'실입금', width:110, extra:{ fontSize:13, padding:'5px 8px' } })
-                                  : money(form[f.id] ?? '', v=>setForm(p=>({...p,[f.id]:v})), { label:f.label, width:110, extra:{ fontSize:13, padding:'5px 8px' } })}
-                              </div>
-                            ))}
-                          </div>
-                          <div style={{display:'flex', gap:8, alignItems:'center', marginTop:10, flexWrap:'wrap', width:'min(820px, 78vw)'}}>
-                            <Btn onClick={save} kind="primary" disabled={saving}>{saving ? '저장 중...' : '저장'}</Btn>
-                            <Btn onClick={()=>setEditRow(null)}>취소</Btn>
-                            <span style={{fontSize:12, color:T.sub, ...num}}>지출 {won(formExp)}원</span>
-                            {(data.bankSeen||[]).some(k=>k.startsWith(`${curMonth}-${dd}|`)) &&
-                              <span style={{fontSize:12, color:T.sub}}>통장에서 가져온 금액은 '거래 보기'에서 한 건씩 옮기는 게 더 정확해요</span>}
-                          </div>
-                        </td>
-                      </tr>
-                    )}
-                    {openDay===dd && (
-                      <tr>
-                        <td colSpan={5+categories.length} style={{padding:'8px 10px 12px', borderBottom:`1px solid ${T.rule}`, background:'#FFFFFF'}}>
-                          <BankTxList ym={curMonth} data={data} categories={categories} day={dd} onChanged={refreshData}/>
-                        </td>
-                      </tr>
-                    )}
-                    </Fragment>
-                  )
-                })}
-                {dayRows.length===0 && (
-                  <tr><td colSpan={categories.length+5} style={{padding:28, textAlign:'center', color:T.sub}}>입력된 내역이 없어요</td></tr>
-                )}
-              </tbody>
-              <tfoot>
-                <tr style={{fontWeight:800}}>
-                  {(() => { const tf = { padding:'10px', borderTop:`3px double ${T.ink}`, textAlign:'right', whiteSpace:'nowrap' }; return (<>
-                    <td style={{...tf, textAlign:'left'}}>합계</td>
-                    <td style={{...tf, color:T.green}}>{won(totalDeposit)}</td>
-                    <td style={{...tf, color:T.red}}>{won(grand)}</td>
-                    <td style={{...tf, color:realProfit<0 ? T.red : T.ink}}>{won(realProfit)}</td>
-                    {categories.map(f=><td key={f.id} style={tf}>{wonCell(tot[f.id])}</td>)}
-                    <td style={tf}></td>
-                  </>) })()}
-                </tr>
-              </tfoot>
-            </table>
-          </div>
-        )}
-      </section>
-      </Legacy>
+      </LedgerCard>
     </VStack>
     </AstryxPage>
   )
