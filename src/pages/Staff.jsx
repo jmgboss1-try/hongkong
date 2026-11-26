@@ -5,6 +5,9 @@ import { HStack } from '@astryxdesign/core/Layout'
 import { Text } from '@astryxdesign/core/Text'
 import { List, ListItem } from '@astryxdesign/core/List'
 import { StatusDot } from '@astryxdesign/core/StatusDot'
+import { Badge } from '@astryxdesign/core/Badge'
+import { Table } from '@astryxdesign/core/Table'
+import { ClickableCard } from '@astryxdesign/core/ClickableCard'
 import { AstryxPage, Legacy, PageHeader, LedgerCard } from '../astryx/AstryxPage'
 import { db } from '../firebase'
 import { doc, getDoc, setDoc, collection, query, where, getDocs } from 'firebase/firestore'
@@ -17,7 +20,6 @@ import { saveUser } from '../lib/privateInfo'
 const pad = n => String(n).padStart(2,'0')
 const DAYS_KR = ['일','월','화','수','목','금','토']
 const T = { ink:'#1D1B18', sub:'#6E6A63', faint:'#A8A39A', rule:'#DCD7CE', soft:'#ECE8E1', accent:'var(--hk-accent)', red:'#B42318', green:'#2E7D45', blue:'#2B5C9E', amber:'#B45309', purple:'#6B4FA0' }
-const num = { fontVariantNumeric:'tabular-nums' }
 const dateStr = d => `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`
 const ymOfDate = d => `${d.getFullYear()}-${pad(d.getMonth()+1)}`
 const toMin = s => { const [h,m] = String(s).split(':').map(Number); return h*60 + (m||0) }
@@ -98,8 +100,7 @@ const ST_CSS = `@keyframes stGrow { from { transform: scaleX(0) } to { transform
 export default function Staff() {
   const { isOwner } = useAuth()
   const [weekOffset, setWeekOffset] = useState(0)
-  const [dir, setDir] = useState(0)   // 주를 넘긴 방향 (-1 지난주 쪽, 1 다음 주 쪽) — 표가 그쪽에서 들어옴
-  const goWeek = w => { setDir(w < weekOffset ? -1 : w > weekOffset ? 1 : 0); setWeekOffset(w) }
+  const goWeek = w => setWeekOffset(w)
   const [staff, setStaff] = useState([])
   const [pending, setPending] = useState([])
   const [att, setAtt] = useState({})         // { 'YYYY-MM': attendance 문서 }
@@ -301,8 +302,6 @@ export default function Staff() {
     </div>
   )
   const linkBtn = color => ({ background:'none', border:'none', borderBottom:`1px solid ${color}`, color, padding:0, fontSize:11, cursor:'pointer', fontFamily:'inherit' })
-  const th = { padding:'8px 8px', fontSize:12, fontWeight:600, color:T.sub, borderBottom:`1px solid ${T.ink}`, textAlign:'center', whiteSpace:'nowrap' }
-  const td = { padding:'7px 8px', borderBottom:`1px solid ${T.soft}`, textAlign:'center', verticalAlign:'top', whiteSpace:'nowrap', fontSize:12, ...num }
 
   return (
     <AstryxPage>
@@ -378,158 +377,109 @@ export default function Staff() {
             })()}
         </LedgerCard>
 
-        <Legacy>
-        {/* 이번 주 근무표 */}
-        <section style={{marginBottom:30}}>
-          {sectionTitle(`${weekOffset===0 ? '이번 주' : weekOffset===1 ? '다음 주' : weekOffset===-1 ? '지난주' : ''} 근무표 · ${weekLabel}`,
-            isOwner ? <span style={{display:'flex', gap:10, alignItems:'baseline', flexWrap:'wrap'}}>
-              <span>칸을 눌러 그날 시간·휴무를 바꿔요 (파란 글씨 = 직접 넣은 칸)</span>
-              <button type="button" disabled={busy} onClick={copyLastWeek} style={linkBtn(T.blue)}>지난주와 같게</button>
-            </span> : '대타·임시휴무 반영, 지난 날은 실제 출퇴근')}
-          {rows.length === 0 ? <div style={{fontSize:13, color:T.sub, padding:'10px 0'}}>인원관리에서 직원별 요일 출퇴근 예정 시각을 넣으면 근무표가 만들어져요</div> : (
-            <div key={`w${weekOffset}`} className={dir < 0 ? 'st-from-l' : dir > 0 ? 'st-from-r' : undefined} style={{overflowX:'auto'}}>
-              <table style={{borderCollapse:'collapse', width:'100%', minWidth: 90 + days.length*110, tableLayout:'fixed'}}>
-                <thead>
-                  <tr>
-                    <th style={{...th, textAlign:'left', width:80}}>이름</th>
-                    {days.map(d => {
-                      const ds = dateStr(d), isToday = ds === dateStr(now)
-                      return <th key={ds} style={{...th, color: d.getDay()===0 ? T.red : d.getDay()===6 ? T.blue : isToday ? T.accent : T.sub,
-                        borderBottom:`${isToday ? 3 : 1}px solid ${isToday ? T.accent : T.ink}`}}>
-                        {DAYS_KR[d.getDay()]} {d.getMonth()+1}/{d.getDate()}{isToday ? ' 오늘' : ''}
-                      </th>
-                    })}
-                  </tr>
-                  {/* 매장 일정 · 휴무 */}
-                  <tr>
-                    <td style={{...td, textAlign:'left', color:T.sub}}>매장 일정</td>
-                    {days.map(d => {
-                      const ds = dateStr(d), ev = events[ds.slice(0,7)]?.[ds.slice(8,10)], hol = holidayOf(ds)
-                      return (
-                        <td key={ds} style={{...td, whiteSpace:'normal', background: closedOf(d) ? '#F3F1EC' : undefined}}>
-                          {hol && <div style={{color:T.sub, fontWeight:700}}>{hol.reason || '임시휴무'}</div>}
-                          {!hol && d.getDay()===0 && <div style={{color:T.sub}}>휴무</div>}
-                          {editDay === ds ? (
-                            <input autoFocus defaultValue={ev||''} placeholder="일정" onBlur={e=>saveEvent(ds, e.target.value.trim())}
-                              onKeyDown={e=>e.key==='Enter' && e.target.blur()}
-                              style={{width:'100%', boxSizing:'border-box', fontSize:12, padding:'3px 5px', border:'1px solid #CBC5BA', borderRadius:4, fontFamily:'inherit'}}/>
-                          ) : ev ? <div onClick={()=>isOwner && setEditDay(ds)} style={{color:T.accent, fontWeight:700, cursor: isOwner ? 'pointer' : 'default'}}>{ev}</div>
-                            : isOwner && <button type="button" onClick={()=>setEditDay(ds)} style={{background:'none', border:'none', color:T.faint, fontSize:11, cursor:'pointer', fontFamily:'inherit'}}>+ 일정</button>}
-                        </td>
-                      )
-                    })}
-                  </tr>
-                  {/* 일찍 마감한 날: 그 시각 이후 예정은 잘림 (조퇴로 안 잡힘) */}
-                  {(isOwner || days.some(d => plans[ymOfDate(d)]?.closeAt?.[pad(d.getDate())])) && (
-                    <tr>
-                      <td style={{...td, textAlign:'left', color:T.sub}}>일찍 마감</td>
-                      {days.map(d => {
-                        const ds = dateStr(d), close = plans[ds.slice(0,7)]?.closeAt?.[ds.slice(8,10)]
-                        if (closeEdit?.ds === ds) return (
-                          <td key={ds} style={{...td, whiteSpace:'normal'}}>
-                            <TimePick value={closeEdit.time} onChange={v=>setCloseEdit(c=>({...c,time:v}))} label="마감 시각"/>
-                            <div style={{display:'flex', gap:6, justifyContent:'center', marginTop:4}}>
-                              <button type="button" disabled={busy || !closeEdit.time} onClick={()=>saveClose(closeEdit.time)} style={linkBtn(T.accent)}>저장</button>
-                              {close && <button type="button" disabled={busy} onClick={()=>saveClose(null)} style={linkBtn(T.red)}>지우기</button>}
-                              <button type="button" onClick={()=>setCloseEdit(null)} style={linkBtn(T.sub)}>취소</button>
-                            </div>
-                          </td>
-                        )
-                        return (
-                          <td key={ds} style={td}>
-                            {close ? <span onClick={()=>isOwner && setCloseEdit({ ds, time:close })} style={{color:T.accent, fontWeight:700, cursor: isOwner ? 'pointer' : 'default'}}>{close} 마감</span>
-                              : isOwner && !closedOf(d) && <button type="button" onClick={()=>setCloseEdit({ ds, time:'20:00' })} style={{background:'none', border:'none', color:T.faint, fontSize:11, cursor:'pointer', fontFamily:'inherit'}}>+ 마감</button>}
-                          </td>
-                        )
-                      })}
-                    </tr>
-                  )}
-                </thead>
-                <tbody>
-                  {rows.map(u => (
-                    <tr key={u.uid}>
-                      <td style={{...td, textAlign:'left', fontWeight:700, fontSize:13}}>{u.name}</td>
-                      {days.map(d => {
-                        const c = cellOf(u, d)
-                        const inD = toDate(c.rec?.in), outD = toDate(c.rec?.out)
-                        return (
-                          cellEdit?.uid === u.uid && cellEdit?.ds === c.ds ? (
-                          <td key={c.ds} style={{...td, whiteSpace:'normal', background:'#FFFFFF', outline:`2px solid ${T.accent}`}}>
-                            <div className="st-in" style={{display:'flex', flexDirection:'column', gap:3}}>
-                              <span style={{fontSize:11, color:T.sub, textAlign:'left'}}>출근</span>
-                              <TimePick value={cellEdit.start} onChange={v=>setCellEdit(x=>({...x,start:v}))} label="출근 예정"/>
-                              <span style={{fontSize:11, color:T.sub, textAlign:'left'}}>퇴근 (선택)</span>
-                              <TimePick value={cellEdit.end} onChange={v=>setCellEdit(x=>({...x,end:v}))} label="퇴근 예정"/>
-                            </div>
-                            <div style={{display:'flex', gap:6, justifyContent:'center', flexWrap:'wrap', marginTop:4}}>
-                              <button type="button" disabled={busy} onClick={()=>{ if(!cellEdit.start) return alert('출근 시각을 골라주세요'); saveCell({ start:cellEdit.start, end:cellEdit.end || null }) }} style={linkBtn(T.accent)}>저장</button>
-                              <button type="button" disabled={busy} onClick={()=>saveCell({ off:true })} style={linkBtn(T.sub)}>휴무</button>
-                              {c.override && <button type="button" disabled={busy} onClick={()=>saveCell(null)} style={linkBtn(T.blue)}>기본으로</button>}
-                              <button type="button" onClick={()=>setCellEdit(null)} style={linkBtn(T.sub)}>취소</button>
-                            </div>
-                          </td>
-                          ) :
-                          <td key={c.ds} onClick={()=>isOwner && !c.closed && setCellEdit({ uid:u.uid, ds:c.ds, start:c.planned?.start || '', end:c.planned?.end || '' })}
-                            title={isOwner && !c.closed ? '눌러서 이날 시간 바꾸기' : undefined}
-                            style={{...td, cursor: isOwner && !c.closed ? 'pointer' : 'default', background: c.closed ? '#F3F1EC' : c.today ? 'rgba(var(--hk-accent-rgb),0.031)' : undefined}}>
-                            {c.override?.off && !c.closed && !c.rec?.in && <div style={{color:T.faint}}>휴무</div>}
-                            {c.planned && !c.closed && (
-                              <div style={{color: c.gaveAway ? T.faint : c.override && !c.rec?.in ? T.blue : T.ink, textDecoration: c.gaveAway ? 'line-through' : 'none', fontWeight:600}}>{c.planned.start}~{c.planned.end||''}{c.planned.cut ? ' (마감)' : ''}</div>
-                            )}
-                            {c.brk && c.planned && !c.gaveAway && !c.closed && <div style={{color:T.sub, fontSize:11}}>휴게 {c.brk.start}~{c.brk.end}</div>}
-                            {c.gaveAway && <div style={{color:T.purple, fontSize:11}}>대타 {nameOf(c.gaveAway.confirmedUid)}</div>}
-                            {c.seeking && !c.gaveAway && <div style={{color:T.amber, fontSize:11, fontWeight:700}}>대타 구하는 중</div>}
-                            {c.covering.map((v,i) => <div key={i} style={{color:T.purple, fontWeight:600}}>{v.start}~{v.end}<div style={{fontSize:11}}>{nameOf(v.for)} 대신</div></div>)}
-                            {inD && (
-                              <div style={{fontSize:11, color: c.st?.late || c.st?.leftEarly ? T.red : T.green, marginTop:2}}>
-                                {hm(inD)}~{outD ? hm(outD) : ''}{c.st?.late ? ` 지각${c.st.late}분` : ''}{c.st?.leftEarly ? ' 조퇴' : ''}
-                              </div>
-                            )}
-                            {c.missing && <div style={{fontSize:11, color:T.red, fontWeight:700}}>{c.past ? '결근' : '아직 안 옴'}</div>}
-                            {!c.planned && !c.override?.off && !c.covering.length && !inD && !c.closed && <span style={{color:T.faint}}>{isOwner ? '+' : '·'}</span>}
-                          </td>
-                        )
-                      })}
-                    </tr>
-                  ))}
-                  <tr>
-                    <td style={{...td, textAlign:'left', color:T.sub, borderTop:`3px double ${T.ink}`}}>근무 인원</td>
-                    {shiftsByDay.map((l,i) => <td key={i} style={{...td, borderTop:`3px double ${T.ink}`, fontWeight:700}}>{l.length ? `${l.length}명` : ''}</td>)}
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          )}
-        </section>
+        {/* 이번 주 근무표 (Astryx 표): 사장님은 칸을 눌러 그날 시간·휴무를 바꿈. 고치는 칸·일정·마감 입력은 아직 예전 입력칸 */}
+        <LedgerCard title={`${weekOffset===0 ? '이번 주' : weekOffset===1 ? '다음 주' : weekOffset===-1 ? '지난주' : ''} 근무표 · ${weekLabel}`}
+          right={isOwner ? <>
+            <Text type="supporting" color="secondary">칸을 눌러 그날 시간·휴무를 바꿔요 (파란 글씨 = 직접 넣은 칸)</Text>
+            <Button size="sm" label="지난주와 같게" isDisabled={busy} onClick={copyLastWeek}/>
+          </> : <Text type="supporting" color="secondary">대타·임시휴무 반영, 지난 날은 실제 출퇴근</Text>}>
+          {rows.length === 0 ? <Text color="secondary">인원관리에서 직원별 요일 출퇴근 예정 시각을 넣으면 근무표가 만들어져요</Text> : (() => {
+            const showClose = isOwner || days.some(d => plans[ymOfDate(d)]?.closeAt?.[pad(d.getDate())])
+            const data = [{ id:'_event', kind:'event' }, ...(showClose ? [{ id:'_close', kind:'close' }] : []), ...rows.map(u => ({ id:u.uid, kind:'user', u })), { id:'_count', kind:'count' }]
+            const cellOfDay = (row, d, i) => {
+              const ds = dateStr(d)
+              if (row.kind === 'event') {
+                const ev = events[ds.slice(0,7)]?.[ds.slice(8,10)], hol = holidayOf(ds)
+                return <VStack gap={1}>
+                  {hol && <Text type="supporting" weight="bold" color="secondary">{hol.reason || '임시휴무'}</Text>}
+                  {!hol && d.getDay()===0 && <Text type="supporting" color="secondary">휴무</Text>}
+                  {editDay === ds
+                    ? <Legacy><input autoFocus defaultValue={ev||''} placeholder="일정" onBlur={e=>saveEvent(ds, e.target.value.trim())} onKeyDown={e=>e.key==='Enter' && e.target.blur()}
+                        style={{width:'100%', boxSizing:'border-box', fontSize:12, padding:'3px 5px', border:'1px solid #CBC5BA', borderRadius:4, fontFamily:'inherit'}}/></Legacy>
+                    : ev ? (isOwner ? <Button size="sm" variant="ghost" label={ev} onClick={()=>setEditDay(ds)}/> : <Text type="supporting" weight="bold" color="accent">{ev}</Text>)
+                    : isOwner && <Button size="sm" variant="ghost" label="+ 일정" onClick={()=>setEditDay(ds)}/>}
+                </VStack>
+              }
+              if (row.kind === 'close') {
+                const close = plans[ds.slice(0,7)]?.closeAt?.[ds.slice(8,10)]
+                if (closeEdit?.ds === ds) return (
+                  <Legacy>
+                    <TimePick value={closeEdit.time} onChange={v=>setCloseEdit(c=>({...c,time:v}))} label="마감 시각"/>
+                    <div style={{display:'flex', gap:6, justifyContent:'center', marginTop:4}}>
+                      <button type="button" disabled={busy || !closeEdit.time} onClick={()=>saveClose(closeEdit.time)} style={linkBtn(T.accent)}>저장</button>
+                      {close && <button type="button" disabled={busy} onClick={()=>saveClose(null)} style={linkBtn(T.red)}>지우기</button>}
+                      <button type="button" onClick={()=>setCloseEdit(null)} style={linkBtn(T.sub)}>취소</button>
+                    </div>
+                  </Legacy>
+                )
+                return close ? (isOwner ? <Button size="sm" variant="ghost" label={`${close} 마감`} onClick={()=>setCloseEdit({ ds, time:close })}/> : <Text type="supporting" weight="bold" color="accent">{close} 마감</Text>)
+                  : isOwner && !closedOf(d) ? <Button size="sm" variant="ghost" label="+ 마감" onClick={()=>setCloseEdit({ ds, time:'20:00' })}/> : null
+              }
+              if (row.kind === 'count') { const l = shiftsByDay[i]; return <Text weight="bold" hasTabularNumbers>{l.length ? `${l.length}명` : ''}</Text> }
+              const u = row.u, c = cellOf(u, d)
+              const inD = toDate(c.rec?.in), outD = toDate(c.rec?.out)
+              if (cellEdit?.uid === u.uid && cellEdit?.ds === c.ds) return (
+                <Legacy>
+                  <div style={{display:'flex', flexDirection:'column', gap:3}}>
+                    <span style={{fontSize:11, color:T.sub, textAlign:'left'}}>출근</span>
+                    <TimePick value={cellEdit.start} onChange={v=>setCellEdit(x=>({...x,start:v}))} label="출근 예정"/>
+                    <span style={{fontSize:11, color:T.sub, textAlign:'left'}}>퇴근 (선택)</span>
+                    <TimePick value={cellEdit.end} onChange={v=>setCellEdit(x=>({...x,end:v}))} label="퇴근 예정"/>
+                  </div>
+                  <div style={{display:'flex', gap:6, justifyContent:'center', flexWrap:'wrap', marginTop:4}}>
+                    <button type="button" disabled={busy} onClick={()=>{ if(!cellEdit.start) return alert('출근 시각을 골라주세요'); saveCell({ start:cellEdit.start, end:cellEdit.end || null }) }} style={linkBtn(T.accent)}>저장</button>
+                    <button type="button" disabled={busy} onClick={()=>saveCell({ off:true })} style={linkBtn(T.sub)}>휴무</button>
+                    {c.override && <button type="button" disabled={busy} onClick={()=>saveCell(null)} style={linkBtn(T.blue)}>기본으로</button>}
+                    <button type="button" onClick={()=>setCellEdit(null)} style={linkBtn(T.sub)}>취소</button>
+                  </div>
+                </Legacy>
+              )
+              if (c.closed) return <Text type="supporting" color="secondary">—</Text>
+              const body = (
+                <VStack gap={0}>
+                  {c.override?.off && !c.rec?.in && <Text type="supporting" color="secondary">휴무</Text>}
+                  {c.planned && <Text weight="semibold" hasTabularNumbers hasStrikethrough={!!c.gaveAway} color={c.gaveAway ? 'secondary' : c.override && !c.rec?.in ? 'accent' : 'primary'}>{c.planned.start}~{c.planned.end||''}{c.planned.cut ? ' (마감)' : ''}</Text>}
+                  {c.brk && c.planned && !c.gaveAway && <Text type="supporting" color="secondary" hasTabularNumbers>휴게 {c.brk.start}~{c.brk.end}</Text>}
+                  {c.gaveAway && <Text type="supporting" color="secondary">대타 {nameOf(c.gaveAway.confirmedUid)}</Text>}
+                  {c.seeking && !c.gaveAway && <Badge variant="warning" label="대타 구하는 중"/>}
+                  {c.covering.map((v,k) => <Text key={k} type="supporting" weight="semibold" hasTabularNumbers>{v.start}~{v.end} {nameOf(v.for)} 대신</Text>)}
+                  {inD && <Text type="supporting" hasTabularNumbers color={c.st?.late || c.st?.leftEarly ? 'accent' : 'secondary'}>{hm(inD)}~{outD ? hm(outD) : ''}{c.st?.late ? ` 지각${c.st.late}분` : ''}{c.st?.leftEarly ? ' 조퇴' : ''}</Text>}
+                  {c.missing && <Text type="supporting" weight="bold" color="accent">{c.past ? '결근' : '아직 안 옴'}</Text>}
+                  {!c.planned && !c.override?.off && !c.covering.length && !inD && <Text color="secondary">{isOwner ? '+' : '·'}</Text>}
+                </VStack>
+              )
+              return isOwner
+                ? <ClickableCard label={`${u.name} ${d.getMonth()+1}/${d.getDate()} 시간 바꾸기`} variant="transparent" padding={1}
+                    onClick={()=>setCellEdit({ uid:u.uid, ds:c.ds, start:c.planned?.start || '', end:c.planned?.end || '' })}>{body}</ClickableCard>
+                : body
+            }
+            return (
+              <VStack key={`w${weekOffset}`} gap={0} isScrollable>
+                <Table data={data} idKey="id" density="compact" dividers="grid" verticalAlign="top" columns={[
+                  { key:'name', header:'이름', width:84, renderCell: r => <Text weight="bold" color={r.kind === 'user' ? 'primary' : 'secondary'}>{r.kind === 'event' ? '매장 일정' : r.kind === 'close' ? '일찍 마감' : r.kind === 'count' ? '근무 인원' : r.u.name}</Text> },
+                  ...days.map((d, i) => {
+                    const isToday = dateStr(d) === dateStr(now)
+                    return { key:dateStr(d), header:`${DAYS_KR[d.getDay()]} ${d.getMonth()+1}/${d.getDate()}${isToday ? ' 오늘' : ''}`, width:110, renderCell: r => cellOfDay(r, d, i) }
+                  }),
+                ]}/>
+              </VStack>
+            )
+          })()}
+        </LedgerCard>
 
-        {/* 시간대별 인원 */}
+        {/* 시간대별 인원 (예정 기준, 대타 반영. 진할수록 사람이 많음) */}
         {hours.length > 0 && (
-          <section style={{marginBottom:30}}>
-            {sectionTitle('시간대별 인원', '예정 기준 (대타 반영). 진할수록 사람이 많아요')}
-            <div key={`h${weekOffset}`} style={{overflowX:'auto'}}>
-              <table style={{borderCollapse:'collapse', width:'100%', minWidth: 90 + days.length*110, tableLayout:'fixed'}}>
-                <thead>
-                  <tr><th style={{...th, textAlign:'left', width:80}}>시간</th>{days.map(d => <th key={dateStr(d)} style={th}>{DAYS_KR[d.getDay()]} {d.getMonth()+1}/{d.getDate()}</th>)}</tr>
-                </thead>
-                <tbody>
-                  {hours.map((h, hi) => (
-                    <tr key={h}>
-                      <td style={{...td, textAlign:'left', color:T.sub, padding:'4px 8px'}}>{h}시</td>
-                      {shiftsByDay.map((l,i) => {
-                        const n = countAt(l, h)
-                        return <td key={i} style={{...td, padding:'3px 4px'}}>
-                          {n > 0 && <div className="st-pop" style={{animationDelay:`${i*70 + hi*25}ms`, borderRadius:6, padding:'3px 0', fontWeight:700,
-                            color: n/maxCount > 0.6 ? '#FFFFFF' : T.ink, background:`rgba(var(--hk-accent-rgb),${0.12 + 0.68*n/maxCount})`}}>{n}</div>}
-                        </td>
-                      })}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </section>
+          <LedgerCard title="시간대별 인원" right={<Text type="supporting" color="secondary">예정 기준 (대타 반영). 진할수록 사람이 많아요</Text>}>
+            <Table key={`h${weekOffset}`} data={hours.map(h => ({ h }))} idKey="h" density="compact" columns={[
+              { key:'h', header:'시간', width:64, renderCell: r => <Text color="secondary" hasTabularNumbers>{r.h}시</Text> },
+              ...days.map((d, i) => ({ key:dateStr(d), header:`${DAYS_KR[d.getDay()]} ${d.getMonth()+1}/${d.getDate()}`, align:'center', renderCell: r => {
+                const n = countAt(shiftsByDay[i], r.h)
+                return n > 0 && <Legacy><div className="st-pop" style={{animationDelay:`${i*70 + (r.h - hours[0])*25}ms`, borderRadius:6, padding:'3px 0', fontWeight:700, textAlign:'center',
+                  color: n/maxCount > 0.6 ? '#FFFFFF' : T.ink, background:`rgba(var(--hk-accent-rgb),${0.12 + 0.68*n/maxCount})`}}>{n}</div></Legacy>
+              } })),
+            ]}/>
+          </LedgerCard>
         )}
-        </Legacy>
       </>}
     </VStack>
     </AstryxPage>
