@@ -2,8 +2,13 @@ import { useEffect, useState } from 'react'
 import { db } from '../firebase'
 import { collection, getDocs } from 'firebase/firestore'
 import { GradeBadge } from '../AuthContext'
+import { VStack } from '@astryxdesign/core/Layout'
+import { Text, Heading } from '@astryxdesign/core/Text'
+import { Card } from '@astryxdesign/core/Card'
+import { Grid } from '@astryxdesign/core/Grid'
+import { Avatar } from '@astryxdesign/core/Avatar'
+import { AstryxPage, Legacy, PageHeader } from '../astryx/AstryxPage'
 
-const EMP_COLORS = ['var(--hk-accent)','#2B5C9E','#2E7D45','#6B4FA0','#B45309','#B42318']
 
 export default function Team() {
   const [employees, setEmployees] = useState([])
@@ -24,47 +29,30 @@ export default function Team() {
   },[])
 
   return (
-    <div>
-      <div style={{marginBottom:22}}>
-        <div style={{fontSize:20,fontWeight:700}}>팀원 소개</div>
-        <div style={{fontSize:12,color:'#6E6A63',marginTop:2}}>홍콩반점 중앙대점 함께하는 멤버들</div>
-      </div>
-
-      {loading ? <div style={{textAlign:'center',color:'#6E6A63',padding:60}}>로딩 중...</div> : (
-        <>
-          <div style={{background:'#FFFFFF',border:'1px solid #DCD7CE',borderRadius:6,padding:'18px 20px',marginBottom:20,textAlign:'center'}}>
-            <div style={{fontSize:28,marginBottom:8}}></div>
-            <div style={{fontSize:16,fontWeight:700,color:'var(--hk-accent)',marginBottom:4}}>홍콩반점 중앙대점</div>
-            <div style={{fontSize:12,color:'#6E6A63'}}>총 {employees.length}명이 함께하고 있어요</div>
-          </div>
-
-          <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(200px,1fr))',gap:14}}>
-            {employees.map((e,idx)=>{
-              const info = e
-              const color = EMP_COLORS[idx%EMP_COLORS.length]
-              return(
-                <div key={e.uid} style={{background:'#FFFFFF',border:'1px solid #DCD7CE',borderRadius:6,overflow:'hidden'}}>
-                  {/* 컬러 헤더 */}
-                  <div style={{height:6,background:color}}></div>
-                  <div style={{padding:'18px 16px',display:'flex',flexDirection:'column',gap:8}}>
-                    {/* 아바타 */}
-                    <div style={{width:48,height:48,borderRadius:'50%',background:color,display:'flex',alignItems:'center',justifyContent:'center',fontSize:20,fontWeight:700,color:'#FFFFFF'}}>
-                      {e.name.charAt(0)}
-                    </div>
-                    <div>
-                      <div style={{fontSize:16,fontWeight:700,marginBottom:4}}>{e.name}</div>
-                      <GradeBadge joinDate={info.joinDate} size={11}/>
-                    </div>
-                    {info.joinDate && (
-                      <div style={{fontSize:11,color:'#6E6A63'}}>입사일: {info.joinDate}</div>
-                    )}
-                  </div>
-                </div>
-              )
-            })}
-          </div>
-        </>
-      )}
-    </div>
+    <AstryxPage>
+    <VStack gap={4}>
+      <PageHeader title="팀원 소개" sub="홍콩반점 중앙대점 함께하는 멤버들"/>
+      {loading ? <Text color="secondary">불러오는 중...</Text> : <>
+        <Card variant="red" padding={4}>
+          <VStack gap={1}>
+            <Heading level={3}>홍콩반점 중앙대점</Heading>
+            <Text color="inherit">총 {employees.length}명이 함께하고 있어요</Text>
+          </VStack>
+        </Card>
+        <Grid columns={{ minWidth: 200, repeat: 'fill' }} gap={3}>
+          {employees.map(e => (
+            <Card key={e.uid} padding={4}>
+              <VStack gap={2}>
+                <Avatar name={e.name.length >= 3 ? e.name.slice(-2) : e.name} size={48}/>
+                <Heading level={4}>{e.name}</Heading>
+                <Legacy><GradeBadge joinDate={e.joinDate} size={11}/></Legacy>
+                {e.joinDate && <Text type="supporting" color="secondary" hasTabularNumbers>입사일 {e.joinDate}</Text>}
+              </VStack>
+            </Card>
+          ))}
+        </Grid>
+      </>}
+    </VStack>
+    </AstryxPage>
   )
 }

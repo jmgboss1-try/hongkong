@@ -7,6 +7,15 @@ import MyRewardSpin from '../components/MyRewardSpin'
 import AvatarEditor from '../components/AvatarEditor'
 import { loadMyPayslip, loadMyPrivate, writeMyPayFields } from '../lib/privateInfo'
 import { calcDeduction, insuranceFor } from '../lib/payDeduction'
+import { VStack, HStack } from '@astryxdesign/core/Layout'
+import { Text } from '@astryxdesign/core/Text'
+import { Card } from '@astryxdesign/core/Card'
+import { Grid } from '@astryxdesign/core/Grid'
+import { Badge } from '@astryxdesign/core/Badge'
+import { Button } from '@astryxdesign/core/Button'
+import { Selector } from '@astryxdesign/core/Selector'
+import { EmptyState } from '@astryxdesign/core/EmptyState'
+import { AstryxPage, Legacy, PageHeader, LedgerCard, Ledger, LedgerRow } from '../astryx/AstryxPage'
 
 const pad = n => String(n).padStart(2,'0')
 const daysIn = ym => { const[y,m]=ym.split('-').map(Number); return new Date(y,m,0).getDate() }
@@ -100,14 +109,6 @@ const [insHistory, setInsHistory] = useState([])   // 4대보험 고지 금액 �
   const deduction = calcDeduction(totalPay, employType, insuranceFor(insHistory, curMonth))
   const netPay = totalPay - deduction.total
 
-  // 근무 강도에 따른 색상
-  function getHourColor(h) {
-    if(!h || h===0) return null
-    if(h <= 4) return { bg:'rgba(43,92,158,0.2)', border:'#2B5C9E', text:'#2B5C9E' }
-    if(h <= 6) return { bg:'rgba(var(--hk-accent-rgb),0.2)', border:'var(--hk-accent)', text:'var(--hk-accent)' }
-    return { bg:'rgba(46,125,69,0.2)', border:'#2E7D45', text:'#2E7D45' }
-  }
-
   async function checkPayroll() {
     if(!payroll?.confirmedByOwner) return
     try {
@@ -127,233 +128,97 @@ const [insHistory, setInsHistory] = useState([])   // 4대보험 고지 금액 �
     } catch(e) { console.error(e) }
   }
 
+  const askInquiry = () => { const msg = window.prompt('문의 내용을 입력해주세요'); if (msg) sendInquiry(msg) }
+  const calCells = (() => { const c = []; for (let i=0;i<firstDow;i++) c.push(null); for (let d=1; d<=days; d++) c.push(d); while (c.length % 7) c.push(null); return c })()
+
   return (
-    <div>
-      {/* 지난달 개근이면 포상 룰렛 (사장님이 열었을 때) */}
-      <MyRewardSpin uid={user.uid} name={userData?.name || ''}/>
-      {/* 우리 매장 화면에 나오는 내 캐릭터 */}
-      <AvatarEditor uid={user.uid} userData={userData}/>
-      <div style={{display:'flex',alignItems:'flex-end',justifyContent:'space-between',marginBottom:22}}>
-        <div>
-          <div style={{fontSize:20,fontWeight:700}}>내 스케쥴</div>
-          <div style={{display:'flex',alignItems:'center',gap:8,marginTop:4,flexWrap:'wrap'}}>
-            <span style={{fontSize:12,color:'#1D1B18'}}>{userData?.name}</span>
-            <GradeBadge joinDate={userData?.joinDate} size={10}/>
-            <span style={{fontSize:11,color:'var(--hk-accent)',fontFamily:'inherit',fontVariantNumeric:'tabular-nums',
-              background:'rgba(var(--hk-accent-rgb),0.12)',padding:'2px 7px',borderRadius:4}}>
-              {wage.toLocaleString()}원/h
-            </span>
-          </div>
-        </div>
-        <select value={curMonth} onChange={e=>setCurMonth(e.target.value)}
-          style={{background:'#F3F1EC',border:'1px solid #DCD7CE',borderRadius:4,color:'#1D1B18',padding:'8px 12px',fontSize:12,fontFamily:'inherit',outline:'none'}}>
-          {monthOpts.map(m=><option key={m} value={m}>{mLabel(m)}</option>)}
-        </select>
-      </div>
+    <AstryxPage>
+    <VStack gap={4}>
+      {/* 지난달 개근이면 포상 룰렛 (사장님이 열었을 때) · 우리 매장 화면에 나오는 내 캐릭터 */}
+      <Legacy>
+        <MyRewardSpin uid={user.uid} name={userData?.name || ''}/>
+        <AvatarEditor uid={user.uid} userData={userData}/>
+      </Legacy>
 
-      {/* 요약 카드 */}
-      <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:12,marginBottom:20}}>
+      <PageHeader title="내 스케쥴" sub={userData?.name}
+        right={<Selector label="달 고르기" isLabelHidden size="sm" value={curMonth} onChange={v => v && setCurMonth(v)} options={monthOpts.map(m => ({ value:m, label:mLabel(m) }))}/>}/>
+
+      <HStack gap={2} vAlign="center" wrap="wrap">
+        <Legacy><GradeBadge joinDate={userData?.joinDate} size={10}/></Legacy>
+        <Badge label={`${wage.toLocaleString()}원/h`}/>
+      </HStack>
+
+      {/* 요약 */}
+      <Grid columns={{ minWidth: 150, max: 4, repeat: 'fit' }} gap={3}>
         {[
-          {label:'근무일수', val:`${workDays.length}일`, color:'var(--hk-accent)'},
-          {label:'총 근무시간', val:`${totalHours}h`, color:'#2B5C9E'},
-          {label:'기본급', val:`${totalWage.toLocaleString()}원`, color:'#1D1B18'},
-          {label:'주휴수당', val:`${weeklyHoliday.toLocaleString()}원`, color:'#2E7D45'},
-        ].map(k=>(
-          <div key={k.label} style={{background:'#FFFFFF',border:'1px solid #DCD7CE',borderRadius:6,padding:'16px 18px',position:'relative',overflow:'hidden'}}>
-            <div style={{position:'absolute',top:0,left:0,right:0,height:3,background:k.color}}></div>
-            <div style={{fontSize:10,fontWeight:600,color:'#6E6A63',textTransform:'uppercase',letterSpacing:.8,marginBottom:6}}>{k.label}</div>
-            <div style={{fontSize:16,fontWeight:700,color:k.color,fontFamily:'inherit',fontVariantNumeric:'tabular-nums'}}>{k.val}</div>
-          </div>
+          ['근무일수', `${workDays.length}일`],
+          ['총 근무시간', `${totalHours}h`],
+          ['기본급', `${totalWage.toLocaleString()}원`],
+          ['주휴수당', `${weeklyHoliday.toLocaleString()}원`],
+        ].map(([label, val]) => (
+          <Card key={label} padding={4}>
+            <VStack gap={1}>
+              <Text type="label" color="secondary">{label}</Text>
+              <Text type="large" weight="bold" hasTabularNumbers>{val}</Text>
+            </VStack>
+          </Card>
         ))}
-      </div>
+      </Grid>
 
-      {/* 총 지급 예상액 */}
-      <div style={{background:'rgba(46,125,69,0.08)',border:'1px solid rgba(46,125,69,0.2)',borderRadius:6,padding:'16px 20px',marginBottom:20}}>
-        <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start'}}>
-          <div style={{flex:1}}>
-            <div style={{fontSize:11,color:'#6E6A63',marginBottom:6}}>이번달 예상 급여</div>
-            <div style={{display:'flex',flexDirection:'column',gap:4}}>
-              <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
-                <span style={{fontSize:11,color:'#6E6A63'}}>세전 총액</span>
-                <span style={{fontSize:13,color:'#1D1B18',fontFamily:'inherit',fontVariantNumeric:'tabular-nums'}}>{totalPay.toLocaleString()}원</span>
-              </div>
-              {deduction.total > 0 && (
-                <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
-                  <span style={{fontSize:11,color:'#6E6A63'}}>
-                    공제 ({employType==='part'?'3.3% 원천징수':'4대보험'})
-                  </span>
-                  <span style={{fontSize:13,color:'#B42318',fontFamily:'inherit',fontVariantNumeric:'tabular-nums'}}>-{deduction.total.toLocaleString()}원</span>
-                </div>
-              )}
-              <div style={{borderTop:'1px solid rgba(46,125,69,0.2)',paddingTop:6,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
-                <span style={{fontSize:12,fontWeight:700,color:'#2E7D45'}}>실수령액</span>
-                <span style={{fontSize:22,fontWeight:700,color:'#2E7D45',fontFamily:'inherit',fontVariantNumeric:'tabular-nums'}}>{netPay.toLocaleString()}원</span>
-              </div>
-              <div style={{fontSize:10,color:'#6E6A63'}}>
-                기본급 {totalWage.toLocaleString()} + 주휴수당 {weeklyHoliday.toLocaleString()}
-              </div>
-            </div>
-          </div>
-          <div style={{fontSize:32,marginLeft:16}}></div>
-        </div>
-      </div>
+      {/* 이번달 예상 급여 */}
+      <LedgerCard title="이번달 예상 급여">
+        <Ledger rows={<>
+          <LedgerRow label="세전 총액" note={`기본급 ${totalWage.toLocaleString()} + 주휴수당 ${weeklyHoliday.toLocaleString()}`} value={totalPay}/>
+          {deduction.total > 0 && <LedgerRow label={`공제 (${employType==='part'?'3.3% 원천징수':'4대보험'})`} value={deduction.total} minus/>}
+        </>} total={<LedgerRow label="실수령액" value={netPay} strong/>}/>
+      </LedgerCard>
 
       {/* NFC 출퇴근: 지각·조퇴·결근 (인정 시간은 안 보여 줌) */}
-      <MyAttendance curMonth={curMonth} uid={user.uid}/>
+      <Legacy><MyAttendance curMonth={curMonth} uid={user.uid}/></Legacy>
 
-      {/* 급여 확인 섹션 */}
+      {/* 급여 확인 */}
       {payroll?.confirmedByOwner && (
-        <div style={{background:'#FFFFFF',border:`1px solid ${payroll.checkedByEmp?'#2E7D45':'var(--hk-accent)'}`,borderRadius:6,padding:'18px',marginBottom:20}}>
-          <div style={{fontSize:13,fontWeight:600,marginBottom:12}}>
-            {mLabel(curMonth)} 확정 급여
-          </div>
-          <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',flexWrap:'wrap',gap:10}}>
-            <div>
-              <div style={{fontSize:11,color:'#6E6A63',marginBottom:4}}>
-                기본급 {(payroll.basePay||0).toLocaleString()} + 주휴 {(payroll.weeklyHoliday||0).toLocaleString()}
-              </div>
-              <div style={{fontSize:11,color:'#6E6A63',marginBottom:4}}>
-                세전 {(payroll.totalPay||0).toLocaleString()}원
-                {(payroll.deduction?.total||0)>0 && (
-                  <span style={{color:'#B42318',marginLeft:6}}>-{(payroll.deduction?.total||0).toLocaleString()}원</span>
-                )}
-              </div>
-              <div style={{fontSize:20,fontWeight:700,color:'#2E7D45',fontFamily:'inherit',fontVariantNumeric:'tabular-nums'}}>
-                실수령 {(payroll.netPay||payroll.totalPay||0).toLocaleString()}원
-              </div>
-            </div>
-            <div style={{display:'flex',flexDirection:'column',gap:8,alignItems:'flex-end'}}>
-              {!payroll.checkedByEmp && !payroll.inquiry && (
-                <button onClick={checkPayroll}
-                  style={{background:'#2E7D45',color:'#FFFFFF',border:'none',borderRadius:4,
-                    padding:'10px 20px',fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
-                  급여 확인
-                </button>
-              )}
-              {!payroll.checkedByEmp && !payroll.inquiry && (
-                <button onClick={()=>{
-                  const msg = window.prompt('문의 내용을 입력해주세요')
-                  if(msg) sendInquiry(msg)
-                }}
-                  style={{background:'transparent',border:'1px solid #B42318',color:'#B42318',borderRadius:4,
-                    padding:'8px 16px',fontSize:11,cursor:'pointer',fontFamily:'inherit'}}>
-                  문의하기
-                </button>
-              )}
-              {payroll.checkedByEmp && (
-                <span style={{fontSize:11,color:'#2E7D45',fontWeight:600}}>확인 완료</span>
-              )}
-              {payroll.inquiry && !payroll.inquiry.resolved && (
-                <div style={{textAlign:'right'}}>
-                  <div style={{fontSize:11,color:'#B42318',marginBottom:4}}>문의 중...</div>
-                  {payroll.inquiry.ownerReply && (
-                    <div style={{background:'rgba(var(--hk-accent-rgb),0.08)',border:'1px solid rgba(var(--hk-accent-rgb),0.2)',
-                      borderRadius:4,padding:'8px 12px',fontSize:11,color:'#1D1B18',maxWidth:200,textAlign:'left'}}>
-                      사장님 답변: {payroll.inquiry.ownerReply}
-                    </div>
-                  )}
-                </div>
-              )}
-              {payroll.inquiry?.resolved && !payroll.checkedByEmp && (
-                <button onClick={checkPayroll}
-                  style={{background:'#2E7D45',color:'#FFFFFF',border:'none',borderRadius:4,
-                    padding:'10px 20px',fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
-                  급여 확인
-                </button>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {loading ? <div style={{textAlign:'center',color:'#6E6A63',padding:40}}>로딩 중...</div> : (
-        <>
-          {/* 달력 */}
-          <div style={{background:'#FFFFFF',border:'1px solid #DCD7CE',borderRadius:6,marginBottom:20}}>
-            <div style={{padding:'14px 18px',borderBottom:'1px solid #DCD7CE',display:'flex',justifyContent:'space-between',alignItems:'center',flexWrap:'wrap',gap:8}}>
-              <span style={{fontSize:13,fontWeight:600}}>{mLabel(curMonth)} 근무 달력</span>
-              <div style={{display:'flex',gap:10}}>
-                {[
-                  {color:'#2B5C9E',label:'4h 이하'},
-                  {color:'var(--hk-accent)',label:'4~6h'},
-                  {color:'#2E7D45',label:'6h 이상'},
-                ].map(c=>(
-                  <div key={c.label} style={{display:'flex',alignItems:'center',gap:4,fontSize:10}}>
-                    <div style={{width:8,height:8,borderRadius:2,background:c.color}}></div>
-                    <span style={{color:'#6E6A63'}}>{c.label}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-            <div style={{padding:14}}>
-              <div style={{display:'grid',gridTemplateColumns:'repeat(7,1fr)',gap:3,marginBottom:3}}>
-                {DAYS_KR.map((d,i)=>(
-                  <div key={d} style={{textAlign:'center',fontSize:10,fontWeight:700,padding:'6px 0',
-                    color:i===0?'#B42318':i===6?'#2B5C9E':'#6E6A63'}}>{d}</div>
-                ))}
-              </div>
-              <div style={{display:'grid',gridTemplateColumns:'repeat(7,1fr)',gap:3}}>
-                {(()=>{
-                  const cells=[]
-                  for(let i=0;i<firstDow;i++) cells.push(null)
-                  for(let d=1;d<=days;d++) cells.push(d)
-                  while(cells.length%7!==0) cells.push(null)
-                  return cells.map((d,idx)=>{
-                    if(!d) return <div key={idx}></div>
-                    const dd=pad(d)
-                    const dow=idx%7
-                    const isToday=isThisMonth&&d===now.getDate()
-                    const h=workHours[dd]||0
-                    const event=events[dd]
-                    const colors=getHourColor(h)
-
-                    return(
-                      <div key={idx} style={{
-                        background:colors?colors.bg:'#F3F1EC',
-                        border:isToday?'2px solid var(--hk-accent)':colors?`1px solid ${colors.border}`:'1px solid #DCD7CE',
-                        borderRadius:4,padding:'6px',minHeight:76,
-                        display:'flex',flexDirection:'column',gap:2
-                      }}>
-                        <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start'}}>
-                          <div style={{fontSize:11,fontWeight:700,fontFamily:'inherit',fontVariantNumeric:'tabular-nums',
-                            color:dow===0?'#B42318':dow===6?'#2B5C9E':isToday?'var(--hk-accent)':colors?colors.text:'#6E6A63'}}>
-                            {d}
-                          </div>
-                          {isToday&&<div style={{width:5,height:5,borderRadius:'50%',background:'var(--hk-accent)',flexShrink:0}}></div>}
-                        </div>
-
-                        {event&&(
-                          <div style={{background:'rgba(var(--hk-accent-rgb),0.15)',color:'var(--hk-accent)',fontSize:7,padding:'2px 3px',borderRadius:3,lineHeight:1.4}}>
-                            {event}
-                          </div>
-                        )}
-
-                        {(()=>{
-                          // 날짜별 시간·일급은 안 보여 주고 근무한 날인지만
-                          const ex = workExtra[dd]||0
-                          return h>0||ex>0 ? (
-                            <div style={{marginTop:'auto', fontSize:11, fontWeight:700, color:colors?.text, textAlign:'center'}}>근무</div>
-                          ) : (
-                            <div style={{fontSize:8,color:'#DCD7CE',marginTop:'auto',textAlign:'center'}}>휴무</div>
-                          )
-                        })()}
-                      </div>
-                    )
-                  })
-                })()}
-              </div>
-            </div>
-          </div>
-
-          {/* 날짜별 근무시간·일급은 직원에게 안 보여 줌 (월 합계만 위 요약에) */}
-
-          {workDays.length === 0 && (
-            <div style={{background:'#FFFFFF',border:'1px solid #DCD7CE',borderRadius:6,padding:40,textAlign:'center',color:'#6E6A63'}}>
-              {mLabel(curMonth)}에 입력된 근무 일정이 없습니다
-            </div>
+        <LedgerCard title={`${mLabel(curMonth)} 확정 급여`} right={payroll.checkedByEmp ? <Badge variant="success" label="확인 완료"/> : payroll.inquiry && !payroll.inquiry.resolved ? <Badge variant="warning" label="문의 중"/> : null}>
+          <Ledger rows={<>
+            <LedgerRow label="세전" note={`기본급 ${(payroll.basePay||0).toLocaleString()} + 주휴 ${(payroll.weeklyHoliday||0).toLocaleString()}`} value={payroll.totalPay||0}/>
+            {(payroll.deduction?.total||0) > 0 && <LedgerRow label="공제" value={payroll.deduction.total} minus/>}
+          </>} total={<LedgerRow label="실수령" value={payroll.netPay||payroll.totalPay||0} strong/>}/>
+          {payroll.inquiry?.ownerReply && !payroll.inquiry.resolved && (
+            <Card variant="muted" padding={3}><Text>사장님 답변: {payroll.inquiry.ownerReply}</Text></Card>
           )}
-        </>
+          {!payroll.checkedByEmp && (!payroll.inquiry || payroll.inquiry.resolved) && (
+            <HStack gap={2}>
+              <Button variant="primary" label="급여 확인" onClick={checkPayroll}/>
+              {!payroll.inquiry && <Button label="문의하기" onClick={askInquiry}/>}
+            </HStack>
+          )}
+        </LedgerCard>
       )}
-    </div>
+
+      {loading ? <Text color="secondary">불러오는 중...</Text> : <>
+        {/* 근무 달력: 날짜별 시간·일급은 안 보여 주고 근무한 날인지만 */}
+        <LedgerCard title={`${mLabel(curMonth)} 근무 달력`}>
+          <Grid columns={7} gap={1}>
+            {DAYS_KR.map((d, i) => <Text key={d} type="supporting" weight="bold" color={i === 0 ? 'accent' : 'secondary'} justify="center">{d}</Text>)}
+            {calCells.map((d, idx) => {
+              if (!d) return <span key={idx}/>
+              const dd = pad(d), isToday = isThisMonth && d === now.getDate()
+              const worked = (workHours[dd]||0) > 0 || (workExtra[dd]||0) > 0
+              return (
+                <Card key={idx} variant={isToday ? 'red' : worked ? 'default' : 'muted'} padding={1.5}>
+                  <VStack gap={0.5} minHeight={56}>
+                    <Text type="supporting" weight="bold" color={isToday ? 'inherit' : idx % 7 === 0 ? 'accent' : 'secondary'} hasTabularNumbers>{d}</Text>
+                    {events[dd] && <Text type="supporting" color={isToday ? 'inherit' : 'accent'} maxLines={2}>{events[dd]}</Text>}
+                    <Text type="supporting" weight={worked ? 'bold' : undefined} color={isToday ? 'inherit' : worked ? 'primary' : 'disabled'} justify="center">{worked ? '근무' : '휴무'}</Text>
+                  </VStack>
+                </Card>
+              )
+            })}
+          </Grid>
+        </LedgerCard>
+        {workDays.length === 0 && <EmptyState title={`${mLabel(curMonth)}에 입력된 근무 일정이 없습니다`} isCompact/>}
+      </>}
+    </VStack>
+    </AstryxPage>
   )
 }

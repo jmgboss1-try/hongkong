@@ -3,6 +3,17 @@ import { loadMyPayslip, writeMyPayFields } from '../lib/privateInfo'
 import { useAuth } from '../AuthContext'
 import WageStatements from '../components/WageStatements'
 import MyContracts from '../components/MyContracts'
+import { VStack, HStack } from '@astryxdesign/core/Layout'
+import { Text } from '@astryxdesign/core/Text'
+import { Card } from '@astryxdesign/core/Card'
+import { Grid } from '@astryxdesign/core/Grid'
+import { Badge } from '@astryxdesign/core/Badge'
+import { Button } from '@astryxdesign/core/Button'
+import { Selector } from '@astryxdesign/core/Selector'
+import { TextArea } from '@astryxdesign/core/TextArea'
+import { List, ListItem } from '@astryxdesign/core/List'
+import { EmptyState } from '@astryxdesign/core/EmptyState'
+import { AstryxPage, Legacy, PageHeader, LedgerCard } from '../astryx/AstryxPage'
 
 const pad = n => String(n).padStart(2,'0')
 const mLabel = ym => { const[y,m]=ym.split('-'); return `${y}년 ${+m}월` }
@@ -78,218 +89,97 @@ export default function MyPayroll() {
   const isPaid     = p?.paid
 
   return (
-    <div>
-      {/* 헤더 */}
-      <div style={{display:'flex',alignItems:'flex-end',justifyContent:'space-between',marginBottom:22}}>
-        <div>
-          <div style={{fontSize:20,fontWeight:700}}>내 급여</div>
-          <div style={{fontSize:12,color:'#6E6A63',marginTop:2}}>{mLabel(curMonth)}</div>
-        </div>
-        <select value={curMonth} onChange={e=>setCurMonth(e.target.value)}
-          style={{background:'#F3F1EC',border:'1px solid #DCD7CE',borderRadius:4,color:'#1D1B18',
-            padding:'8px 12px',fontSize:12,fontFamily:'inherit',outline:'none'}}>
-          {monthOpts.map(m=><option key={m} value={m}>{mLabel(m)}</option>)}
-        </select>
-      </div>
+    <AstryxPage>
+    <VStack gap={4}>
+      <PageHeader title="내 급여" sub={mLabel(curMonth)}
+        right={<Selector label="달 고르기" isLabelHidden size="sm" value={curMonth} onChange={v => v && setCurMonth(v)} options={monthOpts.map(m => ({ value:m, label:mLabel(m) }))}/>}/>
 
       {/* 사장님이 보낸 근로계약서 (서명할 게 있으면 맨 위에) */}
-      {user && <MyContracts uid={user.uid}/>}
+      {user && <Legacy><MyContracts uid={user.uid}/></Legacy>}
 
-      {loading ? (
-        <div style={{textAlign:'center',color:'#6E6A63',padding:60}}>로딩 중...</div>
-      ) : isPending ? (
-        /* 급여 미확정 */
-        <div style={{background:'#FFFFFF',border:'1px solid #DCD7CE',borderRadius:6,
-          padding:'50px 20px',textAlign:'center'}}>
-          <div style={{fontSize:36,marginBottom:14}}></div>
-          <div style={{fontSize:15,fontWeight:700,color:'#1D1B18',marginBottom:8}}>급여 집계 중</div>
-          <div style={{fontSize:12,color:'#6E6A63'}}>사장님이 이달 급여를 확정하면 여기에 표시됩니다</div>
-        </div>
-      ) : (
-        <>
-          {/* 급여 카드 */}
-          <div style={{background:'#FFFFFF',border:'1px solid #DCD7CE',borderRadius:6,
-            overflow:'hidden',marginBottom:14}}>
-            {/* 카드 헤더 */}
-            <div style={{padding:'14px 20px',borderBottom:'1px solid #DCD7CE',
-              display:'flex',justifyContent:'space-between',alignItems:'center'}}>
-              <div style={{fontSize:13,fontWeight:600}}>{mLabel(curMonth)} 급여 내역</div>
-              {isPaid && (
-                <span style={{fontSize:11,fontWeight:700,padding:'4px 10px',borderRadius:5,
-                  background:'rgba(43,92,158,0.15)',color:'#2B5C9E'}}>
-                  지급완료 ({p.paidAt?.slice(0,10)})
-                </span>
-              )}
-              {!isPaid && isChecked && !isInquiry && (
-                <span style={{fontSize:11,fontWeight:700,padding:'4px 10px',borderRadius:5,
-                  background:'rgba(46,125,69,0.12)',color:'#2E7D45'}}>
-                  확인 완료 · 지급 대기중
-                </span>
-              )}
-              {isInquiry && (
-                <span style={{fontSize:11,fontWeight:700,padding:'4px 10px',borderRadius:5,
-                  background:'rgba(180,35,24,0.12)',color:'#B42318'}}>
-                  문의 처리중
-                </span>
-              )}
-            </div>
+      {loading ? <Text color="secondary">불러오는 중...</Text> : isPending ? (
+        <EmptyState title="급여 집계 중" description="사장님이 이달 급여를 확정하면 여기에 표시됩니다"/>
+      ) : <>
+        {/* 급여 내역 */}
+        <LedgerCard title={`${mLabel(curMonth)} 급여 내역`} right={
+          isPaid ? <Badge variant="info" label={`지급완료 (${p.paidAt?.slice(0,10)})`}/>
+          : isInquiry ? <Badge variant="error" label="문의 처리중"/>
+          : isChecked ? <Badge variant="success" label="확인 완료 · 지급 대기중"/> : null}>
+          <Grid columns={{ minWidth: 140, max: 3, repeat: 'fit' }} gap={2}>
+            {[
+              ['총 근무시간', `${p.totalHours}h ${p.totalMins>0?p.totalMins+'m':''}`],
+              ['기본급', `${(p.basePay||0).toLocaleString()}원`],
+              ['주휴수당', `${(p.weeklyHoliday||0).toLocaleString()}원`],
+            ].map(([label, val]) => (
+              <Card key={label} variant="muted" padding={3}>
+                <VStack gap={1}><Text type="supporting" color="secondary">{label}</Text><Text weight="bold" hasTabularNumbers>{val}</Text></VStack>
+              </Card>
+            ))}
+          </Grid>
+          <HStack gap={3} vAlign="end" hAlign="between" wrap="wrap">
+            <VStack gap={0}>
+              <Text type="supporting" color="secondary">이달 월급</Text>
+              <Text type="display-3" color="accent" hasTabularNumbers>{(p.totalPay||0).toLocaleString()}원</Text>
+            </VStack>
+            <VStack gap={0}>
+              <Text type="supporting" color="secondary" hasTabularNumbers>시급 {(p.wage||10030).toLocaleString()}원/h</Text>
+              <Text type="supporting" color="secondary" hasTabularNumbers>확정일 {p.confirmedAt?.slice(0,10)}</Text>
+            </VStack>
+          </HStack>
+        </LedgerCard>
 
-            {/* 상세 지표 */}
-            <div style={{padding:'16px 20px',display:'grid',gridTemplateColumns:'repeat(3,1fr)',
-              gap:12,borderBottom:'1px solid #DCD7CE'}}>
-              {[
-                {label:'총 근무시간', val:`${p.totalHours}h ${p.totalMins>0?p.totalMins+'m':''}`, color:'var(--hk-accent)'},
-                {label:'기본급',      val:`${(p.basePay||0).toLocaleString()}원`,                 color:'#1D1B18'},
-                {label:'주휴수당',    val:`${(p.weeklyHoliday||0).toLocaleString()}원`,           color:'#2B5C9E'},
-              ].map(k=>(
-                <div key={k.label} style={{background:'#F3F1EC',borderRadius:4,padding:'12px 14px'}}>
-                  <div style={{fontSize:10,color:'#6E6A63',marginBottom:5}}>{k.label}</div>
-                  <div style={{fontSize:13,fontWeight:700,color:k.color,fontFamily:'inherit',fontVariantNumeric:'tabular-nums'}}>{k.val}</div>
-                </div>
+        {/* 상여·보너스 */}
+        {myBonuses.length > 0 && (
+          <LedgerCard title="이달 상여·보너스" right={<Text weight="bold" hasTabularNumbers>{myBonusTotal.toLocaleString()}원</Text>}>
+            <List hasDividers edge="flush">
+              {myBonuses.map(r => (
+                <ListItem key={r.id} label={<Text weight="bold" hasTabularNumbers>{r.amount.toLocaleString()}원</Text>}
+                  description={<Text type="supporting" color="secondary" hasTabularNumbers>{r.date} · {r.memo||'—'}</Text>}/>
               ))}
-            </div>
+            </List>
+            <Text type="supporting" color="secondary">상여는 이달 급여에 합산되어 세금이 함께 계산돼요.</Text>
+          </LedgerCard>
+        )}
 
-            {/* 총액 */}
-            <div style={{padding:'16px 20px',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
-              <div>
-                <div style={{fontSize:11,color:'#6E6A63',marginBottom:5}}>이달 월급</div>
-                <div style={{fontSize:26,fontWeight:700,color:'var(--hk-accent)',fontFamily:'inherit',fontVariantNumeric:'tabular-nums'}}>
-                  {(p.totalPay||0).toLocaleString()}원
-                </div>
-              </div>
-              <div style={{fontSize:11,color:'#6E6A63',textAlign:'right',lineHeight:2}}>
-                시급 {(p.wage||10030).toLocaleString()}원/h<br/>
-                확정일 {p.confirmedAt?.slice(0,10)}
-              </div>
-            </div>
-          </div>
+        {/* 문의 */}
+        {p.inquiry && (
+          <LedgerCard title={p.inquiry.resolved ? '문의 해결 완료' : '문의 진행중'} right={<Text type="supporting" color="secondary">{p.inquiry.createdAt?.slice(0,10)}</Text>}>
+            <VStack gap={1}>
+              <Text type="supporting" color="secondary">내 문의</Text>
+              <Card variant="muted" padding={3}><Text>{p.inquiry.message}</Text></Card>
+            </VStack>
+            {p.inquiry.ownerReply ? (
+              <VStack gap={1}>
+                <Text type="supporting" color="secondary">사장님 답변 · {p.inquiry.repliedAt?.slice(0,10)}</Text>
+                <Card variant="muted" padding={3}><Text>{p.inquiry.ownerReply}</Text></Card>
+              </VStack>
+            ) : <Text type="supporting" color="secondary">사장님이 문의를 확인 중입니다...</Text>}
+          </LedgerCard>
+        )}
 
-          {/* 상여·보너스 내역 */}
-          {myBonuses.length > 0 && (
-            <div style={{background:'#FFFFFF',border:'1px solid rgba(107,79,160,0.3)',borderRadius:6,
-              overflow:'hidden',marginBottom:14}}>
-              <div style={{padding:'12px 18px',borderBottom:'1px solid #DCD7CE',fontSize:12,fontWeight:600,
-                color:'#6B4FA0',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
-                <span>이달 상여·보너스</span>
-                <span style={{fontFamily:'inherit',fontVariantNumeric:'tabular-nums'}}>{myBonusTotal.toLocaleString()}원</span>
-              </div>
-              <div style={{display:'flex',flexDirection:'column',gap:6,padding:'12px 18px'}}>
-                {myBonuses.map(r=>(
-                  <div key={r.id} style={{display:'flex',alignItems:'center',gap:10,
-                    background:'#F3F1EC',borderRadius:4,padding:'8px 12px',flexWrap:'wrap'}}>
-                    <span style={{fontSize:11,color:'#6E6A63',fontFamily:'inherit',fontVariantNumeric:'tabular-nums',minWidth:80}}>{r.date}</span>
-                    <span style={{fontSize:13,fontWeight:700,color:'#6B4FA0',fontFamily:'inherit',fontVariantNumeric:'tabular-nums'}}>
-                      {r.amount.toLocaleString()}원
-                    </span>
-                    <span style={{flex:1,fontSize:11,color:'#6E6A63'}}>{r.memo||'—'}</span>
-                  </div>
-                ))}
-              </div>
-              <div style={{padding:'0 18px 12px',fontSize:10,color:'#6E6A63'}}>
-                상여는 이달 급여에 합산되어 세금이 함께 계산돼요.
-              </div>
-            </div>
-          )}
+        {/* 확인 / 문의 */}
+        {!isPaid && !isChecked && !p.inquiry && (
+          <Grid columns={2} gap={2}>
+            <Button variant="primary" width="100%" label="확인했습니다" isDisabled={saving} onClick={checkPayroll}/>
+            <Button width="100%" label="문의하기" onClick={()=>setShowInquiryForm(v=>!v)}/>
+          </Grid>
+        )}
 
-          {/* 문의 스레드 */}
-          {p.inquiry && (
-            <div style={{background:'#FFFFFF',
-              border:`1px solid ${p.inquiry.resolved?'rgba(46,125,69,0.3)':'rgba(180,35,24,0.3)'}`,
-              borderRadius:6,overflow:'hidden',marginBottom:14}}>
-              <div style={{padding:'12px 18px',borderBottom:'1px solid #DCD7CE',fontSize:12,fontWeight:600,
-                color:p.inquiry.resolved?'#2E7D45':'#B42318',display:'flex',justifyContent:'space-between'}}>
-                <span>{p.inquiry.resolved ? '문의 해결 완료' : '문의 진행중'}</span>
-                <span style={{fontSize:10,color:'#6E6A63',fontWeight:400}}>{p.inquiry.createdAt?.slice(0,10)}</span>
-              </div>
-              <div style={{padding:'16px 18px',display:'flex',flexDirection:'column',gap:12}}>
-                {/* 내 문의 */}
-                <div style={{display:'flex',gap:10,alignItems:'flex-start'}}>
-                  <div style={{width:30,height:30,borderRadius:'50%',background:'rgba(94,101,133,0.25)',
-                    display:'flex',alignItems:'center',justifyContent:'center',fontSize:13,flexShrink:0}}></div>
-                  <div style={{flex:1}}>
-                    <div style={{fontSize:10,color:'#6E6A63',marginBottom:5}}>내 문의</div>
-                    <div style={{background:'#F3F1EC',border:'1px solid #DCD7CE',borderRadius:4,
-                      padding:'10px 14px',fontSize:12,color:'#1D1B18',lineHeight:1.7}}>
-                      {p.inquiry.message}
-                    </div>
-                  </div>
-                </div>
-                {/* 사장 답변 */}
-                {p.inquiry.ownerReply ? (
-                  <div style={{display:'flex',gap:10,alignItems:'flex-start',justifyContent:'flex-end'}}>
-                    <div style={{flex:1,maxWidth:'82%'}}>
-                      <div style={{fontSize:10,color:'#6E6A63',marginBottom:5,textAlign:'right'}}>
-                        사장님 답변 · {p.inquiry.repliedAt?.slice(0,10)}
-                      </div>
-                      <div style={{background:'rgba(var(--hk-accent-rgb),0.08)',border:'1px solid rgba(var(--hk-accent-rgb),0.2)',
-                        borderRadius:4,padding:'10px 14px',fontSize:12,color:'#1D1B18',lineHeight:1.7}}>
-                        {p.inquiry.ownerReply}
-                      </div>
-                    </div>
-                    <div style={{width:30,height:30,borderRadius:'50%',background:'rgba(var(--hk-accent-rgb),0.2)',
-                      display:'flex',alignItems:'center',justifyContent:'center',fontSize:13,flexShrink:0}}></div>
-                  </div>
-                ) : (
-                  <div style={{textAlign:'center',fontSize:11,color:'#6E6A63',padding:'8px 0'}}>
-                    사장님이 문의를 확인 중입니다...
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
+        {showInquiryForm && !p.inquiry && (
+          <LedgerCard title="급여 문의">
+            <Text type="supporting" color="secondary">근무시간이나 급여 내역에 다른 부분이 있으면 아래에 상세히 적어주세요. 사장님이 확인 후 답변드립니다.</Text>
+            <TextArea label="문의 내용" isLabelHidden rows={5} placeholder="예: 5월 3일(토) 근무시간이 8시간인데 7시간으로 입력되어 있습니다." value={inquiryText} onChange={v=>setInquiryText(v)}/>
+            <HStack gap={2}>
+              <Button variant="primary" label={saving?'전송 중...':'문의 전송'} isDisabled={saving} onClick={submitInquiry}/>
+              <Button label="취소" onClick={()=>{setShowInquiryForm(false);setInquiryText('')}}/>
+            </HStack>
+          </LedgerCard>
+        )}
+      </>}
 
-          {/* 확인 / 문의 버튼 영역 */}
-          {!isPaid && !isChecked && !p.inquiry && (
-            <div style={{display:'flex',gap:10,marginBottom:showInquiryForm?14:0}}>
-              <button onClick={checkPayroll} disabled={saving}
-                style={{flex:1,background:'#2E7D45',color:'#FFFFFF',border:'none',borderRadius:6,
-                  padding:'15px',fontSize:13,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
-                확인했습니다
-              </button>
-              <button onClick={()=>setShowInquiryForm(v=>!v)}
-                style={{flex:1,background:'transparent',border:'1px solid #B42318',color:'#B42318',
-                  borderRadius:6,padding:'15px',fontSize:13,fontWeight:600,
-                  cursor:'pointer',fontFamily:'inherit'}}>
-                문의하기
-              </button>
-            </div>
-          )}
-
-          {/* 문의 폼 */}
-          {showInquiryForm && !p.inquiry && (
-            <div style={{background:'#FFFFFF',border:'1px solid rgba(180,35,24,0.3)',borderRadius:6,
-              padding:'18px',display:'flex',flexDirection:'column',gap:12}}>
-              <div>
-                <div style={{fontSize:13,fontWeight:600,color:'#B42318',marginBottom:4}}>급여 문의</div>
-                <div style={{fontSize:11,color:'#6E6A63'}}>
-                  근무시간이나 급여 내역에 다른 부분이 있으면 아래에 상세히 적어주세요.
-                  사장님이 확인 후 답변드립니다.
-                </div>
-              </div>
-              <textarea value={inquiryText} onChange={e=>setInquiryText(e.target.value)}
-                placeholder="예: 5월 3일(토) 근무시간이 8시간인데 7시간으로 입력되어 있습니다."
-                rows={5}
-                style={{background:'#F3F1EC',border:'1px solid #DCD7CE',borderRadius:4,
-                  color:'#1D1B18',padding:'12px',fontSize:12,outline:'none',
-                  resize:'vertical',fontFamily:'inherit',lineHeight:1.7}}/>
-              <div style={{display:'flex',gap:8}}>
-                <button onClick={submitInquiry} disabled={saving}
-                  style={{background:'#B42318',color:'#fff',border:'none',borderRadius:4,
-                    padding:'10px 20px',fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
-                  {saving?'전송 중...':'문의 전송'}
-                </button>
-                <button onClick={()=>{setShowInquiryForm(false);setInquiryText('')}}
-                  style={{background:'transparent',border:'1px solid #DCD7CE',color:'#6E6A63',
-                    borderRadius:4,padding:'10px 16px',fontSize:12,cursor:'pointer',fontFamily:'inherit'}}>
-                  취소
-                </button>
-              </div>
-            </div>
-          )}
-        </>
-      )}
-      {/* 확정된 달의 임금명세서가 차곡차곡 쌓임 */}
-      <WageStatements uid={user?.uid} userData={userData}/>
-    </div>
+      {/* 확정된 달의 임금명세서 (출력 문서라 예전 모양 그대로) */}
+      <Legacy><WageStatements uid={user?.uid} userData={userData}/></Legacy>
+    </VStack>
+    </AstryxPage>
   )
 }
