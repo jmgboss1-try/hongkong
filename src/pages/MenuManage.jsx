@@ -1,4 +1,15 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { VStack, HStack } from '@astryxdesign/core/Layout'
+import { Text } from '@astryxdesign/core/Text'
+import { Card } from '@astryxdesign/core/Card'
+import { Badge } from '@astryxdesign/core/Badge'
+import { Banner } from '@astryxdesign/core/Banner'
+import { Button } from '@astryxdesign/core/Button'
+import { Selector } from '@astryxdesign/core/Selector'
+import { TabList, Tab } from '@astryxdesign/core/TabList'
+import { List, ListItem } from '@astryxdesign/core/List'
+import { EmptyState } from '@astryxdesign/core/EmptyState'
+import { AstryxPage, Legacy, PageHeader, LedgerCard } from '../astryx/AstryxPage'
 import { db } from '../firebase'
 import { doc, getDoc, setDoc, collection, query, orderBy, limit, onSnapshot, updateDoc, serverTimestamp } from 'firebase/firestore'
 import { MODES, DEFAULT_ITEMS, DEFAULT_SETTINGS, DAYS, won, catsOf, openState } from '../lib/menuData'
@@ -50,21 +61,19 @@ export default function MenuManage() {
     return () => window.removeEventListener('showorders', f)
   }, [])
   return (
-    <div style={{maxWidth:980}}>
-      <div style={{display:'flex', alignItems:'baseline', justifyContent:'space-between', gap:12, flexWrap:'wrap', borderBottom:`3px double ${T.ink}`, paddingBottom:8, marginBottom:14}}>
-        <h1 style={{fontSize:22, fontWeight:800, margin:0, fontFamily:'inherit'}}>메뉴 · 주문</h1>
-        <div style={{display:'flex', gap:16}}>
-          {[['orders','QR 주문'],['menu','메뉴 고치기'],['settings','배달 설정']].map(([k,l]) => (
-            <button key={k} type="button" onClick={()=>pick(k)}
-              style={{background:'none', border:'none', padding:'4px 0', cursor:'pointer', fontFamily:'inherit', fontSize:15,
-                fontWeight: tab===k ? 800 : 500, color: tab===k ? T.ink : T.sub, borderBottom:`2px solid ${tab===k ? T.red : 'transparent'}`}}>{l}</button>
-          ))}
-        </div>
-      </div>
+    <AstryxPage>
+    <VStack gap={4}>
+      <PageHeader title="메뉴 · 주문"/>
+      <TabList value={tab} onChange={k=>k && pick(k)}>
+        <Tab value="orders" label="QR 주문"/>
+        <Tab value="menu" label="메뉴 고치기"/>
+        <Tab value="settings" label="배달 설정"/>
+      </TabList>
       {tab === 'orders' && <Orders/>}
-      {/* 한 번 연 메뉴 화면은 주문 탭에 갔다 와도 그대로 (다시 불러오지 않고, 저장 안 한 고침도 남음) */}
-      {menuOpened && <div style={{display: tab === 'orders' ? 'none' : 'block'}}><MenuEditor tab={tab === 'orders' ? 'menu' : tab}/></div>}
-    </div>
+      {/* 한 번 연 메뉴 화면은 주문 탭에 갔다 와도 그대로 (다시 불러오지 않고, 저장 안 한 고침도 남음). 끌어서 순서 바꾸기가 있어 아직 예전 모양 */}
+      {menuOpened && <Legacy><div style={{display: tab === 'orders' ? 'none' : 'block'}}><MenuEditor tab={tab === 'orders' ? 'menu' : tab}/></div></Legacy>}
+    </VStack>
+    </AstryxPage>
   )
 }
 
@@ -107,30 +116,26 @@ function Orders() {
     } catch(e) { console.error(e); alert('바꾸지 못했어요. 다시 시도해 주세요.') }
   }
 
-  if (err) return <div style={{color:T.red, fontSize:14}}>{err}</div>
-  if (!orders) return <div style={{color:T.sub}}>주문을 불러오고 있어요...</div>
+  if (err) return <Banner status="error" title={err}/>
+  if (!orders) return <Text color="secondary">주문을 불러오고 있어요...</Text>
   const active = orders.filter(o => o.status === 'new' || o.status === 'accepted')
   const old = orders.filter(o => o.status === 'done' || o.status === 'canceled')
 
   return (
-    <div>
-      <div style={{display:'flex', alignItems:'center', gap:10, flexWrap:'wrap', fontSize:13, color:T.sub, marginBottom:10}}>
-        {!sound ? <Btn kind="primary" onClick={enableSound}>주문 소리 켜기</Btn> : <span style={{color:T.green, fontWeight:700}}>소리 켜짐</span>}
-        <Btn onClick={()=>setShowSnd(v=>!v)}>{showSnd ? '소리 설정 닫기' : '소리 설정'}</Btn>
-        <span>이 화면을 포스에 띄워 두면 손님이 QR로 주문할 때 바로 떠요. 접수하고 배달은 기사님을 불러 주세요.</span>
-      </div>
+    <VStack gap={3}>
+      <HStack gap={2} vAlign="center" wrap="wrap">
+        {!sound ? <Button variant="primary" label="주문 소리 켜기" onClick={enableSound}/> : <Badge variant="success" label="소리 켜짐"/>}
+        <Button label={showSnd ? '소리 설정 닫기' : '소리 설정'} onClick={()=>setShowSnd(v=>!v)}/>
+        <Text type="supporting" color="secondary">이 화면을 포스에 띄워 두면 손님이 QR로 주문할 때 바로 떠요. 접수하고 배달은 기사님을 불러 주세요.</Text>
+      </HStack>
       {showSnd && <SoundSettings snd={snd} setSnd={setSnd} ready={sound} onUnlock={enableSound}/>}
-      {!active.length && <div style={{padding:'24px 0', color:T.sub, borderTop:`1px solid ${T.rule}`}}>지금 들어온 주문이 없어요</div>}
+      {!active.length && <EmptyState title="지금 들어온 주문이 없어요" isCompact/>}
       {active.map(o => <OrderCard key={o.id} o={o} onStatus={setStatus}/>)}
-      {old.length > 0 && (
-        <div style={{marginTop:18}}>
-          <button type="button" onClick={()=>setShowOld(v=>!v)} style={{background:'none', border:'none', borderBottom:`1px solid ${T.blue}`, color:T.blue, padding:0, cursor:'pointer', fontFamily:'inherit', fontSize:13}}>
-            {showOld ? '지난 주문 접기' : `지난 주문 ${old.length}건 보기`}
-          </button>
-          {showOld && old.map(o => <OrderCard key={o.id} o={o} onStatus={setStatus}/>)}
-        </div>
-      )}
-    </div>
+      {old.length > 0 && <>
+        <HStack><Button variant="ghost" label={showOld ? '지난 주문 접기' : `지난 주문 ${old.length}건 보기`} onClick={()=>setShowOld(v=>!v)}/></HStack>
+        {showOld && old.map(o => <OrderCard key={o.id} o={o} onStatus={setStatus}/>)}
+      </>}
+    </VStack>
   )
 }
 
@@ -145,89 +150,88 @@ function SoundSettings({ snd, setSnd, ready, onUnlock }) {
     r.onload = () => setSnd(s => ({ ...s, files:{ ...s.files, [ev]: r.result }, sounds:{ ...s.sounds, [ev]:'custom' } }))
     r.readAsDataURL(file)
   }
-  const sel = { padding:'6px 8px', border:`1px solid ${T.rule}`, borderRadius:4, fontFamily:'inherit', fontSize:13, background:'#FFFFFF' }
   return (
-    <div style={{background:T.chip, borderRadius:6, padding:'12px 14px', marginBottom:12, fontSize:13}}>
-      <div style={{display:'flex', alignItems:'center', gap:10, flexWrap:'wrap'}}>
-        <b style={{minWidth:70}}>음량</b>
-        <input type="range" min="0" max="1" step="0.05" value={snd.volume} onChange={e=>set({ volume:+e.target.value })} aria-label="음량" style={{width:200}}/>
-        <span style={{...num, minWidth:40}}>{Math.round(snd.volume*100)}%</span>
-        <span style={{color:T.sub}}>그래도 작으면 포스 컴퓨터(스피커) 음량도 올려 주세요</span>
-      </div>
-      <div style={{borderTop:`1px solid ${T.rule}`, marginTop:10}}>
+    <LedgerCard title="소리 설정">
+      <HStack gap={3} vAlign="center" wrap="wrap">
+        <Text weight="bold">음량</Text>
+        <Legacy><input type="range" min="0" max="1" step="0.05" value={snd.volume} onChange={e=>set({ volume:+e.target.value })} aria-label="음량" style={{width:200}}/></Legacy>
+        <Text hasTabularNumbers>{Math.round(snd.volume*100)}%</Text>
+        <Text type="supporting" color="secondary">그래도 작으면 포스 컴퓨터(스피커) 음량도 올려 주세요</Text>
+      </HStack>
+      <List hasDividers edge="flush">
         {EVENTS.map(ev => (
-          <div key={ev.id} style={{display:'flex', alignItems:'center', gap:8, flexWrap:'wrap', padding:'7px 0', borderBottom:`1px solid ${T.soft}`}}>
-            <span style={{minWidth:210}}>{ev.label}</span>
-            <select value={snd.sounds[ev.id]} onChange={e=>set({ sounds:{ ...snd.sounds, [ev.id]: e.target.value } })} aria-label={`${ev.label} 소리`} style={sel}>
-              {Object.entries(PRESETS).filter(([k]) => k !== 'custom' || snd.files?.[ev.id]).map(([k,p]) => <option key={k} value={k}>{p.label}</option>)}
-            </select>
-            <Btn small onClick={()=>test(ev.id)}>들어보기</Btn>
-            <label style={{color:T.blue, cursor:'pointer', fontSize:12}}>
-              내 소리 파일 고르기
-              <input type="file" accept="audio/*" style={{display:'none'}} onChange={e=>{ pickFile(ev.id, e.target.files?.[0]); e.target.value='' }}/>
-            </label>
-          </div>
+          <ListItem key={ev.id} label={ev.label}
+            endContent={<HStack gap={2} vAlign="center" wrap="wrap">
+              <Selector label={`${ev.label} 소리`} isLabelHidden size="sm" value={snd.sounds[ev.id]} onChange={v=>v && set({ sounds:{ ...snd.sounds, [ev.id]: v } })}
+                options={Object.entries(PRESETS).filter(([k]) => k !== 'custom' || snd.files?.[ev.id]).map(([k,p]) => ({ value:k, label:p.label }))}/>
+              <Button size="sm" label="들어보기" onClick={()=>test(ev.id)}/>
+              <Legacy>
+                <label style={{cursor:'pointer', fontSize:12}}>
+                  내 소리 파일 고르기
+                  <input type="file" accept="audio/*" style={{display:'none'}} onChange={e=>{ pickFile(ev.id, e.target.files?.[0]); e.target.value='' }}/>
+                </label>
+              </Legacy>
+            </HStack>}/>
         ))}
-      </div>
-      <div style={{display:'flex', alignItems:'center', gap:8, flexWrap:'wrap', marginTop:10}}>
-        <span>접수 안 한 주문이</span>
-        <select value={snd.remindMin} onChange={e=>set({ remindMin:+e.target.value })} aria-label="경고까지 시간" style={sel}>
-          {[1,2,3,5,10].map(m => <option key={m} value={m}>{m}분</option>)}
-        </select>
-        <span>넘게 남아 있으면</span>
-        <select value={snd.remindEvery} onChange={e=>set({ remindEvery:+e.target.value })} aria-label="경고 간격" style={sel}>
-          {[15,30,60,120].map(s => <option key={s} value={s}>{s < 60 ? `${s}초` : `${s/60}분`}</option>)}
-        </select>
-        <span>마다 경고 소리</span>
-      </div>
-      <div style={{color:T.sub, fontSize:12, marginTop:8}}>소리 설정은 이 기기에만 저장돼요 (포스와 사장님 폰을 따로 정할 수 있어요). 화면을 새로 열면 '주문 소리 켜기'를 한 번 눌러 주세요.</div>
-    </div>
+      </List>
+      <HStack gap={2} vAlign="center" wrap="wrap">
+        <Text>접수 안 한 주문이</Text>
+        <Selector label="경고까지 시간" isLabelHidden size="sm" value={String(snd.remindMin)} onChange={v=>v && set({ remindMin:+v })} options={[1,2,3,5,10].map(m => ({ value:String(m), label:`${m}분` }))}/>
+        <Text>넘게 남아 있으면</Text>
+        <Selector label="경고 간격" isLabelHidden size="sm" value={String(snd.remindEvery)} onChange={v=>v && set({ remindEvery:+v })} options={[15,30,60,120].map(x => ({ value:String(x), label: x < 60 ? `${x}초` : `${x/60}분` }))}/>
+        <Text>마다 경고 소리</Text>
+      </HStack>
+      <Text type="supporting" color="secondary">소리 설정은 이 기기에만 저장돼요 (포스와 사장님 폰을 따로 정할 수 있어요). 화면을 새로 열면 '주문 소리 켜기'를 한 번 눌러 주세요.</Text>
+    </LedgerCard>
   )
 }
 
 function OrderCard({ o, onStatus }) {
   const at = toDate(o.createdAt)
-  const [label, color] = STATUS[o.status] || STATUS.new
+  const [label] = STATUS[o.status] || STATUS.new
+  const badge = { new:'error', accepted:'info', done:'success', canceled:'neutral' }[o.status] || 'error'
   const phone = String(o.phone||'')
   const phoneFmt = phone.length === 11 ? `${phone.slice(0,3)}-${phone.slice(3,7)}-${phone.slice(7)}` : phone
   return (
-    <div style={{borderLeft:`5px solid ${color}`, background: o.status==='new' ? 'rgba(var(--hk-accent-rgb),0.051)' : '#FFFFFF', border:`1px solid ${T.rule}`, borderLeftWidth:5, borderLeftColor:color,
-      borderRadius:'0 6px 6px 0', padding:'12px 14px', marginTop:10, opacity: o.status==='canceled' ? 0.6 : 1}}>
-      <div style={{display:'flex', alignItems:'baseline', gap:10, flexWrap:'wrap'}}>
-        <b style={{fontSize:20, color:T.red, ...num}}>{o.code}</b>
-        <b style={{fontSize:15}}>{MODES[o.mode]}</b>
-        <span style={{fontSize:13, color, fontWeight:700}}>{label}</span>
-        <span style={{fontSize:13, color:T.sub, ...num}}>{at ? `${at.getMonth()+1}/${at.getDate()} ${hm(at)}` : ''}</span>
-        {o.eta && o.status !== 'new' && <span style={{fontSize:13, color:T.blue, fontWeight:700}}>손님께 {o.eta}분 안내함</span>}
-        {o.mode === 'pickup' && o.pickupIn && <span style={{fontSize:13, color:T.amber, fontWeight:700}}>{o.pickupIn}분 뒤 방문{at ? ` (${hm(new Date(at.getTime() + o.pickupIn*60000))})` : ''}</span>}
-        <span style={{flex:1}}/>
-        <b style={{fontSize:17, ...num}}>{won(o.total)}</b>
-        <span style={{fontSize:12, color:T.sub}}>{o.pay === 'cash' ? '현금' : '카드'} · 만나서 결제</span>
-      </div>
-      <div style={{marginTop:8, fontSize:14, lineHeight:1.7}}>
-        {(o.items||[]).map((l,i) => (
-          <div key={i} style={{display:'flex', gap:8}}>
-            <span style={{flex:1}}><b>{l.name}</b>{l.options?.length ? <span style={{color:T.sub}}> ({l.options.map(x=>x.name).join(', ')})</span> : ''}</span>
-            <span style={num}>× {l.qty}</span><span style={{minWidth:76, textAlign:'right', ...num}}>{won(l.total)}</span>
-          </div>
-        ))}
-        {o.deliveryFee > 0 && <div style={{display:'flex', color:T.sub}}><span style={{flex:1}}>배달비</span><span style={num}>{won(o.deliveryFee)}</span></div>}
-      </div>
-      <div style={{marginTop:8, fontSize:14, display:'flex', flexDirection:'column', gap:2}}>
-        <div><span style={{color:T.sub}}>연락처 </span><a href={`tel:${phone}`} style={{color:T.ink, fontWeight:700, ...num}}>{phoneFmt}</a></div>
-        {o.address && <div><span style={{color:T.sub}}>주소 </span><b>{o.address}</b></div>}
-        {o.request && <div><span style={{color:T.sub}}>요청 </span>{o.request}</div>}
-      </div>
-      <div style={{display:'flex', gap:8, marginTop:10, flexWrap:'wrap'}}>
-        {o.status === 'new' && <>
-          <span style={{fontSize:13, color:T.sub, alignSelf:'center'}}>접수 ({o.mode === 'delivery' ? '도착' : '준비'}까지)</span>
-          {(o.mode === 'delivery' ? [30,40,50,60] : [10,15,20,30]).map(m => <Btn key={m} kind="primary" onClick={()=>onStatus(o,'accepted',m)}>{m}분</Btn>)}
-        </>}
-        {(o.status === 'new' || o.status === 'accepted') && <Btn kind="ok" onClick={()=>onStatus(o,'done')}>{o.mode === 'delivery' ? '배달 보냄 (완료)' : '전달함 (완료)'}</Btn>}
-        {(o.status === 'new' || o.status === 'accepted') && <Btn kind="danger" onClick={()=>onStatus(o,'canceled')}>취소</Btn>}
-        {(o.status === 'done' || o.status === 'canceled') && <Btn small onClick={()=>onStatus(o,'accepted')}>다시 진행 중으로</Btn>}
-      </div>
-    </div>
+    <Card variant={o.status === 'new' ? 'muted' : 'default'} padding={4}>
+      <VStack gap={3}>
+        <HStack gap={2} vAlign="center" hAlign="between" wrap="wrap">
+          <HStack gap={2} vAlign="center" wrap="wrap">
+            <Text type="large" weight="bold" color="accent" hasTabularNumbers>{o.code}</Text>
+            <Text weight="bold">{MODES[o.mode]}</Text>
+            <Badge variant={badge} label={label}/>
+            <Text type="supporting" color="secondary" hasTabularNumbers>{at ? `${at.getMonth()+1}/${at.getDate()} ${hm(at)}` : ''}</Text>
+            {o.eta && o.status !== 'new' && <Badge variant="info" label={`손님께 ${o.eta}분 안내함`}/>}
+            {o.mode === 'pickup' && o.pickupIn && <Badge variant="warning" label={`${o.pickupIn}분 뒤 방문${at ? ` (${hm(new Date(at.getTime() + o.pickupIn*60000))})` : ''}`}/>}
+          </HStack>
+          <HStack gap={2} vAlign="center">
+            <Text type="large" weight="bold" hasTabularNumbers>{won(o.total)}</Text>
+            <Text type="supporting" color="secondary">{o.pay === 'cash' ? '현금' : '카드'} · 만나서 결제</Text>
+          </HStack>
+        </HStack>
+        <List hasDividers edge="flush">
+          {(o.items||[]).map((l,i) => (
+            <ListItem key={i} label={<Text weight="bold">{l.name}</Text>} description={l.options?.length ? l.options.map(x=>x.name).join(', ') : undefined}
+              endContent={<HStack gap={3}><Text hasTabularNumbers>× {l.qty}</Text><Text hasTabularNumbers>{won(l.total)}</Text></HStack>}/>
+          ))}
+          {o.deliveryFee > 0 && <ListItem label={<Text color="secondary">배달비</Text>} endContent={<Text hasTabularNumbers>{won(o.deliveryFee)}</Text>}/>}
+        </List>
+        <VStack gap={1}>
+          <HStack gap={2} vAlign="center"><Text color="secondary">연락처</Text><Button size="sm" variant="ghost" label={phoneFmt} onClick={()=>{ window.location.href = `tel:${phone}` }}/></HStack>
+          {o.address && <Text><Text color="secondary">주소 </Text><Text weight="bold">{o.address}</Text></Text>}
+          {o.request && <Text><Text color="secondary">요청 </Text>{o.request}</Text>}
+        </VStack>
+        <HStack gap={2} vAlign="center" wrap="wrap">
+          {o.status === 'new' && <>
+            <Text type="supporting" color="secondary">접수 ({o.mode === 'delivery' ? '도착' : '준비'}까지)</Text>
+            {(o.mode === 'delivery' ? [30,40,50,60] : [10,15,20,30]).map(m => <Button key={m} variant="primary" label={`${m}분`} onClick={()=>onStatus(o,'accepted',m)}/>)}
+          </>}
+          {(o.status === 'new' || o.status === 'accepted') && <Button label={o.mode === 'delivery' ? '배달 보냄 (완료)' : '전달함 (완료)'} onClick={()=>onStatus(o,'done')}/>}
+          {(o.status === 'new' || o.status === 'accepted') && <Button variant="destructive" label="취소" onClick={()=>onStatus(o,'canceled')}/>}
+          {(o.status === 'done' || o.status === 'canceled') && <Button size="sm" label="다시 진행 중으로" onClick={()=>onStatus(o,'accepted')}/>}
+        </HStack>
+      </VStack>
+    </Card>
   )
 }
 
