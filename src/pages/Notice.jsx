@@ -3,6 +3,17 @@ import { db } from '../firebase'
 import { collection, addDoc, getDocs, doc, updateDoc, deleteDoc, orderBy, query } from 'firebase/firestore'
 import { useAuth, GradeBadge } from '../AuthContext'
 import { PhotoPicker, PhotoGrid } from '../components/PhotoAttach'
+import { VStack, HStack } from '@astryxdesign/core/Layout'
+import { Text } from '@astryxdesign/core/Text'
+import { Card } from '@astryxdesign/core/Card'
+import { Badge } from '@astryxdesign/core/Badge'
+import { Button } from '@astryxdesign/core/Button'
+import { TextArea } from '@astryxdesign/core/TextArea'
+import { DateInput } from '@astryxdesign/core/DateInput'
+import { CheckboxInput } from '@astryxdesign/core/CheckboxInput'
+import { TabList, Tab } from '@astryxdesign/core/TabList'
+import { EmptyState } from '@astryxdesign/core/EmptyState'
+import { AstryxPage, Legacy, PageHeader, LedgerCard } from '../astryx/AstryxPage'
 
 const pad = n => String(n).padStart(2,'0')
 const todayStr = () => { const n=new Date(); return `${n.getFullYear()}-${pad(n.getMonth()+1)}-${pad(n.getDate())}` }
@@ -146,22 +157,14 @@ export default function Notice() {
   }
   // 수정 중일 때 본문 자리에 보여줄 입력칸
   const textEditor = (type, id) => (
-    <div style={{marginBottom:10}}>
-      <textarea value={editForm.content} onChange={e=>setEditForm(f=>({...f, content:e.target.value}))} rows={4} autoFocus
-        style={{width:'100%',boxSizing:'border-box',background:'#F3F1EC',border:'1px solid #CBC5BA',borderRadius:4,
-          color:'#1D1B18',padding:'10px 12px',fontSize:13,outline:'none',resize:'vertical',fontFamily:'inherit',marginBottom:8,lineHeight:1.7}}/>
-      <PhotoPicker images={editForm.images} onChange={v=>setEditForm(f=>({...f, images:v}))}/>
-      <div style={{display:'flex',gap:8}}>
-        <button onClick={()=>saveText(type, id)} disabled={editSaving}
-          style={{background:'var(--hk-accent)',color:'#FFFFFF',border:'none',borderRadius:4,padding:'6px 16px',fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
-          {editSaving ? '저장 중...' : '수정 저장'}
-        </button>
-        <button onClick={()=>setEditTextId(null)}
-          style={{background:'transparent',border:'1px solid #DCD7CE',color:'#6E6A63',borderRadius:4,padding:'6px 14px',fontSize:12,cursor:'pointer',fontFamily:'inherit'}}>
-          취소
-        </button>
-      </div>
-    </div>
+    <VStack gap={2}>
+      <TextArea label="내용" isLabelHidden rows={4} value={editForm.content} onChange={v=>setEditForm(f=>({...f, content:v}))}/>
+      <Legacy><PhotoPicker images={editForm.images} onChange={v=>setEditForm(f=>({...f, images:v}))}/></Legacy>
+      <HStack gap={2}>
+        <Button variant="primary" label={editSaving ? '저장 중...' : '수정 저장'} isDisabled={editSaving} onClick={()=>saveText(type, id)}/>
+        <Button label="취소" onClick={()=>setEditTextId(null)}/>
+      </HStack>
+    </VStack>
   )
 
   function startEditAlert(type, item) {
@@ -198,271 +201,91 @@ export default function Notice() {
     return `${Math.floor(diff/86400)}일 전`
   }
 
-  const alertToggleBtn = (label, on, setOn) => (
-    <button onClick={()=>setOn(v=>!v)}
-      style={{background: on ? 'rgba(107,79,160,0.15)' : '#F3F1EC',
-        border: on ? '1px solid rgba(107,79,160,0.4)' : '1px solid #DCD7CE',
-        color: on ? '#6B4FA0' : '#6E6A63', borderRadius:4,
-        padding:'7px 12px',fontSize:11,fontWeight:600,cursor:'pointer',fontFamily:'inherit'}}>
-      {on ? '' : ''}{label}
-    </button>
+  // 작성 칸 (공지·메모 같이 씀)
+  const composer = ({ title, placeholder, text, setText, images, setImages, alertOn, setAlertOn, start, setStart, end, setEnd, submit, submitLabel }) => (
+    <LedgerCard title={title}>
+      <TextArea label="내용" isLabelHidden rows={3} placeholder={placeholder} value={text} onChange={v=>setText(v)}/>
+      <Legacy><PhotoPicker images={images} onChange={setImages}/></Legacy>
+      <HStack gap={2} vAlign="end" wrap="wrap">
+        <CheckboxInput label="체크리스트 상단에도 노출" value={alertOn} onChange={v=>setAlertOn(v)}/>
+        {alertOn && <>
+          <DateInput label="노출 시작" size="sm" value={start} onChange={v=>v && setStart(v)}/>
+          <DateInput label="노출 끝" size="sm" value={end} onChange={v=>v && setEnd(v)}/>
+        </>}
+      </HStack>
+      <HStack><Button variant="primary" label={submitLabel} onClick={submit}/></HStack>
+    </LedgerCard>
   )
-
-  const dateInputStyle = {
-    background:'#F3F1EC',border:'1px solid #DCD7CE',borderRadius:4,color:'#1D1B18',
-    padding:'6px 10px',fontSize:11,outline:'none',fontFamily:'inherit'
+  // 글 하나 (공지·메모 같이 씀)
+  const post = (type, it, { canManage, isNew, author }) => {
+    const key = type + '_' + it.id
+    return (
+      <Card key={it.id} padding={4}>
+        <VStack gap={2}>
+          <HStack gap={2} vAlign="center" hAlign="between" wrap="wrap">
+            <HStack gap={2} vAlign="center" wrap="wrap">
+              {author}
+              {isNew && <Badge variant="error" label="NEW"/>}
+              {it.checklistAlert && <Badge variant="purple" label={`${it.alertStart}~${it.alertEnd}`}/>}
+            </HStack>
+            <HStack gap={1} vAlign="center">
+              <Text type="supporting" color="secondary">{timeAgo(it.createdAt)}{it.editedAt && ' · 수정됨'}</Text>
+              {canManage && editTextId !== key && <Button size="sm" variant="ghost" label="수정" onClick={()=>startEditText(type, it)}/>}
+              {canManage && <Button size="sm" variant="ghost" label="삭제" onClick={()=>type==='notice' ? deleteNotice(it.id) : deleteMemo(it.id)}/>}
+            </HStack>
+          </HStack>
+          {editTextId === key ? textEditor(type, it.id) : <>
+            <VStack gap={0}>{(it.content || '').split('\n').map((l, i) => <Text key={i} display="block">{l || '\u00a0'}</Text>)}</VStack>
+            {it.images?.length > 0 && <Legacy><PhotoGrid images={it.images} label={type==='notice' ? '공지 사진' : '메모 사진'}/></Legacy>}
+          </>}
+          {canManage && (editAlertId === key ? (
+            <Card variant="muted" padding={3}>
+              <HStack gap={2} vAlign="end" wrap="wrap">
+                <DateInput label="노출 시작" size="sm" value={alertForm.start} onChange={v=>v && setAlertForm(f=>({...f,start:v}))}/>
+                <DateInput label="노출 끝" size="sm" value={alertForm.end} onChange={v=>v && setAlertForm(f=>({...f,end:v}))}/>
+                <Button size="sm" variant="primary" label="저장" onClick={()=>saveAlert(type, it.id)}/>
+                <Button size="sm" label="취소" onClick={()=>setEditAlertId(null)}/>
+              </HStack>
+            </Card>
+          ) : (
+            <HStack><Button size="sm" variant="ghost" label={it.checklistAlert ? '체크리스트 알림 해제' : '+ 체크리스트 알림 설정'}
+              onClick={()=>it.checklistAlert ? removeAlert(type, it.id) : startEditAlert(type, it)}/></HStack>
+          ))}
+        </VStack>
+      </Card>
+    )
   }
 
   return (
-    <div>
-      <div style={{display:'flex',alignItems:'flex-end',justifyContent:'space-between',marginBottom:22}}>
-        <div>
-          <div style={{fontSize:20,fontWeight:700}}>공지 · 메모</div>
-          <div style={{fontSize:12,color:'#6E6A63',marginTop:2}}>공지사항 및 직원 메모</div>
-        </div>
-      </div>
+    <AstryxPage>
+    <VStack gap={4}>
+      <PageHeader title="공지 · 메모" sub="공지사항 및 직원 메모"/>
+      <TabList value={activeTab} onChange={v=>{ if (!v) return; setActiveTab(v); markRead(v) }}>
+        <Tab value="notice" label={newNoticeCount > 0 ? `공지사항 (새 글 ${newNoticeCount})` : '공지사항'}/>
+        <Tab value="memo" label={newMemoCount > 0 ? `직원 메모 (새 글 ${newMemoCount})` : '직원 메모'}/>
+      </TabList>
 
-      {/* 탭 */}
-      <div style={{display:'flex',gap:8,marginBottom:18}}>
-        {[
-          {key:'notice', label:'공지사항', count:newNoticeCount},
-          {key:'memo', label:'직원 메모', count:newMemoCount},
-        ].map(t=>(
-          <button key={t.key} onClick={()=>{setActiveTab(t.key);markRead(t.key)}}
-            style={{padding:'9px 18px',borderRadius:4,border:'none',fontSize:13,fontWeight:600,cursor:'pointer',fontFamily:'inherit',
-              position:'relative',
-              background:activeTab===t.key?'var(--hk-accent)':'#F3F1EC',
-              color:activeTab===t.key?'#FFFFFF':'#6E6A63'}}>
-            {t.label}
-            {t.count>0 && (
-              <span style={{position:'absolute',top:-6,right:-6,background:'#B42318',color:'#fff',
-                borderRadius:999,fontSize:10,fontWeight:700,padding:'2px 6px',minWidth:18,textAlign:'center'}}>
-                {t.count}
-              </span>
-            )}
-          </button>
-        ))}
-      </div>
+      {activeTab==='notice' && <>
+        {isOwner && composer({ title:'공지 작성', placeholder:'공지사항을 입력하세요...', text:newNotice, setText:setNewNotice, images:newNoticeImages, setImages:setNewNoticeImages,
+          alertOn:noticeAlertOn, setAlertOn:setNoticeAlertOn, start:noticeAlertStart, setStart:setNoticeAlertStart, end:noticeAlertEnd, setEnd:setNoticeAlertEnd, submit:addNotice, submitLabel:'공지 등록' })}
+        {loading ? <Text color="secondary">불러오는 중...</Text> : notices.length===0 ? <EmptyState title="등록된 공지가 없습니다" isCompact/> : (
+          <VStack gap={3}>
+            {notices.map(n => post('notice', n, { canManage:isOwner, isNew:n.createdAt>lastRead, author:<Text weight="bold" color="accent">사장</Text> }))}
+          </VStack>
+        )}
+      </>}
 
-      {/* 공지사항 탭 */}
-      {activeTab==='notice' && (
-        <div>
-          {/* 사장만 작성 가능 */}
-          {isOwner && (
-            <div style={{background:'#FFFFFF',border:'1px solid var(--hk-accent)',borderRadius:6,padding:'18px',marginBottom:18}}>
-              <div style={{fontSize:13,fontWeight:600,color:'var(--hk-accent)',marginBottom:12}}>공지 작성</div>
-              <textarea value={newNotice} onChange={e=>setNewNotice(e.target.value)}
-                placeholder="공지사항을 입력하세요..."
-                rows={3}
-                style={{width:'100%',background:'#F3F1EC',border:'1px solid #DCD7CE',borderRadius:4,
-                  color:'#1D1B18',padding:'10px 12px',fontSize:12,outline:'none',resize:'vertical',
-                  fontFamily:'inherit',marginBottom:10}}/>
-              <PhotoPicker images={newNoticeImages} onChange={setNewNoticeImages}/>
-              <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap',marginBottom:10}}>
-                {alertToggleBtn('체크리스트 상단에도 노출', noticeAlertOn, setNoticeAlertOn)}
-                {noticeAlertOn && (
-                  <>
-                    <span style={{fontSize:10,color:'#6E6A63'}}>노출기간</span>
-                    <input type="date" value={noticeAlertStart} onChange={e=>setNoticeAlertStart(e.target.value)} style={dateInputStyle}/>
-                    <span style={{fontSize:10,color:'#6E6A63'}}>~</span>
-                    <input type="date" value={noticeAlertEnd} onChange={e=>setNoticeAlertEnd(e.target.value)} style={dateInputStyle}/>
-                  </>
-                )}
-              </div>
-              <button onClick={addNotice}
-                style={{background:'var(--hk-accent)',color:'#FFFFFF',border:'none',borderRadius:4,
-                  padding:'8px 20px',fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
-                공지 등록
-              </button>
-            </div>
-          )}
-
-          {loading ? <div style={{textAlign:'center',color:'#6E6A63',padding:40}}>로딩 중...</div> : (
-            <div style={{display:'flex',flexDirection:'column',gap:12}}>
-              {notices.length===0 && (
-                <div style={{textAlign:'center',color:'#6E6A63',padding:40}}>등록된 공지가 없습니다</div>
-              )}
-              {notices.map(n=>{
-                const editing = editAlertId === 'notice_'+n.id
-                return (
-                <div key={n.id} style={{background:'#FFFFFF',border:'1px solid #DCD7CE',borderRadius:6,padding:'18px',
-                  borderLeft: n.createdAt>lastRead?'4px solid var(--hk-accent)':'4px solid #DCD7CE'}}>
-                  <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:10}}>
-                    <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}>
-                      <span style={{fontSize:11,fontWeight:700,color:'var(--hk-accent)'}}>사장</span>
-                      {n.createdAt>lastRead && (
-                        <span style={{background:'#B42318',color:'#fff',fontSize:9,fontWeight:700,
-                          padding:'2px 6px',borderRadius:999}}>NEW</span>
-                      )}
-                      {n.checklistAlert && (
-                        <span style={{background:'rgba(107,79,160,0.15)',color:'#6B4FA0',fontSize:9,fontWeight:700,
-                          padding:'2px 6px',borderRadius:999}}>
-                          {n.alertStart}~{n.alertEnd}
-                        </span>
-                      )}
-                    </div>
-                    <div style={{display:'flex',alignItems:'center',gap:8}}>
-                      <span style={{fontSize:10,color:'#6E6A63'}}>{timeAgo(n.createdAt)}{n.editedAt && ' · 수정됨'}</span>
-                      {isOwner && editTextId!=='notice_'+n.id && (
-                        <button onClick={()=>startEditText('notice', n)}
-                          style={{background:'transparent',border:'none',color:'#2B5C9E',cursor:'pointer',fontSize:12,fontFamily:'inherit'}}>
-                            수정
-                          </button>
-                      )}
-                      {isOwner && (
-                        <button onClick={()=>deleteNotice(n.id)}
-                          style={{background:'transparent',border:'none',color:'#B42318',cursor:'pointer',fontSize:12}}>
-                            삭제
-                          </button>
-                      )}
-                    </div>
-                  </div>
-                  {editTextId==='notice_'+n.id ? textEditor('notice', n.id) : <>
-                    <div style={{fontSize:13,color:'#1D1B18',lineHeight:1.8,whiteSpace:'pre-wrap',marginBottom:isOwner?10:0}}>{n.content}</div>
-                    <PhotoGrid images={n.images} label="공지 사진"/>
-                  </>}
-
-                  {isOwner && (
-                    editing ? (
-                      <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap',
-                        background:'rgba(107,79,160,0.06)',borderRadius:4,padding:'10px 12px'}}>
-                        <span style={{fontSize:10,color:'#6B4FA0',fontWeight:600}}>노출기간</span>
-                        <input type="date" value={alertForm.start} onChange={e=>setAlertForm(f=>({...f,start:e.target.value}))} style={dateInputStyle}/>
-                        <span style={{fontSize:10,color:'#6E6A63'}}>~</span>
-                        <input type="date" value={alertForm.end} onChange={e=>setAlertForm(f=>({...f,end:e.target.value}))} style={dateInputStyle}/>
-                        <button onClick={()=>saveAlert('notice', n.id)}
-                          style={{background:'#6B4FA0',color:'#FFFFFF',border:'none',borderRadius:6,padding:'5px 12px',fontSize:11,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
-                          저장
-                        </button>
-                        <button onClick={()=>setEditAlertId(null)}
-                          style={{background:'transparent',border:'1px solid #DCD7CE',color:'#6E6A63',borderRadius:6,padding:'5px 12px',fontSize:11,cursor:'pointer',fontFamily:'inherit'}}>
-                          취소
-                        </button>
-                      </div>
-                    ) : (
-                      <button onClick={()=>n.checklistAlert ? removeAlert('notice', n.id) : startEditAlert('notice', n)}
-                        style={{background:'transparent',border:'1px solid #DCD7CE',color: n.checklistAlert?'#B42318':'#6E6A63',
-                          borderRadius:6,padding:'5px 12px',fontSize:10,cursor:'pointer',fontFamily:'inherit'}}>
-                        {n.checklistAlert ? '체크리스트 알림 해제' : '+ 체크리스트 알림 설정'}
-                      </button>
-                    )
-                  )}
-                </div>
-              )})}
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* 직원 메모 탭 */}
-      {activeTab==='memo' && (
-        <div>
-          {/* 메모 작성 */}
-          <div style={{background:'#FFFFFF',border:'1px solid #DCD7CE',borderRadius:6,padding:'18px',marginBottom:18}}>
-            <div style={{fontSize:13,fontWeight:600,marginBottom:12}}>메모 작성</div>
-            <textarea value={newMemo} onChange={e=>setNewMemo(e.target.value)}
-              placeholder="인수인계, 대타 요청, 전달사항 등을 입력하세요..."
-              rows={3}
-              style={{width:'100%',background:'#F3F1EC',border:'1px solid #DCD7CE',borderRadius:4,
-                color:'#1D1B18',padding:'10px 12px',fontSize:12,outline:'none',resize:'vertical',
-                fontFamily:'inherit',marginBottom:10}}/>
-            <PhotoPicker images={newMemoImages} onChange={setNewMemoImages}/>
-            <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap',marginBottom:10}}>
-              {alertToggleBtn('체크리스트 상단에도 노출', memoAlertOn, setMemoAlertOn)}
-              {memoAlertOn && (
-                <>
-                  <span style={{fontSize:10,color:'#6E6A63'}}>노출기간</span>
-                  <input type="date" value={memoAlertStart} onChange={e=>setMemoAlertStart(e.target.value)} style={dateInputStyle}/>
-                  <span style={{fontSize:10,color:'#6E6A63'}}>~</span>
-                  <input type="date" value={memoAlertEnd} onChange={e=>setMemoAlertEnd(e.target.value)} style={dateInputStyle}/>
-                </>
-              )}
-            </div>
-            <button onClick={addMemo}
-              style={{background:'var(--hk-accent)',color:'#FFFFFF',border:'none',borderRadius:4,
-                padding:'8px 20px',fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
-              메모 등록
-            </button>
-          </div>
-
-          {loading ? <div style={{textAlign:'center',color:'#6E6A63',padding:40}}>로딩 중...</div> : (
-            <div style={{display:'flex',flexDirection:'column',gap:12}}>
-              {memos.length===0 && (
-                <div style={{textAlign:'center',color:'#6E6A63',padding:40}}>등록된 메모가 없습니다</div>
-              )}
-              {memos.map(m=>{
-                const canManage = isOwner || m.authorUid===user.uid
-                const editing = editAlertId === 'memo_'+m.id
-                return (
-                <div key={m.id} style={{background:'#FFFFFF',border:'1px solid #DCD7CE',borderRadius:6,padding:'18px',
-                  borderLeft: m.createdAt>lastReadMemo?'4px solid #2B5C9E':'4px solid #DCD7CE'}}>
-                  <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:10}}>
-                    <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}>
-                      <span style={{fontSize:12,fontWeight:700,color:'#1D1B18'}}>{m.authorName}</span>
-                      <GradeBadge joinDate={m.joinDate} size={10}/>
-                      {m.createdAt>lastReadMemo && (
-                        <span style={{background:'#2B5C9E',color:'#FFFFFF',fontSize:9,fontWeight:700,
-                          padding:'2px 6px',borderRadius:999}}>NEW</span>
-                      )}
-                      {m.checklistAlert && (
-                        <span style={{background:'rgba(107,79,160,0.15)',color:'#6B4FA0',fontSize:9,fontWeight:700,
-                          padding:'2px 6px',borderRadius:999}}>
-                          {m.alertStart}~{m.alertEnd}
-                        </span>
-                      )}
-                    </div>
-                    <div style={{display:'flex',alignItems:'center',gap:8}}>
-                      <span style={{fontSize:10,color:'#6E6A63'}}>{timeAgo(m.createdAt)}{m.editedAt && ' · 수정됨'}</span>
-                      {canManage && editTextId!=='memo_'+m.id && (
-                        <button onClick={()=>startEditText('memo', m)}
-                          style={{background:'transparent',border:'none',color:'#2B5C9E',cursor:'pointer',fontSize:12,fontFamily:'inherit'}}>
-                            수정
-                          </button>
-                      )}
-                      {canManage && (
-                        <button onClick={()=>deleteMemo(m.id)}
-                          style={{background:'transparent',border:'none',color:'#B42318',cursor:'pointer',fontSize:12}}>
-                            삭제
-                          </button>
-                      )}
-                    </div>
-                  </div>
-                  {editTextId==='memo_'+m.id ? textEditor('memo', m.id) : <>
-                    <div style={{fontSize:13,color:'#1D1B18',lineHeight:1.8,whiteSpace:'pre-wrap',marginBottom:canManage?10:0}}>{m.content}</div>
-                    <PhotoGrid images={m.images} label="메모 사진"/>
-                  </>}
-
-                  {canManage && (
-                    editing ? (
-                      <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap',
-                        background:'rgba(107,79,160,0.06)',borderRadius:4,padding:'10px 12px'}}>
-                        <span style={{fontSize:10,color:'#6B4FA0',fontWeight:600}}>노출기간</span>
-                        <input type="date" value={alertForm.start} onChange={e=>setAlertForm(f=>({...f,start:e.target.value}))} style={dateInputStyle}/>
-                        <span style={{fontSize:10,color:'#6E6A63'}}>~</span>
-                        <input type="date" value={alertForm.end} onChange={e=>setAlertForm(f=>({...f,end:e.target.value}))} style={dateInputStyle}/>
-                        <button onClick={()=>saveAlert('memo', m.id)}
-                          style={{background:'#6B4FA0',color:'#FFFFFF',border:'none',borderRadius:6,padding:'5px 12px',fontSize:11,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
-                          저장
-                        </button>
-                        <button onClick={()=>setEditAlertId(null)}
-                          style={{background:'transparent',border:'1px solid #DCD7CE',color:'#6E6A63',borderRadius:6,padding:'5px 12px',fontSize:11,cursor:'pointer',fontFamily:'inherit'}}>
-                          취소
-                        </button>
-                      </div>
-                    ) : (
-                      <button onClick={()=>m.checklistAlert ? removeAlert('memo', m.id) : startEditAlert('memo', m)}
-                        style={{background:'transparent',border:'1px solid #DCD7CE',color: m.checklistAlert?'#B42318':'#6E6A63',
-                          borderRadius:6,padding:'5px 12px',fontSize:10,cursor:'pointer',fontFamily:'inherit'}}>
-                        {m.checklistAlert ? '체크리스트 알림 해제' : '+ 체크리스트 알림 설정'}
-                      </button>
-                    )
-                  )}
-                </div>
-              )})}
-            </div>
-          )}
-        </div>
-      )}
-    </div>
+      {activeTab==='memo' && <>
+        {composer({ title:'메모 작성', placeholder:'인수인계, 대타 요청, 전달사항 등을 입력하세요...', text:newMemo, setText:setNewMemo, images:newMemoImages, setImages:setNewMemoImages,
+          alertOn:memoAlertOn, setAlertOn:setMemoAlertOn, start:memoAlertStart, setStart:setMemoAlertStart, end:memoAlertEnd, setEnd:setMemoAlertEnd, submit:addMemo, submitLabel:'메모 등록' })}
+        {loading ? <Text color="secondary">불러오는 중...</Text> : memos.length===0 ? <EmptyState title="등록된 메모가 없습니다" isCompact/> : (
+          <VStack gap={3}>
+            {memos.map(m => post('memo', m, { canManage:isOwner || m.authorUid===user.uid, isNew:m.createdAt>lastReadMemo,
+              author:<><Text weight="bold">{m.authorName}</Text><Legacy><GradeBadge joinDate={m.joinDate} size={10}/></Legacy></> }))}
+          </VStack>
+        )}
+      </>}
+    </VStack>
+    </AstryxPage>
   )
 }
