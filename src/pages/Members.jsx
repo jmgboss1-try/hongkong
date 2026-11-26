@@ -6,6 +6,11 @@ import { Heading } from '@astryxdesign/core/Text'
 import { Grid } from '@astryxdesign/core/Grid'
 import { EmptyState } from '@astryxdesign/core/EmptyState'
 import { Button } from '@astryxdesign/core/Button'
+import { Badge } from '@astryxdesign/core/Badge'
+import { TextInput } from '@astryxdesign/core/TextInput'
+import { DateInput } from '@astryxdesign/core/DateInput'
+import { Selector } from '@astryxdesign/core/Selector'
+import { SegmentedControl, SegmentedControlItem } from '@astryxdesign/core/SegmentedControl'
 import { AstryxPage, Legacy, PageHeader } from '../astryx/AstryxPage'
 import CountUp from '../components/CountUp'
 import { avgHoursFromPattern } from '../lib/attendance'
@@ -184,23 +189,17 @@ function RetiredCard({ m, onRestore }) {
   const severance = calcSeverance(m.joinDate, m.leaveDate, m.wage||10030, m.avgHours||8)
 
   return (
-    <div style={{background:'#F3F1EC',border:'1px solid #DCD7CE',borderRadius:6,overflow:'hidden',opacity:0.8}}>
-      <div style={{padding:'16px',display:'flex',alignItems:'center',justifyContent:'space-between',cursor:'pointer'}}
-        onClick={()=>setShowDetail(v=>!v)}>
-        <div style={{display:'flex',flexDirection:'column',gap:6}}>
-          <div style={{display:'flex',alignItems:'center',gap:10}}>
-            <div style={{fontSize:16,fontWeight:700,color:'#6E6A63'}}>{m.name}</div>
-            <span style={{fontSize:10,background:'rgba(94,101,133,0.2)',color:'#6E6A63',padding:'2px 8px',borderRadius:4,fontWeight:600}}>퇴직</span>
-          </div>
-          <div style={{fontSize:11,color:'#6E6A63'}}>
-            {m.joinDate||'?'} ~ {m.leaveDate||'?'} · 근속 {tenure}
-          </div>
-        </div>
-        <div style={{fontSize:12,color:'#6E6A63'}}>{showDetail?'▲':'▼'}</div>
-      </div>
-      {showDetail && (
-        <div style={{borderTop:'1px solid #DCD7CE',padding:'16px',display:'flex',flexDirection:'column',gap:10}}>
-          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
+    <Card variant="muted" padding={4}>
+      <VStack gap={3}>
+        <HStack gap={2} vAlign="center" hAlign="between">
+          <VStack gap={1}>
+            <HStack gap={2} vAlign="center"><Heading level={4}>{m.name}</Heading><Badge label="퇴직"/></HStack>
+            <Text type="supporting" color="secondary" hasTabularNumbers>{m.joinDate||'?'} ~ {m.leaveDate||'?'} · 근속 {tenure}</Text>
+          </VStack>
+          <Button size="sm" variant="ghost" label={showDetail ? '접기' : '자세히'} onClick={()=>setShowDetail(v=>!v)}/>
+        </HStack>
+        {showDetail && <>
+          <Grid columns={{ minWidth: 160, repeat: 'fit' }} gap={2}>
             {[
               ['입사일', m.joinDate||'—'],
               ['퇴사일', m.leaveDate||'—'],
@@ -209,37 +208,52 @@ function RetiredCard({ m, onRestore }) {
               ['마지막 시급', `${(m.wage||10030).toLocaleString()}원`],
               ['평균 근무시간', `${m.avgHours||8}h/일`],
             ].map(([label,val])=>(
-              <div key={label} style={{background:'#FFFFFF',borderRadius:4,padding:'10px 12px'}}>
-                <div style={{fontSize:10,color:'#6E6A63',marginBottom:3}}>{label}</div>
-                <div style={{fontSize:12,color:'#1D1B18',fontFamily:'inherit',fontVariantNumeric:'tabular-nums'}}>{val}</div>
-              </div>
+              <Card key={label} padding={2}>
+                <VStack gap={0}><Text type="supporting" color="secondary">{label}</Text><Text hasTabularNumbers>{val}</Text></VStack>
+              </Card>
             ))}
-          </div>
-          <div style={{background:'rgba(94,101,133,0.08)',border:'1px solid rgba(94,101,133,0.2)',borderRadius:4,padding:'12px 14px',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
-            <div>
-              <div style={{fontSize:10,color:'#6E6A63',marginBottom:3}}>퇴직금 (퇴사일 기준)</div>
-              <div style={{fontSize:16,fontWeight:700,color:'var(--hk-accent)',fontFamily:'inherit',fontVariantNumeric:'tabular-nums'}}>
-                {severance > 0 ? severance.toLocaleString()+'원' : '1년 미만 (해당없음)'}
-              </div>
-            </div>
-            <div style={{fontSize:10,color:'#6E6A63',textAlign:'right',lineHeight:1.8}}>
-              근속 {tenure}<br/>시급 {(m.wage||10030).toLocaleString()}원
-            </div>
-          </div>
-          <button onClick={()=>onRestore(m)}
-            style={{background:'transparent',border:'1px solid #2E7D45',color:'#2E7D45',borderRadius:4,
-              padding:'8px 16px',fontSize:11,cursor:'pointer',fontFamily:'inherit'}}>
-            복직 처리
-          </button>
-            <button onClick={()=>setCert(true)}
-              style={{background:'#FFFFFF',border:'1px solid #DCD7CE',color:'#1D1B18',borderRadius:4,padding:'8px 16px',fontSize:11,fontWeight:700,cursor:'pointer',fontFamily:'inherit',marginLeft:8}}>
-              경력증명서
-            </button>
-            {cert && <EmploymentCert member={m} onClose={()=>setCert(false)}/>}
-        </div>
-      )}
-    </div>
+          </Grid>
+          <Card padding={3}>
+            <HStack gap={2} vAlign="center" hAlign="between">
+              <VStack gap={0}>
+                <Text type="supporting" color="secondary">퇴직금 (퇴사일 기준)</Text>
+                <Text type="large" weight="bold" color="accent" hasTabularNumbers>{severance > 0 ? severance.toLocaleString()+'원' : '1년 미만 (해당없음)'}</Text>
+              </VStack>
+              <Text type="supporting" color="secondary" hasTabularNumbers>근속 {tenure} · 시급 {(m.wage||10030).toLocaleString()}원</Text>
+            </HStack>
+          </Card>
+          <HStack gap={2}>
+            <Button label="복직 처리" onClick={()=>onRestore(m)}/>
+            <Button label="경력증명서" onClick={()=>setCert(true)}/>
+          </HStack>
+          {cert && <Legacy><EmploymentCert member={m} onClose={()=>setCert(false)}/></Legacy>}
+        </>}
+      </VStack>
+    </Card>
   )
+}
+
+// 고르기 칸 (설명은 고른 것 아래 한 줄)
+const PAY_TYPES = [{key:'hourly', label:'시급제', desc:'근무시간 기반 계산'}, {key:'fixed', label:'고정급제', desc:'매달 고정 금액 지급'}]
+const EMPLOY_TYPES = [{key:'part', label:'아르바이트', desc:'3.3% 원천징수'}, {key:'full', label:'정직원', desc:'4대보험 적용'}, {key:'none', label:'공제없음', desc:'세전 지급'}]
+const ROLES = [{key:'staff', label:'직원', desc:'스케쥴·내 급여 등 직원 메뉴'}, {key:'store', label:'매장계정', desc:'매출입력·체크리스트 등 매장 메뉴'}, {key:'investor', label:'투자자', desc:'매출·투자관리 조회만'}]
+const HOLIDAY_BASES = [{key:'contract', label:'소정근로 기준', desc:'법적 기준'}, {key:'actual', label:'실제근무 기준', desc:'복지 적용'}]
+function choice(label, value, onChange, opts, note) {
+  return (
+    <VStack gap={2}>
+      <Text type="label">{label}</Text>
+      <HStack><SegmentedControl label={label} value={value} onChange={v=>v && onChange(v)}>
+        {opts.map(o => <SegmentedControlItem key={o.key} value={o.key} label={o.label}/>)}
+      </SegmentedControl></HStack>
+      <Text type="supporting" color="secondary">{opts.find(o => o.key === value)?.desc}{note ? ` · ${note}` : ''}</Text>
+    </VStack>
+  )
+}
+function formField(label, type, key, val, set) {
+  if (type === 'date') return <DateInput key={key} label={label} value={val || ''} onChange={v=>set(v || '')}/>
+  if (type === 'number' || type === 'decimal') return <TextInput key={key} label={label} inputMode={type === 'number' ? 'numeric' : 'decimal'} value={String(val ?? '')}
+    onChange={v=>set(v.replace(type === 'number' ? /[^0-9]/g : /[^0-9.]/g, ''))}/>
+  return <TextInput key={key} label={label} value={String(val ?? '')} onChange={set}/>
 }
 
 export default function Members() {
@@ -445,411 +459,178 @@ export default function Members() {
         </HStack>
       </Card>
 
-      <Legacy>
-
       {/* 직원 추가 폼 */}
       {showAddForm && (
-        <div style={{background:'#FFFFFF',border:'1px solid #2E7D45',borderRadius:6,marginBottom:18}}>
-          <div style={{padding:'14px 18px',borderBottom:'1px solid #DCD7CE',fontSize:13,fontWeight:600,
-            color:'#2E7D45',display:'flex',justifyContent:'space-between'}}>
-            <span>새 직원 추가</span>
-            <button onClick={()=>setShowAddForm(false)}
-              style={{background:'transparent',border:'none',color:'#6E6A63',fontSize:18,cursor:'pointer'}}>✕</button>
-          </div>
-
-          {/* 급여 방식 */}
-          <div style={{padding:'14px 18px 0'}}>
-            <label style={{fontSize:10,color:'#6E6A63',fontWeight:600,display:'block',marginBottom:8}}>급여 방식</label>
-            <div style={{display:'flex',gap:8,marginBottom:14}}>
+        <Card padding={4}>
+          <VStack gap={4}>
+            <HStack gap={2} vAlign="center" hAlign="between"><Heading level={4}>새 직원 추가</Heading><Button size="sm" variant="ghost" label="닫기" onClick={()=>setShowAddForm(false)}/></HStack>
+            {choice('급여 방식', addForm.payType||'hourly', v=>setAddForm(f=>({...f,payType:v})), PAY_TYPES)}
+            <Grid columns={{ minWidth: 180, repeat: 'fill' }} gap={3}>
               {[
-                {key:'hourly', label:'시급제',   desc:'근무시간 기반 계산'},
-                {key:'fixed',  label:'고정급제', desc:'매달 고정 금액 지급'},
-              ].map(opt=>{
-                const selected = (addForm.payType||'hourly') === opt.key
-                return (
-                  <div key={opt.key} onClick={()=>setAddForm(f=>({...f,payType:opt.key}))}
-                    style={{flex:1,padding:'10px 14px',borderRadius:4,cursor:'pointer',
-                      background:selected?'rgba(46,125,69,0.12)':'#F3F1EC',
-                      border:selected?'1px solid #2E7D45':'1px solid #DCD7CE'}}>
-                    <div style={{fontSize:12,fontWeight:600,color:selected?'#2E7D45':'#6E6A63',marginBottom:3}}>{opt.label}</div>
-                    <div style={{fontSize:10,color:'#6E6A63'}}>{opt.desc}</div>
-                  </div>
-                )
-              })}
-            </div>
-          </div>
-
-          {/* 기본 정보 */}
-          <div style={{padding:'0 18px 14px',display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(180px,1fr))',gap:12}}>
-            {[
-              ['이름 *','text','name'],
-              ['입사일','date','joinDate'],
-              ['연락처','text','phone'],
-              ['계좌번호','text','account'],
-              ['주민등록번호','text','ssn'],
-              ...((addForm.payType||'hourly')==='fixed'
-                ? [['월 고정급 (원)','number','fixedSalary']]
-                : [
-                    ['시급 (원)','number','wage'],
-                    ['평균근무시간(h/일)','number','avgHours'],
-                  ]
-              ),
-            ].map(([label,type,key])=>(
-              <div key={key} style={{display:'flex',flexDirection:'column',gap:4}}>
-                <label style={{fontSize:10,color:'#6E6A63',fontWeight:600}}>{label}</label>
-                <input type={type} value={addForm[key]||''}
-                  onChange={e=>setAddForm(f=>({...f,[key]:e.target.value}))}
-                  style={{background:'#F3F1EC',border:'1px solid #DCD7CE',borderRadius:4,color:'#1D1B18',
-                    padding:'8px 10px',fontSize:12,outline:'none',width:'100%',fontFamily:'inherit'}}/>
-              </div>
-            ))}
-          </div>
-
-          {/* 고용 유형 */}
-          <div style={{padding:'0 18px 14px'}}>
-            <label style={{fontSize:10,color:'#6E6A63',fontWeight:600,display:'block',marginBottom:8}}>고용 유형 (공제 기준)</label>
-            <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
-              {[
-                {key:'part', label:'아르바이트', desc:'3.3% 원천징수'},
-                {key:'full', label:'정직원',     desc:'4대보험 적용'},
-                {key:'none', label:'공제없음',   desc:'세전 지급'},
-              ].map(opt=>{
-                const selected = (addForm.employType||'part') === opt.key
-                return (
-                  <div key={opt.key} onClick={()=>setAddForm(f=>({...f,employType:opt.key}))}
-                    style={{flex:1,padding:'10px 14px',borderRadius:4,cursor:'pointer',
-                      background:selected?'rgba(46,125,69,0.12)':'#F3F1EC',
-                      border:selected?'1px solid #2E7D45':'1px solid #DCD7CE',minWidth:100}}>
-                    <div style={{fontSize:12,fontWeight:600,color:selected?'#2E7D45':'#6E6A63',marginBottom:3}}>{opt.label}</div>
-                    <div style={{fontSize:10,color:'#6E6A63'}}>{opt.desc}</div>
-                  </div>
-                )
-              })}
-            </div>
-          </div>
-
-          <div style={{padding:'0 18px 18px',display:'flex',gap:8,alignItems:'center'}}>
-            <button onClick={addMember} disabled={addSaving}
-              style={{background:'#2E7D45',color:'#FFFFFF',border:'none',borderRadius:4,
-                padding:'9px 20px',fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
-              {addSaving?'추가 중...':'직원 추가'}
-            </button>
-            <button onClick={()=>setShowAddForm(false)}
-              style={{background:'#F3F1EC',color:'#6E6A63',border:'1px solid #DCD7CE',borderRadius:4,
-                padding:'9px 20px',fontSize:12,cursor:'pointer',fontFamily:'inherit'}}>
-              취소
-            </button>
-            <span style={{fontSize:10,color:'#6E6A63'}}>* 이 직원은 앱 로그인 없이 급여관리에만 반영돼요</span>
-          </div>
-        </div>
+                ['이름','text','name'],
+                ['입사일','date','joinDate'],
+                ['연락처','text','phone'],
+                ['계좌번호','text','account'],
+                ['주민등록번호','text','ssn'],
+                ...((addForm.payType||'hourly')==='fixed'
+                  ? [['월 고정급 (원)','number','fixedSalary']]
+                  : [['시급 (원)','number','wage'], ['평균근무시간(h/일)','decimal','avgHours']]),
+              ].map(([label,type,key])=> formField(label, type, key, addForm[key]||'', v=>setAddForm(f=>({...f,[key]:v}))))}
+            </Grid>
+            {choice('고용 유형 (공제 기준)', addForm.employType||'part', v=>setAddForm(f=>({...f,employType:v})), EMPLOY_TYPES)}
+            <HStack gap={2} vAlign="center" wrap="wrap">
+              <Button variant="primary" label={addSaving?'추가 중...':'직원 추가'} isDisabled={addSaving} onClick={addMember}/>
+              <Button label="취소" onClick={()=>setShowAddForm(false)}/>
+              <Text type="supporting" color="secondary">이 직원은 앱 로그인 없이 급여관리에만 반영돼요</Text>
+            </HStack>
+          </VStack>
+        </Card>
       )}
 
-      {/* 퇴직 처리 모달 */}
+      {/* 퇴직 처리 */}
       {retireForm && (
-        <div style={{background:'#FFFFFF',border:'1px solid #B42318',borderRadius:6,marginBottom:18,padding:'18px'}}>
-          <div style={{fontSize:13,fontWeight:600,color:'#B42318',marginBottom:14}}>
-            {retireForm.name} 퇴직 처리
-          </div>
-          <div style={{display:'flex',flexDirection:'column',gap:12}}>
-            <div>
-              <label style={{fontSize:10,color:'#6E6A63',fontWeight:600,display:'block',marginBottom:6}}>퇴사일</label>
-              <input type="date" value={retireForm.leaveDate||''}
-                onChange={e=>setRetireForm(f=>({...f,leaveDate:e.target.value}))}
-                style={{background:'#F3F1EC',border:'1px solid #DCD7CE',borderRadius:4,color:'#1D1B18',
-                  padding:'8px 10px',fontSize:12,outline:'none',width:'100%',fontFamily:'inherit'}}/>
-            </div>
+        <Card padding={4}>
+          <VStack gap={3}>
+            <Heading level={4}>{retireForm.name} 퇴직 처리</Heading>
+            <DateInput label="퇴사일" value={retireForm.leaveDate||''} onChange={v=>setRetireForm(f=>({...f,leaveDate:v||''}))}/>
             {retireForm.leaveDate && (
-              <div style={{background:'rgba(var(--hk-accent-rgb),0.08)',border:'1px solid rgba(var(--hk-accent-rgb),0.2)',borderRadius:4,padding:'12px 14px'}}>
-                <div style={{fontSize:11,color:'#6E6A63',marginBottom:4}}>퇴직금 (퇴사일 기준)</div>
-                <div style={{fontSize:16,fontWeight:700,color:'var(--hk-accent)',fontFamily:'inherit',fontVariantNumeric:'tabular-nums'}}>
-                  {calcSeverance(retireForm.joinDate, retireForm.leaveDate, retireForm.wage||10030, retireForm.avgHours||8).toLocaleString()}원
-                </div>
-                <div style={{fontSize:10,color:'#6E6A63',marginTop:4}}>
-                  근속 {calcTenure(retireForm.joinDate, retireForm.leaveDate)}
-                </div>
-              </div>
+              <Card variant="muted" padding={3}>
+                <VStack gap={1}>
+                  <Text type="supporting" color="secondary">퇴직금 (퇴사일 기준)</Text>
+                  <Text type="large" weight="bold" color="accent" hasTabularNumbers>{calcSeverance(retireForm.joinDate, retireForm.leaveDate, retireForm.wage||10030, retireForm.avgHours||8).toLocaleString()}원</Text>
+                  <Text type="supporting" color="secondary">근속 {calcTenure(retireForm.joinDate, retireForm.leaveDate)}</Text>
+                </VStack>
+              </Card>
             )}
-            <div style={{display:'flex',gap:8}}>
-              <button onClick={retireMember} disabled={saving}
-                style={{background:'#B42318',color:'#fff',border:'none',borderRadius:4,
-                  padding:'9px 20px',fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
-                {saving?'처리 중...':'퇴직 확정'}
-              </button>
-              <button onClick={()=>setRetireForm(null)}
-                style={{background:'#F3F1EC',color:'#6E6A63',border:'1px solid #DCD7CE',borderRadius:4,
-                  padding:'9px 20px',fontSize:12,cursor:'pointer',fontFamily:'inherit'}}>
-                취소
-              </button>
-            </div>
-          </div>
-        </div>
+            <HStack gap={2}>
+              <Button variant="destructive" label={saving?'처리 중...':'퇴직 확정'} isDisabled={saving} onClick={retireMember}/>
+              <Button label="취소" onClick={()=>setRetireForm(null)}/>
+            </HStack>
+          </VStack>
+        </Card>
       )}
 
       {/* 수정 폼 */}
       {showForm && (
-        <div style={{background:'#FFFFFF',border:'1px solid var(--hk-accent)',borderRadius:6,marginBottom:18}}>
-          <div style={{padding:'14px 18px',borderBottom:'1px solid #DCD7CE',fontSize:13,fontWeight:600,color:'var(--hk-accent)',display:'flex',justifyContent:'space-between'}}>
-            <span>{form.name} 정보 수정</span>
-            <button onClick={()=>setShowForm(false)}
-              style={{background:'transparent',border:'none',color:'#6E6A63',fontSize:18,cursor:'pointer'}}>✕</button>
-          </div>
-          <div style={{padding:18,display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(180px,1fr))',gap:12}}>
-            {[
-              ['이름','text','name',form.name||''],
-              ['입사일','date','joinDate',form.joinDate||''],
-              ['연락처','text','phone',form.phone||''],
-              ['계좌번호','text','account',form.account||''],
-              ['주민등록번호','text','ssn',form.ssn||''],
-              ...((form.payType||'hourly')==='fixed'
-                ? [['월 고정급 (원)','number','fixedSalary',form.fixedSalary||0]]
-                : [
-                    ['시급','number','wage',form.wage||10030],
-                    ['평균근무시간(h/일)','number','avgHours',form.avgHours||8],
-                  ]
-              ),
-            ].map(([label,type,key,val])=>(
-              <div key={key} style={{display:'flex',flexDirection:'column',gap:4}}>
-                <label style={{fontSize:10,color:'#6E6A63',fontWeight:600}}>{label}</label>
-                <input type={type} value={val} onChange={e=>setF(key,e.target.value)}
-                  style={{background:'#F3F1EC',border:'1px solid #DCD7CE',borderRadius:4,color:'#1D1B18',padding:'8px 10px',fontSize:12,outline:'none',width:'100%',fontFamily:'inherit'}}/>
-              </div>
-            ))}
-          </div>
-
-          {/* 계정 역할 */}
-          <div style={{padding:'0 18px 14px'}}>
-            <label style={{fontSize:10,color:'#6E6A63',fontWeight:600,display:'block',marginBottom:8}}>계정 역할 (볼 수 있는 메뉴가 바뀜)</label>
-            <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
+        <Card padding={4}>
+          <VStack gap={4}>
+            <HStack gap={2} vAlign="center" hAlign="between"><Heading level={4}>{form.name} 정보 수정</Heading><Button size="sm" variant="ghost" label="닫기" onClick={()=>setShowForm(false)}/></HStack>
+            <Grid columns={{ minWidth: 180, repeat: 'fill' }} gap={3}>
               {[
-                {key:'staff',    label:'직원',     desc:'스케쥴·내 급여 등 직원 메뉴'},
-                {key:'store',    label:'매장계정', desc:'매출입력·체크리스트 등 매장 메뉴'},
-                {key:'investor', label:'투자자',   desc:'매출·투자관리 조회만'},
-              ].map(opt=>{
-                const selected = (form.role||'staff') === opt.key
-                return (
-                  <div key={opt.key} onClick={()=>setF('role', opt.key)}
-                    style={{flex:1,minWidth:140,padding:'10px 14px',borderRadius:4,cursor:'pointer',
-                      background:selected?'rgba(var(--hk-accent-rgb),0.12)':'#F3F1EC',
-                      border:selected?'1px solid var(--hk-accent)':'1px solid #DCD7CE'}}>
-                    <div style={{fontSize:12,fontWeight:600,color:selected?'var(--hk-accent)':'#6E6A63',marginBottom:3}}>{opt.label}</div>
-                    <div style={{fontSize:10,color:'#6E6A63'}}>{opt.desc}</div>
-                  </div>
-                )
-              })}
-            </div>
-            <div style={{fontSize:10,color:'#6E6A63',marginTop:6}}>매장계정·투자자로 바꾸면 급여 목록에서 빠져요. 바뀐 역할은 그 사람이 앱을 새로 열면 적용돼요.</div>
-          </div>
+                ['이름','text','name',form.name||''],
+                ['입사일','date','joinDate',form.joinDate||''],
+                ['연락처','text','phone',form.phone||''],
+                ['계좌번호','text','account',form.account||''],
+                ['주민등록번호','text','ssn',form.ssn||''],
+                ...((form.payType||'hourly')==='fixed'
+                  ? [['월 고정급 (원)','number','fixedSalary',form.fixedSalary||0]]
+                  : [['시급','number','wage',form.wage||10030], ['평균근무시간(h/일)','decimal','avgHours',form.avgHours||8]]),
+              ].map(([label,type,key,val])=> formField(label, type, key, val, v=>setF(key,v)))}
+            </Grid>
 
-          {/* 급여 방식 */}
-          <div style={{padding:'0 18px 14px'}}>
-            <label style={{fontSize:10,color:'#6E6A63',fontWeight:600,display:'block',marginBottom:8}}>급여 방식</label>
-            <div style={{display:'flex',gap:8}}>
-              {[
-                {key:'hourly', label:'시급제',   desc:'근무시간 기반 계산'},
-                {key:'fixed',  label:'고정급제', desc:'매달 고정 금액 지급'},
-              ].map(opt=>{
-                const selected = (form.payType||'hourly') === opt.key
-                return (
-                  <div key={opt.key} onClick={()=>setF('payType', opt.key)}
-                    style={{flex:1,padding:'10px 14px',borderRadius:4,cursor:'pointer',
-                      background:selected?'rgba(var(--hk-accent-rgb),0.12)':'#F3F1EC',
-                      border:selected?'1px solid var(--hk-accent)':'1px solid #DCD7CE'}}>
-                    <div style={{fontSize:12,fontWeight:600,color:selected?'var(--hk-accent)':'#6E6A63',marginBottom:3}}>{opt.label}</div>
-                    <div style={{fontSize:10,color:'#6E6A63'}}>{opt.desc}</div>
-                  </div>
-                )
-              })}
-            </div>
-          </div>
+            {choice('계정 역할 (볼 수 있는 메뉴가 바뀜)', form.role||'staff', v=>setF('role', v), ROLES,
+              '매장계정·투자자로 바꾸면 급여 목록에서 빠져요. 바뀐 역할은 그 사람이 앱을 새로 열면 적용돼요.')}
+            {choice('급여 방식', form.payType||'hourly', v=>setF('payType', v), PAY_TYPES)}
 
-          {/* 소정근로일 */}
-          <div style={{padding:'0 18px 14px'}}>
-            <label style={{fontSize:10,color:'#6E6A63',fontWeight:600,display:'block',marginBottom:8}}>소정근로일 (주휴수당 기준)</label>
-            <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
-              {['월','화','수','목','금','토','일'].map((day,i)=>{
-                const idx = i+1===7 ? 0 : i+1
-                const workDays = form.workDays || [1,2,3,4,5]
-                const checked = workDays.includes(idx)
-                return (
-                  <label key={day} style={{display:'flex',alignItems:'center',gap:4,cursor:'pointer',
-                    background:checked?'rgba(var(--hk-accent-rgb),0.15)':'#F3F1EC',
-                    border:checked?'1px solid var(--hk-accent)':'1px solid #DCD7CE',
-                    borderRadius:6,padding:'6px 10px',fontSize:12,fontWeight:600,
-                    color:checked?'var(--hk-accent)':'#6E6A63',transition:'.15s'}}>
-                    <input type="checkbox" checked={checked} style={{display:'none'}}
-                      onChange={()=>{
-                        const current = form.workDays || [1,2,3,4,5]
-                        const next = current.includes(idx)
-                          ? current.filter(d=>d!==idx)
-                          : [...current, idx].sort()
-                        setF('workDays', next)
-                      }}/>
-                    {day}
-                  </label>
-                )
-              })}
-            </div>
-            <div style={{fontSize:10,color:'#6E6A63',marginTop:6}}>
-              주 {Array.isArray(form.workDays)?form.workDays.length:5}일 소정근로
-            </div>
-          </div>
+            <VStack gap={2}>
+              <Text type="label">소정근로일 (주휴수당 기준)</Text>
+              <HStack gap={1} wrap="wrap">
+                {['월','화','수','목','금','토','일'].map((day,i)=>{
+                  const idx = i+1===7 ? 0 : i+1
+                  const current = form.workDays || [1,2,3,4,5]
+                  const checked = current.includes(idx)
+                  return <Button key={day} size="sm" variant={checked ? 'primary' : 'secondary'} label={day}
+                    onClick={()=>setF('workDays', checked ? current.filter(d=>d!==idx) : [...current, idx].sort())}/>
+                })}
+              </HStack>
+              <Text type="supporting" color="secondary">주 {Array.isArray(form.workDays)?form.workDays.length:5}일 소정근로</Text>
+            </VStack>
 
-          {/* 일찍 출근 인정 (직원별) */}
-          <div style={{padding:'0 18px 14px'}}>
-            <label style={{fontSize:10,color:'#6E6A63',fontWeight:600,display:'block',marginBottom:6}}>일찍 출근 자동 인정 (예정보다 일찍 온 시간을 이만큼까지는 승인 없이 급여에 넣어요)</label>
-            <select value={form.earlyAuto ?? ''} onChange={e=>setF('earlyAuto', e.target.value)} aria-label="일찍 출근 자동 인정"
-              style={{fontFamily:'inherit',fontSize:13,padding:'6px 8px',border:'1px solid #DCD7CE',borderRadius:4,background:'#FFFFFF',color:'#1D1B18'}}>
-              <option value="">매장 기본 따름</option>
-              <option value={0}>안 함 (사장님이 승인)</option>
-              {[5,10,15,20,30,40,60].map(m => <option key={m} value={m}>{m}분까지 바로 인정</option>)}
-            </select>
-            <span style={{fontSize:11,color:'#6E6A63',marginLeft:8}}>더 일찍 온 시간은 근무관리에서 승인 대기로 떠요 · 다음 출근부터 적용</span>
-          </div>
+            <VStack gap={2}>
+              <HStack><Selector label="일찍 출근 자동 인정" description="예정보다 일찍 온 시간을 이만큼까지는 승인 없이 급여에 넣어요" value={String(form.earlyAuto ?? '')} onChange={v=>setF('earlyAuto', v ?? '')}
+                options={[{ value:'', label:'매장 기본 따름' }, { value:'0', label:'안 함 (사장님이 승인)' }, ...[5,10,15,20,30,40,60].map(m => ({ value:String(m), label:`${m}분까지 바로 인정` }))]}/></HStack>
+              <Text type="supporting" color="secondary">더 일찍 온 시간은 근무관리에서 승인 대기로 떠요 · 다음 출근부터 적용</Text>
+            </VStack>
 
-          {/* 우리 매장 화면에서 일하는 자리 */}
-          <div style={{padding:'0 18px 14px'}}>
-            <label style={{fontSize:10,color:'#6E6A63',fontWeight:600,display:'block',marginBottom:8}}>포지션 (우리 매장 화면에서 캐릭터가 일하는 자리 · 여러 개 고르면 그 사이를 오가요)</label>
-            <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>
-              {POSITIONS.map(p => {
-                const cur = form.positions?.length ? form.positions : [form.position || 'hall']
-                const on = cur.includes(p.id)
-                // 여러 개 고를 수 있음 (고른 자리들을 오가며 일함). 하나는 꼭 남김
-                const toggle = () => { const next = on ? cur.filter(x => x !== p.id) : [...cur, p.id]; if (next.length) setF('positions', next) }
-                return (
-                  <button key={p.id} type="button" onClick={toggle}
-                    style={{fontFamily:'inherit',fontSize:12,padding:'6px 10px',borderRadius:4,cursor:'pointer',
-                      border:on?'1px solid var(--hk-accent)':'1px solid #DCD7CE',background:on?'rgba(var(--hk-accent-rgb),0.12)':'#F3F1EC',color:on?'var(--hk-accent)':'#6E6A63',fontWeight:on?700:500}}>
-                    {p.label}
-                  </button>
-                )
-              })}
-            </div>
-          </div>
+            <VStack gap={2}>
+              <Text type="label">포지션 (우리 매장 화면에서 캐릭터가 일하는 자리 · 여러 개 고르면 그 사이를 오가요)</Text>
+              <HStack gap={1} wrap="wrap">
+                {POSITIONS.map(p => {
+                  const cur = form.positions?.length ? form.positions : [form.position || 'hall']
+                  const on = cur.includes(p.id)
+                  // 여러 개 고를 수 있음 (고른 자리들을 오가며 일함). 하나는 꼭 남김
+                  const toggle = () => { const next = on ? cur.filter(x => x !== p.id) : [...cur, p.id]; if (next.length) setF('positions', next) }
+                  return <Button key={p.id} size="sm" variant={on ? 'primary' : 'secondary'} label={p.label} onClick={toggle}/>
+                })}
+              </HStack>
+            </VStack>
 
-          {/* 출퇴근 예정 시각 (NFC 출퇴근: 예정보다 10분 넘게 일찍 오거나 늦게 퇴근한 시간은 승인 대기) */}
-          <div style={{padding:'0 18px 14px'}}>
-            <label style={{fontSize:10,color:'#6E6A63',fontWeight:600,display:'block',marginBottom:8}}>요일별 기본 출근 시간 (고정 근무자만 · 퇴근은 안 넣어도 돼요, 찍은 시각까지 인정 · 시간이 유동적이면 비워 두고 스케쥴 근무표에서 주마다 넣어요)</label>
-            <div style={{display:'flex',flexDirection:'column',gap:6}}>
+            {/* 요일별 기본 출근 시간 (시각 고르기는 아직 예전 칸) */}
+            <VStack gap={2}>
+              <Text type="label">요일별 기본 출근 시간</Text>
+              <Text type="supporting" color="secondary">고정 근무자만 · 퇴근은 안 넣어도 돼요, 찍은 시각까지 인정 · 시간이 유동적이면 비워 두고 스케쥴 근무표에서 주마다 넣어요</Text>
               {['월','화','수','목','금','토','일'].map((day,i)=>{
                 const idx = i+1===7 ? 0 : i+1
                 if(!(form.workDays || [1,2,3,4,5]).includes(idx)) return null
                 const st = form.shiftTimes?.[idx] || {}
                 const setT = (k,v) => setF('shiftTimes', { ...(form.shiftTimes||{}), [idx]: { ...st, [k]: v } })
                 return (
-                  <div key={day} style={{display:'flex',alignItems:'center',gap:8,fontSize:13,flexWrap:'wrap'}}>
-                    <span style={{width:18,fontWeight:700,color:idx===0?'#B42318':idx===6?'#2B5C9E':'#1D1B18'}}>{day}</span>
-                    <TimePick value={st.start||''} onChange={v=>setT('start',v)} label={`${day} 출근`} clearable width={180}/>
-                    <span style={{color:'#6E6A63'}}>~</span>
-                    <TimePick value={st.end||''} onChange={v=>setT('end',v)} label={`${day} 퇴근`} clearable width={180}/>
+                  <HStack key={day} gap={2} vAlign="center" wrap="wrap">
+                    <Text weight="bold">{day}</Text>
+                    <Legacy><TimePick value={st.start||''} onChange={v=>setT('start',v)} label={`${day} 출근`} clearable width={180}/></Legacy>
+                    <Text color="secondary">~</Text>
+                    <Legacy><TimePick value={st.end||''} onChange={v=>setT('end',v)} label={`${day} 퇴근`} clearable width={180}/></Legacy>
                     {idx===[1,2,3,4,5,6,0].find(d=>(form.workDays||[1,2,3,4,5]).includes(d)) && st.start && (
-                      <button type="button" onClick={()=>setF('shiftTimes', Object.fromEntries((form.workDays||[1,2,3,4,5]).map(d=>[d,{start:st.start,end:st.end||''}])))}
-                        style={{background:'none',border:'none',color:'#2B5C9E',fontSize:12,cursor:'pointer',fontFamily:'inherit',padding:0,borderBottom:'1px solid #2B5C9E'}}>모든 근무일에 같게</button>
+                      <Button size="sm" variant="ghost" label="모든 근무일에 같게" onClick={()=>setF('shiftTimes', Object.fromEntries((form.workDays||[1,2,3,4,5]).map(d=>[d,{start:st.start,end:st.end||''}])))}/>
                     )}
-                  </div>
+                  </HStack>
                 )
               })}
-            </div>
-            <div style={{fontSize:10,color:'#6E6A63',marginTop:6,lineHeight:1.6}}>
-              여기 넣은 시간이 매주 스케쥴 근무표에 자동으로 채워져요. 특정 날만 다르면 스케쥴에서 그 칸만 바꾸면 돼요.
-              근무표에도 시간이 없는 날 출퇴근을 찍으면 그날 근무 전체가 승인 대기로 가요.
-            </div>
-            {(() => {
-              const avg = avgHoursFromPattern(form.shiftTimes, form.workDays || [1,2,3,4,5])
-              if (avg == null || +form.avgHours === avg) return null
-              return (
-                <div style={{display:'flex',alignItems:'center',gap:8,marginTop:8,fontSize:12,color:'#1D1B18',flexWrap:'wrap'}}>
-                  <span>위 시간으로 계산한 하루 평균 <b>{avg}시간</b> (토요일 브레이크 제외) · 지금 평균근무시간 {form.avgHours||8}시간</span>
-                  <button type="button" onClick={()=>setF('avgHours', avg)}
-                    style={{background:'#FFFFFF',border:'1px solid #DCD7CE',borderRadius:4,padding:'3px 10px',fontSize:12,cursor:'pointer',fontFamily:'inherit'}}>평균근무시간에 넣기</button>
-                </div>
-              )
-            })()}
-          </div>
-
-          {/* 주휴 계산 기준 */}
-          <div style={{padding:'0 18px 14px'}}>
-            <label style={{fontSize:10,color:'#6E6A63',fontWeight:600,display:'block',marginBottom:8}}>주휴수당 계산 기준</label>
-            <div style={{display:'flex',gap:8}}>
-              {[
-                {key:'contract', label:'소정근로 기준', desc:'법적 기준'},
-                {key:'actual',   label:'실제근무 기준', desc:'복지 적용'},
-              ].map(opt=>{
-                const selected = (form.holidayBase||'contract') === opt.key
+              <Text type="supporting" color="secondary">
+                여기 넣은 시간이 매주 스케쥴 근무표에 자동으로 채워져요. 특정 날만 다르면 스케쥴에서 그 칸만 바꾸면 돼요.
+                근무표에도 시간이 없는 날 출퇴근을 찍으면 그날 근무 전체가 승인 대기로 가요.
+              </Text>
+              {(() => {
+                const avg = avgHoursFromPattern(form.shiftTimes, form.workDays || [1,2,3,4,5])
+                if (avg == null || +form.avgHours === avg) return null
                 return (
-                  <div key={opt.key} onClick={()=>setF('holidayBase', opt.key)}
-                    style={{flex:1,padding:'10px 14px',borderRadius:4,cursor:'pointer',
-                      background:selected?'rgba(var(--hk-accent-rgb),0.12)':'#F3F1EC',
-                      border:selected?'1px solid var(--hk-accent)':'1px solid #DCD7CE'}}>
-                    <div style={{fontSize:12,fontWeight:600,color:selected?'var(--hk-accent)':'#6E6A63',marginBottom:3}}>{opt.label}</div>
-                    <div style={{fontSize:10,color:'#6E6A63'}}>{opt.desc}</div>
-                  </div>
+                  <HStack gap={2} vAlign="center" wrap="wrap">
+                    <Text>위 시간으로 계산한 하루 평균 <b>{avg}시간</b> (토요일 브레이크 제외) · 지금 평균근무시간 {form.avgHours||8}시간</Text>
+                    <Button size="sm" label="평균근무시간에 넣기" onClick={()=>setF('avgHours', avg)}/>
+                  </HStack>
                 )
-              })}
-            </div>
-          </div>
+              })()}
+            </VStack>
 
-          {/* 고용 유형 */}
-          <div style={{padding:'0 18px 14px'}}>
-            <label style={{fontSize:10,color:'#6E6A63',fontWeight:600,display:'block',marginBottom:8}}>고용 유형 (공제 기준)</label>
-            <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
-              {[
-                {key:'part', label:'아르바이트', desc:'3.3% 원천징수'},
-                {key:'full', label:'정직원',     desc:'4대보험 적용'},
-                {key:'none', label:'공제없음',   desc:'세전 지급'},
-              ].map(opt=>{
-                const selected = (form.employType||'part') === opt.key
-                return (
-                  <div key={opt.key} onClick={()=>setF('employType', opt.key)}
-                    style={{flex:1,padding:'10px 14px',borderRadius:4,cursor:'pointer',
-                      background:selected?'rgba(var(--hk-accent-rgb),0.12)':'#F3F1EC',
-                      border:selected?'1px solid var(--hk-accent)':'1px solid #DCD7CE',minWidth:100}}>
-                    <div style={{fontSize:12,fontWeight:600,color:selected?'var(--hk-accent)':'#6E6A63',marginBottom:3}}>{opt.label}</div>
-                    <div style={{fontSize:10,color:'#6E6A63'}}>{opt.desc}</div>
-                  </div>
-                )
-              })}
-            </div>
-          </div>
+            {choice('주휴수당 계산 기준', form.holidayBase||'contract', v=>setF('holidayBase', v), HOLIDAY_BASES)}
+            {choice('고용 유형 (공제 기준)', form.employType||'part', v=>setF('employType', v), EMPLOY_TYPES)}
 
-          {/* 4대보험 금액 (정직원): 공단 고지서에 나온 근로자 부담분. 넣으면 급여에서 이 금액을 그대로 뗌 */}
-          {(form.employType||'part') === 'full' && (
-            <div style={{padding:'0 18px 14px'}}>
-              <label style={{fontSize:10,color:'#6E6A63',fontWeight:600,display:'block',marginBottom:6}}>4대보험 금액 (고지서의 근로자 부담분, 월)</label>
-              <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit, minmax(120px, 1fr))',gap:8}}>
-                {[['pension','국민연금'],['health','건강보험'],['care','장기요양'],['employ','고용보험']].map(([k,l]) => (
-                  <label key={k} style={{fontSize:11,color:'#6E6A63'}}>{l}
-                    <input type="text" inputMode="numeric" placeholder="0" value={form['ins_'+k] === '' || form['ins_'+k] == null ? '' : (+form['ins_'+k]).toLocaleString('ko-KR')}
-                      onChange={e=>setF('ins_'+k, e.target.value.replace(/[^0-9]/g,''))}
-                      style={{display:'block',width:'100%',boxSizing:'border-box',marginTop:3,background:'#FFFFFF',border:'1px solid #DCD7CE',borderRadius:4,padding:'7px 9px',fontSize:13,fontFamily:'inherit',textAlign:'right',fontVariantNumeric:'tabular-nums'}}/>
-                  </label>
-                ))}
-                <label style={{fontSize:11,color:'#6E6A63'}}>적용 시작 달
-                  <input type="month" value={form.insFrom || ''} onChange={e=>setF('insFrom', e.target.value)}
-                    style={{display:'block',width:'100%',boxSizing:'border-box',marginTop:3,background:'#FFFFFF',border:'1px solid #DCD7CE',borderRadius:4,padding:'6px 8px',fontSize:13,fontFamily:'inherit'}}/>
-                </label>
-              </div>
-              <div style={{fontSize:11,color:'#6E6A63',marginTop:6,lineHeight:1.6}}>
-                합계 {['pension','health','care','employ'].reduce((a,k)=>a+(+form['ins_'+k]||0),0).toLocaleString('ko-KR')}원.
-                넣으면 '적용 시작 달'부터 매달 이 금액을 그대로 떼고, 금액이 바뀌면 새 달로 다시 넣으면 돼요 (예전 달은 그대로).
-                모두 비워 두면 예전처럼 급여 × 비율로 계산해요.
-              </div>
-            </div>
-          )}
+            {/* 4대보험 금액 (정직원): 공단 고지서에 나온 근로자 부담분. 넣으면 급여에서 이 금액을 그대로 뗌 */}
+            {(form.employType||'part') === 'full' && (
+              <VStack gap={2}>
+                <Text type="label">4대보험 금액 (고지서의 근로자 부담분, 월)</Text>
+                <Grid columns={{ minWidth: 130, repeat: 'fit' }} gap={2}>
+                  {[['pension','국민연금'],['health','건강보험'],['care','장기요양'],['employ','고용보험']].map(([k,l]) => (
+                    <TextInput key={k} label={l} inputMode="numeric" placeholder="0" value={form['ins_'+k] === '' || form['ins_'+k] == null ? '' : (+form['ins_'+k]).toLocaleString('ko-KR')}
+                      onChange={v=>setF('ins_'+k, v.replace(/[^0-9]/g,''))}/>
+                  ))}
+                  <TextInput label="적용 시작 달" placeholder="YYYY-MM" value={form.insFrom || ''} onChange={v=>setF('insFrom', v.replace(/[^0-9-]/g,'').slice(0,7))}/>
+                </Grid>
+                <Text type="supporting" color="secondary">
+                  합계 {['pension','health','care','employ'].reduce((a,k)=>a+(+form['ins_'+k]||0),0).toLocaleString('ko-KR')}원.
+                  넣으면 '적용 시작 달'부터 매달 이 금액을 그대로 떼고, 금액이 바뀌면 새 달로 다시 넣으면 돼요 (예전 달은 그대로).
+                  모두 비워 두면 예전처럼 급여 × 비율로 계산해요.
+                </Text>
+              </VStack>
+            )}
 
-          <div style={{padding:'0 18px 18px',display:'flex',gap:8}}>
-            <button onClick={save} disabled={saving}
-              style={{background:'var(--hk-accent)',color:'#FFFFFF',border:'none',borderRadius:4,padding:'9px 20px',fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
-              {saving?'저장 중...':'저 장'}
-            </button>
-            <button onClick={()=>setShowForm(false)}
-              style={{background:'#F3F1EC',color:'#6E6A63',border:'1px solid #DCD7CE',borderRadius:4,padding:'9px 20px',fontSize:12,cursor:'pointer',fontFamily:'inherit'}}>
-              취 소
-            </button>
-          </div>
-        </div>
+            <HStack gap={2}>
+              <Button variant="primary" label={saving?'저장 중...':'저장'} isDisabled={saving} onClick={save}/>
+              <Button label="취소" onClick={()=>setShowForm(false)}/>
+            </HStack>
+          </VStack>
+        </Card>
       )}
-
-      </Legacy>
 
       {/* 재직 직원 목록 */}
       {loading ? <Text color="secondary">불러오는 중...</Text> : (
@@ -861,14 +642,12 @@ export default function Members() {
         </VStack>
       )}
 
-      {/* 퇴직자 목록 (카드는 아직 예전 모양) */}
+      {/* 퇴직자 목록 */}
       <Button width="100%" label={`${showRetired ? '접기' : '보기'} · 퇴직자 기록 (${retired.length}명)`} onClick={()=>setShowRetired(v=>!v)}/>
       {showRetired && (retired.length===0 ? <EmptyState title="퇴직자 기록이 없습니다" isCompact/> : (
-        <Legacy>
-          <div style={{display:'flex',flexDirection:'column',gap:12}}>
-            {retired.map(m=><RetiredCard key={m.uid} m={m} onRestore={restoreMember}/>)}
-          </div>
-        </Legacy>
+        <VStack gap={3}>
+          {retired.map(m=><RetiredCard key={m.uid} m={m} onRestore={restoreMember}/>)}
+        </VStack>
       ))}
     </VStack>
     </AstryxPage>
