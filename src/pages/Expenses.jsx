@@ -3,6 +3,11 @@ import { VStack } from '@astryxdesign/core/Layout'
 import { Text } from '@astryxdesign/core/Text'
 import { Grid } from '@astryxdesign/core/Grid'
 import { Button } from '@astryxdesign/core/Button'
+import { HStack } from '@astryxdesign/core/Layout'
+import { Badge } from '@astryxdesign/core/Badge'
+import { Divider } from '@astryxdesign/core/Divider'
+import { DateInput } from '@astryxdesign/core/DateInput'
+import { List, ListItem } from '@astryxdesign/core/List'
 import { AstryxPage, Legacy, PageHeader, MonthNav, LedgerCard, Ledger, LedgerRow } from '../astryx/AstryxPage'
 import CountUp from '../components/CountUp'
 import BankImport from '../components/BankImport'
@@ -622,16 +627,15 @@ const [payingDate, setPayingDate]     = useState('')
       {/* 통장 잔액 맞추기 (영업 잔액 vs 실제 통장) */}
       <BankReconCard ym={curMonth} data={data} categories={categories} onChanged={refreshData}/>
 
-      <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(min(100%, 460px), 1fr))', gap:'28px 40px', marginBottom:30}}>
-        {/* 고정지출 */}
-        <section>
-          {sectionTitle('고정지출', <>
-            {fixedItems.length > 0 && (unpaidFixed.length > 0
-              ? <span style={{color:T.red, fontWeight:700}}>미납 {unpaidFixed.length}건</span>
-              : <span style={{color:T.green, fontWeight:700}}>모두 납부</span>)}
-            <Btn onClick={()=>setShowFixedMgr(v=>!v)} small>{showFixedMgr ? '관리 닫기' : '항목 관리'}</Btn>
-          </>)}
+      </Legacy>
 
+      <Grid columns={{ minWidth: 420, max: 2, repeat: 'fit' }} gap={4}>
+        {/* 고정지출 (Astryx): 납부/미납, 냈어요 → 날짜 고르고 확인. 항목 관리 창은 아직 예전 모양 */}
+        <LedgerCard title="고정지출" right={<>
+          {fixedItems.length > 0 && <Badge variant={unpaidFixed.length > 0 ? 'error' : 'success'} label={unpaidFixed.length > 0 ? `미납 ${unpaidFixed.length}건` : '모두 납부'}/>}
+          <Button size="sm" label={showFixedMgr ? '관리 닫기' : '항목 관리'} onClick={()=>setShowFixedMgr(v=>!v)}/>
+        </>}>
+          {showFixedMgr && <Legacy>
           {showFixedMgr && (
             <div style={{background:T.chip, borderRadius:4, padding:'12px 14px', margin:'8px 0'}}>
               {fixedItems.map(item=>(
@@ -683,45 +687,39 @@ const [payingDate, setPayingDate]     = useState('')
             </div>
           )}
 
-          {fixedItems.length === 0 ? empty('항목 관리에서 매달 나가는 돈(임대료 등)을 추가하세요') : (
-            <>
-              {fixedItems.map(item=>{
-                const payment = fixedPayments[item.id]
-                const isPaid = payment?.paid
-                const cat = categories.find(c=>c.id===item.categoryId)
-                return (
-                  <div key={item.id} style={{display:'flex', alignItems:'center', gap:10, padding:'8px 0', borderBottom:`1px solid ${T.soft}`}}>
-                    <span style={{fontSize:12, fontWeight:700, width:30, flexShrink:0, color: isPaid ? T.green : T.red}}>{isPaid ? '납부' : '미납'}</span>
-                    <div style={{flex:1, minWidth:0}}>
-                      <div style={{display:'flex', alignItems:'baseline'}}>
-                        <span style={{fontSize:14, fontWeight:600, color: isPaid ? T.sub : T.ink, whiteSpace:'nowrap'}}>{item.label}</span>
-                        {leader()}
-                        <span style={{fontSize:14, ...num, color: isPaid ? T.sub : T.ink, whiteSpace:'nowrap'}}>{won(item.amount)}</span>
-                      </div>
-                      <div style={{fontSize:11, color:T.sub, marginTop:2}}>
-                        매월 {item.dueDay}일 · {cat?.label||'미분류'}
-                        {isPaid && <span style={{color:T.green}}> · {+payment.paidDate}일에 냄</span>}
-                      </div>
-                    </div>
-                    {isThisMonth && (
-                      isPaid ? <Btn onClick={()=>unpayFixed(item.id)} small>취소</Btn>
-                      : payingItemId === item.id ? (
-                        <div style={{display:'flex', alignItems:'center', gap:6, flexShrink:0}}>
-                          <input type="date" value={payingDate} onChange={e=>setPayingDate(e.target.value)} aria-label="낸 날짜"
-                            style={field({ fontSize:12, padding:'4px 6px' })}/>
-                          <Btn onClick={async()=>{ await payFixed(item, payingDate); setPayingItemId(null); setPayingDate('') }} kind="ok" small>확인</Btn>
-                          <Btn onClick={()=>{ setPayingItemId(null); setPayingDate('') }} small>취소</Btn>
-                        </div>
-                      ) : <Btn onClick={()=>{ setPayingItemId(item.id); setPayingDate(`${curMonth}-${getNowDD()}`) }} kind="ok" small>냈어요</Btn>
-                    )}
-                  </div>
-                )
-              })}
-              {total('낸 돈', paidFixedAmt, { note:`전체 ${won(totalFixedAmt)}원 중` })}
-            </>
+          </Legacy>}
+          {fixedItems.length === 0 ? <Text color="secondary">항목 관리에서 매달 나가는 돈(임대료 등)을 추가하세요</Text> : (
+            <VStack gap={2}>
+              <List hasDividers edge="flush">
+                {fixedItems.map(item => {
+                  const payment = fixedPayments[item.id]
+                  const isPaid = payment?.paid
+                  const cat = categories.find(c=>c.id===item.categoryId)
+                  return (
+                    <ListItem key={item.id}
+                      startContent={<Badge variant={isPaid ? 'success' : 'error'} label={isPaid ? '납부' : '미납'}/>}
+                      label={<HStack hAlign="between" gap={2}><Text weight="semibold" color={isPaid ? 'secondary' : 'primary'}>{item.label}</Text><Text hasTabularNumbers color={isPaid ? 'secondary' : 'primary'}>{won(item.amount)}</Text></HStack>}
+                      description={`매월 ${item.dueDay}일 · ${cat?.label||'미분류'}${isPaid ? ` · ${+payment.paidDate}일에 냄` : ''}`}
+                      endContent={isThisMonth ? (isPaid
+                        ? <Button size="sm" variant="ghost" label="취소" onClick={()=>unpayFixed(item.id)}/>
+                        : payingItemId === item.id
+                          ? <HStack gap={1} vAlign="center">
+                              <DateInput label="낸 날짜" isLabelHidden size="sm" value={payingDate} onChange={v=>setPayingDate(v || '')}/>
+                              <Button size="sm" variant="primary" label="확인" onClick={async()=>{ await payFixed(item, payingDate); setPayingItemId(null); setPayingDate('') }}/>
+                              <Button size="sm" variant="ghost" label="취소" onClick={()=>{ setPayingItemId(null); setPayingDate('') }}/>
+                            </HStack>
+                          : <Button size="sm" label="냈어요" onClick={()=>{ setPayingItemId(item.id); setPayingDate(`${curMonth}-${getNowDD()}`) }}/>) : undefined}/>
+                  )
+                })}
+              </List>
+              <Divider variant="strong"/>
+              <LedgerRow label="낸 돈" note={`전체 ${won(totalFixedAmt)}원 중`} value={paidFixedAmt} strong/>
+            </VStack>
           )}
-        </section>
+        </LedgerCard>
 
+        {/* 형과의 단기 대여금: 아직 예전 모양 */}
+        <Legacy>
         {/* 형과의 단기 대여금 */}
         <section>
           {sectionTitle('형과의 단기 대여금', <>
@@ -839,8 +837,10 @@ const [payingDate, setPayingDate]     = useState('')
           )}
           </>}
         </section>
-      </div>
+        </Legacy>
+      </Grid>
 
+      <Legacy>
       {/* 지출 입력 */}
       <section id="expense-input" style={{marginBottom:30, scrollMarginTop:70}}>
         {sectionTitle('지출 입력', <div style={{display:'flex', gap:14}}>
