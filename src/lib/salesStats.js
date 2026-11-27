@@ -1,7 +1,9 @@
 // 매출분석·대시보드가 같이 쓰는 배달앱 하루 값·평균과 '할인 목표' 계산
 //  revenue/{YYYY-MM}[dd] 의 마감 값 (baemin… = 하루 매출, baeminOrders… = 마감 때 적은 주문 건수)
 //  revenue/_apps-{YYYY-MM} = 배달앱 엑셀 (있으면 그날 그 앱은 이 값을 우선)
-//  revenue/_salesEvents = { list:[{ id, title, kind, platforms, from, to, memo, perOrder?, margin? }] }
+//  revenue/_salesEvents = { list:[{ id, title, kind, platforms, from, to, memo, perOrder?, margin?, funding?, appShare?, hqShare?, feeOn?, feeRate? }] }
+//    perOrder = 손님이 받는 건당 할인 전체. funding 'collab'(협업 할인)이면 appShare(배달앱 지원)·hqShare(본사 지원)를 빼고 남은 게 매장 부담
+//    feeOn 이면 할인액 전체에도 중개수수료(feeRate %)가 붙는다고 보고 매장 비용에 더함 (할인 전 금액 기준 수수료)
 //    perOrder(건당 할인, 원)가 있는 할인 일정은 '할인 목표'로 추적: 할인 전 4주 평균으로 본전 주문 수를 구해 매일 비교
 import { db } from '../firebase'
 import { doc, getDoc } from 'firebase/firestore'
@@ -16,6 +18,24 @@ export const EVENTS_DOC = ['revenue', '_salesEvents']
 export const OPEN_END = '2099-12-31'      // 끝나는 날을 정하지 않은 일정
 export const DEFAULT_MARGIN = 20           // 이익률 기본값 (%)
 export const BASE_DAYS = 28                // 할인 전 비교 기간
+export const DEFAULT_FEE_RATE = 7.8        // 할인액에 붙는 중개수수료 기본값 (%)
+
+// 할인 한 건에 매장이 실제로 내는 돈: 매장 부담(단독이면 할인 전체, 협업이면 총 − 앱 지원 − 본사 지원) + 할인액 전체에 붙는 수수료
+export function discountCost(ev) {
+  const total = +ev.perOrder || 0
+  const share = ev.funding === 'collab' ? Math.max(0, total - (+ev.appShare || 0) - (+ev.hqShare || 0)) : total
+  const fee = ev.feeOn ? Math.round(total * (+ev.feeRate || DEFAULT_FEE_RATE) / 100) : 0
+  return { total, share, fee, cost: share + fee }
+}
+// 목록·카드에 보일 한 줄: '건당 1,000원' / '총 5,000원 (앱 2,000 · 본사 1,500 · 매장 1,500)' (+ 수수료)
+export function discountLabel(ev) {
+  const w = n => (+n || 0).toLocaleString('ko-KR')
+  const c = discountCost(ev)
+  const head = ev.funding === 'collab'
+    ? `총 ${w(c.total)}원 할인 (배달앱 ${w(ev.appShare)} · 본사 ${w(ev.hqShare)} · 매장 ${w(c.share)})`
+    : `건당 ${w(c.total)}원 할인`
+  return c.fee ? `${head} + 수수료 ${w(c.fee)}원 = 매장 ${w(c.cost)}원` : head
+}
 
 export const pad = n => String(n).padStart(2,'0')
 const fmtDate = d => `${d.getUTCFullYear()}-${pad(d.getUTCMonth()+1)}-${pad(d.getUTCDate())}`
@@ -80,9 +100,9 @@ export const goalMonths = (ev, today = todayStr()) => {
 }
 
 // 할인 목표: 할인 전 4주 평균(주문·객단가)으로 '같은 이익을 내려면 하루 몇 건'을 구하고, 시작 뒤 실제와 비교
-//  이익 = 주문 × (객단가 × 이익률 − 건당 할인), 할인 전은 할인 없이. 객단가는 할인 전 값 그대로 둔다고 가정
+//  이익 = 주문 × (객단가 × 이익률 − 매장이 내는 건당 할인 비용), 할인 전은 할인 없이. 객단가는 할인 전 값 그대로 둔다고 가정
 export function discountGoal(months, ev, today = todayStr()) {
-  const d = +ev.perOrder || 0, m = (+ev.margin || DEFAULT_MARGIN) / 100
+  const d = discountCost(ev).cost, m = (+ev.margin || DEFAULT_MARGIN) / 100   // d = 매장이 실제로 내는 건당 할인 비용
   const apps = PLATFORMS.filter(p => !ev.platforms?.length || ev.platforms.includes(p.key))
   const baseDates = dateRange(addDays(ev.from, -BASE_DAYS), addDays(ev.from, -1))
   const started = ev.from <= today

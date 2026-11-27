@@ -21,7 +21,7 @@ import { CheckboxInput } from '@astryxdesign/core/CheckboxInput'
 import { List, ListItem } from '@astryxdesign/core/List'
 import { SegmentedControl, SegmentedControlItem } from '@astryxdesign/core/SegmentedControl'
 import { AstryxPage, Legacy, PageHeader, LedgerCard } from '../astryx/AstryxPage'
-import { PLATFORMS, EVENTS_DOC, OPEN_END, DEFAULT_MARGIN, isGoalEvent, goalMonths, addDays, daysBetween, dateRange, todayStr, monthsOf, dayValue, stats, loadSalesMonths } from '../lib/salesStats'
+import { PLATFORMS, EVENTS_DOC, OPEN_END, DEFAULT_MARGIN, DEFAULT_FEE_RATE, discountCost, discountLabel, isGoalEvent, goalMonths, addDays, daysBetween, dateRange, todayStr, monthsOf, dayValue, stats, loadSalesMonths } from '../lib/salesStats'
 
 // 매출분석 — 배달앱별 하루 주문수·매출·객단가, 할인·이벤트 기간과 그 전 기간 비교
 //
@@ -196,7 +196,7 @@ function EventEffect({ months, periods, ev }) {
 
 function emptyForm() {
   const t = todayStr()
-  return { id:null, title:'', kind:'discount', platforms:[], from:t, to:t, memo:'', perOrder:'', margin:'' }
+  return { id:null, title:'', kind:'discount', platforms:[], from:t, to:t, memo:'', perOrder:'', margin:'', funding:'store', appShare:'', hqShare:'', feeOn:false, feeRate:'' }
 }
 
 export default function SalesAnalysis() {
@@ -268,9 +268,14 @@ export default function SalesAnalysis() {
     if (!form.title.trim()) return alert('제목을 적어주세요')
     if (!form.from || !form.to || form.to < form.from) return alert('기간을 확인해 주세요')
     if (form.kind === 'discount' && form.perOrder !== '' && form.perOrder != null && !(+form.perOrder > 0)) return alert('건당 할인 금액을 확인해 주세요')
+    if (form.kind === 'discount' && form.funding === 'collab' && (+form.appShare || 0) + (+form.hqShare || 0) > (+form.perOrder || 0)) return alert('배달앱·본사 지원을 합친 금액이 총 할인보다 커요')
     const ev = { ...form, title: form.title.trim(), memo: form.memo.trim(), id: form.id || newId(),
       perOrder: form.kind === 'discount' && +form.perOrder > 0 ? +form.perOrder : null,
       margin: form.kind === 'discount' && +form.perOrder > 0 ? (+form.margin || DEFAULT_MARGIN) : null }
+    const isDisc = ev.kind === 'discount' && ev.perOrder
+    const collab = isDisc && form.funding === 'collab'
+    Object.assign(ev, { funding: collab ? 'collab' : 'store', appShare: collab ? (+form.appShare || 0) : null, hqShare: collab ? (+form.hqShare || 0) : null,
+      feeOn: !!(isDisc && form.feeOn), feeRate: isDisc && form.feeOn ? (+form.feeRate || DEFAULT_FEE_RATE) : null })
     const ok = await writeEvents(list => [...list.filter(e => e.id !== ev.id), ev])
     if (ok) { setForm(null); setSelId(ev.id) }
   }
@@ -540,17 +545,42 @@ export default function SalesAnalysis() {
                   })}
                 </HStack>
               </VStack>
-              {form.kind === 'discount' && (
-                <Card padding={3}>
-                  <VStack gap={2}>
-                    <HStack gap={2} vAlign="end" wrap="wrap">
-                      <TextInput label="주문 1건당 할인 (원)" inputMode="numeric" placeholder="예: 1000" width={160} value={form.perOrder ?? ''} onChange={v=>setForm(f=>({ ...f, perOrder:v.replace(/[^0-9]/g,'') }))}/>
-                      <TextInput label="이익률 (%)" inputMode="decimal" placeholder={String(DEFAULT_MARGIN)} width={110} value={form.margin ?? ''} onChange={v=>setForm(f=>({ ...f, margin:v.replace(/[^0-9.]/g,'') }))}/>
-                    </HStack>
-                    <Text type="supporting" color="secondary">건당 할인을 적으면 할인 전 4주 평균으로 '하루 몇 건 받아야 본전인지' 목표를 정하고, 시작하면 매일 실제 주문과 비교해요 (대시보드에도 나와요)</Text>
-                  </VStack>
-                </Card>
-              )}
+              {form.kind === 'discount' && (() => {
+                const c = discountCost(form), w = n => (+n || 0).toLocaleString('ko-KR')
+                return (
+                  <Card padding={3}>
+                    <VStack gap={3}>
+                      <SegmentedControl label="누가 할인을 내나요" value={form.funding || 'store'} onChange={v=>v && setForm(f=>({ ...f, funding:v }))}>
+                        <SegmentedControlItem value="store" label="매장 단독 할인"/>
+                        <SegmentedControlItem value="collab" label="협업 할인 (배달앱·본사 지원)"/>
+                      </SegmentedControl>
+                      <HStack gap={2} vAlign="end" wrap="wrap">
+                        <TextInput label={form.funding === 'collab' ? '손님이 받는 총 할인 (원)' : '주문 1건당 할인 (원)'} inputMode="numeric" placeholder={form.funding === 'collab' ? '예: 5000' : '예: 1000'} width={180}
+                          value={form.perOrder ?? ''} onChange={v=>setForm(f=>({ ...f, perOrder:v.replace(/[^0-9]/g,'') }))}/>
+                        {form.funding === 'collab' && <>
+                          <TextInput label="배달앱 지원 (원)" inputMode="numeric" placeholder="예: 2000" width={140} value={form.appShare ?? ''} onChange={v=>setForm(f=>({ ...f, appShare:v.replace(/[^0-9]/g,'') }))}/>
+                          <TextInput label="본사 지원 (원)" inputMode="numeric" placeholder="예: 1500" width={140} value={form.hqShare ?? ''} onChange={v=>setForm(f=>({ ...f, hqShare:v.replace(/[^0-9]/g,'') }))}/>
+                        </>}
+                        <TextInput label="이익률 (%)" inputMode="decimal" placeholder={String(DEFAULT_MARGIN)} width={110} value={form.margin ?? ''} onChange={v=>setForm(f=>({ ...f, margin:v.replace(/[^0-9.]/g,'') }))}/>
+                      </HStack>
+                      <VStack gap={1}>
+                        <HStack gap={3} vAlign="end" wrap="wrap">
+                          <CheckboxInput label="할인액에도 중개수수료가 붙음" description="배달앱이 할인 전 금액으로 수수료를 매기는 경우 (할인 전체 금액 기준)" value={!!form.feeOn} onChange={v=>setForm(f=>({ ...f, feeOn:v }))}/>
+                          {form.feeOn && <TextInput label="중개수수료 (%)" inputMode="decimal" placeholder={String(DEFAULT_FEE_RATE)} width={130} value={form.feeRate ?? ''} onChange={v=>setForm(f=>({ ...f, feeRate:v.replace(/[^0-9.]/g,'') }))}/>}
+                        </HStack>
+                        {form.feeOn && <Text type="supporting" color="secondary">이익률 20%에 이 수수료 손해를 이미 넣어 두셨다면 여기서는 끄거나, 이익률을 수수료 빼기 전 값으로 적어 주세요 (두 번 빠지지 않게)</Text>}
+                      </VStack>
+                      {c.total > 0 && (
+                        <Text weight="bold" hasTabularNumbers>
+                          매장이 실제로 내는 돈: 주문 1건당 {w(c.cost)}원
+                          <Text type="inherit" weight="normal" color="secondary">{form.funding === 'collab' ? ` (총 ${w(c.total)} − 배달앱 ${w(form.appShare)} − 본사 ${w(form.hqShare)} = 매장 ${w(c.share)}` : ` (할인 ${w(c.share)}`}{c.fee ? ` + 수수료 ${w(c.fee)}` : ''})</Text>
+                        </Text>
+                      )}
+                      <Text type="supporting" color="secondary">할인 금액을 적으면 할인 전 4주 평균으로 '하루 몇 건 받아야 본전인지' 목표를 정하고, 시작하면 매일 실제 주문과 비교해요 (대시보드에도 나와요). 본전 계산에는 매장이 실제로 내는 돈만 써요.</Text>
+                    </VStack>
+                  </Card>
+                )
+              })()}
               <TextArea label="메모" isOptional rows={2} placeholder="예: 최소주문 20,000원, 첫 주문 고객만" value={form.memo} onChange={v=>setForm(f=>({ ...f, memo:v }))}/>
               <HStack gap={2}>
                 <Button variant="primary" label={saving ? '저장 중...' : '저장'} isDisabled={saving} onClick={saveForm}/>
@@ -569,13 +599,13 @@ export default function SalesAnalysis() {
                 label={<Text weight="bold">{ev.title}</Text>}
                 description={<Text type="supporting" color="secondary" hasTabularNumbers>
                   {ev.to === OPEN_END ? `${ev.from} ~ 계속` : ev.from === ev.to ? ev.from : `${ev.from} ~ ${ev.to} (${daysBetween(ev.from, ev.to)+1}일)`}
-                  {+ev.perOrder > 0 && ` · 건당 ${(+ev.perOrder).toLocaleString('ko-KR')}원`}
+                  {+ev.perOrder > 0 && ` · ${discountLabel(ev)}`}
                   {' · '}{ev.platforms?.length ? ev.platforms.map(k=>PLATFORMS.find(p=>p.key===k)?.short).join(', ') : '전체 앱'}
                   {ev.memo && ` · ${ev.memo}`}
                 </Text>}
                 endContent={<HStack gap={1}>
                   <Button size="sm" variant={on ? 'primary' : 'secondary'} label={on ? '효과 닫기' : '효과 보기'} onClick={()=>setSelId(on ? null : ev.id)}/>
-                  <Button size="sm" variant="ghost" label="수정" onClick={()=>setForm({ ...emptyForm(), ...ev, platforms: ev.platforms || [], memo: ev.memo || '', perOrder: ev.perOrder ?? '', margin: ev.margin ?? '' })}/>
+                  <Button size="sm" variant="ghost" label="수정" onClick={()=>setForm({ ...emptyForm(), ...ev, platforms: ev.platforms || [], memo: ev.memo || '', perOrder: ev.perOrder ?? '', margin: ev.margin ?? '', funding: ev.funding || 'store', appShare: ev.appShare ?? '', hqShare: ev.hqShare ?? '', feeOn: !!ev.feeOn, feeRate: ev.feeRate ?? '' })}/>
                   <Button size="sm" variant="ghost" label="삭제" onClick={()=>removeEvent(ev)}/>
                 </HStack>}/>
             )

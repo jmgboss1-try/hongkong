@@ -9,7 +9,7 @@ import { Divider } from '@astryxdesign/core/Divider'
 import { Table } from '@astryxdesign/core/Table'
 import { List, ListItem } from '@astryxdesign/core/List'
 import { AstryxPage, LedgerCard } from '../astryx/AstryxPage'
-import { discountGoal, goalMonths, isGoalEvent, loadSalesEvents, loadSalesMonths, OPEN_END, todayStr } from '../lib/salesStats'
+import { discountGoal, discountLabel, goalMonths, isGoalEvent, loadSalesEvents, loadSalesMonths, OPEN_END, todayStr } from '../lib/salesStats'
 
 // 할인 목표 (건당 할인 일정): 매출분석의 카드(GoalCard)와 대시보드 한 줄(GoalLine)
 const T = { ink:'#1D1B18', sub:'#6E6A63', faint:'#A8A39A', rule:'#DCD7CE', soft:'#ECE8E1', accent:'var(--hk-accent)', green:'#2E7D45', red:'#B42318' }
@@ -43,7 +43,7 @@ export function GoalCard({ months, ev, loading }) {
       <Divider/>
       <HStack gap={2} vAlign="center" wrap="wrap">
         <Text weight="bold">{ev.title}</Text>
-        <Text type="supporting" color="secondary">{appNames(g)} · 건당 {won(g.d)}원 · 이익률 {g.margin}% · {period(ev)}{g.ended ? ' (끝남)' : !g.started ? ' (시작 전)' : ''}</Text>
+        <Text type="supporting" color="secondary">{appNames(g)} · {discountLabel(ev)} · 이익률 {g.margin}% · {period(ev)}{g.ended ? ' (끝남)' : !g.started ? ' (시작 전)' : ''}</Text>
       </HStack>
       <HStack gap={2} vAlign="center" wrap="wrap">
         {v.color === T.green ? <Badge variant="success" label="본전 넘음"/> : v.color === T.red ? <Badge variant="error" label="모자라요"/> : null}
@@ -117,7 +117,7 @@ export function GoalLine() {
             const v = verdict(g)
             return (
               <ListItem key={ev.id} align="start"
-                label={<Text type="supporting" color="secondary">{ev.title} · {appNames(g)} 건당 {won(g.d)}원 · {period(ev)}</Text>}
+                label={<Text type="supporting" color="secondary">{ev.title} · {appNames(g)} {discountLabel(ev)} · {period(ev)}</Text>}
                 description={<VStack gap={1}>
                   <Text weight="bold" hasTabularNumbers>{v.text}</Text>
                   {g.started && !g.noBase && (
