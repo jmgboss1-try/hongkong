@@ -236,23 +236,28 @@ export default function Layout({ children }) {
         <div key={location.pathname} className="hk-page">{children}</div>
       </div>
 
-      {/* ── 모바일 하단 탭바 ── */}
-      <div className="mobile-tabbar" style={{
-        display:'none', position:'fixed', bottom:0, left:0, right:0, zIndex:20,
-        background:'#FFFFFF', borderTop:'1px solid #DCD7CE',
-        padding:'6px 0 8px'
-      }}>
-        <div ref={tabbarRef} className="tabbar-scroll" style={{display:'flex', overflowX:'auto', overscrollBehaviorX:'contain', WebkitOverflowScrolling:'touch', scrollbarWidth:'none'}}>
-          {bottomMenus.map(m=>(
-            <div key={m.path} onClick={()=>navigate(m.path)} data-active={location.pathname===m.path ? '1' : '0'}
-              style={{display:'flex', flexDirection:'column', alignItems:'center', padding:'8px 4px 6px', cursor:'pointer', flex:'0 0 auto',
-                color:location.pathname===m.path?'#1D1B18':'#6E6A63', width: bottomMenus.length <= 5 ? `${100 / bottomMenus.length}%` : '18%', boxSizing:'border-box', whiteSpace:'nowrap',
-                borderTop:`2px solid ${location.pathname===m.path ? 'var(--hk-accent)' : 'transparent'}`, marginTop:-7}}>
-              <span style={{color: NAV_GROUPS[navGroupOf(m.path)].color, opacity: location.pathname===m.path ? 1 : 0.8, marginBottom:2}}><NavIcon name={m.path} size={20}/></span>
-              <span style={{fontSize:11, fontWeight:location.pathname===m.path?700:500}}>{m.label}</span>
+      {/* ── 모바일 하단 탭바: 모든 메뉴를 옆으로 밀어 봄 (지금 탭은 가운데로). 미는 줄·탭 폭·위쪽 강조선만 인라인, 색은 Astryx 토큰 ── */}
+      <div className="mobile-tabbar" style={{display:'none', position:'fixed', bottom:0, left:0, right:0, zIndex:20}}>
+        <AstryxPage>
+          <div style={{background:'var(--color-background-card)', borderTop:'1px solid var(--color-border)', padding:'6px 0 8px'}}>
+            <div ref={tabbarRef} className="tabbar-scroll" style={{display:'flex', overflowX:'auto', overscrollBehaviorX:'contain', WebkitOverflowScrolling:'touch', scrollbarWidth:'none'}}>
+              {bottomMenus.map(m => {
+                const on = location.pathname===m.path
+                return (
+                  <button type="button" key={m.path} onClick={()=>navigate(m.path)} data-active={on ? '1' : '0'} aria-current={on ? 'page' : undefined}
+                    style={{flex:'0 0 auto', width: bottomMenus.length <= 5 ? `${100 / bottomMenus.length}%` : '18%', padding:'8px 4px 6px', marginTop:-7,
+                      background:'transparent', border:'none', cursor:'pointer', whiteSpace:'nowrap',
+                      borderTop:`2px solid ${on ? 'var(--color-accent)' : 'transparent'}`}}>
+                    <VStack gap={0.5} hAlign="center">
+                      <span style={{display:'inline-flex', color:NAV_GROUPS[navGroupOf(m.path)].color, opacity: on ? 1 : 0.8}}><NavIcon name={m.path} size={20}/></span>
+                      <Text type="supporting" weight={on ? 'bold' : 'normal'} color={on ? 'primary' : 'secondary'}>{m.label}</Text>
+                    </VStack>
+                  </button>
+                )
+              })}
             </div>
-          ))}
-        </div>
+          </div>
+        </AstryxPage>
       </div>
 
       {/* 반응형 CSS */}
@@ -268,6 +273,7 @@ export default function Layout({ children }) {
           .mobile-header { display: block !important; }
           .mobile-header > * { width: 100%; }
           .mobile-tabbar { display: block !important; }
+          .mobile-tabbar > * { width: 100%; }
           .main-content {
             margin-left: 0 !important;
             padding: 70px 14px 80px !important;
