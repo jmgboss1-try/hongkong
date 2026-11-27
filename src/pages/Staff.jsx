@@ -8,6 +8,7 @@ import { StatusDot } from '@astryxdesign/core/StatusDot'
 import { Badge } from '@astryxdesign/core/Badge'
 import { Table } from '@astryxdesign/core/Table'
 import { ClickableCard } from '@astryxdesign/core/ClickableCard'
+import { Dialog, DialogHeader } from '@astryxdesign/core/Dialog'
 import { Card } from '@astryxdesign/core/Card'
 import { Selector } from '@astryxdesign/core/Selector'
 import { DateInput } from '@astryxdesign/core/DateInput'
@@ -18,7 +19,7 @@ import { doc, getDoc, setDoc, collection, query, where, getDocs } from 'firebase
 import { useAuth } from '../AuthContext'
 import { toDate, hm, dayStatus, breakForShift, recBreak, planFor, reapplyDay } from '../lib/attendance'
 import { deleteField } from 'firebase/firestore'
-import TimePick from '../components/TimePick'
+import TimeSelect from '../astryx/TimeSelect'
 import { saveUser } from '../lib/privateInfo'
 
 const pad = n => String(n).padStart(2,'0')
@@ -95,6 +96,7 @@ export default function Staff() {
   const [cfg, setCfg] = useState(null)       // attendance/_config (매장 브레이크)
   const [loading, setLoading] = useState(true)
   const [editDay, setEditDay] = useState(null) // 매장 일정 고치는 날짜 'YYYY-MM-DD'
+  const [evText, setEvText] = useState('')
   const [plans, setPlans] = useState({})       // { 'YYYY-MM': schedule 문서 } 근무표에서 직접 바꾼 날·일찍 마감
   const [cellEdit, setCellEdit] = useState(null)   // { uid, ds, start, end }
   const [closeEdit, setCloseEdit] = useState(null) // { ds, time }
@@ -164,6 +166,7 @@ export default function Staff() {
   const nameOf = uid => staff.find(u=>u.uid===uid)?.name || '—'
   const holidayOf = ds => holidays.find(h => h.startDate <= ds && ds <= h.endDate) || null
   const closedOf = d => d.getDay() === 0 || !!holidayOf(dateStr(d))
+  const dayLabel = ds => { const d = new Date(+ds.slice(0,4), +ds.slice(5,7)-1, +ds.slice(8,10)); return `${d.getMonth()+1}/${d.getDate()} (${DAYS_KR[d.getDay()]})` }
   function cellOf(u, d) {
     const ds = dateStr(d), ym = ds.slice(0,7), dd = ds.slice(8,10)
     const rec = att[ym]?.[u.uid]?.[dd] || null
@@ -280,7 +283,6 @@ export default function Staff() {
   const maxCount = Math.max(1, ...hours.flatMap(h => shiftsByDay.map(l => countAt(l, h))))
 
   const weekLabel = `${monday.getMonth()+1}월 ${monday.getDate()}일 ~ ${days[days.length-1].getMonth()+1}월 ${days[days.length-1].getDate()}일`
-  const linkBtn = color => ({ background:'none', border:'none', borderBottom:`1px solid ${color}`, color, padding:0, fontSize:11, cursor:'pointer', fontFamily:'inherit' })
 
   return (
     <AstryxPage>
@@ -367,46 +369,25 @@ export default function Staff() {
                   {hol && <Text type="supporting" weight="bold" color="secondary">{hol.reason || '임시휴무'}</Text>}
                   {!hol && d.getDay()===0 && <Text type="supporting" color="secondary">휴무</Text>}
                   {editDay === ds
-                    ? <Legacy><input autoFocus defaultValue={ev||''} placeholder="일정" onBlur={e=>saveEvent(ds, e.target.value.trim())} onKeyDown={e=>e.key==='Enter' && e.target.blur()}
-                        style={{width:'100%', boxSizing:'border-box', fontSize:12, padding:'3px 5px', border:'1px solid #CBC5BA', borderRadius:4, fontFamily:'inherit'}}/></Legacy>
-                    : ev ? (isOwner ? <Button size="sm" variant="ghost" label={ev} onClick={()=>setEditDay(ds)}/> : <Text type="supporting" weight="bold" color="accent">{ev}</Text>)
-                    : isOwner && <Button size="sm" variant="ghost" label="+ 일정" onClick={()=>setEditDay(ds)}/>}
+                    ? <VStack gap={1}>
+                        <TextInput label="일정" isLabelHidden size="sm" hasAutoFocus placeholder="일정" value={evText} onChange={v=>setEvText(v)} onEnter={()=>saveEvent(ds, evText.trim())}/>
+                        <HStack gap={1} wrap="wrap" hAlign="center">
+                          <Button size="sm" variant="primary" label="저장" onClick={()=>saveEvent(ds, evText.trim())}/>
+                          <Button size="sm" variant="ghost" label="취소" onClick={()=>setEditDay(null)}/>
+                        </HStack>
+                      </VStack>
+                    : ev ? (isOwner ? <Button size="sm" variant="ghost" label={ev} onClick={()=>{ setEvText(ev); setEditDay(ds) }}/> : <Text type="supporting" weight="bold" color="accent">{ev}</Text>)
+                    : isOwner && <Button size="sm" variant="ghost" label="+ 일정" onClick={()=>{ setEvText(''); setEditDay(ds) }}/>}
                 </VStack>
               }
               if (row.kind === 'close') {
                 const close = plans[ds.slice(0,7)]?.closeAt?.[ds.slice(8,10)]
-                if (closeEdit?.ds === ds) return (
-                  <Legacy>
-                    <TimePick value={closeEdit.time} onChange={v=>setCloseEdit(c=>({...c,time:v}))} label="마감 시각"/>
-                    <div style={{display:'flex', gap:6, justifyContent:'center', marginTop:4}}>
-                      <button type="button" disabled={busy || !closeEdit.time} onClick={()=>saveClose(closeEdit.time)} style={linkBtn(T.accent)}>저장</button>
-                      {close && <button type="button" disabled={busy} onClick={()=>saveClose(null)} style={linkBtn(T.red)}>지우기</button>}
-                      <button type="button" onClick={()=>setCloseEdit(null)} style={linkBtn(T.sub)}>취소</button>
-                    </div>
-                  </Legacy>
-                )
-                return close ? (isOwner ? <Button size="sm" variant="ghost" label={`${close} 마감`} onClick={()=>setCloseEdit({ ds, time:close })}/> : <Text type="supporting" weight="bold" color="accent">{close} 마감</Text>)
+                return close ? (isOwner ? <Button size="sm" variant="ghost" label={`${close} 마감`} onClick={()=>setCloseEdit({ ds, time:close, had:true })}/> : <Text type="supporting" weight="bold" color="accent">{close} 마감</Text>)
                   : isOwner && !closedOf(d) ? <Button size="sm" variant="ghost" label="+ 마감" onClick={()=>setCloseEdit({ ds, time:'20:00' })}/> : null
               }
               if (row.kind === 'count') { const l = shiftsByDay[i]; return <Text weight="bold" hasTabularNumbers>{l.length ? `${l.length}명` : ''}</Text> }
               const u = row.u, c = cellOf(u, d)
               const inD = toDate(c.rec?.in), outD = toDate(c.rec?.out)
-              if (cellEdit?.uid === u.uid && cellEdit?.ds === c.ds) return (
-                <Legacy>
-                  <div style={{display:'flex', flexDirection:'column', gap:3}}>
-                    <span style={{fontSize:11, color:T.sub, textAlign:'left'}}>출근</span>
-                    <TimePick value={cellEdit.start} onChange={v=>setCellEdit(x=>({...x,start:v}))} label="출근 예정"/>
-                    <span style={{fontSize:11, color:T.sub, textAlign:'left'}}>퇴근 (선택)</span>
-                    <TimePick value={cellEdit.end} onChange={v=>setCellEdit(x=>({...x,end:v}))} label="퇴근 예정"/>
-                  </div>
-                  <div style={{display:'flex', gap:6, justifyContent:'center', flexWrap:'wrap', marginTop:4}}>
-                    <button type="button" disabled={busy} onClick={()=>{ if(!cellEdit.start) return alert('출근 시각을 골라주세요'); saveCell({ start:cellEdit.start, end:cellEdit.end || null }) }} style={linkBtn(T.accent)}>저장</button>
-                    <button type="button" disabled={busy} onClick={()=>saveCell({ off:true })} style={linkBtn(T.sub)}>휴무</button>
-                    {c.override && <button type="button" disabled={busy} onClick={()=>saveCell(null)} style={linkBtn(T.blue)}>기본으로</button>}
-                    <button type="button" onClick={()=>setCellEdit(null)} style={linkBtn(T.sub)}>취소</button>
-                  </div>
-                </Legacy>
-              )
               if (c.closed) return <Text type="supporting" color="secondary">—</Text>
               const body = (
                 <VStack gap={0}>
@@ -423,7 +404,7 @@ export default function Staff() {
               )
               return isOwner
                 ? <ClickableCard label={`${u.name} ${d.getMonth()+1}/${d.getDate()} 시간 바꾸기`} variant="transparent" padding={1}
-                    onClick={()=>setCellEdit({ uid:u.uid, ds:c.ds, start:c.planned?.start || '', end:c.planned?.end || '' })}>{body}</ClickableCard>
+                    onClick={()=>setCellEdit({ uid:u.uid, ds:c.ds, start:c.planned?.start || '', end:c.planned?.end || '', override:!!c.override, })}>{body}</ClickableCard>
                 : body
             }
             return (
@@ -439,6 +420,35 @@ export default function Staff() {
             )
           })()}
         </LedgerCard>
+
+        {cellEdit && (
+          <Dialog isOpen onOpenChange={o => { if (!o) setCellEdit(null) }} width={360}>
+            <DialogHeader title={`${nameOf(cellEdit.uid)} · ${dayLabel(cellEdit.ds)}`} onOpenChange={o => { if (!o) setCellEdit(null) }}/>
+            <VStack gap={3} padding={4}>
+              <VStack gap={1}><Text type="label">출근</Text><TimeSelect value={cellEdit.start} onChange={v=>setCellEdit(x=>({...x,start:v}))} label="출근 예정"/></VStack>
+              <VStack gap={1}><Text type="label">퇴근 (선택)</Text><TimeSelect value={cellEdit.end} onChange={v=>setCellEdit(x=>({...x,end:v}))} label="퇴근 예정" clearable/></VStack>
+              <HStack gap={2} wrap="wrap">
+                <Button variant="primary" label="저장" isDisabled={busy} onClick={()=>{ if(!cellEdit.start) return alert('출근 시각을 골라주세요'); saveCell({ start:cellEdit.start, end:cellEdit.end || null }) }}/>
+                <Button label="휴무" isDisabled={busy} onClick={()=>saveCell({ off:true })}/>
+                {cellEdit.override && <Button label="기본으로" isDisabled={busy} onClick={()=>saveCell(null)}/>}
+                <Button variant="ghost" label="취소" onClick={()=>setCellEdit(null)}/>
+              </HStack>
+            </VStack>
+          </Dialog>
+        )}
+        {closeEdit && (
+          <Dialog isOpen onOpenChange={o => { if (!o) setCloseEdit(null) }} width={360}>
+            <DialogHeader title={`일찍 마감 · ${dayLabel(closeEdit.ds)}`} onOpenChange={o => { if (!o) setCloseEdit(null) }}/>
+            <VStack gap={3} padding={4}>
+              <VStack gap={1}><Text type="label">마감 시각</Text><TimeSelect value={closeEdit.time} onChange={v=>setCloseEdit(c=>({...c,time:v}))} label="마감 시각"/></VStack>
+              <HStack gap={2} wrap="wrap">
+                <Button variant="primary" label="저장" isDisabled={busy || !closeEdit.time} onClick={()=>saveClose(closeEdit.time)}/>
+                {closeEdit.had && <Button label="지우기" isDisabled={busy} onClick={()=>saveClose(null)}/>}
+                <Button variant="ghost" label="취소" onClick={()=>setCloseEdit(null)}/>
+              </HStack>
+            </VStack>
+          </Dialog>
+        )}
 
         {/* 시간대별 인원 (예정 기준, 대타 반영. 진할수록 사람이 많음) */}
         {hours.length > 0 && (
