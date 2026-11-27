@@ -239,7 +239,6 @@ export default function RevenueInput() {
     close:   { label:'마감',     hint:'하루 전체 합계를 입력해요. 오후 매출은 자동으로 계산돼요' },
   }
   const si = sessionInfo[activeSession]
-  const num = { fontVariantNumeric:'tabular-nums', fontFeatureSettings:'"tnum"' }
   const subtotal = (+kiosk||0) + delTotal + (+pos||0)
   const morningTotal = (rec.morningKiosk||0)+(rec.morningDel||0)+(rec.morningPos||0)
   const summary = [
@@ -410,26 +409,30 @@ export default function RevenueInput() {
           onAdd={fresh=>{ setPhoneOpen(false); readPhoto(fresh[fresh.length-1]); return '' }}
           onClose={()=>setPhoneOpen(false)}/>
       )}
-      {/* 숨긴 파일 고르기 (이 기기에서 사진 고르기 버튼이 누름) · 저장 완료 도장: 아직 옛 방식 */}
+      {/* 숨긴 파일 고르기 (이 기기에서 사진 고르기 버튼이 누름) */}
       <Legacy>
         <input ref={fileRef} type="file" accept="image/*" capture="environment" style={{display:'none'}}
           onChange={async e=>{ const f = e.target.files?.[0]; e.target.value=''; if (f) readPhoto(await compressImage(f, 1600, 450)) }}/>
         <style>{RI_CSS}</style>
-        {stamp && (
-          <div key={stamp.id} className="ri-stamp-wrap" onClick={()=>setStamp(null)} role="status"
-            style={{position:'fixed', inset:0, zIndex:1000, display:'grid', placeItems:'center', background:'rgba(250,249,246,.55)', cursor:'pointer'}}>
-            <div className="ri-stamp" style={{background:'#FFFFFF', border:'3px solid var(--hk-accent)', borderRadius:16, padding:'22px 30px', textAlign:'center',
-              boxShadow:'0 20px 50px rgba(29,27,24,.18)', minWidth:220}}>
-              <svg width="56" height="56" viewBox="0 0 56 56" aria-hidden="true" style={{display:'block', margin:'0 auto 8px'}}>
-                <circle cx="28" cy="28" r="26" fill="var(--hk-accent)"/>
-                <path className="ri-check" d="M16 29 l8 8 l16 -17" fill="none" stroke="#FFFFFF" strokeWidth="5" strokeLinecap="round" strokeLinejoin="round"/>
-              </svg>
-              <div style={{fontSize:15, fontWeight:800, color:'var(--hk-accent)'}}>{stamp.label} 매출 저장 완료</div>
-              <div style={{fontSize:28, fontWeight:800, letterSpacing:'-0.02em', marginTop:4, color:'#1D1B18', ...num}}><CountUp value={stamp.amount} ms={700}/><span style={{fontSize:15, marginLeft:2}}>원</span></div>
-            </div>
-          </div>
-        )}
       </Legacy>
+      {/* 저장 완료 도장: 화면 전체를 덮는 자리와 튀어나오는 움직임(RI_CSS)만 바깥 div, 안은 Astryx 카드 */}
+      {stamp && (
+        <div key={stamp.id} className="ri-stamp-wrap" onClick={()=>setStamp(null)} role="status"
+          style={{position:'fixed', inset:0, zIndex:1000, display:'grid', placeItems:'center', background:'rgba(250,249,246,.55)', cursor:'pointer'}}>
+          <div className="ri-stamp">
+            <Card padding={6}>
+              <VStack gap={2} hAlign="center">
+                <svg width="56" height="56" viewBox="0 0 56 56" aria-hidden="true">
+                  <circle cx="28" cy="28" r="26" fill="var(--color-accent)"/>
+                  <path className="ri-check" d="M16 29 l8 8 l16 -17" fill="none" stroke="var(--color-on-accent)" strokeWidth="5" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+                <Text weight="bold" color="accent">{stamp.label} 매출 저장 완료</Text>
+                <Text type="display-3" weight="bold" hasTabularNumbers><CountUp value={stamp.amount} ms={700}/>원</Text>
+              </VStack>
+            </Card>
+          </div>
+        </div>
+      )}
     </AstryxPage>
   )
 }
