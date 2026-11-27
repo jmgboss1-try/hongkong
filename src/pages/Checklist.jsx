@@ -560,12 +560,12 @@ export default function Checklist() {
     return (
       <div key={x.key} data-task={x.key} className="ck-in">
         <HStack gap={2} vAlign="center">
-          <ClickableCard label={`${it.label} ${x.time} 끝내기`} isDisabled={done} padding={3} width="100%"
+          <ClickableCard label={`${it.label} ${x.time} 끝내기`} isDisabled={done} padding={2} width="100%"
             onClick={e => completeTask(x.key, e.currentTarget)}>
             <HStack gap={3} vAlign="center">
               <StatusDot variant={done ? 'success' : 'neutral'} label={done ? '끝냄' : '아직'}/>
               <VStack gap={0}>
-                <Text type="large" weight="semibold" hasStrikethrough={done}>{it.label}</Text>
+                <Text weight="semibold" hasStrikethrough={done}>{it.label}</Text>
                 {x.weekly && <Text type="supporting" color="secondary">{intervalLabel(it.interval) || '요일별'}</Text>}
                 {alert && <Text type="supporting" color="accent">{it.alertUid && alertNameOf(it.alertUid) ? `${alertNameOf(it.alertUid)}님 ` : ''}{it.alertMsg || '일찍 출근 필요'}</Text>}
               </VStack>
@@ -769,11 +769,11 @@ export default function Checklist() {
             <VStack gap={4}>
               <HStack hAlign="between" vAlign="center" gap={2} wrap="wrap">
                 <VStack gap={0}>
-                  <Heading level={3}>오늘 ({DAYS_KR[todayDow]}) 할 일</Heading>
+                  <Heading level={4}>오늘 ({DAYS_KR[todayDow]}) 할 일</Heading>
                   <Text type="supporting" color="secondary">{today}</Text>
                 </VStack>
-                <Text type="display-3" hasTabularNumbers color={todayDoneCount===todayTotalCount ? 'primary' : 'accent'}>
-                  {todayDoneCount}<Text type="large" color="secondary"> / {todayTotalCount}</Text>
+                <Text type="large" weight="bold" hasTabularNumbers color={todayDoneCount===todayTotalCount ? 'primary' : 'accent'}>
+                  {todayDoneCount}<Text type="inherit" color="secondary"> / {todayTotalCount}</Text>
                 </Text>
               </HStack>
 
@@ -782,7 +782,7 @@ export default function Checklist() {
                   description={`${it.alertUid && alertNameOf(it.alertUid) ? `${alertNameOf(it.alertUid)}님 — ` : ''}${it.alertMsg || '일찍 출근 필요'}`}/>
               ))}
 
-              <TabList value={taskTab} onChange={setTaskTab} layout="fill" hasDivider size="lg">
+              <TabList value={taskTab} onChange={setTaskTab} layout="fill" hasDivider>
                 {[['오전', todayLeft('오전')], ['오후', todayLeft('오후')], ['완료', todayDoneSlots.length]].map(([k, n]) => (
                   <Tab key={k} value={k} label={k} endContent={<Badge variant={k==='완료' ? 'success' : 'neutral'} label={String(n)}/>}/>
                 ))}
