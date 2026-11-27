@@ -239,13 +239,13 @@ export default function Layout({ children }) {
       {/* ── 모바일 하단 탭바: 모든 메뉴를 옆으로 밀어 봄 (지금 탭은 가운데로). 미는 줄·탭 폭·위쪽 강조선만 인라인, 색은 Astryx 토큰 ── */}
       <div className="mobile-tabbar" style={{display:'none', position:'fixed', bottom:0, left:0, right:0, zIndex:20}}>
         <AstryxPage>
-          <div style={{background:'var(--color-background-card)', borderTop:'1px solid var(--color-border)', padding:'6px 0 8px'}}>
+          <div style={{background:'var(--color-background-card)', borderTop:'1px solid var(--color-border)', padding:'0 0 8px'}}>
             <div ref={tabbarRef} className="tabbar-scroll" style={{display:'flex', overflowX:'auto', overscrollBehaviorX:'contain', WebkitOverflowScrolling:'touch', scrollbarWidth:'none'}}>
               {bottomMenus.map(m => {
                 const on = location.pathname===m.path
                 return (
                   <button type="button" key={m.path} onClick={()=>navigate(m.path)} data-active={on ? '1' : '0'} aria-current={on ? 'page' : undefined}
-                    style={{flex:'0 0 auto', width: bottomMenus.length <= 5 ? `${100 / bottomMenus.length}%` : '18%', padding:'8px 4px 6px', marginTop:-7,
+                    style={{flex:'0 0 auto', width: bottomMenus.length <= 5 ? `${100 / bottomMenus.length}%` : '18%', padding:'8px 4px 6px',
                       background:'transparent', border:'none', cursor:'pointer', whiteSpace:'nowrap',
                       borderTop:`2px solid ${on ? 'var(--color-accent)' : 'transparent'}`}}>
                     <VStack gap={0.5} hAlign="center">
