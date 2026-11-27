@@ -136,7 +136,7 @@ const [insHistory, setInsHistory] = useState([])   // 4대보험 고지 금액 �
     <VStack gap={4}>
       {/* 지난달 개근이면 포상 룰렛 (사장님이 열었을 때) · 우리 매장 화면에 나오는 내 캐릭터 */}
       <MyRewardSpin uid={user.uid} name={userData?.name || ''}/>
-      <Legacy><AvatarEditor uid={user.uid} userData={userData}/></Legacy>
+      <AvatarEditor uid={user.uid} userData={userData}/>
 
       <PageHeader title="내 스케쥴" sub={userData?.name}
         right={<Selector label="달 고르기" isLabelHidden size="sm" value={curMonth} onChange={v => v && setCurMonth(v)} options={monthOpts.map(m => ({ value:m, label:mLabel(m) }))}/>}/>
