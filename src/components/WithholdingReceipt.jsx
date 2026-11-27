@@ -131,7 +131,7 @@ export default function WithholdingReceipt({ defaultYear, onClose }) {
   return (
     <div onClick={onClose} style={{position:'fixed', inset:0, background:'rgba(29,27,24,.45)', zIndex:1000, overflowY:'auto', padding:'24px 12px'}}>
       <style>{STATEMENT_PRINT_CSS}</style>
-      <div onClick={e => e.stopPropagation()} style={{maxWidth:760, margin:'0 auto', background:'#FAF9F6', borderRadius:6, padding:'14px 16px'}}>
+      <div onClick={e => e.stopPropagation()} style={{maxWidth:760, margin:'0 auto', background:'#FAF9F6', color:'#1D1B18', borderRadius:6, padding:'14px 16px'}}>
         <div className="ws-noprint" style={{display:'flex', alignItems:'center', gap:8, flexWrap:'wrap', marginBottom:10}}>
           <b style={{fontSize:15}}>원천징수영수증</b>
           <select value={year} onChange={e => setYear(+e.target.value)} style={{...input, width:'auto'}}>

@@ -207,7 +207,7 @@ useEffect(() => {
     <div style={{position:'fixed',inset:0,zIndex:1000,background:'rgba(0,0,0,0.7)',
       display:'flex',alignItems:'flex-start',justifyContent:'center',
       overflowY:'auto',padding:'30px 16px'}}>
-      <div style={{background:'#fff',borderRadius:6,width:'100%',maxWidth:800,
+      <div style={{background:'#fff',color:'#000',borderRadius:6,width:'100%',maxWidth:800,
         boxShadow:'0 20px 60px rgba(0,0,0,0.4)'}}>
 
         {/* 모달 헤더 — 인쇄 시 숨김 */}
@@ -1014,7 +1014,7 @@ if(!isActive && !isRetired) return
       {showMyStatement && (
         <div onClick={()=>setShowMyStatement(false)} style={{position:'fixed', inset:0, background:'rgba(29,27,24,.45)', zIndex:1000, overflowY:'auto', padding:'24px 12px'}}>
           <style>{STATEMENT_PRINT_CSS}</style>
-          <div onClick={e=>e.stopPropagation()} style={{maxWidth:560, margin:'0 auto', background:'#FAF9F6', borderRadius:6, padding:'14px 16px'}}>
+          <div onClick={e=>e.stopPropagation()} style={{maxWidth:560, margin:'0 auto', background:'#FAF9F6', color:'#1D1B18', borderRadius:6, padding:'14px 16px'}}>
             <div className="ws-noprint" style={{display:'flex', alignItems:'center', gap:8, marginBottom:6}}>
               <b style={{fontSize:15}}>내 임금명세서 · {mLabel(curMonth)}</b>
               <span style={{flex:1}}/>

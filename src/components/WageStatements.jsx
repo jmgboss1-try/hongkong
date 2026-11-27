@@ -119,7 +119,7 @@ export function Statement({ r, userData, ssn, biz, seal }) {
   const head = t => <div style={{fontSize:12, fontWeight:800, color:T.ink, margin:'14px 0 2px', borderBottom:`1px solid ${T.ink}`, paddingBottom:3}}>{t}</div>
 
   return (
-    <div id="wage-statement-print" style={{background:'#FFFFFF', border:`1px solid ${T.rule}`, borderRadius:6, padding:'18px 20px', margin:'4px 0 14px'}}>
+    <div id="wage-statement-print" style={{background:'#FFFFFF', color:T.ink, border:`1px solid ${T.rule}`, borderRadius:6, padding:'18px 20px', margin:'4px 0 14px'}}>
       <div style={{textAlign:'center', borderBottom:`3px double ${T.ink}`, paddingBottom:8}}>
         <div style={{fontSize:18, fontWeight:900, letterSpacing:4}}>임금명세서</div>
         <div style={{fontSize:12, color:T.sub, marginTop:2}}>{mLabel(ym)}분 · {biz?.name || '홍콩반점 중앙대점'}</div>
