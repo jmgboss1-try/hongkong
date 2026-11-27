@@ -7,6 +7,7 @@ import { Grid } from '@astryxdesign/core/Grid'
 import { EmptyState } from '@astryxdesign/core/EmptyState'
 import { Button } from '@astryxdesign/core/Button'
 import { Badge } from '@astryxdesign/core/Badge'
+import { Banner } from '@astryxdesign/core/Banner'
 import { TextInput } from '@astryxdesign/core/TextInput'
 import { DateInput } from '@astryxdesign/core/DateInput'
 import { Selector } from '@astryxdesign/core/Selector'
@@ -18,7 +19,7 @@ import { POSITIONS } from '../lib/avatar'
 import TimeSelect from '../astryx/TimeSelect'
 import { db, auth } from '../firebase'
 import { collection, getDocs, getDoc, doc, setDoc } from 'firebase/firestore'
-import { GradeBadge } from '../AuthContext'
+import GradeBadge from '../astryx/GradeBadge'
 import { loadPrivateMap, withPrivate, saveUser } from '../lib/privateInfo'
 import { insuranceFor } from '../lib/payDeduction'
 import ContractManager from '../components/ContractManager'
@@ -54,15 +55,9 @@ function maskSSN(ssn) {
 
 // 계정 역할 표시 — 매장/투자자 계정은 일반 직원과 권한이 다름 (매출입력 등)
 function RoleBadge({ role }) {
-  const r = role==='store'    ? { label:'매장계정', color:'#2B5C9E' }
-          : role==='investor' ? { label:'투자자',   color:'#2E7D45' }
-          : { label:'직원', color:'#6E6A63' }
-  return (
-    <span style={{fontSize:10,fontWeight:700,padding:'2px 8px',borderRadius:999,whiteSpace:'nowrap',
-      color:r.color,border:`1px solid ${r.color}55`,background:`${r.color}1a`}}>
-      {r.label}
-    </span>
-  )
+  if (role === 'store') return <Badge variant="info" label="매장계정"/>
+  if (role === 'investor') return <Badge variant="success" label="투자자"/>
+  return <Badge variant="neutral" label="직원"/>
 }
 
 // 직원 비밀번호 새로 정해주기 (직원이 비밀번호·이메일 비밀번호를 다 잊었을 때) — 서버 함수 /api/set-password
@@ -88,32 +83,22 @@ function SetPasswordBox({ m }) {
     setBusy(false)
   }
   if (m.role === 'owner') return null
+  if (!open) return (
+    <HStack><Button size="sm" variant="ghost" label="비밀번호 새로 정해주기" onClick={()=>setOpen(true)}/></HStack>
+  )
   return (
-    <div style={{background:'#FFFFFF',borderRadius:4,padding:'10px 12px'}}>
-      {!open ? (
-        <button type="button" onClick={()=>setOpen(true)}
-          style={{background:'none',border:'none',color:'#2B5C9E',fontSize:12,cursor:'pointer',fontFamily:'inherit',padding:0,textDecoration:'underline'}}>
-          비밀번호 새로 정해주기
-        </button>
-      ) : (
-        <div style={{display:'flex',flexDirection:'column',gap:6}}>
-          <div style={{fontSize:11,color:'#6E6A63'}}>직원이 비밀번호를 잊었을 때 새 비밀번호를 정해줘요. 아이디(이메일)는 그대로예요.</div>
-          <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>
-            <input value={pw} onChange={e=>setPw(e.target.value.trim())} placeholder="새 비밀번호 (6자 이상)" autoComplete="off"
-              style={{flex:1,minWidth:140,background:'#F3F1EC',border:'1px solid #DCD7CE',borderRadius:4,color:'#1D1B18',padding:'7px 10px',fontSize:12,outline:'none',fontFamily:'inherit'}}/>
-            <button type="button" onClick={submit} disabled={busy}
-              style={{background:'var(--hk-accent)',color:'#FFFFFF',border:'none',borderRadius:4,padding:'7px 14px',fontSize:11,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
-              {busy ? '바꾸는 중...' : '바꾸기'}
-            </button>
-            <button type="button" onClick={()=>{ setOpen(false); setPw(''); setMsg(null) }}
-              style={{background:'transparent',border:'1px solid #DCD7CE',color:'#6E6A63',borderRadius:4,padding:'7px 12px',fontSize:11,cursor:'pointer',fontFamily:'inherit'}}>
-              닫기
-            </button>
-          </div>
-          {msg && <div style={{fontSize:12,color: msg.ok ? '#2E7D45' : '#B42318'}}>{msg.text}</div>}
-        </div>
-      )}
-    </div>
+    <Card variant="muted" padding={3}>
+      <VStack gap={2}>
+        <Text type="supporting" color="secondary">직원이 비밀번호를 잊었을 때 새 비밀번호를 정해줘요. 아이디(이메일)는 그대로예요.</Text>
+        <HStack gap={2} vAlign="end" wrap="wrap">
+          <TextInput label="새 비밀번호" description="6자 이상" value={pw} onChange={v=>setPw((v||'').trim())}
+            autoComplete="off" onEnter={submit}/>
+          <Button variant="primary" label={busy ? '바꾸는 중...' : '바꾸기'} isDisabled={busy} onClick={submit}/>
+          <Button variant="ghost" label="닫기" onClick={()=>{ setOpen(false); setPw(''); setMsg(null) }}/>
+        </HStack>
+        {msg && <Banner status={msg.ok ? 'success' : 'error'} title={msg.text}/>}
+      </VStack>
+    </Card>
   )
 }
 
@@ -139,7 +124,7 @@ function MemberCard({ m, onEdit, onRetire }) {
           <VStack gap={1}>
             <HStack gap={2} vAlign="center" wrap="wrap">
               <Heading level={4}>{m.name}</Heading>
-              <Legacy><span style={{display:'inline-flex', gap:6}}><GradeBadge joinDate={m.joinDate} size={11}/><RoleBadge role={m.role}/></span></Legacy>
+              <GradeBadge joinDate={m.joinDate}/><RoleBadge role={m.role}/>
             </HStack>
             <Text type="supporting" color="secondary">입사일: {m.joinDate||'미입력'} · 근속 {tenure}</Text>
           </VStack>
@@ -165,7 +150,7 @@ function MemberCard({ m, onEdit, onRetire }) {
               <Text type="supporting" color="secondary" hasTabularNumbers>근속 {tenure} · 시급 {(m.wage||10030).toLocaleString()}원</Text>
             </HStack>
           </Card>
-          <Legacy><SetPasswordBox m={m}/></Legacy>
+          <SetPasswordBox m={m}/>
           <HStack gap={2} wrap="wrap">
             <Button variant="primary" label="정보 수정" onClick={()=>onEdit(m)}/>
             <Button variant="destructive" label="퇴직 처리" onClick={()=>onRetire(m)}/>

@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
 import { db } from '../firebase'
 import { doc, getDoc, collection, query, where, getDocs } from 'firebase/firestore'
-import { useAuth, GradeBadge } from '../AuthContext'
+import { useAuth } from '../AuthContext'
+import GradeBadge from '../astryx/GradeBadge'
 import MyAttendance from '../components/MyAttendance'
 import MyRewardSpin from '../components/MyRewardSpin'
 import AvatarEditor from '../components/AvatarEditor'
@@ -15,7 +16,7 @@ import { Badge } from '@astryxdesign/core/Badge'
 import { Button } from '@astryxdesign/core/Button'
 import { Selector } from '@astryxdesign/core/Selector'
 import { EmptyState } from '@astryxdesign/core/EmptyState'
-import { AstryxPage, Legacy, PageHeader, LedgerCard, Ledger, LedgerRow } from '../astryx/AstryxPage'
+import { AstryxPage, PageHeader, LedgerCard, Ledger, LedgerRow } from '../astryx/AstryxPage'
 
 const pad = n => String(n).padStart(2,'0')
 const daysIn = ym => { const[y,m]=ym.split('-').map(Number); return new Date(y,m,0).getDate() }
@@ -142,7 +143,7 @@ const [insHistory, setInsHistory] = useState([])   // 4대보험 고지 금액 �
         right={<Selector label="달 고르기" isLabelHidden size="sm" value={curMonth} onChange={v => v && setCurMonth(v)} options={monthOpts.map(m => ({ value:m, label:mLabel(m) }))}/>}/>
 
       <HStack gap={2} vAlign="center" wrap="wrap">
-        <Legacy><GradeBadge joinDate={userData?.joinDate} size={10}/></Legacy>
+        <GradeBadge joinDate={userData?.joinDate}/>
         <Badge label={`${wage.toLocaleString()}원/h`}/>
       </HStack>
 

@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
 import { db } from '../firebase'
 import { collection, addDoc, getDocs, doc, updateDoc, deleteDoc, orderBy, query } from 'firebase/firestore'
-import { useAuth, GradeBadge } from '../AuthContext'
+import { useAuth } from '../AuthContext'
+import GradeBadge from '../astryx/GradeBadge'
 import { PhotoField, PhotoThumbs } from '../astryx/PhotoField'
 import { VStack, HStack } from '@astryxdesign/core/Layout'
 import { Text } from '@astryxdesign/core/Text'
@@ -13,7 +14,7 @@ import { DateInput } from '@astryxdesign/core/DateInput'
 import { CheckboxInput } from '@astryxdesign/core/CheckboxInput'
 import { TabList, Tab } from '@astryxdesign/core/TabList'
 import { EmptyState } from '@astryxdesign/core/EmptyState'
-import { AstryxPage, Legacy, PageHeader, LedgerCard } from '../astryx/AstryxPage'
+import { AstryxPage, PageHeader, LedgerCard } from '../astryx/AstryxPage'
 
 const pad = n => String(n).padStart(2,'0')
 const todayStr = () => { const n=new Date(); return `${n.getFullYear()}-${pad(n.getMonth()+1)}-${pad(n.getDate())}` }
@@ -281,7 +282,7 @@ export default function Notice() {
         {loading ? <Text color="secondary">불러오는 중...</Text> : memos.length===0 ? <EmptyState title="등록된 메모가 없습니다" isCompact/> : (
           <VStack gap={3}>
             {memos.map(m => post('memo', m, { canManage:isOwner || m.authorUid===user.uid, isNew:m.createdAt>lastReadMemo,
-              author:<><Text weight="bold">{m.authorName}</Text><Legacy><GradeBadge joinDate={m.joinDate} size={10}/></Legacy></> }))}
+              author:<><Text weight="bold">{m.authorName}</Text><GradeBadge joinDate={m.joinDate}/></> }))}
           </VStack>
         )}
       </>}

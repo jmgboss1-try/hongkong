@@ -1,13 +1,13 @@
 import { useEffect, useState } from 'react'
 import { db } from '../firebase'
 import { collection, getDocs } from 'firebase/firestore'
-import { GradeBadge } from '../AuthContext'
+import GradeBadge from '../astryx/GradeBadge'
 import { VStack } from '@astryxdesign/core/Layout'
 import { Text, Heading } from '@astryxdesign/core/Text'
 import { Card } from '@astryxdesign/core/Card'
 import { Grid } from '@astryxdesign/core/Grid'
 import { Avatar } from '@astryxdesign/core/Avatar'
-import { AstryxPage, Legacy, PageHeader } from '../astryx/AstryxPage'
+import { AstryxPage, PageHeader } from '../astryx/AstryxPage'
 
 
 export default function Team() {
@@ -45,7 +45,7 @@ export default function Team() {
               <VStack gap={2}>
                 <Avatar name={e.name.length >= 3 ? e.name.slice(-2) : e.name} size={48}/>
                 <Heading level={4}>{e.name}</Heading>
-                <Legacy><GradeBadge joinDate={e.joinDate} size={11}/></Legacy>
+                <GradeBadge joinDate={e.joinDate}/>
                 {e.joinDate && <Text type="supporting" color="secondary" hasTabularNumbers>입사일 {e.joinDate}</Text>}
               </VStack>
             </Card>
