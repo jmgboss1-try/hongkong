@@ -332,7 +332,7 @@ export default function Staff() {
                         endContent={<Text weight="bold" color={bad ? 'accent' : 'secondary'} hasTabularNumbers>{state}</Text>}
                         description={
                           <Legacy>
-                            <div aria-hidden="true" style={{position:'relative', height:8, borderRadius:4, background:'#F3F1EC', marginTop:6}}>
+                            <div aria-hidden="true" style={{position:'relative', height:8, borderRadius:4, background:'var(--color-background-muted)', marginTop:6}}>
                               {s && <span className="st-grow" style={{position:'absolute', top:0, bottom:0, left:pct(toMin(s.start)), width:wid(toMin(s.start), endMinOf(s)), borderRadius:4,
                                 background:'rgba(var(--hk-accent-rgb),.16)', border:'1px dashed rgba(var(--hk-accent-rgb),.45)', boxSizing:'border-box', animationDelay:`${i*50}ms`}}/>}
                               {inD && <span className="st-grow" style={{position:'absolute', top:1, bottom:1, left:pct(minOf(inD)), width:wid(minOf(inD), outD ? minOf(outD) : nowMin), borderRadius:3,
@@ -458,7 +458,7 @@ export default function Staff() {
               ...days.map((d, i) => ({ key:dateStr(d), header:`${DAYS_KR[d.getDay()]} ${d.getMonth()+1}/${d.getDate()}`, align:'center', renderCell: r => {
                 const n = countAt(shiftsByDay[i], r.h)
                 return n > 0 && <Legacy><div className="st-pop" style={{animationDelay:`${i*70 + (r.h - hours[0])*25}ms`, borderRadius:6, padding:'3px 0', fontWeight:700, textAlign:'center',
-                  color: n/maxCount > 0.6 ? '#FFFFFF' : T.ink, background:`rgba(var(--hk-accent-rgb),${0.12 + 0.68*n/maxCount})`}}>{n}</div></Legacy>
+                  color: n/maxCount > 0.6 ? 'var(--color-on-accent)' : 'var(--color-text-primary)', background:`rgba(var(--hk-accent-rgb),${0.12 + 0.68*n/maxCount})`}}>{n}</div></Legacy>
               } })),
             ]}/>
           </LedgerCard>

@@ -75,3 +75,4 @@
 
 /* 다크 모드 (기기 설정, lib/dashTheme setMode): 테마 상자 밖 바탕도 어둡게 (로그인·출퇴근 화면 포함) */
 html[data-mode="dark"], html[data-mode="dark"] body { background: #15130F; }
+html[data-mode="dark"] { color-scheme: dark; }   /* 스크롤바·파일 고르기 칸 같은 브라우저 기본 부품도 어둡게 */
