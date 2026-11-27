@@ -135,10 +135,8 @@ const [insHistory, setInsHistory] = useState([])   // 4대보험 고지 금액 �
     <AstryxPage>
     <VStack gap={4}>
       {/* 지난달 개근이면 포상 룰렛 (사장님이 열었을 때) · 우리 매장 화면에 나오는 내 캐릭터 */}
-      <Legacy>
-        <MyRewardSpin uid={user.uid} name={userData?.name || ''}/>
-        <AvatarEditor uid={user.uid} userData={userData}/>
-      </Legacy>
+      <MyRewardSpin uid={user.uid} name={userData?.name || ''}/>
+      <Legacy><AvatarEditor uid={user.uid} userData={userData}/></Legacy>
 
       <PageHeader title="내 스케쥴" sub={userData?.name}
         right={<Selector label="달 고르기" isLabelHidden size="sm" value={curMonth} onChange={v => v && setCurMonth(v)} options={monthOpts.map(m => ({ value:m, label:mLabel(m) }))}/>}/>
@@ -174,7 +172,7 @@ const [insHistory, setInsHistory] = useState([])   // 4대보험 고지 금액 �
       </LedgerCard>
 
       {/* NFC 출퇴근: 지각·조퇴·결근 (인정 시간은 안 보여 줌) */}
-      <Legacy><MyAttendance curMonth={curMonth} uid={user.uid}/></Legacy>
+      <MyAttendance curMonth={curMonth} uid={user.uid}/>
 
       {/* 급여 확인 */}
       {payroll?.confirmedByOwner && (

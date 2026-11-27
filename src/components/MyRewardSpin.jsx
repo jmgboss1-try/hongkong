@@ -3,8 +3,13 @@ import { db } from '../firebase'
 import { doc, getDoc, setDoc } from 'firebase/firestore'
 import { prevYmOf, monthNum, parseAmount } from '../lib/rewards'
 import { Roulette } from './RewardGame'
+import { VStack } from '@astryxdesign/core/Layout'
+import { Text, Heading } from '@astryxdesign/core/Text'
+import { Card } from '@astryxdesign/core/Card'
+import { Badge } from '@astryxdesign/core/Badge'
+import { Banner } from '@astryxdesign/core/Banner'
+import { Legacy } from '../astryx/AstryxPage'
 
-const T = { ink:'#1D1B18', sub:'#6E6A63', accent:'var(--hk-accent)', green:'#2E7D45' }
 
 // 직원 내 기록 맨 위: 지난달 개근 포상 룰렛 (사장님이 '각자 룰렛'으로 열었을 때, 한 번만 돌릴 수 있음)
 export default function MyRewardSpin({ uid, name }) {
@@ -40,21 +45,24 @@ export default function MyRewardSpin({ uid, name }) {
     } catch(e) { console.error(e); setErr('결과를 저장하지 못했어요. 사장님께 결과를 알려 주세요: ' + prize) }
   }
 
-  const box = { borderLeft:`4px solid ${T.accent}`, background:'rgba(var(--hk-accent-rgb),0.051)', borderRadius:'0 4px 4px 0', padding:'14px 16px', marginBottom:20 }
   if (mine) return (
-    <section style={{...box, borderLeftColor:T.green, background:'#2E7D450F'}}>
-      <div style={{fontSize:15, fontWeight:800, color:T.green}}>{m}월 개근 포상</div>
-      <div style={{fontSize:20, fontWeight:800, marginTop:4}}>{mine.prize}</div>
-      <div style={{fontSize:12, color:T.sub, marginTop:2}}>한 달 동안 지각·조퇴·결근 없이 일해 줘서 고마워요.</div>
-    </section>
+    <Card variant="muted" padding={4}>
+      <VStack gap={1}>
+        <Badge variant="success" label={`${m}월 개근 포상`}/>
+        <Heading level={3}>{mine.prize}</Heading>
+        <Text type="supporting" color="secondary">한 달 동안 지각·조퇴·결근 없이 일해 줘서 고마워요.</Text>
+      </VStack>
+    </Card>
   )
   if (rw.status !== 'open') return null
   return (
-    <section style={box}>
-      <div style={{fontSize:16, fontWeight:800}}>{m}월 개근을 축하해요! 룰렛을 돌려 포상을 받으세요</div>
-      <div style={{fontSize:12, color:T.sub, margin:'2px 0 10px'}}>한 번만 돌릴 수 있어요. 결과는 사장님과 매장 화면에 보여요.</div>
-      <Roulette people={[{ uid, name }]} prizes={rw.prizes||['꽝']} results={{}} onResult={onResult}/>
-      {err && <div style={{fontSize:13, color:'#B42318', marginTop:8}}>{err}</div>}
-    </section>
+    <Card variant="muted" padding={4}>
+      <VStack gap={2}>
+        <Heading level={4}>{m}월 개근을 축하해요! 룰렛을 돌려 포상을 받으세요</Heading>
+        <Text type="supporting" color="secondary">한 번만 돌릴 수 있어요. 결과는 사장님과 매장 화면에 보여요.</Text>
+        <Legacy><Roulette people={[{ uid, name }]} prizes={rw.prizes||['꽝']} results={{}} onResult={onResult}/></Legacy>
+        {err && <Banner status="error" title={err}/>}
+      </VStack>
+    </Card>
   )
 }
