@@ -1,8 +1,7 @@
 import { useEffect, useState } from 'react'
 import { db } from '../firebase'
 import { doc, getDoc, setDoc, deleteDoc } from 'firebase/firestore'
-import { Lightbox } from '../components/PhotoAttach'
-import { PhotoField } from '../astryx/PhotoField'
+import { PhotoField, PhotoViewer } from '../astryx/PhotoField'
 import { VStack, HStack } from '@astryxdesign/core/Layout'
 import { Text } from '@astryxdesign/core/Text'
 import { Card } from '@astryxdesign/core/Card'
@@ -123,7 +122,7 @@ function EventPhotos({ eventId, count }) {
   return (
     <>
       <Button size="sm" variant="ghost" label={`사진 ${count}`} onClick={open}/>
-      {images && <Legacy><Lightbox images={images} label="손실보상 첨부 사진" onClose={()=>setImages(null)}/></Legacy>}
+      {images && <PhotoViewer images={images} label="손실보상 첨부 사진" onClose={()=>setImages(null)}/>}
     </>
   )
 }

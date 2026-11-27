@@ -18,8 +18,7 @@ import { AstryxPage, Legacy, PageHeader, LedgerCard } from '../astryx/AstryxPage
 import { prevYmOf, monthNum, rewardResults } from '../lib/rewards'
 import { db } from '../firebase'
 import { doc, getDoc, setDoc, deleteDoc, collection, getDocs, deleteField } from 'firebase/firestore'
-import { Lightbox } from '../components/PhotoAttach'
-import { PhotoField } from '../astryx/PhotoField'
+import { PhotoField, PhotoViewer } from '../astryx/PhotoField'
 import { PhotoThumbs } from '../astryx/PhotoField'
 
 const pad = n => String(n).padStart(2,'0')
@@ -865,10 +864,8 @@ export default function Checklist() {
       )}
       <Legacy>
         <style>{CK_CSS}</style>
-        {photoViewer && (
-          <Lightbox images={photoViewer.images} label={photoViewer.label} onClose={()=>setPhotoViewer(null)}/>
-        )}
       </Legacy>
+      {photoViewer && <PhotoViewer images={photoViewer.images} label={photoViewer.label} onClose={()=>setPhotoViewer(null)}/>}
     </VStack>
     </AstryxPage>
   )

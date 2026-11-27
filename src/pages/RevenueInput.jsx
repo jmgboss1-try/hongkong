@@ -14,7 +14,8 @@ import { Stepper, Step } from '@astryxdesign/core/Stepper'
 import { AstryxPage, Legacy, PageHeader } from '../astryx/AstryxPage'
 import CountUp from '../components/CountUp'
 import { db, auth } from '../firebase'
-import { compressImage, PhoneReceiveModal } from '../components/PhotoAttach'
+import { compressImage } from '../components/PhotoAttach'
+import { PhoneReceiveDialog } from '../astryx/PhotoField'
 import { doc, getDoc, setDoc } from 'firebase/firestore'
 import { useAuth } from '../AuthContext'
 import { chLabels, isNewChannels, ETC_HINT, HALL_HINT, CHANGE_NOTICE_UNTIL } from '../lib/revenueChannels'
@@ -403,16 +404,16 @@ export default function RevenueInput() {
         )}
       </VStack>
 
-      {/* 숨긴 파일 고르기 (이 기기에서 사진 고르기 버튼이 누름) · 폰 사진 받기 창 · 저장 완료 도장: 아직 옛 방식 */}
+      {phoneOpen && (
+        <PhoneReceiveDialog hiRes title="마감 출력물 사진 받기"
+          hint="폰 카메라로 QR을 찍고 마감 출력물을 찍어 보내세요. 받으면 바로 숫자를 읽어 칸을 채워요."
+          onAdd={fresh=>{ setPhoneOpen(false); readPhoto(fresh[fresh.length-1]); return '' }}
+          onClose={()=>setPhoneOpen(false)}/>
+      )}
+      {/* 숨긴 파일 고르기 (이 기기에서 사진 고르기 버튼이 누름) · 저장 완료 도장: 아직 옛 방식 */}
       <Legacy>
         <input ref={fileRef} type="file" accept="image/*" capture="environment" style={{display:'none'}}
           onChange={async e=>{ const f = e.target.files?.[0]; e.target.value=''; if (f) readPhoto(await compressImage(f, 1600, 450)) }}/>
-        {phoneOpen && (
-          <PhoneReceiveModal hiRes title="마감 출력물 사진 받기"
-            hint={<>폰 카메라로 QR을 찍고 마감 출력물을 찍어 보내세요.<br/>받으면 바로 숫자를 읽어 칸을 채워요.</>}
-            onAdd={fresh=>{ setPhoneOpen(false); readPhoto(fresh[fresh.length-1]); return '' }}
-            onClose={()=>setPhoneOpen(false)}/>
-        )}
         <style>{RI_CSS}</style>
         {stamp && (
           <div key={stamp.id} className="ri-stamp-wrap" onClick={()=>setStamp(null)} role="status"

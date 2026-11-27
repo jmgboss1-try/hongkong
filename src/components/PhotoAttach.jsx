@@ -1,7 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import QRCode from 'qrcode'
-import { db } from '../firebase'
-import { doc, setDoc, deleteDoc, onSnapshot, Timestamp } from 'firebase/firestore'
+import { usePhoneInbox } from '../lib/phoneInbox'
 
 // 사진 1장을 가로/세로 최대 maxSide px, JPEG로 압축해서 dataURL로 반환 (목표 용량 ~targetKB)
 export async function compressImage(file, maxSide = 1000, targetKB = 130) {
@@ -81,57 +79,7 @@ export function PhotoGrid({ images, label }) {
 // 폰에서 받기: QR 세션을 만들고, 폰이 보낸 사진을 실시간으로 받아서 onAdd로 넘김
 //   hiRes: 글씨를 읽어야 하는 사진(매출 출력물)은 폰에서 더 크게 압축해서 보냄
 export function PhoneReceiveModal({ onAdd, onClose, attachedText, title = '폰에서 사진 받기', hint, hiRes = false }) {
-  const [qr, setQr] = useState('')
-  const [status, setStatus] = useState('creating') // creating | ready | error
-  const [received, setReceived] = useState(0)
-  const [note, setNote] = useState('')
-  const onAddRef = useRef(onAdd)
-  useEffect(()=>{ onAddRef.current = onAdd })
-
-  useEffect(()=>{
-    let cancelled = false
-    let unsub = null
-    let sid = null
-    let merged = 0
-    async function start() {
-      try {
-        const bytes = new Uint8Array(16)
-        crypto.getRandomValues(bytes)
-        sid = Array.from(bytes).map(b=>b.toString(16).padStart(2,'0')).join('')
-        await setDoc(doc(db,'photoInbox',sid), {
-          images: [],
-          createdAt: Timestamp.now(),
-          expiresAt: Timestamp.fromMillis(Date.now() + 10*60*1000),
-        })
-        if(cancelled) return
-        const url = `${window.location.origin}/upload/${sid}${hiRes ? '?hi=1' : ''}`
-        const dataUrl = await QRCode.toDataURL(url, { width:260, margin:1 })
-        if(cancelled) return
-        setQr(dataUrl)
-        setStatus('ready')
-        unsub = onSnapshot(doc(db,'photoInbox',sid), snap=>{
-          const imgs = snap.exists() ? (snap.data().images||[]) : []
-          if(imgs.length > merged) {
-            const fresh = imgs.slice(merged)
-            merged = imgs.length
-            setReceived(imgs.length)
-            const msg = onAddRef.current(fresh)
-            setNote(msg || '')
-          }
-        })
-      } catch(e) {
-        console.error(e)
-        if(!cancelled) setStatus('error')
-      }
-    }
-    start()
-    return ()=>{
-      cancelled = true
-      if(unsub) unsub()
-      if(sid) deleteDoc(doc(db,'photoInbox',sid)).catch(()=>{})
-    }
-  },[hiRes])
-
+  const { qr, status, received, note } = usePhoneInbox({ onAdd, hiRes })
   return (
     <div onClick={onClose}
       style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.8)',zIndex:1000,
