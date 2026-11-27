@@ -13,6 +13,7 @@ import { Badge } from '@astryxdesign/core/Badge'
 import { Banner } from '@astryxdesign/core/Banner'
 import { Button } from '@astryxdesign/core/Button'
 import { Table } from '@astryxdesign/core/Table'
+import { ProgressBar } from '@astryxdesign/core/ProgressBar'
 import { TextInput } from '@astryxdesign/core/TextInput'
 import { TextArea } from '@astryxdesign/core/TextArea'
 import { DateInput } from '@astryxdesign/core/DateInput'
@@ -65,14 +66,10 @@ function comparePeriods(ev) {
 const pct = (a, b) => (a == null || b == null || b === 0) ? null : (a - b) / b * 100
 
 function Change({ value }) {
-  if (value == null) return <span style={{color:'#6E6A63'}}>—</span>
-  if (Math.abs(value) < 0.5) return <span style={{color:'#5F5B54',fontFamily:'inherit',fontVariantNumeric:'tabular-nums'}}>0%</span>
+  if (value == null) return <Text type="supporting" color="secondary">—</Text>
+  if (Math.abs(value) < 0.5) return <Text type="supporting" color="secondary" hasTabularNumbers>0%</Text>
   const up = value >= 0
-  return (
-    <span style={{color: up ? '#2E7D45' : '#B42318', fontWeight:700, fontFamily:'inherit',fontVariantNumeric:'tabular-nums'}}>
-      {up ? '▲' : '▼'} {Math.abs(value).toFixed(0)}%
-    </span>
-  )
+  return <Text type="supporting" weight="bold" color={up ? 'primary' : 'accent'} hasTabularNumbers>{up ? '▲' : '▼'} {Math.abs(value).toFixed(0)}%</Text>
 }
 
 function ChartTooltip({ active, payload, metric }) {
@@ -119,16 +116,11 @@ function effectOf(months, periods, ev) {
 function EventEffect({ months, periods, ev }) {
   const R = effectOf(months, periods, ev)
   const days = periods.during.length
-  if (!R.has) return (
-    <div style={{fontSize:13, color:'#6E6A63', padding:'8px 0 14px', lineHeight:1.7}}>
-      비교할 매출 기록이 아직 부족해요. 이벤트 기간과 그 전 기간의 마감 매출(또는 배달앱 엑셀)이 있어야 계산돼요.
-    </div>
-  )
+  if (!R.has) return <Text color="secondary">비교할 매출 기록이 아직 부족해요. 이벤트 기간과 그 전 기간의 마감 매출(또는 배달앱 엑셀)이 있어야 계산돼요.</Text>
   const { t, pctT, pctO } = R
   const perDay = t.evDay - t.baseDay
   const up = perDay >= 0
-  const verdict = pctT >= 10 ? ['효과 있음', '#2E7D45'] : pctT <= -10 ? ['덜 팔렸어요', '#B42318'] : ['평소와 비슷해요', '#B45309']
-  const color = up ? '#2E7D45' : '#B42318'
+  const verdict = pctT >= 10 ? ['효과 있음', 'success'] : pctT <= -10 ? ['덜 팔렸어요', 'error'] : ['평소와 비슷해요', 'warning']
   const sign = n => (n >= 0 ? '+' : '−') + won(Math.abs(n))
   const man = n => { const a = Math.abs(n); return (n >= 0 ? '+' : '−') + (a >= 10000 ? `${(a / 10000).toFixed(a >= 1000000 ? 0 : 1).replace(/\.0$/, '')}만원` : `${won(a)}원`) }
   const net = t.hasDisc ? t.extra - t.disc : null
@@ -144,72 +136,61 @@ function EventEffect({ months, periods, ev }) {
   const maxBar = Math.max(1, ...t.rows.flatMap(r => [r.ev || 0, r.base || 0]))
 
   return (
-    <div style={{marginBottom:14}}>
+    <VStack gap={4}>
       {/* 결론 */}
-      <div style={{borderLeft:`4px solid ${verdict[1]}`, background:'#FAF9F6', padding:'12px 14px', borderRadius:'0 6px 6px 0'}}>
-        <div style={{display:'flex', alignItems:'baseline', gap:8, flexWrap:'wrap'}}>
-          <span style={{fontSize:12, fontWeight:700, color:'#FFFFFF', background:verdict[1], borderRadius:4, padding:'2px 8px'}}>{verdict[0]}</span>
-          <span style={{fontSize:12, color:'#6E6A63'}}>{shortDate(ev.from)}~{shortDate(periods.to)} {days}일 · {R.targets.map(p => p.short).join('·')} 기준</span>
-        </div>
-        <div style={{fontSize:22, fontWeight:900, color, marginTop:6, lineHeight:1.3}}>
-          평소보다 {man(t.extra)} {up ? '더 팔렸어요' : '덜 팔렸어요'}
-        </div>
-        <div style={{fontSize:13, color:'#1D1B18', marginTop:4, lineHeight:1.7, fontVariantNumeric:'tabular-nums'}}>
-          하루 평균 {sign(perDay)}원 ({pctT >= 0 ? '+' : ''}{pctT.toFixed(0)}%)
-          {t.hasOrd && <> · 주문 하루 {t.ordDay >= 0 ? '+' : '−'}{Math.abs(t.ordDay).toFixed(1)}건</>}
-        </div>
-        {net != null && (
-          <div style={{fontSize:13, marginTop:2, lineHeight:1.7, fontVariantNumeric:'tabular-nums'}}>
-            가게가 부담한 할인 {t.disc >= 0 ? '평소보다 ' : ''}{won(Math.abs(t.disc))}원 {t.disc >= 0 ? '더 씀' : '덜 씀'} → 할인 빼고 <b style={{color: net >= 0 ? '#2E7D45' : '#B42318'}}>{man(net)}</b>
-          </div>
-        )}
-        {othersAlsoUp && (
-          <div style={{fontSize:12, color:'#B45309', marginTop:6, lineHeight:1.6}}>
-            대상이 아닌 앱도 같은 기간에 {pctO.toFixed(0)}% 올랐어요. 이벤트보다 날씨·시기 영향이 섞였을 수 있어요.
-          </div>
-        )}
-        <div style={{fontSize:11, color:'#6E6A63', marginTop:6}}>평소 = 바로 전 {periods.before.length}일과 4주 전까지 같은 요일의 하루 평균</div>
-      </div>
+      <Card variant="muted" padding={4}>
+        <VStack gap={2}>
+          <HStack gap={2} vAlign="center" wrap="wrap">
+            <Badge variant={verdict[1]} label={verdict[0]}/>
+            <Text type="supporting" color="secondary">{shortDate(ev.from)}~{shortDate(periods.to)} {days}일 · {R.targets.map(p => p.short).join('·')} 기준</Text>
+          </HStack>
+          <Text type="display-3" color={up ? 'primary' : 'accent'}>평소보다 {man(t.extra)} {up ? '더 팔렸어요' : '덜 팔렸어요'}</Text>
+          <Text hasTabularNumbers>하루 평균 {sign(perDay)}원 ({pctT >= 0 ? '+' : ''}{pctT.toFixed(0)}%){t.hasOrd && ` · 주문 하루 ${t.ordDay >= 0 ? '+' : '−'}${Math.abs(t.ordDay).toFixed(1)}건`}</Text>
+          {net != null && <Text hasTabularNumbers>가게가 부담한 할인 {t.disc >= 0 ? '평소보다 ' : ''}{won(Math.abs(t.disc))}원 {t.disc >= 0 ? '더 씀' : '덜 씀'} → 할인 빼고 <Text weight="bold" color={net >= 0 ? 'primary' : 'accent'}>{man(net)}</Text></Text>}
+          {othersAlsoUp && <Banner status="warning" title={`대상이 아닌 앱도 같은 기간에 ${pctO.toFixed(0)}% 올랐어요.`} description="이벤트보다 날씨·시기 영향이 섞였을 수 있어요."/>}
+          <Text type="supporting" color="secondary">평소 = 바로 전 {periods.before.length}일과 4주 전까지 같은 요일의 하루 평균</Text>
+        </VStack>
+      </Card>
 
       {/* 앱별 평소 vs 이벤트 */}
-      <div style={{marginTop:14}}>
-        <div style={{fontSize:12, fontWeight:700, marginBottom:6}}>앱별 하루 매출</div>
+      <VStack gap={2}>
+        <Text weight="bold">앱별 하루 매출</Text>
         {[...t.rows, ...R.o.rows.map(r => ({ ...r, other: true }))].filter(r => r.ev != null || r.base != null).map(r => {
           const pc = r.ev != null && r.base ? (r.ev - r.base) / r.base * 100 : null
           return (
-            <div key={r.p.key} style={{display:'grid', gridTemplateColumns:'64px 1fr 64px', alignItems:'center', gap:8, padding:'4px 0', opacity: r.other ? 0.55 : 1}}>
-              <div style={{fontSize:12, fontWeight:700}}>{r.p.short}{r.other && <div style={{fontSize:10, fontWeight:400, color:'#6E6A63'}}>비교용</div>}</div>
-              <div>
-                <div style={{display:'flex', alignItems:'center', gap:6}}><div style={{height:9, width:`${(r.base || 0) / maxBar * 70}%`, background:'#DCD7CE', borderRadius:2, flexShrink:0}}/><span style={{fontSize:10, color:'#6E6A63', fontVariantNumeric:'tabular-nums', whiteSpace:'nowrap'}}>평소 {won(r.base)}</span></div>
-                <div style={{display:'flex', alignItems:'center', gap:6, marginTop:3}}><div style={{height:9, width:`${(r.ev || 0) / maxBar * 70}%`, background:r.p.color, borderRadius:2, flexShrink:0}}/><span style={{fontSize:10, fontVariantNumeric:'tabular-nums', whiteSpace:'nowrap'}}>이벤트 {won(r.ev)}</span></div>
-              </div>
-              <div style={{textAlign:'right'}}><Change value={pc}/></div>
-            </div>
+            <VStack key={r.p.key} gap={1}>
+              <HStack hAlign="between" vAlign="center">
+                <HStack gap={2} vAlign="center"><Text weight="bold">{r.p.short}</Text>{r.other && <Badge label="비교용"/>}</HStack>
+                <Text type="supporting" hasTabularNumbers>{pc == null ? '—' : `${pc >= 0 ? '▲' : '▼'} ${Math.abs(pc).toFixed(0)}%`}</Text>
+              </HStack>
+              <HStack gap={2} vAlign="center"><ProgressBar label={`${r.p.short} 평소`} isLabelHidden value={r.base || 0} max={maxBar}/><Text type="supporting" color="secondary" hasTabularNumbers textWrap="nowrap">평소 {won(r.base)}</Text></HStack>
+              <HStack gap={2} vAlign="center"><ProgressBar label={`${r.p.short} 이벤트`} isLabelHidden value={r.ev || 0} max={maxBar}/><Text type="supporting" hasTabularNumbers textWrap="nowrap">이벤트 {won(r.ev)}</Text></HStack>
+            </VStack>
           )
         })}
-      </div>
+      </VStack>
 
-      {/* 날짜별: 평소선 위는 초록, 아래는 빨강 */}
-      <div style={{marginTop:14}}>
-        <div style={{fontSize:12, fontWeight:700, marginBottom:4}}>날짜별 매출 ({R.targets.map(p => p.short).join('·')} 합계)</div>
-        <div style={{width:'100%', height:200}}>
+      {/* 날짜별: 평소선 위는 진하게 */}
+      <VStack gap={1}>
+        <Text weight="bold">날짜별 매출 ({R.targets.map(p => p.short).join('·')} 합계)</Text>
+        <VStack height={200}>
           <ResponsiveContainer>
             <BarChart data={data} margin={{ top:8, right:8, left:0, bottom:0 }}>
-              <CartesianGrid stroke="#ECE8E1" vertical={false}/>
-              <XAxis dataKey="label" tick={{ fontSize:10, fill:'#6E6A63' }} interval="preserveStartEnd"/>
-              <YAxis tick={{ fontSize:10, fill:'#6E6A63' }} width={46} tickFormatter={v => v >= 10000 ? `${Math.round(v / 10000)}만` : v}/>
-              <ReferenceArea x1={shortDate(ev.from)} x2={shortDate(periods.to)} fill="var(--hk-accent)" fillOpacity={0.06}/>
-              <ReferenceLine y={t.baseDay} stroke="#6E6A63" strokeDasharray="4 4" label={{ value:'평소', position:'insideTopLeft', fontSize:10, fill:'#6E6A63' }}/>
+              <CartesianGrid stroke="var(--color-border)" vertical={false}/>
+              <XAxis dataKey="label" tick={{ fontSize:10, fill:'var(--color-text-secondary)' }} interval="preserveStartEnd"/>
+              <YAxis tick={{ fontSize:10, fill:'var(--color-text-secondary)' }} width={46} tickFormatter={v => v >= 10000 ? `${Math.round(v / 10000)}만` : v}/>
+              <ReferenceArea x1={shortDate(ev.from)} x2={shortDate(periods.to)} fill="var(--color-accent)" fillOpacity={0.06}/>
+              <ReferenceLine y={t.baseDay} stroke="var(--color-text-secondary)" strokeDasharray="4 4" label={{ value:'평소', position:'insideTopLeft', fontSize:10, fill:'var(--color-text-secondary)' }}/>
               <Tooltip formatter={v => [`${won(v)}원`, '매출']} labelFormatter={(l, pl) => { const d = pl?.[0]?.payload?.date; return d ? `${l} (${DAYS_KR[weekday(d)]})${pl[0].payload.during ? ' · 이벤트' : ''}` : l }}/>
               <Bar dataKey="sales" radius={[2,2,0,0]}>
-                {data.map(d => <Cell key={d.date} fill={!d.during ? '#CFC9BF' : (d.sales ?? 0) >= t.baseDay ? '#2E7D45' : '#B42318'}/>)}
+                {data.map(d => <Cell key={d.date} fill={!d.during ? 'var(--color-background-muted)' : (d.sales ?? 0) >= t.baseDay ? 'var(--color-accent)' : 'var(--hk-chart-bar)'}/>)}
               </Bar>
             </BarChart>
           </ResponsiveContainer>
-        </div>
-        <div style={{fontSize:11, color:'#6E6A63'}}>회색 = 이벤트 전 · 초록 = 평소보다 많이 판 날 · 빨강 = 덜 판 날 · 점선 = 평소</div>
-      </div>
-    </div>
+        </VStack>
+        <Text type="supporting" color="secondary">옅은 회색 = 이벤트 전 · 진한 색 = 평소보다 많이 판 날 · 연한 색 = 덜 판 날 · 점선 = 평소</Text>
+      </VStack>
+    </VStack>
   )
 }
 
@@ -606,7 +587,7 @@ export default function SalesAnalysis() {
       {selEvent && (
         <LedgerCard title={`'${selEvent.title}' 효과`}>
           {!periods ? <Text color="secondary">아직 시작 전인 일정이에요</Text> : <>
-            {!loading && <Legacy><EventEffect months={months} periods={periods} ev={selEvent}/></Legacy>}
+            {!loading && <EventEffect months={months} periods={periods} ev={selEvent}/>}
             <HStack><Button size="sm" variant="ghost" label={showDetail ? '자세히 접기' : '자세히 보기 (숫자 표)'} onClick={()=>setShowDetail(v=>!v)}/></HStack>
             {showDetail && <>
               <Text type="supporting" color="secondary">
@@ -614,77 +595,35 @@ export default function SalesAnalysis() {
                 ① 바로 전 {periods.before.length}일 ({shortDate(periods.before[0])}~{shortDate(periods.before[periods.before.length-1])}),
                 ② 그 전 4주의 같은 요일 평균과 비교해요. 하루 평균이라 기간 길이가 달라도 비교할 수 있어요.
               </Text>
-              <Legacy>
-              {loading ? <div style={{color:'#6E6A63',fontSize:12}}>불러오는 중...</div> : (()=>{
+              {loading ? <Text color="secondary">불러오는 중...</Text> : (()=>{
                 // 배달앱 엑셀로 넣은 날이 있으면 가게 부담 할인도 비교
                 const allDays = [...periods.during, ...periods.before, ...periods.sameWeekday]
                 const hasDisc = PLATFORMS.some(p => stats(months, allDays, p.key).discN > 0)
-                const groups = ['하루 주문','하루 매출','객단가', ...(hasDisc ? ['가게 부담 할인(하루)'] : [])]
+                const fmtO = v => v == null ? '—' : v.toFixed(1)
+                const rows = [...PLATFORMS].sort((a,b) => {
+                  const t = p => !selEvent.platforms?.length || selEvent.platforms.includes(p.key) ? 0 : 1
+                  return t(a) - t(b)
+                }).map(p => ({ p, target: !selEvent.platforms?.length || selEvent.platforms.includes(p.key),
+                  E: stats(months, periods.during, p.key), B: stats(months, periods.before, p.key), W: stats(months, periods.sameWeekday, p.key) }))
+                const metric = (title, key, fmt) => ({ key, header: title, width: 190, renderCell: r => (
+                  <VStack gap={0}>
+                    <Text weight="bold" hasTabularNumbers>이벤트 {fmt(r.E[key])}</Text>
+                    <HStack gap={1} vAlign="center"><Text type="supporting" color="secondary" hasTabularNumbers>① {fmt(r.B[key])}</Text><Change value={pct(r.E[key], r.B[key])}/></HStack>
+                    <HStack gap={1} vAlign="center"><Text type="supporting" color="secondary" hasTabularNumbers>② {fmt(r.W[key])}</Text><Change value={pct(r.E[key], r.W[key])}/></HStack>
+                  </VStack>) })
                 return (
-                <div style={{overflowX:'auto'}}>
-                  <table style={{width:'100%',borderCollapse:'collapse',fontSize:12,minWidth: hasDisc ? 940 : 720}}>
-                    <thead>
-                      <tr style={{color:'#6E6A63',fontSize:10}}>
-                        <th style={{textAlign:'left',padding:'6px 8px',fontWeight:600}}>앱</th>
-                        {groups.map(h => (
-                          <th key={h} colSpan={3} style={{padding:'6px 8px',fontWeight:600,textAlign:'center',borderLeft:'1px solid #DCD7CE'}}>{h}</th>
-                        ))}
-                      </tr>
-                      <tr style={{color:'#6E6A63',fontSize:10,textAlign:'right'}}>
-                        <th/>
-                        {groups.map((g,i) => [
-                          <th key={`a${i}`} style={{padding:'4px 8px',fontWeight:500,borderLeft:'1px solid #DCD7CE'}}>이벤트</th>,
-                          <th key={`b${i}`} style={{padding:'4px 8px',fontWeight:500}}>① 직전</th>,
-                          <th key={`c${i}`} style={{padding:'4px 8px',fontWeight:500}}>② 같은 요일</th>,
-                        ])}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {[...PLATFORMS].sort((a,b) => {
-                        const t = p => !selEvent.platforms?.length || selEvent.platforms.includes(p.key) ? 0 : 1
-                        return t(a) - t(b)
-                      }).map(p => {
-                        const target = !selEvent.platforms?.length || selEvent.platforms.includes(p.key)
-                        const E = stats(months, periods.during, p.key)
-                        const B = stats(months, periods.before, p.key)
-                        const W = stats(months, periods.sameWeekday, p.key)
-                        const cell = (val, base, fmt) => (
-                          <>
-                            <div style={{fontFamily:'inherit',fontVariantNumeric:'tabular-nums'}}>{fmt(base)}</div>
-                            <div style={{fontSize:10}}><Change value={pct(val, base)}/></div>
-                          </>
-                        )
-                        const fmtO = v => v == null ? '—' : v.toFixed(1)
-                        return (
-                          <tr key={p.key} style={{borderTop:'1px solid #ECE8E1',textAlign:'right',opacity: target ? 1 : 0.7}}>
-                            <td style={{textAlign:'left',padding:'8px'}}>
-                              <div style={{fontWeight:700,borderLeft:`3px solid ${p.color}`,paddingLeft:6}}>{p.label}</div>
-                              <div style={{fontSize:10,color:'#6E6A63',paddingLeft:9}}>{target ? '대상' : '비교용 (대상 아님)'}</div>
-                            </td>
-                            <td style={{padding:'8px',borderLeft:'1px solid #DCD7CE',fontWeight:700,fontFamily:'inherit',fontVariantNumeric:'tabular-nums'}}>{fmtO(E.ordersPerDay)}</td>
-                            <td style={{padding:'8px'}}>{cell(E.ordersPerDay, B.ordersPerDay, fmtO)}</td>
-                            <td style={{padding:'8px'}}>{cell(E.ordersPerDay, W.ordersPerDay, fmtO)}</td>
-                            <td style={{padding:'8px',borderLeft:'1px solid #DCD7CE',fontWeight:700,fontFamily:'inherit',fontVariantNumeric:'tabular-nums'}}>{won(E.salesPerDay)}</td>
-                            <td style={{padding:'8px'}}>{cell(E.salesPerDay, B.salesPerDay, won)}</td>
-                            <td style={{padding:'8px'}}>{cell(E.salesPerDay, W.salesPerDay, won)}</td>
-                            <td style={{padding:'8px',borderLeft:'1px solid #DCD7CE',fontWeight:700,fontFamily:'inherit',fontVariantNumeric:'tabular-nums'}}>{won(E.aov)}</td>
-                            <td style={{padding:'8px'}}>{cell(E.aov, B.aov, won)}</td>
-                            <td style={{padding:'8px'}}>{cell(E.aov, W.aov, won)}</td>
-                            {hasDisc && <>
-                              <td style={{padding:'8px',borderLeft:'1px solid #DCD7CE',fontWeight:700,fontFamily:'inherit',fontVariantNumeric:'tabular-nums'}}>{won(E.discountPerDay)}</td>
-                              <td style={{padding:'8px'}}>{cell(E.discountPerDay, B.discountPerDay, won)}</td>
-                              <td style={{padding:'8px'}}>{cell(E.discountPerDay, W.discountPerDay, won)}</td>
-                            </>}
-                          </tr>
-                        )
-                      })}
-                    </tbody>
-                  </table>
-                </div>
+                  <HStack isScrollable>
+                    <Table data={rows} idKey={r => r.p.key} density="compact" verticalAlign="top"
+                      columns={[
+                        { key:'app', header:'앱', width:120, renderCell: r => <VStack gap={0}><Text weight="bold">{r.p.label}</Text><Text type="supporting" color="secondary">{r.target ? '대상' : '비교용 (대상 아님)'}</Text></VStack> },
+                        metric('하루 주문', 'ordersPerDay', fmtO),
+                        metric('하루 매출', 'salesPerDay', won),
+                        metric('객단가', 'aov', won),
+                        ...(hasDisc ? [metric('가게 부담 할인(하루)', 'discountPerDay', won)] : []),
+                      ]}/>
+                  </HStack>
                 )
               })()}
-
-              </Legacy>
               <Text type="supporting" color="secondary">
                 ▲▼는 이벤트 기간이 비교 기간보다 몇 % 높거나 낮은지예요. 주문수·객단가는 주문 건수를 적은 날만 계산해요.
                 할인 대상이 아닌 앱도 같이 올랐다면 할인보다는 날씨·시기 영향일 수 있어요.
