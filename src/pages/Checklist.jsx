@@ -18,7 +18,8 @@ import { AstryxPage, Legacy, PageHeader, LedgerCard } from '../astryx/AstryxPage
 import { prevYmOf, monthNum, rewardResults } from '../lib/rewards'
 import { db } from '../firebase'
 import { doc, getDoc, setDoc, deleteDoc, collection, getDocs, deleteField } from 'firebase/firestore'
-import { PhotoPicker, PhotoGrid, Lightbox } from '../components/PhotoAttach'
+import { PhotoPicker, Lightbox } from '../components/PhotoAttach'
+import { PhotoThumbs } from '../astryx/PhotoField'
 
 const pad = n => String(n).padStart(2,'0')
 const DAYS_KR = ['일','월','화','수','목','금','토']
@@ -730,7 +731,7 @@ export default function Checklist() {
       {!loading && pinnedNotices.map(n => (
         <Banner key={n.type+n.id} status={n.type==='notice' ? 'warning' : 'info'} title={`${n.type==='notice' ? '공지' : '메모'}${n.authorName ? ` · ${n.authorName}` : ''}`}
           description={<Text textWrap="pretty">{n.content}</Text>}>
-          {n.images?.length > 0 && <Legacy><PhotoGrid images={n.images} label={n.type==='notice' ? '공지 사진' : '메모 사진'}/></Legacy>}
+          <PhotoThumbs images={n.images} label={n.type==='notice' ? '공지 사진' : '메모 사진'}/>
         </Banner>
       ))}
 

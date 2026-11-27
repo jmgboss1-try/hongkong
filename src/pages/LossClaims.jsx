@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
 import { db } from '../firebase'
 import { doc, getDoc, setDoc, deleteDoc } from 'firebase/firestore'
-import { PhotoPicker, Lightbox } from '../components/PhotoAttach'
+import { Lightbox } from '../components/PhotoAttach'
+import { PhotoField } from '../astryx/PhotoField'
 import { VStack, HStack } from '@astryxdesign/core/Layout'
 import { Text } from '@astryxdesign/core/Text'
 import { Card } from '@astryxdesign/core/Card'
@@ -173,7 +174,7 @@ function Timeline({ r, editable, saving, onAdd, onDelete, onNextCheck }) {
           <Button size="sm" variant={showPhotos || images.length ? 'primary' : 'secondary'} label={`사진${images.length ? ` ${images.length}` : ''}`} onClick={()=>setShowPhotos(v=>!v)}/>
           <Button size="sm" variant="primary" label="+ 기록" isDisabled={saving} onClick={add}/>
         </HStack>
-        {showPhotos && <Legacy><PhotoPicker images={images} onChange={setImages} max={3}/></Legacy>}
+        {showPhotos && <PhotoField images={images} onChange={setImages} max={3}/>}
         <HStack gap={2} vAlign="end" wrap="wrap">
           <DateInput label="다음 확인일" value={r.nextCheck||''} onChange={v=>onNextCheck(v || '')}/>
           {r.nextCheck && <Button size="sm" label="지우기" onClick={()=>onNextCheck('')}/>}

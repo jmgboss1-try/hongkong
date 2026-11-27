@@ -33,7 +33,7 @@ export async function compressImage(file, maxSide = 1000, targetKB = 130) {
 }
 
 // Firestore 문서 1MB 제한 안전선 (base64 글자 수 기준)
-const MAX_TOTAL_CHARS = 800000
+export const MAX_TOTAL_CHARS = 800000
 
 // 확대 보기 (여러 장이면 세로로 쭉 스크롤)
 export function Lightbox({ images, label, onClose }) {

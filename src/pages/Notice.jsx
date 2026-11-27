@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { db } from '../firebase'
 import { collection, addDoc, getDocs, doc, updateDoc, deleteDoc, orderBy, query } from 'firebase/firestore'
 import { useAuth, GradeBadge } from '../AuthContext'
-import { PhotoPicker, PhotoGrid } from '../components/PhotoAttach'
+import { PhotoField, PhotoThumbs } from '../astryx/PhotoField'
 import { VStack, HStack } from '@astryxdesign/core/Layout'
 import { Text } from '@astryxdesign/core/Text'
 import { Card } from '@astryxdesign/core/Card'
@@ -159,7 +159,7 @@ export default function Notice() {
   const textEditor = (type, id) => (
     <VStack gap={2}>
       <TextArea label="내용" isLabelHidden rows={4} value={editForm.content} onChange={v=>setEditForm(f=>({...f, content:v}))}/>
-      <Legacy><PhotoPicker images={editForm.images} onChange={v=>setEditForm(f=>({...f, images:v}))}/></Legacy>
+      <PhotoField images={editForm.images} onChange={v=>setEditForm(f=>({...f, images:v}))}/>
       <HStack gap={2}>
         <Button variant="primary" label={editSaving ? '저장 중...' : '수정 저장'} isDisabled={editSaving} onClick={()=>saveText(type, id)}/>
         <Button label="취소" onClick={()=>setEditTextId(null)}/>
@@ -205,7 +205,7 @@ export default function Notice() {
   const composer = ({ title, placeholder, text, setText, images, setImages, alertOn, setAlertOn, start, setStart, end, setEnd, submit, submitLabel }) => (
     <LedgerCard title={title}>
       <TextArea label="내용" isLabelHidden rows={3} placeholder={placeholder} value={text} onChange={v=>setText(v)}/>
-      <Legacy><PhotoPicker images={images} onChange={setImages}/></Legacy>
+      <PhotoField images={images} onChange={setImages}/>
       <HStack gap={2} vAlign="end" wrap="wrap">
         <CheckboxInput label="체크리스트 상단에도 노출" value={alertOn} onChange={v=>setAlertOn(v)}/>
         {alertOn && <>
@@ -236,7 +236,7 @@ export default function Notice() {
           </HStack>
           {editTextId === key ? textEditor(type, it.id) : <>
             <VStack gap={0}>{(it.content || '').split('\n').map((l, i) => <Text key={i} display="block">{l || '\u00a0'}</Text>)}</VStack>
-            {it.images?.length > 0 && <Legacy><PhotoGrid images={it.images} label={type==='notice' ? '공지 사진' : '메모 사진'}/></Legacy>}
+            <PhotoThumbs images={it.images} label={type==='notice' ? '공지 사진' : '메모 사진'}/>
           </>}
           {canManage && (editAlertId === key ? (
             <Card variant="muted" padding={3}>
