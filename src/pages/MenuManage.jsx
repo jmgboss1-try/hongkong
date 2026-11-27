@@ -9,11 +9,14 @@ import { Selector } from '@astryxdesign/core/Selector'
 import { TabList, Tab } from '@astryxdesign/core/TabList'
 import { List, ListItem } from '@astryxdesign/core/List'
 import { EmptyState } from '@astryxdesign/core/EmptyState'
+import { TextInput } from '@astryxdesign/core/TextInput'
+import { CheckboxInput } from '@astryxdesign/core/CheckboxInput'
+import { SegmentedControl, SegmentedControlItem } from '@astryxdesign/core/SegmentedControl'
 import { AstryxPage, Legacy, PageHeader, LedgerCard } from '../astryx/AstryxPage'
+import TimeSelect from '../astryx/TimeSelect'
 import { db } from '../firebase'
 import { doc, getDoc, setDoc, collection, query, orderBy, limit, onSnapshot, updateDoc, serverTimestamp } from 'firebase/firestore'
 import { MODES, DEFAULT_ITEMS, DEFAULT_SETTINGS, DAYS, won, catsOf, openState } from '../lib/menuData'
-import TimePick from '../components/TimePick'
 import { toDate, hm } from '../lib/attendance'
 import { EVENTS, PRESETS, loadSound, saveSound, unlockAudio, audioReady, playEvent, setOrdersVisible, askNotify } from '../lib/orderSounds'
 
@@ -71,7 +74,7 @@ export default function MenuManage() {
       </TabList>
       {tab === 'orders' && <Orders/>}
       {/* 한 번 연 메뉴 화면은 주문 탭에 갔다 와도 그대로 (다시 불러오지 않고, 저장 안 한 고침도 남음). 끌어서 순서 바꾸기가 있어 아직 예전 모양 */}
-      {menuOpened && <Legacy><div style={{display: tab === 'orders' ? 'none' : 'block'}}><MenuEditor tab={tab === 'orders' ? 'menu' : tab}/></div></Legacy>}
+      {menuOpened && <div hidden={tab === 'orders'}><MenuEditor tab={tab === 'orders' ? 'menu' : tab}/></div>}
     </VStack>
     </AstryxPage>
   )
@@ -484,48 +487,40 @@ function MenuEditor({ tab }) {
   }
 
 
-  if (!items) return <div style={{color:T.sub}}>메뉴를 불러오고 있어요...</div>
+  if (!items) return <Text color="secondary">메뉴를 불러오고 있어요...</Text>
 
   const saveBar = (
-    <div style={{display:'flex', alignItems:'center', gap:10, flexWrap:'wrap', margin:'4px 0 12px', fontSize:13}}>
-      <Btn kind="primary" onClick={()=>save()} disabled={busy || (saved && !fromDefault)}>{busy ? '저장 중...' : '저장'}</Btn>
-      {!saved && <span style={{color:T.amber, fontWeight:700}}>고친 내용이 아직 저장 안 됐어요</span>}
-      {fromDefault && saved && <span style={{color:T.amber}}>포스 사진으로 만든 기본 메뉴예요. 한 번 저장하면 손님 화면에 이 메뉴가 쓰여요</span>}
-      {msg && <span style={{color: msg.includes('못') || msg.includes('권한') ? T.red : T.green}}>{msg}</span>}
-      <a href="/menu" target="_blank" rel="noreferrer" style={{marginLeft:'auto', color:T.blue, fontSize:13}}>손님 화면 보기</a>
-    </div>
+    <Card variant="muted" padding={3}>
+      <HStack gap={3} vAlign="center" wrap="wrap">
+        <Button variant="primary" label={busy ? '저장 중...' : '저장'} isDisabled={busy || (saved && !fromDefault)} onClick={()=>save()}/>
+        {!saved && <Badge variant="warning" label="고친 내용이 아직 저장 안 됐어요"/>}
+        {fromDefault && saved && <Text type="supporting" color="secondary">포스 사진으로 만든 기본 메뉴예요. 한 번 저장하면 손님 화면에 이 메뉴가 쓰여요</Text>}
+        {msg && <Text type="supporting" color={msg.includes('못') || msg.includes('권한') ? 'accent' : 'secondary'}>{msg}</Text>}
+        <Button size="sm" variant="ghost" label="손님 화면 보기" onClick={()=>window.open('/menu', '_blank', 'noopener')}/>
+      </HStack>
+    </Card>
   )
 
   if (tab === 'settings') {
     const set = (k, v) => { setSettings(s => ({ ...s, [k]: v })); setSaved(false) }
     const money = (k, label) => (
-      <label style={{display:'flex', alignItems:'center', gap:10, fontSize:14, padding:'8px 0', borderBottom:`1px solid ${T.soft}`}}>
-        <span style={{minWidth:150}}>{label}</span>
-        <input inputMode="numeric" value={(settings[k]||0).toLocaleString('ko-KR')} onChange={e=>set(k, +e.target.value.replace(/[^0-9]/g,'')||0)}
-          style={{width:120, textAlign:'right', padding:'6px 8px', border:`1px solid ${T.rule}`, borderRadius:4, fontFamily:'inherit', fontSize:14, ...num}}/>
-        <span style={{color:T.sub}}>원</span>
-      </label>
+      <ListItem label={label} endContent={<TextInput label={label} isLabelHidden inputMode="numeric" width={140} value={(settings[k]||0).toLocaleString('ko-KR')} onChange={v=>set(k, +v.replace(/[^0-9]/g,'')||0)}/>}/>
     )
     return (
-      <div style={{maxWidth:860}}>
+      <VStack gap={3}>
         {saveBar}
-        <label style={{display:'flex', alignItems:'center', gap:10, fontSize:14, padding:'8px 0', borderBottom:`1px solid ${T.soft}`}}>
-          <input type="checkbox" checked={settings.open !== false} onChange={e=>set('open', e.target.checked)}/>
-          <span><b>QR 주문 받기</b> <span style={{color:T.sub}}>(끄면 손님 화면에 메뉴만 보이고 전화 주문 안내가 나와요)</span></span>
-        </label>
-        <Hours settings={settings} set={set}/>
-        {money('minDelivery','배달 최소 주문 금액')}
-        {money('freeDelivery','무료배달 기준 금액')}
-        {money('deliveryFee','배달비 (기준 미만일 때)')}
-        <label style={{display:'flex', alignItems:'center', gap:10, fontSize:14, padding:'8px 0', borderBottom:`1px solid ${T.soft}`}}>
-          <span style={{minWidth:150}}>매장 전화번호</span>
-          <input value={settings.phone} onChange={e=>set('phone', e.target.value)} style={{width:160, padding:'6px 8px', border:`1px solid ${T.rule}`, borderRadius:4, fontFamily:'inherit', fontSize:14}}/>
-        </label>
-        <label style={{display:'flex', flexDirection:'column', gap:6, fontSize:14, padding:'8px 0'}}>
-          <span>손님 화면 맨 위 안내 (선택) <span style={{color:T.sub}}>예: 오늘은 탕수육 재료 소진으로 주문이 안 돼요</span></span>
-          <input value={settings.notice||''} onChange={e=>set('notice', e.target.value)} style={{padding:'8px 10px', border:`1px solid ${T.rule}`, borderRadius:4, fontFamily:'inherit', fontSize:14}}/>
-        </label>
-      </div>
+        <LedgerCard title="배달 설정">
+          <CheckboxInput label="QR 주문 받기" description="끄면 손님 화면에 메뉴만 보이고 전화 주문 안내가 나와요" value={settings.open !== false} onChange={v=>set('open', v)}/>
+          <Hours settings={settings} set={set}/>
+          <List hasDividers edge="flush">
+            {money('minDelivery','배달 최소 주문 금액 (원)')}
+            {money('freeDelivery','무료배달 기준 금액 (원)')}
+            {money('deliveryFee','배달비 (기준 미만일 때, 원)')}
+            <ListItem label="매장 전화번호" endContent={<TextInput label="매장 전화번호" isLabelHidden type="tel" width={170} value={settings.phone || ''} onChange={v=>set('phone', v)}/>}/>
+          </List>
+          <TextInput label="손님 화면 맨 위 안내" isOptional placeholder="예: 오늘은 탕수육 재료 소진으로 주문이 안 돼요" value={settings.notice||''} onChange={v=>set('notice', v)}/>
+        </LedgerCard>
+      </VStack>
     )
   }
 
@@ -566,8 +561,10 @@ function MenuEditor({ tab }) {
   const dropCat = (from, to, after) => setCats(moveKeyTo(allCats, from, to, after))
   const moveCat = (c, d) => { const a = [...allCats], i = a.indexOf(c), j = i + d; if (j < 0 || j >= a.length) return; [a[i], a[j]] = [a[j], a[i]]; setCats(a) }
   return (
-    <div>
+    <VStack gap={3}>
       {saveBar}
+      {/* 분류: 끌어서 순서 바꾸기라 예전 모양 */}
+      <Legacy>
       <div style={{background:T.chip, borderRadius:6, padding:'10px 12px', marginBottom:12}}>
         <div style={{display:'flex', alignItems:'baseline', gap:8, flexWrap:'wrap', marginBottom:6}}>
           <b style={{fontSize:14}}>분류</b>
@@ -590,28 +587,31 @@ function MenuEditor({ tab }) {
           ))}
         </div>
       </div>
-      <div style={{display:'flex', gap:8, alignItems:'center', flexWrap:'wrap', marginBottom:6}}>
-        {Object.entries(MODES).map(([k,l]) => (
-          <button key={k} type="button" onClick={()=>{ setMode(k); setEdit(null) }}
-            style={{fontFamily:'inherit', fontSize:14, fontWeight:800, padding:'7px 18px', borderRadius:4, cursor:'pointer',
-              border:`1px solid ${mode===k ? T.ink : T.rule}`, background: mode===k ? T.ink : '#FFFFFF', color: mode===k ? '#FFFFFF' : T.ink}}>{l} 메뉴 ({items.filter(i=>i.mode===k).length})</button>
-        ))}
-        <span style={{fontSize:12, color:T.sub}}>왼쪽 점(⠿)을 끌어 순서를 바꾸고, 다른 분류에 놓으면 분류가 바뀌어요. 가격은 눌러서 바로 고쳐요</span>
-        <span style={{flex:1}}/>
-        <Btn onClick={()=>{ setPicking(p => p ? null : []); setEdit(null) }}>{picking ? '묶기 그만' : '메뉴 묶기'}</Btn>
-        <Btn kind="blue" onClick={()=>setEdit({ id:`${mode[0]}${Date.now().toString(36)}`, mode, cat:allCats[0]||'기타', name:'', price:0, best:false, soldOut:false, hidden:false, desc:'', options:[] })}>+ {MODES[mode]} 메뉴 추가</Btn>
-      </div>
+      </Legacy>
+      <HStack gap={2} vAlign="center" hAlign="between" wrap="wrap">
+        <SegmentedControl label="포장·배달" value={mode} onChange={k=>{ if (!k) return; setMode(k); setEdit(null) }}>
+          {Object.entries(MODES).map(([k,l]) => <SegmentedControlItem key={k} value={k} label={`${l} 메뉴 (${items.filter(i=>i.mode===k).length})`}/>)}
+        </SegmentedControl>
+        <HStack gap={2}>
+          <Button label={picking ? '묶기 그만' : '메뉴 묶기'} onClick={()=>{ setPicking(p => p ? null : []); setEdit(null) }}/>
+          <Button variant="primary" label={`+ ${MODES[mode]} 메뉴 추가`} onClick={()=>setEdit({ id:`${mode[0]}${Date.now().toString(36)}`, mode, cat:allCats[0]||'기타', name:'', price:0, best:false, soldOut:false, hidden:false, desc:'', options:[] })}/>
+        </HStack>
+      </HStack>
+      <Text type="supporting" color="secondary">왼쪽 점(⠿)을 끌어 순서를 바꾸고, 다른 분류에 놓으면 분류가 바뀌어요. 가격은 눌러서 바로 고쳐요</Text>
       {picking && (
-        <div style={{position:'sticky', top:0, zIndex:5, background:'#FFFFFF', border:`1px solid ${T.blue}`, borderRadius:6, padding:'10px 12px', margin:'6px 0', fontSize:13, display:'flex', gap:10, alignItems:'center', flexWrap:'wrap'}}>
-          <span style={{flex:'1 1 260px', lineHeight:1.6}}>
-            <b>한 메뉴로 묶을 것들을 고르세요.</b> 예: 짬뽕 · 고추짬뽕 · 고기짬뽕과 각 곱빼기.
-            손님은 메뉴를 고른 뒤 <b>종류</b>를 꼭 고르고, <b>곱빼기</b>는 원하면 골라요 (곱빼기 값이 모두 같을 때).
-          </span>
-          <label style={{display:'flex', gap:4, alignItems:'center'}}><input type="checkbox" checked={both} onChange={e=>setBoth(e.target.checked)}/> {mode === 'pickup' ? '배달' : '포장'} 메뉴도 같은 이름끼리 같이</label>
-          <Btn kind="blue" onClick={doGroup} disabled={picking.length < 2}>{picking.length}개 한 메뉴로 묶기</Btn>
-          <Btn onClick={()=>setPicking(null)}>취소</Btn>
-        </div>
+        <Card variant="muted" padding={3}>
+          <VStack gap={2}>
+            <Text><Text weight="bold">한 메뉴로 묶을 것들을 고르세요.</Text> 예: 짬뽕 · 고추짬뽕 · 고기짬뽕과 각 곱빼기. 손님은 메뉴를 고른 뒤 종류를 꼭 고르고, 곱빼기는 원하면 골라요 (곱빼기 값이 모두 같을 때).</Text>
+            <HStack gap={2} vAlign="center" wrap="wrap">
+              <CheckboxInput label={`${mode === 'pickup' ? '배달' : '포장'} 메뉴도 같은 이름끼리 같이`} value={both} onChange={v=>setBoth(v)}/>
+              <Button variant="primary" label={`${picking.length}개 한 메뉴로 묶기`} isDisabled={picking.length < 2} onClick={doGroup}/>
+              <Button label="취소" onClick={()=>setPicking(null)}/>
+            </HStack>
+          </VStack>
+        </Card>
       )}
+      {/* 메뉴 줄: 끌어서 순서 바꾸기라 예전 모양 */}
+      <Legacy>
       {edit && !items.some(i=>i.id===edit.id) && <ItemForm edit={edit} setEdit={setEdit} onSave={saveEdit} cats={allCats}/>}
       {cats.filter(c => list.some(i=>i.cat===c)).map(c => (
         <section key={c} style={{marginTop:14}}>
@@ -643,7 +643,8 @@ function MenuEditor({ tab }) {
           ))}
         </section>
       ))}
-    </div>
+      </Legacy>
+    </VStack>
   )
 }
 
@@ -653,43 +654,35 @@ function Hours({ settings, set }) {
   const st = openState(settings)
   const day = (w, p) => set('hours', { ...settings.hours, [w]: { ...(settings.hours?.[w]||{}), ...p } })
   return (
-    <div style={{padding:'10px 0', borderBottom:`1px solid ${T.soft}`}}>
-      <label style={{display:'flex', alignItems:'center', gap:10, fontSize:14}}>
-        <input type="checkbox" checked={!!settings.hoursOn} onChange={e=>set('hoursOn', e.target.checked)}/>
-        <span><b>영업시간에만 주문 받기</b> <span style={{color:T.sub}}>(쉬는 날·영업 전·브레이크·마감 뒤에는 손님 화면에 안내가 나오고 주문 버튼이 막혀요)</span></span>
-      </label>
-      <div style={{fontSize:13, margin:'6px 0 4px 24px', color: st.ok ? T.green : T.red, fontWeight:700}}>지금: {st.ok ? '주문 받는 중' : st.text}</div>
-      {settings.hoursOn && (
-        <div style={{marginLeft:24}}>
-          <div style={{display:'flex', alignItems:'center', gap:8, fontSize:13, margin:'6px 0'}}>
-            마감
-            <select value={settings.lastOrder ?? 30} onChange={e=>set('lastOrder', +e.target.value)} aria-label="주문 마감" style={{padding:'4px 6px', border:`1px solid ${T.rule}`, borderRadius:4, fontFamily:'inherit'}}>
-              {[0,10,20,30,40,60].map(m => <option key={m} value={m}>{m}분 전</option>)}
-            </select>
-            까지 주문 받기
-          </div>
+    <VStack gap={2}>
+      <CheckboxInput label="영업시간에만 주문 받기" description="쉬는 날·영업 전·브레이크·마감 뒤에는 손님 화면에 안내가 나오고 주문 버튼이 막혀요" value={!!settings.hoursOn} onChange={v=>set('hoursOn', v)}/>
+      <HStack gap={2} vAlign="center"><Text type="supporting" color="secondary">지금:</Text><Badge variant={st.ok ? 'success' : 'error'} label={st.ok ? '주문 받는 중' : st.text}/></HStack>
+      {settings.hoursOn && <>
+        <HStack gap={2} vAlign="center" wrap="wrap">
+          <Text>마감</Text>
+          <Selector label="주문 마감" isLabelHidden size="sm" value={String(settings.lastOrder ?? 30)} onChange={v=>v != null && set('lastOrder', +v)} options={[0,10,20,30,40,60].map(m => ({ value:String(m), label:`${m}분 전` }))}/>
+          <Text>까지 주문 받기</Text>
+        </HStack>
+        <List hasDividers edge="flush">
           {[1,2,3,4,5,6,0].map(w => {
             const d = { ...(DEFAULT_SETTINGS.hours[w]||{}), ...(settings.hours?.[w]||{}) }
             return (
-              <div key={w} style={{display:'flex', alignItems:'center', gap:8, flexWrap:'wrap', padding:'5px 0', fontSize:13, borderTop:`1px solid ${T.soft}`}}>
-                <b style={{width:18, color: w===0 ? T.red : w===6 ? T.blue : T.ink}}>{DAYS[w]}</b>
-                <label style={{display:'flex', alignItems:'center', gap:4, width:56}}><input type="checkbox" checked={!!d.closed} onChange={e=>day(w,{ closed:e.target.checked })}/> 쉼</label>
-                {!d.closed && <>
-                  <TimePick value={d.open} onChange={v=>day(w,{ open:v })} label={`${DAYS[w]} 영업 시작`} width={120}/>
-                  <span>~</span>
-                  <TimePick value={d.close} onChange={v=>day(w,{ close:v })} label={`${DAYS[w]} 영업 끝`} width={120}/>
-                  <span style={{color:T.sub, marginLeft:6}}>브레이크</span>
-                  <TimePick value={d.bStart} onChange={v=>day(w,{ bStart:v })} label={`${DAYS[w]} 브레이크 시작`} width={150} clearable/>
-                  <span>~</span>
-                  <TimePick value={d.bEnd} onChange={v=>day(w,{ bEnd:v })} label={`${DAYS[w]} 브레이크 끝`} width={150} clearable/>
-                </>}
-              </div>
+              <ListItem key={w} align="start"
+                label={<HStack gap={3} vAlign="center"><Text weight="bold" color={w===0 ? 'accent' : 'primary'}>{DAYS[w]}</Text><CheckboxInput label="쉼" value={!!d.closed} onChange={v=>day(w,{ closed:v })}/></HStack>}
+                description={!d.closed && <VStack gap={1}>
+                  <HStack gap={2} vAlign="center" wrap="wrap"><Text type="supporting" color="secondary">영업</Text>
+                    <TimeSelect value={d.open} onChange={v=>day(w,{ open:v })} label={`${DAYS[w]} 영업 시작`}/><Text>~</Text>
+                    <TimeSelect value={d.close} onChange={v=>day(w,{ close:v })} label={`${DAYS[w]} 영업 끝`}/></HStack>
+                  <HStack gap={2} vAlign="center" wrap="wrap"><Text type="supporting" color="secondary">브레이크</Text>
+                    <TimeSelect value={d.bStart} onChange={v=>day(w,{ bStart:v })} label={`${DAYS[w]} 브레이크 시작`} clearable/><Text>~</Text>
+                    <TimeSelect value={d.bEnd} onChange={v=>day(w,{ bEnd:v })} label={`${DAYS[w]} 브레이크 끝`} clearable/></HStack>
+                </VStack>}/>
             )
           })}
-          <div style={{fontSize:12, color:T.sub, marginTop:4}}>브레이크가 없는 날은 비워 두세요. 갑자기 쉬는 날은 위의 'QR 주문 받기'를 끄면 돼요.</div>
-        </div>
-      )}
-    </div>
+        </List>
+        <Text type="supporting" color="secondary">브레이크가 없는 날은 비워 두세요. 갑자기 쉬는 날은 위의 'QR 주문 받기'를 끄면 돼요.</Text>
+      </>}
+    </VStack>
   )
 }
 
