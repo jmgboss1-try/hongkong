@@ -10,6 +10,7 @@ import NavIcon from './NavIcon'
 import ThemeDots from './ThemeDots'
 import OrderAlert from './OrderAlert'
 import { NAV_GROUPS, navGroupOf } from '../lib/nav'
+import { useMode, setMode } from '../lib/dashTheme'
 import { SideNav, SideNavItem, SideNavHeading, SideNavSection } from '@astryxdesign/core/SideNav'
 import { MobileNav } from '@astryxdesign/core/MobileNav'
 import { VStack, HStack } from '@astryxdesign/core/Layout'
@@ -111,6 +112,9 @@ export default function Layout({ children }) {
   // 모바일 하단 탭: 모든 메뉴를 옆으로 밀어서 볼 수 있게 (지금 화면 탭은 가운데로)
   const bottomMenus = menus
   const tabbarRef = useRef(null)
+  // 밝기: Astryx 화면은 테마가 알아서 바꾸고, Layout 바탕(테마 상자 밖)만 여기서 맞춤 (hongkongTheme 의 body/muted/border 값과 같음)
+  const mode = useMode()
+  const PAL = mode === 'dark' ? { body:'#15130F', nav:'#2A2722', rule:'#3A362F', ink:'#F3F1EC' } : { body:'#FAF9F6', nav:'#F3F1EC', rule:'#DCD7CE', ink:'#1D1B18' }
   // PC 메뉴 폭은 Astryx SideNav 가 정함 (접힘·펼침) → 재서 본문을 그만큼 띄움
   const navRef = useRef(null)
   const [navW, setNavW] = useState(56)
@@ -139,7 +143,10 @@ export default function Layout({ children }) {
   }
 
   // 메뉴 아이콘: 묶음 색(돈 파랑·사람 보라·매장 주황)은 데이터 색이라 인라인
-  const iconOf = path => <span style={{display:'inline-flex', color:NAV_GROUPS[navGroupOf(path)].color}}><NavIcon name={path}/></span>
+  // 묶음 색: 다크에서는 어두운 바탕에서 보이게 한 단계 밝게 (대시보드 먹색은 밝은 글자색)
+  const DARK_GROUP = { home:PAL.ink, money:'#7FA6E0', people:'#A98FDB', store:'#E3A35B' }
+  const groupColor = path => mode === 'dark' ? DARK_GROUP[navGroupOf(path)] : navGroupOf(path) === 'home' ? PAL.ink : NAV_GROUPS[navGroupOf(path)].color
+  const iconOf = path => <span style={{display:'inline-flex', color:groupColor(path)}}><NavIcon name={path}/></span>
   const roleLabel = isOwner ? '사장' : isStore ? '매장계정' : isInvestor ? (userData?.name||'투자자') : (userData?.name||'')
   const roleBadge = isOwner ? <Badge variant="red" label="사장"/> : isStore ? <Badge variant="blue" label="매장"/> : isInvestor ? <Badge variant="green" label="투자자"/>
     : <AGradeBadge joinDate={userData?.joinDate}/>
@@ -172,17 +179,18 @@ export default function Layout({ children }) {
   const extraItems = onDone => (
     <SideNavSection title="설정" isHeaderHidden>
       {(isOwner || isStore) && <SideNavItem label="폰에서 파일 받기" icon={<NavIcon name="_file"/>} onClick={()=>{ onDone?.(); setFileOpen(true) }}/>}
+      <SideNavItem label={mode === 'dark' ? '밝은 화면으로' : '어두운 화면으로'} icon={<NavIcon name="_mode"/>} onClick={()=>setMode(mode === 'dark' ? 'light' : 'dark')}/>
       <SideNavItem label="탭 순서 바꾸기" icon={<NavIcon name="_order"/>} onClick={()=>{ if (!wideNav) toggleWide(); setEditOrder(menus.map(m=>m.path)) }}/>
       <SideNavItem label="로그아웃" icon={<NavIcon name="_logout"/>} onClick={handleLogout}/>
     </SideNavSection>
   )
 
   return (
-    <div style={{display:'flex', minHeight:'100vh', fontFamily:'Noto Sans KR, sans-serif', background:'#FAF9F6', color:'#1D1B18', colorScheme:'light'}}>
+    <div style={{display:'flex', minHeight:'100vh', fontFamily:'Noto Sans KR, sans-serif', background:PAL.body, color:PAL.ink, colorScheme:mode}}>
 
       {/* ── PC 왼쪽 메뉴 (Astryx SideNav): 접으면 아이콘만, 마우스를 올리면 이름 ── */}
       <div ref={navRef} className="pc-sidebar" style={{position:'fixed', top:0, left:0, bottom:0, zIndex:10,
-        background:'var(--hk-nav-bg, #F3F1EC)', borderRight:'1px solid #DCD7CE'}}>
+        background:PAL.nav, borderRight:`1px solid ${PAL.rule}`}}>
         <AstryxPage>
           <SideNav
             collapsible={{ isCollapsed:narrowNav, onCollapsedChange:c=>{ if (c === wideNav) toggleWide() }, buttonLabel: narrowNav ? '이름 보기' : '아이콘만 보기' }}
@@ -249,7 +257,7 @@ export default function Layout({ children }) {
                       background:'transparent', border:'none', cursor:'pointer', whiteSpace:'nowrap',
                       borderTop:`2px solid ${on ? 'var(--color-accent)' : 'transparent'}`}}>
                     <VStack gap={0.5} hAlign="center">
-                      <span style={{display:'inline-flex', color:NAV_GROUPS[navGroupOf(m.path)].color, opacity: on ? 1 : 0.8}}><NavIcon name={m.path} size={20}/></span>
+                      <span style={{display:'inline-flex', color:groupColor(m.path), opacity: on ? 1 : 0.8}}><NavIcon name={m.path} size={20}/></span>
                       <Text type="supporting" weight={on ? 'bold' : 'normal'} color={on ? 'primary' : 'secondary'}>{m.label}</Text>
                     </VStack>
                   </button>

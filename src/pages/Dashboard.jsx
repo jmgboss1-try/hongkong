@@ -13,7 +13,7 @@ import RevenuePace from '../components/RevenuePace'
 import { GoalLine } from '../components/DiscountGoal'
 import EarlySales from '../components/EarlySales'
 import BentoBoard from '../components/BentoBoard'
-import { useTheme } from '../lib/dashTheme'
+import { useTheme, useMode, setMode } from '../lib/dashTheme'
 import ThemeDots from '../components/ThemeDots'
 import RewardPrompt from '../components/RewardPrompt'
 import { db } from '../firebase'
@@ -122,8 +122,7 @@ export default function Dashboard() {
   // 보기 방식(카드형/장부형)과 카드형 강조색은 기기마다 기억
   const [showLedger, setShowLedger] = useState(false)   // 손익·통장 장부 (카드 보드 아래에 접혀 있음)
   // Astryx 보드 라이트/다크 (도입 0단계 미리보기용, 기기마다). 아직 다른 화면은 밝은 화면만 있음
-  const [boardMode, setBoardMode] = useState(() => { try { return localStorage.getItem('astryx.mode') === 'dark' ? 'dark' : 'light' } catch { return 'light' } })
-  const toggleMode = () => setBoardMode(m => { const n = m === 'dark' ? 'light' : 'dark'; try { localStorage.setItem('astryx.mode', n) } catch { /* 저장 못 해도 됨 */ } return n })
+  const boardMode = useMode()
   const theme = useTheme()
 
   useEffect(() => { load() }, [curMonth])
@@ -378,7 +377,7 @@ export default function Dashboard() {
     <VStack gap={5} maxWidth={1040}>
       {/* 머리: 이 달 한눈에 */}
       <PageHeader title={`${mLabel(curMonth)} 한눈에`} right={<>
-        <SegmentedControl label="보드 밝기" size="sm" value={boardMode} onChange={v => v !== boardMode && toggleMode()}>
+        <SegmentedControl label="화면 밝기" size="sm" value={boardMode} onChange={v => v && v !== boardMode && setMode(v)}>
           <SegmentedControlItem value="light" label="라이트"/>
           <SegmentedControlItem value="dark" label="다크"/>
         </SegmentedControl>

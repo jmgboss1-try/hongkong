@@ -40,6 +40,25 @@ export function useTheme() {
   return k
 }
 
+// 밝기 (라이트/다크): 기기마다 기억 (localStorage 'astryx.mode'), 모든 Astryx 화면이 같이 따름
+export function getMode() {
+  try { return localStorage.getItem('astryx.mode') === 'dark' ? 'dark' : 'light' } catch { return 'light' }
+}
+export function setMode(m) {
+  try { localStorage.setItem('astryx.mode', m) } catch { /* 저장 못 해도 이번엔 바뀜 */ }
+  document.documentElement.dataset.mode = m
+  window.dispatchEvent(new CustomEvent('hk-mode', { detail: m }))
+}
+export function useMode() {
+  const [m, setM] = useState(getMode)
+  useEffect(() => {
+    const on = e => setM(e.detail)
+    window.addEventListener('hk-mode', on)
+    return () => window.removeEventListener('hk-mode', on)
+  }, [])
+  return m
+}
+
 // 화면 모양: 장부형은 없앰 → 늘 카드형. <html data-view="card"> 를 달면 appView.css 가 아직 Astryx 로 안 옮긴 탭도 카드 모양으로 바꿈
 //  (Astryx 로 옮긴 화면은 Astryx Card 를 직접 씀. 모든 화면을 옮기면 appView.css 의 카드 규칙과 이 함수를 지움)
 export function applyView() { document.documentElement.dataset.view = 'card' }

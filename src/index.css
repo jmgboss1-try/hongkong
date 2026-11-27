@@ -74,6 +74,11 @@ h2 {
   color: var(--text-h);
 }
 
+/* Astryx 화면 안의 제목은 테마 글자색을 따름 (다크 모드에서 안 보이지 않게). 크기는 위·아래 규칙 그대로 */
+[data-astryx-theme]:not(html) :is(h1, h2) {
+  color: inherit;
+}
+
 h1 {
   font-size: 56px;
   letter-spacing: -1.68px;

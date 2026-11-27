@@ -1,5 +1,5 @@
 // Astryx 로 옮긴 화면의 틀
-//  <AstryxPage> : 홍콩반점 테마(기기에서 고른 강조색)로 감쌈. 지금은 라이트만 (다른 화면이 다 옮겨지면 다크도 켬)
+//  <AstryxPage> : 홍콩반점 테마(기기에서 고른 강조색, 라이트/다크)로 감쌈. 밝기는 lib/dashTheme 의 useMode
 //  <Legacy>     : 아직 Astryx 로 안 옮긴 덩어리. 안쪽은 reset 영향 없이 예전 인라인 스타일 그대로 보임 (legacyCompat.css)
 //  <Ledger>/<LedgerRow> : 장부 줄 (왼쪽 이름·설명, 오른쪽 금액). 합계 줄은 strong, 아래 줄은 sub
 import { Theme } from '@astryxdesign/core/theme'
@@ -12,15 +12,16 @@ import { Button } from '@astryxdesign/core/Button'
 import { Selector } from '@astryxdesign/core/Selector'
 import { Card } from '@astryxdesign/core/Card'
 import { hongkongTheme } from './hongkongTheme'
-import { useTheme } from '../lib/dashTheme'
+import { useTheme, useMode } from '../lib/dashTheme'
 import CountUp from '../components/CountUp'
 
 export function AstryxPage({ children }) {
   const key = useTheme()
+  const mode = useMode()
   // 한국어: 날짜 칸·'선택' 표시·빈 목록 문구 등 Astryx 기본 글자를 한국어로
   return (
     <InternationalizationProvider locale="ko-KR" messages={{ 'ko-KR': koKR }}>
-      <Theme theme={hongkongTheme(key)} mode="light">{children}</Theme>
+      <Theme theme={hongkongTheme(key)} mode={mode}>{children}</Theme>
     </InternationalizationProvider>
   )
 }

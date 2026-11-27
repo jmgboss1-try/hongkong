@@ -72,3 +72,6 @@
     html[data-view="card"] .main-content section:hover { box-shadow: 0 2px 4px rgba(29,27,24,.05), 0 10px 26px rgba(29,27,24,.07); }
   }
 }
+
+/* 다크 모드 (기기 설정, lib/dashTheme setMode): 테마 상자 밖 바탕도 어둡게 (로그인·출퇴근 화면 포함) */
+html[data-mode="dark"], html[data-mode="dark"] body { background: #15130F; }

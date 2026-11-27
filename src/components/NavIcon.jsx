@@ -51,6 +51,8 @@ const P = {
   // 아래 버튼들
   '_file': <><rect x="7" y="2.5" width="10" height="19" rx="2"/><path d="M12 7.5v7M9 11.5l3 3 3-3"/></>,
   '_order': <><path d="M8 4v16M4.5 7.5L8 4l3.5 3.5"/><path d="M16 20V4M12.5 16.5L16 20l3.5-3.5"/></>,
+  // 밝기 바꾸기: 반달
+  '_mode': <><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/></>,
   '_cards': <><rect x="3.5" y="3.5" width="7.5" height="7.5" rx="2.2"/><rect x="13" y="3.5" width="7.5" height="7.5" rx="2.2"/><rect x="3.5" y="13" width="17" height="7.5" rx="2.2"/></>,
   '_ledger': <><path d="M4 5h16M4 9.5h16M4 14h16M4 18.5h16"/></>,
   '_logout': <><path d="M14 4h4.5a1.5 1.5 0 0 1 1.5 1.5v13a1.5 1.5 0 0 1-1.5 1.5H14"/><path d="M10 8l-4 4 4 4M6 12h10"/></>,
