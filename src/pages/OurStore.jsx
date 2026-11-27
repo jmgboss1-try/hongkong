@@ -516,7 +516,7 @@ export default function OurStore() {
       </Grid>
 
       {/* 매장 장면 설정 (사장님만) · 사장님 캐릭터 꾸미기 */}
-      {isOwner && <Legacy><StoreLifeSettings raw={lifeRaw}/></Legacy>}
+      {isOwner && <StoreLifeSettings raw={lifeRaw}/>}
       {isOwner && user && (
         <Legacy>
           <AvatarEditor uid={user.uid} userData={owner?.uid === user.uid ? owner : userData} title="사장님 캐릭터" hint="늘 매장에 있어요. 주로 주방에 있다가 가끔 홀을 둘러봐요"

@@ -1,15 +1,19 @@
 import { useState } from 'react'
 import { db } from '../firebase'
 import { doc, setDoc } from 'firebase/firestore'
+import { VStack, HStack } from '@astryxdesign/core/Layout'
+import { Text, Heading } from '@astryxdesign/core/Text'
+import { Grid } from '@astryxdesign/core/Grid'
+import { Badge } from '@astryxdesign/core/Badge'
+import { Button } from '@astryxdesign/core/Button'
+import { Selector } from '@astryxdesign/core/Selector'
+import { TextArea } from '@astryxdesign/core/TextArea'
+import { List, ListItem } from '@astryxdesign/core/List'
+import { LedgerCard } from '../astryx/AstryxPage'
 import { LINE_DEFS, DEFAULT_LINES, FREQ_DEFS, FREQ_LABELS, TONES, DEFAULT_LIFE } from '../lib/storeLife'
 
 // 우리 매장 '매장 장면 설정' (사장님만): 손님·직원 대사, 일이 얼마나 자주 생기나, 키오스크/포스 주문 비율, 사장님 기본 반응
 // rewards/storeLife 에 저장 (매장계정·직원이 읽을 수 있는 곳이라 규칙을 안 바꿔도 됨)
-const T = { ink:'#1D1B18', sub:'#6E6A63', rule:'#DCD7CE', soft:'#ECE8E1', chip:'#F3F1EC', accent:'var(--hk-accent)', green:'#2E7D45' }
-const sel = { fontFamily:'inherit', fontSize:13, padding:'5px 8px', borderRadius:4, border:`1px solid ${T.rule}`, background:'#FFFFFF', color:T.ink }
-const btn = (primary) => ({ fontFamily:'inherit', fontSize:13, fontWeight:700, padding:'7px 14px', borderRadius:4, cursor:'pointer',
-  border: primary ? 'none' : `1px solid ${T.rule}`, background: primary ? T.accent : '#FFFFFF', color: primary ? '#FFFFFF' : T.ink })
-
 const toText = list => (list || []).join('\n')
 const fromText = text => String(text).split('\n').map(x => x.trim()).filter(Boolean)
 
@@ -40,63 +44,42 @@ export default function StoreLifeSettings({ raw }) {
   const setLine = (k, v) => setForm(f => ({ ...f, lines: { ...f.lines, [k]: v } }))
 
   return (
-    <section style={{marginTop:22}}>
-      <div style={{display:'flex', alignItems:'baseline', gap:10, borderBottom:`2px solid ${T.ink}`, paddingBottom:4, flexWrap:'wrap'}}>
-        <h2 style={{fontSize:15, fontWeight:800, margin:0, fontFamily:'inherit', color:T.ink}}>매장 장면 설정</h2>
-        <span style={{fontSize:12, color:T.sub}}>손님·직원 대사, 일이 얼마나 자주 생기나, 사장님 반응</span>
-        <span style={{flex:1}}/>
-        <button type="button" onClick={() => open ? setOpen(false) : start()} style={{...btn(false), padding:'4px 10px', fontSize:12}}>{open ? '접기' : '고치기'}</button>
-      </div>
-      {open && form && (
-        <div style={{paddingTop:10}}>
-          <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(min(100%, 260px), 1fr))', gap:'8px 24px'}}>
-            {FREQ_DEFS.map(([k, label]) => (
-              <label key={k} style={{display:'flex', alignItems:'center', gap:8, fontSize:13, padding:'4px 0', borderBottom:`1px dotted ${T.rule}`}}>
-                <span style={{flex:1}}>{label}</span>
-                <select value={form.freq[k]} onChange={e => setForm(f => ({ ...f, freq: { ...f.freq, [k]: +e.target.value } }))} style={sel}>
-                  {FREQ_LABELS.map((l, i) => <option key={i} value={i}>{l}</option>)}
-                </select>
-              </label>
-            ))}
-            <label style={{display:'flex', alignItems:'center', gap:8, fontSize:13, padding:'4px 0', borderBottom:`1px dotted ${T.rule}`}}>
-              <span style={{flex:1}}>키오스크로 주문하는 손님</span>
-              <select value={form.kioskRate} onChange={e => setForm(f => ({ ...f, kioskRate: +e.target.value }))} style={sel}>
-                {[100, 90, 80, 70, 60, 50].map(v => <option key={v} value={v}>{v}% (포스 {100 - v}%)</option>)}
-              </select>
-            </label>
-            <label style={{display:'flex', alignItems:'center', gap:8, fontSize:13, padding:'4px 0', borderBottom:`1px dotted ${T.rule}`}}>
-              <span style={{flex:1}}>주방 실수 때 사장님 반응</span>
-              <select value={form.tone} onChange={e => setForm(f => ({ ...f, tone: e.target.value }))} style={sel}>
-                {TONES.map(([k, l]) => <option key={k} value={k}>{l}</option>)}
-              </select>
-            </label>
-          </div>
-          <div style={{fontSize:12, color:T.sub, margin:'10px 0 4px', lineHeight:1.6}}>
-            실수가 생기면 사장님 화면에 '다그치기 · 다독이기 · 위로' 버튼이 12초 동안 나와요. 고르면 모든 화면에서 사장님 캐릭터가 그렇게 말하고, 안 고르면 위 기본 반응으로 말해요.
-          </div>
+    <LedgerCard title="매장 장면 설정" right={<HStack gap={2} vAlign="center">
+      <Text type="supporting" color="secondary">손님·직원 대사, 일이 얼마나 자주 생기나, 사장님 반응</Text>
+      <Button size="sm" label={open ? '접기' : '고치기'} onClick={() => open ? setOpen(false) : start()}/>
+    </HStack>}>
+      {open && form && <>
+        <List hasDividers edge="flush">
+          {FREQ_DEFS.map(([k, label]) => (
+            <ListItem key={k} label={label} endContent={<Selector label={label} isLabelHidden size="sm" value={String(form.freq[k])}
+              onChange={v => v != null && setForm(f => ({ ...f, freq: { ...f.freq, [k]: +v } }))} options={FREQ_LABELS.map((l, i) => ({ value:String(i), label:l }))}/>}/>
+          ))}
+          <ListItem label="키오스크로 주문하는 손님" endContent={<Selector label="키오스크 비율" isLabelHidden size="sm" value={String(form.kioskRate)}
+            onChange={v => v && setForm(f => ({ ...f, kioskRate: +v }))} options={[100, 90, 80, 70, 60, 50].map(v => ({ value:String(v), label:`${v}% (포스 ${100 - v}%)` }))}/>}/>
+          <ListItem label="주방 실수 때 사장님 반응" endContent={<Selector label="사장님 반응" isLabelHidden size="sm" value={form.tone}
+            onChange={v => v && setForm(f => ({ ...f, tone: v }))} options={TONES.map(([k, l]) => ({ value:k, label:l }))}/>}/>
+        </List>
+        <Text type="supporting" color="secondary">실수가 생기면 사장님 화면에 '다그치기 · 다독이기 · 위로' 버튼이 12초 동안 나와요. 고르면 모든 화면에서 사장님 캐릭터가 그렇게 말하고, 안 고르면 위 기본 반응으로 말해요.</Text>
 
-          <h3 style={{fontSize:14, fontWeight:800, margin:'16px 0 2px', fontFamily:'inherit'}}>대사</h3>
-          <div style={{fontSize:12, color:T.sub, marginBottom:6}}>한 줄에 하나씩. 그중 하나를 골라서 말해요. '/'를 넣으면 말풍선이 두 줄이 되고, 손님끼리 수다는 '말1 &gt; 말2'로 적어요.</div>
-          <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(min(100%, 300px), 1fr))', gap:'10px 24px'}}>
-            {LINE_DEFS.map(([k, label, who]) => (
-              <div key={k}>
-                <div style={{display:'flex', alignItems:'baseline', gap:6, fontSize:13, marginBottom:3}}>
-                  <b>{label}</b><span style={{fontSize:11, color:T.sub, background:T.chip, padding:'1px 6px', borderRadius:3}}>{who}</span>
-                  <span style={{flex:1}}/>
-                  {form.lines[k] !== toText(DEFAULT_LINES[k]) && <button type="button" onClick={() => setLine(k, toText(DEFAULT_LINES[k]))} style={{fontFamily:'inherit', fontSize:11, color:T.sub, background:'none', border:'none', cursor:'pointer', textDecoration:'underline'}}>기본으로</button>}
-                </div>
-                <textarea value={form.lines[k]} onChange={e => setLine(k, e.target.value)} rows={Math.min(5, Math.max(2, form.lines[k].split('\n').length))}
-                  style={{width:'100%', boxSizing:'border-box', fontFamily:'inherit', fontSize:13, padding:'6px 8px', borderRadius:4, border:`1px solid ${T.rule}`, background:T.chip, color:T.ink, resize:'vertical', lineHeight:1.5}}/>
-              </div>
-            ))}
-          </div>
-          <div style={{position:'sticky', bottom:0, display:'flex', alignItems:'center', gap:10, padding:'10px 0', background:'#FAF9F6', borderTop:`1px solid ${T.soft}`, marginTop:12}}>
-            <button type="button" onClick={save} disabled={saving} style={btn(true)}>{saving ? '저장 중…' : '저장'}</button>
-            <button type="button" onClick={() => setOpen(false)} style={btn(false)}>닫기</button>
-            {msg && <span style={{fontSize:13, color: msg.startsWith('저장했') ? T.green : T.accent}}>{msg}</span>}
-          </div>
-        </div>
-      )}
-    </section>
+        <Heading level={5}>대사</Heading>
+        <Text type="supporting" color="secondary">한 줄에 하나씩. 그중 하나를 골라서 말해요. '/'를 넣으면 말풍선이 두 줄이 되고, 손님끼리 수다는 '말1 &gt; 말2'로 적어요.</Text>
+        <Grid columns={{ minWidth: 300, max: 2, repeat: 'fit' }} gap={3}>
+          {LINE_DEFS.map(([k, label, who]) => (
+            <VStack key={k} gap={1}>
+              <HStack gap={2} vAlign="center" hAlign="between">
+                <HStack gap={2} vAlign="center"><Text weight="bold">{label}</Text><Badge label={who}/></HStack>
+                {form.lines[k] !== toText(DEFAULT_LINES[k]) && <Button size="sm" variant="ghost" label="기본으로" onClick={() => setLine(k, toText(DEFAULT_LINES[k]))}/>}
+              </HStack>
+              <TextArea label={label} isLabelHidden rows={Math.min(5, Math.max(2, form.lines[k].split('\n').length))} value={form.lines[k]} onChange={v => setLine(k, v)}/>
+            </VStack>
+          ))}
+        </Grid>
+        <HStack gap={2} vAlign="center">
+          <Button variant="primary" label={saving ? '저장 중…' : '저장'} isDisabled={saving} onClick={save}/>
+          <Button label="닫기" onClick={() => setOpen(false)}/>
+          {msg && <Text type="supporting" color={msg.startsWith('저장했') ? 'secondary' : 'accent'}>{msg}</Text>}
+        </HStack>
+      </>}
+    </LedgerCard>
   )
 }
