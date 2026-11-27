@@ -157,9 +157,9 @@ function MemberCard({ m, onEdit, onRetire }) {
             <Button label="근로계약서" onClick={()=>setPaper('contract')}/>
             <Button label="재직증명서" onClick={()=>setPaper('cert')}/>
           </HStack>
-          {paper && <Legacy>
-            {paper === 'contract' && <ContractManager member={m} onClose={()=>setPaper(null)}/>}
-            {paper === 'cert' && <EmploymentCert member={m} onClose={()=>setPaper(null)}/>}
+          {paper === 'contract' && <ContractManager member={m} onClose={()=>setPaper(null)}/>}
+          {paper === 'cert' && <Legacy>
+            <EmploymentCert member={m} onClose={()=>setPaper(null)}/>
           </Legacy>}
         </>}
       </VStack>
