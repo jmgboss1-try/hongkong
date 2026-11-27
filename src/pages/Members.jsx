@@ -15,7 +15,7 @@ import { AstryxPage, Legacy, PageHeader } from '../astryx/AstryxPage'
 import CountUp from '../components/CountUp'
 import { avgHoursFromPattern } from '../lib/attendance'
 import { POSITIONS } from '../lib/avatar'
-import TimePick from '../components/TimePick'
+import TimeSelect from '../astryx/TimeSelect'
 import { db, auth } from '../firebase'
 import { collection, getDocs, getDoc, doc, setDoc } from 'firebase/firestore'
 import { GradeBadge } from '../AuthContext'
@@ -577,9 +577,9 @@ export default function Members() {
                 return (
                   <HStack key={day} gap={2} vAlign="center" wrap="wrap">
                     <Text weight="bold">{day}</Text>
-                    <Legacy><TimePick value={st.start||''} onChange={v=>setT('start',v)} label={`${day} 출근`} clearable width={180}/></Legacy>
+                    <TimeSelect value={st.start||''} onChange={v=>setT('start',v)} label={`${day} 출근`} clearable/>
                     <Text color="secondary">~</Text>
-                    <Legacy><TimePick value={st.end||''} onChange={v=>setT('end',v)} label={`${day} 퇴근`} clearable width={180}/></Legacy>
+                    <TimeSelect value={st.end||''} onChange={v=>setT('end',v)} label={`${day} 퇴근`} clearable/>
                     {idx===[1,2,3,4,5,6,0].find(d=>(form.workDays||[1,2,3,4,5]).includes(d)) && st.start && (
                       <Button size="sm" variant="ghost" label="모든 근무일에 같게" onClick={()=>setF('shiftTimes', Object.fromEntries((form.workDays||[1,2,3,4,5]).map(d=>[d,{start:st.start,end:st.end||''}])))}/>
                     )}

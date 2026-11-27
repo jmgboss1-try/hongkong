@@ -1,4 +1,4 @@
-import TimePick from './TimePick'
+import TimeSelect from '../astryx/TimeSelect'
 import { VStack, HStack } from '@astryxdesign/core/Layout'
 import { Text, Heading } from '@astryxdesign/core/Text'
 import { Card } from '@astryxdesign/core/Card'
@@ -236,7 +236,7 @@ export default function AttendancePanel({ curMonth, nameMap, onApplied }) {
 
   const clockUrl = `${window.location.origin}/clock`
   // 시각 고르기: 아이폰 시간 칸은 지우거나 고치기가 불편해서 시·분 선택 (찍은 시각을 고치므로 1분 단위, 0~23시)
-  const timeIn = (v, set, label) => <Legacy><TimePick value={v||''} onChange={set} label={label} step={1} allHours width={128}/></Legacy>
+  const timeIn = (v, set, label) => <TimeSelect value={v||''} onChange={set} label={label} step={1} allHours/>
   const openEdit = r => setEdit({ uid:r.uid, dd:r.dd, in:hm(toDate(r.rec.in)), out: r.rec.out ? hm(toDate(r.rec.out)) : '', bStart:r.rec.breakStart||'', bEnd:r.rec.breakEnd||'', noBreak:!!r.rec.noBreak, earlyLeave:!!r.rec.earlyLeave, earlyAllow: earlyChoice(r.rec) })
   const recLine = r => {
     const inD = toDate(r.rec.in), outD = toDate(r.rec.out)
