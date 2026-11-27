@@ -95,7 +95,7 @@ export default function MyPayroll() {
         right={<Selector label="달 고르기" isLabelHidden size="sm" value={curMonth} onChange={v => v && setCurMonth(v)} options={monthOpts.map(m => ({ value:m, label:mLabel(m) }))}/>}/>
 
       {/* 사장님이 보낸 근로계약서 (서명할 게 있으면 맨 위에) */}
-      {user && <Legacy><MyContracts uid={user.uid}/></Legacy>}
+      {user && <MyContracts uid={user.uid}/>}
 
       {loading ? <Text color="secondary">불러오는 중...</Text> : isPending ? (
         <EmptyState title="급여 집계 중" description="사장님이 이달 급여를 확정하면 여기에 표시됩니다"/>

@@ -4,13 +4,17 @@ import { STATEMENT_PRINT_CSS } from './WageStatements'
 import { useBizInfo, useSeal } from '../lib/bizInfo'
 import { KIND_LABELS, loadContracts, signContract } from '../lib/contracts'
 import { loadMyPrivate } from '../lib/privateInfo'
+import { VStack, HStack } from '@astryxdesign/core/Layout'
+import { Text } from '@astryxdesign/core/Text'
+import { Badge } from '@astryxdesign/core/Badge'
+import { Banner } from '@astryxdesign/core/Banner'
+import { Button } from '@astryxdesign/core/Button'
+import { TextInput } from '@astryxdesign/core/TextInput'
+import { List, ListItem } from '@astryxdesign/core/List'
+import { Legacy, LedgerCard } from '../astryx/AstryxPage'
 
 // 내 급여 → 근로계약서 (직원): 사장님이 보낸 계약서를 읽고 주소·연락처를 적은 뒤 손가락으로 서명. 서명한 계약서는 언제든 인쇄·PDF
 const T = { ink:'#1D1B18', sub:'#6E6A63', rule:'#DCD7CE', soft:'#ECE8E1', accent:'var(--hk-accent)', green:'#2E7D45', amber:'#B45309' }
-const btn = primary => ({ fontFamily:'inherit', fontSize:14, fontWeight:700, padding:'9px 16px', borderRadius:4, cursor:'pointer',
-  border: primary ? 'none' : `1px solid ${T.rule}`, background: primary ? T.accent : '#FFFFFF', color: primary ? '#FFFFFF' : T.ink })
-const inp = { fontFamily:'inherit', fontSize:15, padding:'9px 10px', borderRadius:4, border:`1px solid ${T.rule}`, background:'#FFFFFF', color:T.ink, boxSizing:'border-box', width:'100%' }
-
 // 손가락·마우스 서명 칸 → PNG (투명 바탕)
 function SignPad({ onChange }) {
   const ref = useRef(null), drawing = useRef(false), drawn = useRef(false)
@@ -64,38 +68,36 @@ export default function MyContracts({ uid, phone }) {
   }
 
   return (
-    <section style={{marginTop:20}}>
-      <style>{STATEMENT_PRINT_CSS}</style>
-      <div style={{borderBottom:`2px solid ${T.ink}`, paddingBottom:6, marginBottom:6, display:'flex', alignItems:'baseline', gap:10}} className="ws-noprint">
-        <h2 style={{fontSize:16, fontWeight:800, margin:0, fontFamily:'inherit', color:T.ink}}>근로계약서</h2>
-        {pending.length > 0 && <span style={{fontSize:12, fontWeight:700, color:T.amber}}>서명할 계약서 {pending.length}건</span>}
-      </div>
-      {msg && <div className="ws-noprint" style={{fontSize:13, color:T.amber, margin:'6px 0'}}>{msg}</div>}
+    <LedgerCard title="근로계약서" right={pending.length > 0 && <Badge variant="warning" label={`서명할 계약서 ${pending.length}건`}/>}>
+      <Legacy><style>{STATEMENT_PRINT_CSS}</style></Legacy>
+      {msg && <Banner status="warning" title={msg}/>}
       {open ? (
-        <div>
-          <div className="ws-noprint" style={{display:'flex', gap:8, margin:'6px 0 10px'}}>
-            <button type="button" onClick={() => { setOpen(null); setSign(null); setMsg('') }} style={btn(false)}>목록으로</button>
-            {open.status === 'signed' && <button type="button" onClick={() => window.print()} style={btn(false)}>인쇄 · PDF로 저장</button>}
-          </div>
-          <ContractDoc c={open.status === 'signed' ? open : { ...open, empAddress: address, empPhone: tel, empSign: sign }} biz={biz} seal={seal}/>
+        <VStack gap={3}>
+          <HStack gap={2}>
+            <Button label="목록으로" onClick={() => { setOpen(null); setSign(null); setMsg('') }}/>
+            {open.status === 'signed' && <Button label="인쇄 · PDF로 저장" onClick={() => window.print()}/>}
+          </HStack>
+          <Legacy><ContractDoc c={open.status === 'signed' ? open : { ...open, empAddress: address, empPhone: tel, empSign: sign }} biz={biz} seal={seal}/></Legacy>
           {open.status !== 'signed' && (
-            <div className="ws-noprint" style={{display:'grid', gap:10, marginTop:14, maxWidth:520}}>
-              <label style={{fontSize:13, color:T.sub}}>주소<input value={address} onChange={e => setAddress(e.target.value)} style={{...inp, marginTop:3}}/></label>
-              <label style={{fontSize:13, color:T.sub}}>연락처<input value={tel} onChange={e => setTel(e.target.value)} inputMode="tel" style={{...inp, marginTop:3}}/></label>
-              <SignPad onChange={setSign}/>
-              <button type="button" onClick={submit} disabled={busy} style={btn(true)}>{busy ? '서명하는 중…' : '내용을 확인했고 서명합니다'}</button>
-            </div>
+            <VStack gap={3} maxWidth={520}>
+              <TextInput label="주소" value={address} onChange={v => setAddress(v)}/>
+              <TextInput type="tel" label="연락처" inputMode="tel" value={tel} onChange={v => setTel(v)}/>
+              <Legacy><SignPad onChange={setSign}/></Legacy>
+              <Button variant="primary" size="lg" width="100%" label={busy ? '서명하는 중…' : '내용을 확인했고 서명합니다'} isDisabled={busy} onClick={submit}/>
+            </VStack>
           )}
-        </div>
-      ) : list.map(c => (
-        <div key={c.id} className="ws-noprint" style={{display:'flex', alignItems:'center', gap:8, padding:'10px 0', borderBottom:`1px solid ${T.soft}`, fontSize:14, flexWrap:'wrap'}}>
-          <b>{KIND_LABELS[c.kind]}</b>
-          <span style={{fontSize:12, color:T.sub}}>{c.startDate}부터</span>
-          <span style={{flex:1}}/>
-          <span style={{fontSize:12, fontWeight:700, color: c.status === 'signed' ? T.green : T.amber}}>{c.status === 'signed' ? '서명 완료' : '서명 필요'}</span>
-          <button type="button" onClick={() => { setOpen(c); setMsg('') }} style={c.status === 'signed' ? btn(false) : btn(true)}>{c.status === 'signed' ? '보기' : '읽고 서명하기'}</button>
-        </div>
-      ))}
-    </section>
+        </VStack>
+      ) : (
+        <List hasDividers edge="flush">
+          {list.map(c => (
+            <ListItem key={c.id} label={<Text weight="bold">{KIND_LABELS[c.kind]}</Text>} description={`${c.startDate}부터`}
+              endContent={<HStack gap={2} vAlign="center">
+                <Badge variant={c.status === 'signed' ? 'success' : 'warning'} label={c.status === 'signed' ? '서명 완료' : '서명 필요'}/>
+                <Button size="sm" variant={c.status === 'signed' ? 'secondary' : 'primary'} label={c.status === 'signed' ? '보기' : '읽고 서명하기'} onClick={() => { setOpen(c); setMsg('') }}/>
+              </HStack>}/>
+          ))}
+        </List>
+      )}
+    </LedgerCard>
   )
 }
