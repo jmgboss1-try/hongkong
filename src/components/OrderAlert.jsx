@@ -5,6 +5,8 @@ import { collection, query, where, onSnapshot } from 'firebase/firestore'
 import { loadSound, unlockAudio, audioReady, playEvent, isOrdersVisible, askNotify, notify } from '../lib/orderSounds'
 import { MODES, won } from '../lib/menuData'
 import { toDate } from '../lib/attendance'
+import { Button } from '@astryxdesign/core/Button'
+import { AstryxPage } from '../astryx/AstryxPage'
 
 // 앱 어느 화면에서든 QR 새 주문 알림 (사장님·매장 계정) — Layout 에 한 번만
 //  - 접수 안 한 주문(status 'new')을 실시간으로 보고, 새로 들어오면 소리 + 위에 띠 + (탭을 안 보고 있으면) 윈도우 알림
@@ -72,13 +74,14 @@ export default function OrderAlert() {
 
   if (err === 'permission-denied') return null
   if (!fresh.length || listVisible) return null
+  const go = () => { navigate('/menu-manage'); try { window.dispatchEvent(new Event('showorders')) } catch { /* 없어도 됨 */ } }
+  // 위치(화면 위 가운데에 떠 있음)만 인라인, 띠는 Astryx 버튼
   return (
-    <button type="button" onClick={()=>{ navigate('/menu-manage'); try { window.dispatchEvent(new Event('showorders')) } catch { /* 없어도 됨 */ } }}
-      style={{position:'fixed', top:12, left:'50%', transform:'translateX(-50%)', zIndex:50, display:'flex', alignItems:'center', gap:10,
-        background:'var(--hk-accent)', color:'#FFFFFF', border:'none', borderRadius:6, padding:'12px 18px', fontSize:16, fontWeight:800,
-        fontFamily:'inherit', cursor:'pointer', boxShadow:'0 4px 16px rgba(29,27,24,0.25)', maxWidth:'calc(100vw - 24px)'}}>
-      QR 새 주문 {fresh.length}건 · 눌러서 접수하기
-      {!ready && <span style={{fontSize:12, fontWeight:500, opacity:0.9}}>(화면을 한 번 누르면 소리가 켜져요)</span>}
-    </button>
+    <div style={{position:'fixed', top:12, left:'50%', transform:'translateX(-50%)', zIndex:50, maxWidth:'calc(100vw - 24px)'}}>
+      <AstryxPage>
+        <Button variant="primary" size="lg" onClick={go}
+          label={`QR 새 주문 ${fresh.length}건 · 눌러서 접수${ready ? '' : ' (누르면 소리도 켜져요)'}`}/>
+      </AstryxPage>
+    </div>
   )
 }

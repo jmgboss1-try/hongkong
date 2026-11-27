@@ -1,5 +1,13 @@
 import { useEffect, useRef, useState } from 'react'
 import QRCode from 'qrcode'
+import { VStack, HStack } from '@astryxdesign/core/Layout'
+import { Text } from '@astryxdesign/core/Text'
+import { Button } from '@astryxdesign/core/Button'
+import { Badge } from '@astryxdesign/core/Badge'
+import { Banner } from '@astryxdesign/core/Banner'
+import { List, ListItem } from '@astryxdesign/core/List'
+import { Dialog, DialogHeader } from '@astryxdesign/core/Dialog'
+import { AstryxPage } from '../astryx/AstryxPage'
 import { db } from '../firebase'
 import { doc, getDoc, updateDoc, onSnapshot, writeBatch, arrayUnion, Timestamp } from 'firebase/firestore'
 
@@ -120,57 +128,32 @@ export function PhoneFileReceiveModal({ onClose }) {
     }
   },[])
 
+  const close = o => { if (!o) onClose() }
   return (
-    <div onClick={onClose}
-      style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.6)',zIndex:1000,
-        display:'flex',alignItems:'center',justifyContent:'center',padding:16}}>
-      <div onClick={e=>e.stopPropagation()}
-        style={{background:'#FFFFFF',border:'1px solid #DCD7CE',borderRadius:6,padding:22,
-          maxWidth:380,width:'100%',textAlign:'center',color:'#1D1B18'}}>
-        <div style={{fontSize:16,fontWeight:800,marginBottom:4}}>폰에서 파일 받기</div>
-        <div style={{fontSize:12,color:'#6E6A63',marginBottom:14}}>
-          폰 카메라로 QR을 찍고 파일을 고르세요 ({VALID_MIN}분간 유효)
-        </div>
-        {status==='creating' && <div style={{color:'#6E6A63',fontSize:12,padding:'60px 0'}}>QR 만드는 중...</div>}
-        {status==='error' && (
-          <div style={{color:'#B42318',fontSize:12,padding:'30px 0',lineHeight:1.7}}>
-            QR을 만들지 못했어요.<br/>Firestore 보안 규칙(photoInbox) 설정을 확인해 주세요.
-          </div>
-        )}
-        {status==='ready' && (
-          <>
-            <img src={qr} alt="QR" style={{width:220,height:220,background:'#fff',borderRadius:6,padding:6}}/>
-            <div style={{fontSize:12,color:'#1D1B18',marginTop:10,lineHeight:1.7}}>
-              엑셀·PDF·사진 등 어떤 파일이든 돼요. 한 번에 {Math.floor(MAX_TOTAL/1024/1024)}MB까지.<br/>
-              받은 파일은 이 컴퓨터의 <b>다운로드</b> 폴더에 저장돼요.
-            </div>
-            <div style={{marginTop:14,borderTop:'1px solid #DCD7CE',textAlign:'left'}}>
-              {files.length === 0 && (
-                <div style={{fontSize:13,color:'#6E6A63',padding:'10px 0',textAlign:'center'}}>파일 기다리는 중...</div>
-              )}
-              {files.map(f => (
-                <div key={f.id} style={{display:'flex',alignItems:'center',gap:8,padding:'8px 0',borderBottom:'1px solid #EFEBE4',fontSize:13}}>
-                  <span style={{flex:1,minWidth:0,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{f.name}</span>
-                  <span style={{color:'#6E6A63',fontSize:12,fontVariantNumeric:'tabular-nums'}}>{fmtSize(f.size)}</span>
-                  {f.error ? <span style={{color:'#B42318',fontSize:12,fontWeight:700}}>실패</span>
-                    : f.url ? (
-                      <button onClick={()=>saveBlob(f.url, f.name)}
-                        style={{background:'#F3F1EC',border:'1px solid #DCD7CE',borderRadius:4,padding:'3px 8px',fontSize:11,cursor:'pointer',fontFamily:'inherit',color:'#2E7D45',fontWeight:700}}>
-                        저장됨 · 다시 저장
-                      </button>
-                    ) : <span style={{color:'#2B5C9E',fontSize:12}}>받는 중</span>}
-                </div>
-              ))}
-            </div>
-          </>
-        )}
-        <button onClick={onClose}
-          style={{marginTop:16,width:'100%',background:'#F3F1EC',border:'1px solid #DCD7CE',borderRadius:4,
-            color:'#1D1B18',padding:'9px',fontSize:13,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
-          닫기
-        </button>
-      </div>
-    </div>
+    <AstryxPage>
+      <Dialog isOpen onOpenChange={close} width={420}>
+        <DialogHeader title="폰에서 파일 받기" subtitle={`폰 카메라로 QR을 찍고 파일을 고르세요 (${VALID_MIN}분간 유효)`} onOpenChange={close}/>
+        <VStack gap={3} padding={4}>
+          {status==='creating' && <Text color="secondary">QR 만드는 중...</Text>}
+          {status==='error' && <Banner status="error" title="QR을 만들지 못했어요" description="Firestore 보안 규칙(photoInbox) 설정을 확인해 주세요."/>}
+          {status==='ready' && <>
+            <HStack hAlign="center"><img src={qr} alt="파일 보낼 QR"/></HStack>
+            <Text type="supporting">엑셀·PDF·사진 등 어떤 파일이든 돼요. 한 번에 {Math.floor(MAX_TOTAL/1024/1024)}MB까지. 받은 파일은 이 컴퓨터의 다운로드 폴더에 저장돼요.</Text>
+            {files.length === 0 ? <HStack hAlign="center"><Badge label="파일 기다리는 중..."/></HStack> : (
+              <List hasDividers edge="flush">
+                {files.map(f => (
+                  <ListItem key={f.id} label={f.name} description={fmtSize(f.size)}
+                    endContent={f.error ? <Badge variant="error" label="실패"/>
+                      : f.url ? <Button size="sm" label="저장됨 · 다시 저장" onClick={()=>saveBlob(f.url, f.name)}/>
+                      : <Badge variant="info" label="받는 중"/>}/>
+                ))}
+              </List>
+            )}
+          </>}
+          <Button label="닫기" width="100%" onClick={onClose}/>
+        </VStack>
+      </Dialog>
+    </AstryxPage>
   )
 }
 
