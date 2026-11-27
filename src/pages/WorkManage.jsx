@@ -13,6 +13,7 @@ import { StatusDot } from '@astryxdesign/core/StatusDot'
 import { ProgressBar } from '@astryxdesign/core/ProgressBar'
 import { Divider } from '@astryxdesign/core/Divider'
 import { EmptyState } from '@astryxdesign/core/EmptyState'
+import CellInput from '../astryx/CellInput'
 import { AstryxPage, Legacy, PageHeader, LedgerCard, Ledger, LedgerRow } from '../astryx/AstryxPage'
 import { db } from '../firebase'
 import { doc, getDoc, setDoc, collection, getDocs, deleteField } from 'firebase/firestore'
@@ -310,11 +311,6 @@ function getEmpStats(emp) {
   const todayDD  = pad(new Date().getDate())
   const todayEmps = allStats.filter(s => s.emp.workDays.includes(todayDow))
 
-  // 표 안의 숫자 입력칸 (아직 예전 입력칸: 칸을 벗어나면 저장)
-  const cellInput = (on, w = 100) => ({ width:w, background:on?'rgba(var(--hk-accent-rgb),0.15)':'#F3F1EC', border:on?'1px solid var(--hk-accent)':'1px solid #DCD7CE',
-    borderRadius:6, color:on?'var(--hk-accent)':'#1D1B18', padding:'7px 8px', fontSize:13, fontWeight:on?700:400, textAlign:'center', outline:'none', fontFamily:'inherit', fontVariantNumeric:'tabular-nums' })
-  const memoInput = v => ({ width:'100%', minWidth:120, background:'transparent', border:'none', borderBottom:v?'1px solid #DCD7CE':'1px solid transparent', color:v?'#B42318':'#A8A39A', padding:'4px 2px', fontSize:12, outline:'none', fontFamily:'inherit' })
-
   const grandBase = allStats.reduce((a,s)=>a+s.basePay,0)
   const grandHoliday = allStats.reduce((a,s)=>a+s.totalWeeklyHoliday,0)
   const grandTotal = allStats.reduce((a,s)=>a+s.totalPay,0)
@@ -393,13 +389,13 @@ function getEmpStats(emp) {
                     </VStack>
                   }},
                   { key:'h', header:'근무시간 (h)', renderCell: emp => { const v = (workHours[emp.uid]||{})[todayDD]; return (
-                    <Legacy><input key={`h${v||0}`} className={flash[`${emp.uid}|${todayDD}|h`] ? 'wm-saved' : undefined} type="number" defaultValue={v||''} min="0" max="24" step="0.5" placeholder="0" aria-label={`${emp.name} 근무시간`}
-                      onBlur={e=>saveWorkHours(emp.uid,todayDD,e.target.value)} onKeyDown={e=>e.key==='Enter'&&e.target.blur()} style={cellInput(v>0)}/></Legacy>) } },
+                    <CellInput key={`h${v||0}`} numeric width={90} value={v} placeholder="0" label={`${emp.name} 근무시간`}
+                      saved={!!flash[`${emp.uid}|${todayDD}|h`]} onSave={t=>saveWorkHours(emp.uid,todayDD,t)}/>) } },
                   { key:'m', header:'추가근무 (분)', renderCell: emp => { const v = (workExtra[emp.uid]||{})[todayDD]; return (
-                    <Legacy><input key={`m${v||0}`} className={flash[`${emp.uid}|${todayDD}|m`] ? 'wm-saved' : undefined} type="number" defaultValue={v||''} min="0" max="180" step="5" placeholder="0" aria-label={`${emp.name} 추가근무`}
-                      onBlur={e=>saveWorkExtra(emp.uid,todayDD,e.target.value)} onKeyDown={e=>e.key==='Enter'&&e.target.blur()} style={cellInput(v>0)}/></Legacy>) } },
+                    <CellInput key={`m${v||0}`} numeric width={90} value={v} placeholder="0" label={`${emp.name} 추가근무`}
+                      saved={!!flash[`${emp.uid}|${todayDD}|m`]} onSave={t=>saveWorkExtra(emp.uid,todayDD,t)}/>) } },
                   { key:'memo', header:'비고', renderCell: emp => { const v = (memos[emp.uid]||{})[todayDD]; return (
-                    <Legacy><input type="text" defaultValue={v||''} placeholder="비고..." aria-label={`${emp.name} 비고`} onBlur={e=>saveMemo(emp.uid,todayDD,e.target.value)} onKeyDown={e=>e.key==='Enter'&&e.target.blur()} style={memoInput(v)}/></Legacy>) } },
+                    <CellInput key={`memo${v||''}`} value={v} placeholder="비고" label={`${emp.name} 비고`} onSave={t=>saveMemo(emp.uid,todayDD,t)}/>) } },
                 ]}/>
               )}
             </LedgerCard>
@@ -463,17 +459,17 @@ function getEmpStats(emp) {
                   return <Text weight={isToday ? 'bold' : 'normal'} color={isToday || r.dow===0 ? 'accent' : 'primary'}>{r.d}일 {DAYS_KR[r.dow]}</Text>
                 }},
                 { key:'h', header:'근무시간(h)', renderCell: r => r.dow===0 ? <Text type="supporting" color="secondary">주휴일</Text> : (
-                  <Legacy><input key={`${activeEmp}_${r.dd}_h`} className={flash[`${emp.uid}|${r.dd}|h`] ? 'wm-saved' : undefined} type="number" defaultValue={r.h||''} min="0" max="24" step="0.5" placeholder="0" aria-label={`${r.d}일 근무시간`}
-                    onBlur={e=>saveWorkHours(emp.uid,r.dd,e.target.value)} onKeyDown={e=>e.key==='Enter'&&e.target.blur()} style={cellInput(r.h>0, 80)}/></Legacy>) },
+                  <CellInput key={`${activeEmp}_${r.dd}_h${r.h||0}`} numeric width={80} value={r.h} placeholder="0" label={`${r.d}일 근무시간`}
+                    saved={!!flash[`${emp.uid}|${r.dd}|h`]} onSave={t=>saveWorkHours(emp.uid,r.dd,t)}/>) },
                 { key:'m', header:'추가근무(분)', renderCell: r => r.dow===0 ? <Text color="secondary">—</Text> : (
-                  <Legacy><input key={`${activeEmp}_${r.dd}_m`} className={flash[`${emp.uid}|${r.dd}|m`] ? 'wm-saved' : undefined} type="number" defaultValue={r.m||''} min="0" max="180" step="5" placeholder="0" aria-label={`${r.d}일 추가근무`}
-                    onBlur={e=>saveWorkExtra(emp.uid,r.dd,e.target.value)} onKeyDown={e=>e.key==='Enter'&&e.target.blur()} style={cellInput(r.m>0, 80)}/></Legacy>) },
+                  <CellInput key={`${activeEmp}_${r.dd}_m${r.m||0}`} numeric width={80} value={r.m} placeholder="0" label={`${r.d}일 추가근무`}
+                    saved={!!flash[`${emp.uid}|${r.dd}|m`]} onSave={t=>saveWorkExtra(emp.uid,r.dd,t)}/>) },
                 { key:'hol', header:'주휴수당', align:'end', renderCell: r => r.dow===0
                   ? <Text weight={r.weeklyHoliday>0 ? 'bold' : 'normal'} color={r.weeklyHoliday>0 ? 'primary' : 'secondary'} hasTabularNumbers>{r.weeklyHoliday>0 ? `${r.weeklyHoliday.toLocaleString()}원` : '미지급'}</Text>
                   : <Text color="secondary">—</Text> },
                 { key:'memo', header:'비고', renderCell: r => (
-                  <Legacy><input key={`${activeEmp}_${r.dd}_memo`} type="text" defaultValue={empMemos[r.dd]||''} placeholder={r.dow===0 ? '' : '결석사유 등...'} aria-label={`${r.d}일 비고`}
-                    onBlur={e=>saveMemo(emp.uid,r.dd,e.target.value)} onKeyDown={e=>e.key==='Enter'&&e.target.blur()} style={memoInput(empMemos[r.dd])}/></Legacy>) },
+                  <CellInput key={`${activeEmp}_${r.dd}_memo`} value={empMemos[r.dd]} placeholder={r.dow===0 ? '' : '결석사유 등'} label={`${r.d}일 비고`}
+                    onSave={t=>saveMemo(emp.uid,r.dd,t)}/>) },
               ]}/>
               <Divider variant="strong"/>
               <Ledger rows={<>
