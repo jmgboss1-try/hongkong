@@ -41,24 +41,25 @@ const isHoliday = (s, holidays) => (holidays || []).some(h => h.startDate <= s &
 // 얼리 여는 날: 시작일 이후, 정한 요일, 임시휴무 아님
 const isEarlyDay = (s, cfg, holidays) => s >= cfg.start && (cfg.days || EARLY_DEFAULT.days).includes(dowOf(s)) && !isHoliday(s, holidays)
 
-// 한 달 얼리 요약: 얼리 여는 날(오늘은 적었을 때만, 미래 제외)마다 인건비, 적은 날의 매출로 이익
+// 한 달 얼리 요약: 얼리 여는 날(오늘은 적었을 때만, 미래 제외)마다 인건비. 얼리 매출을 안 적은 날은 '그날 얼리 매출 0원'으로 셈
+//  (사장님: 안 적은 날은 팔린 게 없는 날)
 function monthEarly(docs, ym, cfg, holidays, today) {
   const doc = docs[ym] || {}
   const last = new Date(+ym.slice(0, 4), +ym.slice(5), 0).getDate()
   let open = 0, days = 0, early = 0, total = 0, hall = 0, del = 0, etc = 0
-  const missing = []
   for (let i = 1; i <= last; i++) {
     const dd = pad(i), date = `${ym}-${dd}`, r = doc[dd]
     const e = earlyOf(r)
     if (date > today || (date === today && !e)) continue
-    if (isEarlyDay(date, cfg, holidays)) { open++; if (!e) missing.push(date) }
-    if (!e || date < cfg.start) continue
-    days++; early += e; total += totalOf(r)
-    hall += +r.earlyKiosk || 0; del += +r.earlyDel || 0; etc += +r.earlyPos || 0
+    const openDay = isEarlyDay(date, cfg, holidays)
+    if (openDay) open++
+    if (date < cfg.start || (!openDay && !e)) continue
+    days++; early += e || 0; total += totalOf(r)
+    hall += +r?.earlyKiosk || 0; del += +r?.earlyDel || 0; etc += +r?.earlyPos || 0
   }
   const gross = del * (+cfg.marginDel || 0) / 100 + (hall + etc) * (+cfg.marginHall || 0) / 100
   const cost = cfg.costOn ? open * (+cfg.wage || 0) * (+cfg.hours || 0) : 0
-  return { open, days, missing, early, total, hall, del, etc, gross, cost, profit: gross - cost,
+  return { open, days, early, total, hall, del, etc, gross, cost, profit: gross - cost,
     share: total ? early / total : null, perDay: days ? early / days : null, totalPerDay: days ? total / days : null }
 }
 
@@ -158,10 +159,6 @@ export default function EarlySales({ ym }) {
         )}
         {msg && !edit && <Text type="supporting" color="secondary">{msg}</Text>}
 
-        {cur.missing.length > 0 && (
-          <Banner status="warning" title={`얼리 매출을 아직 안 적은 날 ${cur.missing.length}일`}
-            description={`${cur.missing.map(d => `${+d.slice(5, 7)}/${+d.slice(8)}`).join(', ')} · 매출관리 → 매출 입력 '얼리' 탭에서 적으면 정확해져요`}/>
-        )}
         {!cur.days ? (
           <Text color="secondary">이 달에 적은 얼리 매출이 없어요. 매출관리 → 매출 입력의 '얼리' 탭에서 10시 30분까지의 매출을 적으면 여기 쌓여요.</Text>
         ) : (
@@ -172,7 +169,7 @@ export default function EarlySales({ ym }) {
                 <Text type="large" weight="bold" hasTabularNumbers>{+ym.slice(5)}월 얼리로 {man(cur.early)} 팔고 {cur.profit >= 0 ? `약 ${man(cur.profit)} 남았어요` : `약 ${man(-cur.profit)} 손해예요`}</Text>
               </HStack>
               <Ledger rows={<>
-                {row('얼리 매출', `${won(cur.early)}원`, { note:`적은 ${cur.days}일 · 하루 평균 ${won(cur.perDay)}원` })}
+                {row('얼리 매출', `${won(cur.early)}원`, { note:`${cur.days}일 · 하루 평균 ${won(cur.perDay)}원 (안 적은 날은 0원)` })}
                 {cur.hall > 0 && row('홀', `${won(cur.hall)}원`, { sub:true })}
                 {cur.del > 0 && row('배달', `${won(cur.del)}원`, { sub:true })}
                 {cur.etc > 0 && row('기타', `${won(cur.etc)}원`, { sub:true })}
