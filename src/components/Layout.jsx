@@ -2,7 +2,7 @@ import { useNavigate, useLocation } from 'react-router-dom'
 import { auth, db } from '../firebase'
 import { signOut } from 'firebase/auth'
 import { doc, setDoc } from 'firebase/firestore'
-import { useAuth, GradeBadge } from '../AuthContext'
+import { useAuth } from '../AuthContext'
 import { useEffect, useRef, useState } from 'react'
 import { migratePrivacy } from '../lib/privateInfo'
 import { PhoneFileReceiveModal } from './PhoneFileTransfer'
@@ -10,6 +10,16 @@ import NavIcon from './NavIcon'
 import ThemeDots from './ThemeDots'
 import OrderAlert from './OrderAlert'
 import { NAV_GROUPS, navGroupOf } from '../lib/nav'
+import { SideNav, SideNavItem, SideNavHeading, SideNavSection } from '@astryxdesign/core/SideNav'
+import { MobileNav } from '@astryxdesign/core/MobileNav'
+import { VStack, HStack } from '@astryxdesign/core/Layout'
+import { Text } from '@astryxdesign/core/Text'
+import { Button } from '@astryxdesign/core/Button'
+import { Badge } from '@astryxdesign/core/Badge'
+import { Card } from '@astryxdesign/core/Card'
+import { Avatar } from '@astryxdesign/core/Avatar'
+import { AstryxPage, Legacy } from '../astryx/AstryxPage'
+import AGradeBadge from '../astryx/GradeBadge'
 
 // 저장된 순서대로 메뉴 정렬 — 저장 후 새로 생긴 메뉴는 기본 순서대로 뒤에 붙음
 function applyOrder(menus, order) {
@@ -35,10 +45,6 @@ export default function Layout({ children }) {
   const [editOrder, setEditOrder]   = useState(null) // 편집 중이면 경로 배열, 아니면 null
   // PC 왼쪽 메뉴: 기본은 픽토그램만 (마우스를 올리면 이름), '이름 보기'로 펼쳐 둘 수 있음 (이 기기에만 기억)
   const [wideNav, setWideNav] = useState(() => { try { return localStorage.getItem('nav.wide') === '1' } catch { return false } })
-  // 아이콘만 볼 때 이름표: 메뉴가 스크롤돼도 잘리지 않게 화면 기준(fixed)으로 하나만 띄움
-  const [tip, setTip] = useState(null) // { label, top, left }
-  const showTip = (label) => e => { const r = e.currentTarget.getBoundingClientRect(); setTip({ label, top: r.top + r.height/2, left: r.right + 6 }) }
-  const hideTip = () => setTip(null)
   const toggleWide = () => setWideNav(v => { try { localStorage.setItem('nav.wide', v ? '0' : '1') } catch { /* 저장 못 해도 됨 */ } return !v })
 
   async function handleLogout() {
@@ -102,10 +108,19 @@ export default function Layout({ children }) {
   const baseMenus = isOwner ? ownerMenus : isStore ? storeMenus : isInvestor ? investorMenus : staffMenus
   const menus = applyOrder(baseMenus, editOrder || savedOrder || userData?.menuOrder)
   const narrowNav = !wideNav && !editOrder
-  const NAV_W = narrowNav ? 72 : 208
   // 모바일 하단 탭: 모든 메뉴를 옆으로 밀어서 볼 수 있게 (지금 화면 탭은 가운데로)
   const bottomMenus = menus
   const tabbarRef = useRef(null)
+  // PC 메뉴 폭은 Astryx SideNav 가 정함 (접힘·펼침) → 재서 본문을 그만큼 띄움
+  const navRef = useRef(null)
+  const [navW, setNavW] = useState(56)
+  useEffect(() => {
+    const el = navRef.current
+    if (!el || typeof ResizeObserver === 'undefined') return
+    const ro = new ResizeObserver(() => setNavW(el.offsetWidth || 0))
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [])
 
   function moveMenu(idx, dir) {
     const paths = menus.map(m=>m.path)
@@ -123,177 +138,92 @@ export default function Layout({ children }) {
     } catch(e) { console.error(e); alert('순서 저장에 실패했어요. 다시 시도해 주세요.') }
   }
 
-  const menuList = (onPick, narrow) => editOrder ? (
-    <div>
-      <div style={{padding:'8px 18px', fontSize:10, color:'#6E6A63'}}>▲▼로 순서를 바꾼 뒤 저장하세요</div>
-      {menus.map((m,i)=>(
-        <div key={m.path} style={{display:'flex', alignItems:'center', gap:8, padding:'7px 10px 7px 18px', fontSize:13, color:'#1D1B18'}}>
-          <span style={{flex:1}}>{m.label}</span>
-          {[[-1,'▲'],[1,'▼']].map(([dir,ch])=>{
-            const disabled = (dir<0 && i===0) || (dir>0 && i===menus.length-1)
-            return (
-              <button key={dir} onClick={()=>moveMenu(i,dir)} disabled={disabled}
-                style={{background:'#F3F1EC', border:'1px solid #DCD7CE', borderRadius:5, color:disabled?'#DCD7CE':'#1D1B18',
-                  width:26, height:24, fontSize:10, cursor:disabled?'default':'pointer', padding:0}}>
-                {ch}
-              </button>
-            )
-          })}
-        </div>
-      ))}
-      <div style={{display:'flex', gap:6, padding:'10px 14px'}}>
-        <button onClick={saveOrder}
-          style={{flex:1, background:'var(--hk-accent)', color:'#FFFFFF', border:'none', borderRadius:6, padding:'7px', fontSize:11, fontWeight:700, cursor:'pointer', fontFamily:'inherit'}}>
-          저장
-        </button>
-        <button onClick={()=>setEditOrder(baseMenus.map(m=>m.path))}
-          style={{background:'#F3F1EC', border:'1px solid #DCD7CE', borderRadius:6, color:'#6E6A63', padding:'7px 8px', fontSize:11, cursor:'pointer', fontFamily:'inherit'}}>
-          기본순서
-        </button>
-        <button onClick={()=>setEditOrder(null)}
-          style={{background:'#F3F1EC', border:'1px solid #DCD7CE', borderRadius:6, color:'#6E6A63', padding:'7px 8px', fontSize:11, cursor:'pointer', fontFamily:'inherit'}}>
-          취소
-        </button>
-      </div>
-    </div>
-  ) : menus.map(m=>{
-    const on = location.pathname===m.path
-    const g = NAV_GROUPS[navGroupOf(m.path)]
-    return (
-      <button type="button" key={m.path} onClick={()=>onPick(m.path)} className="nav-item" aria-current={on ? 'page' : undefined}
-        aria-label={narrow ? m.label : undefined}
-        onMouseEnter={narrow ? showTip(m.label) : undefined} onMouseLeave={narrow ? hideTip : undefined}
-        onFocus={narrow ? showTip(m.label) : undefined} onBlur={narrow ? hideTip : undefined}
-        style={{
-          display:'flex', alignItems:'center', gap:12, width:'100%', border:'none', fontFamily:'inherit', textAlign:'left',
-          padding: narrow ? '5px 0' : '5px 14px', justifyContent: narrow ? 'center' : 'flex-start',
-          fontSize:14, fontWeight: on ? 700 : 500, color: on ? '#1D1B18' : '#4A4741',
-          background: on ? '#FFFFFF' : 'transparent', cursor:'pointer', position:'relative',
-          boxShadow: on ? `inset 3px 0 0 ${g.color}` : 'none',
-        }}>
-        <span style={{display:'grid', placeItems:'center', width:36, height:32, borderRadius:6, color:g.color, flexShrink:0,
-          background: on ? `${g.color}26` : `${g.color}0F`}}>
-          <NavIcon name={m.path}/>
-        </span>
-        {!narrow && <span style={{whiteSpace:'nowrap'}}>{m.label}</span>}
-      </button>
-    )
-  })
+  // 메뉴 아이콘: 묶음 색(돈 파랑·사람 보라·매장 주황)은 데이터 색이라 인라인
+  const iconOf = path => <span style={{display:'inline-flex', color:NAV_GROUPS[navGroupOf(path)].color}}><NavIcon name={path}/></span>
+  const roleLabel = isOwner ? '사장' : isStore ? '매장계정' : isInvestor ? (userData?.name||'투자자') : (userData?.name||'')
+  const roleBadge = isOwner ? <Badge variant="red" label="사장"/> : isStore ? <Badge variant="blue" label="매장"/> : isInvestor ? <Badge variant="green" label="투자자"/>
+    : <AGradeBadge joinDate={userData?.joinDate}/>
 
-  const editButton = !editOrder && (
-    <button onClick={()=>setEditOrder(menus.map(m=>m.path))}
-      style={{width:'100%', background:'transparent', border:'1px dashed #DCD7CE', borderRadius:6, color:'#6E6A63', padding:'7px', fontSize:11, cursor:'pointer', fontFamily:'inherit', marginBottom:8}}>
-      탭 순서 바꾸기
-    </button>
+  // 탭 순서 바꾸기 (펼친 메뉴 안에서)
+  const orderEditor = (
+    <VStack gap={2} padding={2}>
+      <Text type="supporting" color="secondary">▲▼로 순서를 바꾼 뒤 저장하세요</Text>
+      {menus.map((m,i)=>(
+        <HStack key={m.path} gap={1} vAlign="center" hAlign="between">
+          <HStack gap={2} vAlign="center">{iconOf(m.path)}<Text>{m.label}</Text></HStack>
+          <HStack gap={0}>
+            <Button size="sm" variant="ghost" label="▲" aria-label={`${m.label} 위로`} isDisabled={i===0} onClick={()=>moveMenu(i,-1)}/>
+            <Button size="sm" variant="ghost" label="▼" aria-label={`${m.label} 아래로`} isDisabled={i===menus.length-1} onClick={()=>moveMenu(i,1)}/>
+          </HStack>
+        </HStack>
+      ))}
+      <HStack gap={1} wrap="wrap">
+        <Button size="sm" variant="primary" label="저장" onClick={saveOrder}/>
+        <Button size="sm" label="기본순서" onClick={()=>setEditOrder(baseMenus.map(m=>m.path))}/>
+        <Button size="sm" variant="ghost" label="취소" onClick={()=>setEditOrder(null)}/>
+      </HStack>
+    </VStack>
+  )
+  const menuItems = onPick => (
+    <SideNavSection title="메뉴" isHeaderHidden>
+      {menus.map(m => <SideNavItem key={m.path} label={m.label} icon={iconOf(m.path)} isSelected={location.pathname===m.path} onClick={()=>onPick(m.path)}/>)}
+    </SideNavSection>
+  )
+  const extraItems = onDone => (
+    <SideNavSection title="설정" isHeaderHidden>
+      {(isOwner || isStore) && <SideNavItem label="폰에서 파일 받기" icon={<NavIcon name="_file"/>} onClick={()=>{ onDone?.(); setFileOpen(true) }}/>}
+      <SideNavItem label="탭 순서 바꾸기" icon={<NavIcon name="_order"/>} onClick={()=>{ if (!wideNav) toggleWide(); setEditOrder(menus.map(m=>m.path)) }}/>
+      <SideNavItem label="로그아웃" icon={<NavIcon name="_logout"/>} onClick={handleLogout}/>
+    </SideNavSection>
   )
 
   return (
     <div style={{display:'flex', minHeight:'100vh', fontFamily:'Noto Sans KR, sans-serif', background:'#FAF9F6', color:'#1D1B18', colorScheme:'light'}}>
 
-      {/* ── PC 사이드바: 픽토그램 레일 (묶음마다 색, 마우스를 올리면 이름) ── */}
-      <div style={{
-        width:NAV_W, background:'#F3F1EC', borderRight:'1px solid #DCD7CE',
-        display:'flex', flexDirection:'column', position:'fixed',
-        top:0, left:0, bottom:0, zIndex:10, transition:'width .18s ease',
-      }} className="pc-sidebar">
-        <div style={{padding: narrowNav ? '16px 0 12px' : '16px 14px 12px', borderBottom:'3px double #1D1B18', display:'flex', alignItems:'center', gap:10, justifyContent: narrowNav ? 'center' : 'flex-start'}}>
-          <div aria-hidden="true" style={{width:34, height:34, borderRadius:5, background:'var(--hk-accent)', color:'#FFFFFF', display:'grid', placeItems:'center', fontSize:17, fontWeight:900, flexShrink:0}}>홍</div>
-          {!narrowNav && <div>
-            <div style={{fontSize:15, fontWeight:800, color:'#1D1B18', lineHeight:1.2}}>홍콩반점</div>
-            <div style={{fontSize:11, color:'#6E6A63'}}>중앙대점 매장 관리</div>
-          </div>}
-        </div>
-        <div style={{padding: narrowNav ? '8px 0' : '8px 14px', borderBottom:'1px solid #DCD7CE', textAlign: narrowNav ? 'center' : 'left'}}>
-          {isOwner ? (
-            <div style={{fontSize:11, color:'var(--hk-accent)', fontWeight:700}}>사장</div>
-          ) : isStore ? (
-            <div style={{fontSize:11, color:'#2B5C9E', fontWeight:700}}>{narrowNav ? '매장' : '매장계정'}</div>
-          ) : isInvestor ? (
-            <div style={{fontSize:11, color:'#2E7D45', fontWeight:700}}>{narrowNav ? '투자' : (userData?.name||'투자자')}</div>
-          ) : narrowNav ? (
-            <div style={{fontSize:11, fontWeight:700, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap'}}>{userData?.name}</div>
-          ) : (
-            <div style={{display:'flex', flexDirection:'column', gap:4}}>
-              <div style={{fontSize:12, fontWeight:700}}>{userData?.name}</div>
-              <GradeBadge joinDate={userData?.joinDate} size={10}/>
-            </div>
-          )}
-        </div>
-        <nav style={{flex:1, padding:'6px 0', overflowY:'auto'}} aria-label="메뉴" onScroll={hideTip}>
-          {menuList(path=>{ hideTip(); navigate(path) }, narrowNav)}
-        </nav>
-        {editOrder ? null : (
-          <div style={{padding:'8px 0', borderTop:'1px solid #DCD7CE'}}>
-            {/* 색 테마: 좁은 메뉴에선 세로로 작게 */}
-            <ThemeDots size={narrowNav ? 14 : 16} label={!narrowNav}
-              style={narrowNav ? { flexDirection:'column', gap:5, padding:'4px 0 8px' } : { padding:'2px 16px 8px' }}/>
-            {[
-              ...((isOwner || isStore) ? [['_file', '폰에서 파일 받기', ()=>setFileOpen(true)]] : []),
-              ['_order', '탭 순서 바꾸기', ()=>setEditOrder(menus.map(m=>m.path))],
-              [narrowNav ? '_expand' : '_collapse', narrowNav ? '이름 보기' : '아이콘만 보기', toggleWide],
-              ['_logout', '로그아웃', handleLogout],
-            ].map(([icon, label, fn]) => (
-              <button key={icon} type="button" onClick={()=>{ hideTip(); fn() }} className="nav-item" aria-label={narrowNav ? label : undefined}
-                onMouseEnter={narrowNav ? showTip(label) : undefined} onMouseLeave={narrowNav ? hideTip : undefined}
-                onFocus={narrowNav ? showTip(label) : undefined} onBlur={narrowNav ? hideTip : undefined}
-                style={{display:'flex', alignItems:'center', gap:12, width:'100%', border:'none', background:'transparent', fontFamily:'inherit',
-                  padding: narrowNav ? '6px 0' : '6px 14px', justifyContent: narrowNav ? 'center' : 'flex-start', color:'#6E6A63', fontSize:12, cursor:'pointer', position:'relative'}}>
-                <span style={{display:'grid', placeItems:'center', width:34, height:28}}><NavIcon name={icon} size={19}/></span>
-                {!narrowNav && <span>{label}</span>}
-              </button>
-            ))}
-          </div>
-        )}
+      {/* ── PC 왼쪽 메뉴 (Astryx SideNav): 접으면 아이콘만, 마우스를 올리면 이름 ── */}
+      <div ref={navRef} className="pc-sidebar" style={{position:'fixed', top:0, left:0, bottom:0, zIndex:10,
+        background:'var(--hk-nav-bg, #F3F1EC)', borderRight:'1px solid #DCD7CE'}}>
+        <AstryxPage>
+          <SideNav
+            collapsible={{ isCollapsed:narrowNav, onCollapsedChange:c=>{ if (c === wideNav) toggleWide() }, buttonLabel: narrowNav ? '이름 보기' : '아이콘만 보기' }}
+            header={<SideNavHeading heading="홍콩반점" subheading={`중앙대점 · ${roleLabel}`} icon={<Avatar name="홍" size="sm"/>}
+              headerEndContent={!isOwner && !isStore && !isInvestor ? <AGradeBadge joinDate={userData?.joinDate}/> : null}/>}
+            footer={editOrder ? null : <VStack gap={1}>
+              {!narrowNav && <Legacy><ThemeDots size={16} label style={{padding:'2px 8px 6px'}}/></Legacy>}
+              {extraItems()}
+            </VStack>}>
+            {editOrder ? orderEditor : menuItems(path=>navigate(path))}
+          </SideNav>
+        </AstryxPage>
       </div>
 
       {/* ── 모바일 상단 헤더 ── */}
-      <div className="mobile-header" style={{
-        display:'none', position:'fixed', top:0, left:0, right:0, zIndex:20,
-        background:'#FFFFFF', borderBottom:'1px solid #DCD7CE',
-        padding:'12px 16px', alignItems:'center', justifyContent:'space-between'
-      }}>
-        <div style={{fontSize:15, fontWeight:800, color:'#1D1B18'}}>홍콩반점 <span style={{fontWeight:400, color:'#6E6A63', fontSize:13}}>중앙대점</span></div>
-        <div style={{display:'flex', alignItems:'center', gap:10}}>
-          {!isOwner && !isStore && !isInvestor && <GradeBadge joinDate={userData?.joinDate} size={9}/>}
-          {isOwner    && <span style={{fontSize:11, color:'var(--hk-accent)', fontWeight:700}}>사장</span>}
-          {isStore    && <span style={{fontSize:11, color:'#2B5C9E', fontWeight:700}}>매장</span>}
-          {isInvestor && <span style={{fontSize:11, color:'#2E7D45', fontWeight:700}}>투자자</span>}
-          <button onClick={()=>setSideOpen(v=>!v)}
-            style={{background:'#F3F1EC', border:'1px solid #DCD7CE', borderRadius:6, color:'#1D1B18', padding:'6px 12px', fontSize:13, fontWeight:600, cursor:'pointer', lineHeight:1, fontFamily:'inherit'}}>
-              메뉴
-            </button>
-        </div>
+      <div className="mobile-header" style={{display:'none', position:'fixed', top:0, left:0, right:0, zIndex:20}}>
+        <AstryxPage>
+          <Card padding={2}>
+            <HStack hAlign="between" vAlign="center" gap={2}>
+              <HStack gap={1} vAlign="baseline"><Text weight="bold">홍콩반점</Text><Text type="supporting" color="secondary">중앙대점</Text></HStack>
+              <HStack gap={2} vAlign="center">
+                {roleBadge}
+                <Button size="sm" label="메뉴" onClick={()=>setSideOpen(true)}/>
+              </HStack>
+            </HStack>
+          </Card>
+        </AstryxPage>
       </div>
 
-      {/* 모바일 드로어 메뉴 */}
+      {/* 모바일 메뉴 서랍 */}
       {sideOpen && (
-        <div style={{position:'fixed', inset:0, zIndex:30}} onClick={()=>setSideOpen(false)}>
-          <div style={{position:'absolute', top:0, right:0, width:220, height:'100%', background:'#FFFFFF', borderLeft:'1px solid #DCD7CE', padding:'20px 0', overflowY:'auto'}}
-            onClick={e=>e.stopPropagation()}>
-            <div style={{padding:'0 18px 16px', borderBottom:'1px solid #DCD7CE', marginBottom:8}}>
-              <div style={{fontSize:13, fontWeight:700,
-                color:isOwner?'var(--hk-accent)':isStore?'#2B5C9E':isInvestor?'#2E7D45':'#1D1B18'}}>
-                {isOwner?'사장':isStore?'매장계정':isInvestor?(userData?.name||'투자자'):userData?.name}
-              </div>
-              {!isOwner && !isStore && !isInvestor && <div style={{marginTop:4}}><GradeBadge joinDate={userData?.joinDate} size={10}/></div>}
-            </div>
-            {menuList(path=>{navigate(path);setSideOpen(false)}, false)}
-            <div style={{padding:'16px 18px', borderTop:'1px solid #DCD7CE', marginTop:8}}>
-              <ThemeDots size={22} label style={{marginBottom:12}}/>
-              {editButton}
-              <button onClick={handleLogout} style={{width:'100%', background:'#F3F1EC', border:'1px solid #DCD7CE', borderRadius:6, color:'#6E6A63', padding:'8px', fontSize:12, cursor:'pointer', fontFamily:'inherit'}}>
-                로그아웃
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {tip && narrowNav && (
-        <div role="tooltip" className="pc-sidebar" style={{position:'fixed', top:tip.top, left:tip.left, transform:'translateY(-50%)', zIndex:40,
-          background:'#1D1B18', color:'#FFFFFF', fontSize:12, fontWeight:600, padding:'5px 9px', borderRadius:4, whiteSpace:'nowrap', pointerEvents:'none'}}>
-          {tip.label}
-        </div>
+        <AstryxPage>
+          <MobileNav isOpen onOpenChange={o=>{ if (!o) setSideOpen(false) }} side="end" width={260} label="메뉴"
+            header={<VStack gap={1}><Text weight="bold">{roleLabel}</Text>{!isOwner && !isStore && !isInvestor && <AGradeBadge joinDate={userData?.joinDate}/>}</VStack>}>
+            {editOrder ? orderEditor : menuItems(path=>{ navigate(path); setSideOpen(false) })}
+            {!editOrder && <>
+              <Legacy><ThemeDots size={22} label style={{padding:'8px 12px'}}/></Legacy>
+              {extraItems(()=>setSideOpen(false))}
+            </>}
+          </MobileNav>
+        </AstryxPage>
       )}
 
       {(isOwner || isStore) && <OrderAlert/>}
@@ -301,7 +231,7 @@ export default function Layout({ children }) {
       {fileOpen && <PhoneFileReceiveModal onClose={()=>setFileOpen(false)}/>}
 
       {/* ── MAIN ── */}
-      <div className="main-content" style={{marginLeft:NAV_W, transition:'margin-left .18s ease', flex:1, minWidth:0, padding:'28px 30px', minHeight:'100vh', textAlign:'left'}}>
+      <div className="main-content" style={{marginLeft:navW, flex:1, minWidth:0, padding:'28px 30px', minHeight:'100vh', textAlign:'left'}}>
         {/* 탭을 옮길 때마다 새로 붙어서 화면이 떠오르며 나타남 (appView.css .hk-page) */}
         <div key={location.pathname} className="hk-page">{children}</div>
       </div>
@@ -329,17 +259,14 @@ export default function Layout({ children }) {
       <style>{`
         /* 페이지가 자기 바탕색을 쓸 때 (매출입력 디자인 시안) — main-content 여백까지 채움 */
         .page-surface { margin: -28px -30px; padding: 28px 30px; min-height: 100vh; box-sizing: border-box; }
-        /* 픽토그램 메뉴: 마우스를 올리거나 키보드로 고르면 이름이 오른쪽에 나옴 */
-        .nav-item:hover { background: #ECE8E1 !important; }
-        .nav-item[aria-current="page"]:hover { background: #FFFFFF !important; }
-        .nav-item:focus-visible { outline: 2px solid #1D1B18; outline-offset: -2px; }
         .tabbar-scroll::-webkit-scrollbar { display: none; }
         @media (max-width: 768px) {
           .page-surface { margin: -70px -14px -80px; padding: 70px 14px 80px; }
         }
         @media (max-width: 768px) {
           .pc-sidebar { display: none !important; }
-          .mobile-header { display: flex !important; }
+          .mobile-header { display: block !important; }
+          .mobile-header > * { width: 100%; }
           .mobile-tabbar { display: block !important; }
           .main-content {
             margin-left: 0 !important;
