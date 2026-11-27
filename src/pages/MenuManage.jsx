@@ -1,6 +1,9 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { VStack, HStack } from '@astryxdesign/core/Layout'
-import { Text } from '@astryxdesign/core/Text'
+import { Text, Heading } from '@astryxdesign/core/Text'
+import { Grid } from '@astryxdesign/core/Grid'
+import { Divider } from '@astryxdesign/core/Divider'
+import { Dialog, DialogHeader } from '@astryxdesign/core/Dialog'
 import { Card } from '@astryxdesign/core/Card'
 import { Badge } from '@astryxdesign/core/Badge'
 import { Banner } from '@astryxdesign/core/Banner'
@@ -23,21 +26,8 @@ import { EVENTS, PRESETS, loadSound, saveSound, unlockAudio, audioReady, playEve
 // 사장님·매장 계정: QR 주문 받기 + 메뉴(가격·옵션·품절) 고치기
 // 주문은 orders 를 실시간으로 보고(onSnapshot) 새 주문이 오면 소리를 냄 — 포스에 이 화면을 띄워 두면 됨
 const T = { ink:'#1D1B18', sub:'#6E6A63', faint:'#A8A39A', rule:'#DCD7CE', soft:'#ECE8E1', chip:'#F3F1EC', red:'var(--hk-accent)', green:'#2E7D45', blue:'#2B5C9E', amber:'#B45309' }
-const num = { fontVariantNumeric:'tabular-nums' }
 const STATUS = { new:['새 주문', T.red], accepted:['접수함', T.blue], done:['완료', T.green], canceled:['취소', T.faint] }
 
-function Btn({ children, onClick, kind = 'plain', disabled, small }) {
-  const solid = kind === 'primary' || kind === 'ok' || kind === 'blue'
-  return (
-    <button type="button" onClick={onClick} disabled={disabled}
-      style={{fontFamily:'inherit', cursor:'pointer', borderRadius:4, whiteSpace:'nowrap', fontSize: small ? 12 : 13, padding: small ? '4px 9px' : '7px 13px',
-        fontWeight: solid ? 700 : 500, opacity: disabled ? 0.55 : 1,
-        background: kind==='primary' ? T.red : kind==='ok' ? T.green : kind==='blue' ? T.blue : '#FFFFFF',
-        color: solid ? '#FFFFFF' : kind==='danger' ? T.red : T.ink, border: solid ? 'none' : `1px solid ${kind==='danger' ? '#E8C4BF' : T.rule}`}}>
-      {children}
-    </button>
-  )
-}
 
 // 메뉴 문서는 화면을 열 때 미리 받아 두고(탭을 누를 때 기다리지 않게), 저장하면 같이 고쳐 둠
 let menuCache = null   // { items, settings, fromDefault }
@@ -384,21 +374,21 @@ function moveKeyTo(arr, from, to, after) {
 }
 const Grip = () => (
   <svg width="14" height="18" viewBox="0 0 14 18" aria-hidden="true" style={{display:'block'}}>
-    {[3,9,15].flatMap(y => [4,10].map(x => <circle key={x+'-'+y} cx={x} cy={y} r="1.6" fill="#A8A39A"/>))}
+    {[3,9,15].flatMap(y => [4,10].map(x => <circle key={x+'-'+y} cx={x} cy={y} r="1.6" fill="currentColor" opacity="0.45"/>))}
   </svg>
 )
-// 가격 바로 고치기 (칸을 눌러 숫자를 바꾸고 엔터 또는 다른 곳 누르면 반영)
-function PriceInput({ value, onChange }) {
-  const [v, setV] = useState(null)
-  const shown = v ?? (value||0).toLocaleString('ko-KR')
-  const commit = () => { if (v == null) return; const n = +String(v).replace(/[^0-9]/g,'') || 0; setV(null); if (n !== value) onChange(n) }
+// 가격 바로 고치기 (칸을 눌러 숫자를 바꾸고 엔터 또는 다른 곳 누르면 반영). 가격이 바뀌면 key 로 다시 그림
+function PriceInput({ value, onChange, label }) {
+  const [v, setV] = useState((value||0).toLocaleString('ko-KR'))
+  const commit = () => { const n = +String(v).replace(/[^0-9]/g,'') || 0; if (n !== (value||0)) onChange(n); else setV((value||0).toLocaleString('ko-KR')) }
   return (
-    <input inputMode="numeric" value={shown} aria-label="가격" title="눌러서 가격 바로 고치기"
-      onFocus={e=>{ setV(String(value||0)); setTimeout(()=>e.target.select(), 0) }} onChange={e=>setV(e.target.value)}
-      onBlur={commit} onKeyDown={e=>{ if (e.key === 'Enter') e.currentTarget.blur(); if (e.key === 'Escape') { setV(null); e.currentTarget.blur() } }}
-      style={{width:92, textAlign:'right', fontWeight:700, fontSize:14, fontFamily:'inherit', padding:'4px 6px', border:'1px solid transparent', borderRadius:4,
-        background:'transparent', color:'#1D1B18', fontVariantNumeric:'tabular-nums'}}
-      onMouseEnter={e=>{ e.currentTarget.style.borderColor = '#DCD7CE' }} onMouseLeave={e=>{ if (document.activeElement !== e.currentTarget) e.currentTarget.style.borderColor = 'transparent' }}/>
+    <div onBlur={commit}>
+      <HStack gap={1} vAlign="center">
+        <TextInput label={label} isLabelHidden size="sm" width={100} inputMode="numeric" value={v} onEnter={commit}
+          onChange={t=>{ const n = +String(t||'').replace(/[^0-9]/g,''); setV(n ? n.toLocaleString('ko-KR') : '') }}/>
+        <Text color="secondary">원</Text>
+      </HStack>
+    </div>
   )
 }
 
@@ -563,31 +553,35 @@ function MenuEditor({ tab }) {
   return (
     <VStack gap={3}>
       {saveBar}
-      {/* 분류: 끌어서 순서 바꾸기라 예전 모양 */}
-      <Legacy>
-      <div style={{background:T.chip, borderRadius:6, padding:'10px 12px', marginBottom:12}}>
-        <div style={{display:'flex', alignItems:'baseline', gap:8, flexWrap:'wrap', marginBottom:6}}>
-          <b style={{fontSize:14}}>분류</b>
-          <span style={{fontSize:12, color:T.sub}}>손님 화면에 이 순서로 나와요 (포장·배달 같이 씀). 이름 바꾸기·순서·삭제 후 '저장'</span>
-          <span style={{flex:1}}/>
-          <Btn small kind="blue" onClick={addCat}>+ 분류 추가</Btn>
-        </div>
-        <div style={{display:'flex', flexWrap:'wrap', gap:6}}>
-          {cats.map((c, i) => (
-            <span key={c} data-drag-group="cat" data-drag-key={c}
-              style={{display:'inline-flex', alignItems:'center', gap:2, background:'#FFFFFF', border:`1px solid ${T.rule}`, borderRadius:4, padding:'2px 4px 2px 4px', fontSize:13, ...dnd.mark(c,'cat',true)}}>
-              <span {...dnd.handle(c, 'cat', dropCat, true)} style={{...dnd.handle(c,'cat',dropCat,true).style, padding:'2px 2px'}}><Grip/></span>
-              <b style={{marginRight:4}}>{c}</b>
-              <span style={{fontSize:11, color:T.sub, marginRight:4}}>{items.filter(x=>x.cat===c).length}</span>
-              <button type="button" onClick={()=>moveCat(c,-1)} disabled={i===0} aria-label={`${c} 앞으로`} style={catBtn}>◀</button>
-              <button type="button" onClick={()=>moveCat(c,1)} disabled={i===allCats.length-1} aria-label={`${c} 뒤로`} style={catBtn}>▶</button>
-              <button type="button" onClick={()=>renameCat(c)} style={{...catBtn, color:T.blue}}>이름</button>
-              <button type="button" onClick={()=>removeCat(c)} style={{...catBtn, color:T.red}}>삭제</button>
-            </span>
-          ))}
-        </div>
-      </div>
-      </Legacy>
+      {/* 분류: 칩을 끌어서 순서 바꾸기 (끄는 칩은 data-drag-* 가 붙은 맨 바깥 div, 떠오르는 모양만 인라인) */}
+      <Card variant="muted" padding={3}>
+        <VStack gap={2}>
+          <HStack gap={2} vAlign="center" hAlign="between" wrap="wrap">
+            <HStack gap={2} vAlign="center" wrap="wrap">
+              <Text weight="bold">분류</Text>
+              <Text type="supporting" color="secondary">손님 화면에 이 순서로 나와요 (포장·배달 같이 씀). 이름 바꾸기·순서·삭제 후 '저장'</Text>
+            </HStack>
+            <Button size="sm" label="+ 분류 추가" onClick={addCat}/>
+          </HStack>
+          <HStack gap={2} wrap="wrap">
+            {cats.map((c, i) => (
+              <div key={c} data-drag-group="cat" data-drag-key={c} style={dnd.mark(c,'cat')}>
+                <Card padding={1}>
+                  <HStack gap={1} vAlign="center">
+                    <span {...dnd.handle(c, 'cat', dropCat, true)}><Grip/></span>
+                    <Text weight="bold">{c}</Text>
+                    <Text type="supporting" color="secondary" hasTabularNumbers>{items.filter(x=>x.cat===c).length}</Text>
+                    <Button size="sm" variant="ghost" label="◀" aria-label={`${c} 앞으로`} isDisabled={i===0} onClick={()=>moveCat(c,-1)}/>
+                    <Button size="sm" variant="ghost" label="▶" aria-label={`${c} 뒤로`} isDisabled={i===allCats.length-1} onClick={()=>moveCat(c,1)}/>
+                    <Button size="sm" variant="ghost" label="이름" onClick={()=>renameCat(c)}/>
+                    <Button size="sm" variant="ghost" label="삭제" onClick={()=>removeCat(c)}/>
+                  </HStack>
+                </Card>
+              </div>
+            ))}
+          </HStack>
+        </VStack>
+      </Card>
       <HStack gap={2} vAlign="center" hAlign="between" wrap="wrap">
         <SegmentedControl label="포장·배달" value={mode} onChange={k=>{ if (!k) return; setMode(k); setEdit(null) }}>
           {Object.entries(MODES).map(([k,l]) => <SegmentedControlItem key={k} value={k} label={`${l} 메뉴 (${items.filter(i=>i.mode===k).length})`}/>)}
@@ -610,40 +604,46 @@ function MenuEditor({ tab }) {
           </VStack>
         </Card>
       )}
-      {/* 메뉴 줄: 끌어서 순서 바꾸기라 예전 모양 */}
-      <Legacy>
-      {edit && !items.some(i=>i.id===edit.id) && <ItemForm edit={edit} setEdit={setEdit} onSave={saveEdit} cats={allCats}/>}
+      {/* 메뉴 줄: 끌어서 순서 바꾸기. 끄는 줄은 data-drag-* 가 붙은 맨 바깥 div (떠오르는 모양만 인라인) */}
       {cats.filter(c => list.some(i=>i.cat===c)).map(c => (
-        <section key={c} style={{marginTop:14}}>
-          <h2 data-drag-group="item" data-drag-head={c} style={{fontSize:15, fontWeight:800, margin:0, paddingBottom:4, borderBottom:`2px solid ${T.ink}`, fontFamily:'inherit'}}>{c}</h2>
-          {list.filter(i=>i.cat===c).map(i => edit?.id === i.id ? <ItemForm key={i.id} edit={edit} setEdit={setEdit} onSave={saveEdit} cats={allCats}/> : (
-            <div key={i.id} data-drag-group="item" data-drag-key={i.id}
-              style={{display:'flex', alignItems:'center', gap:10, padding:'6px 0', borderBottom:`1px solid ${T.soft}`, fontSize:14, flexWrap:'wrap', opacity: i.hidden ? 0.5 : 1, ...dnd.mark(i.id,'item')}}>
-              {picking
-                ? <input type="checkbox" aria-label={`${i.name} 고르기`} checked={picking.includes(i.id)} onChange={e=>setPicking(p => e.target.checked ? [...p, i.id] : p.filter(x => x !== i.id))} style={{width:18, height:18, margin:'6px 2px'}}/>
-                : <span {...dnd.handle(i.id, 'item', dropItem)} style={{...dnd.handle(i.id,'item',dropItem).style, padding:'6px 4px'}}><Grip/></span>}
-              <span style={{flex:1, minWidth:160}}>
-                <b>{i.name}</b>
-                {i.best && <span style={{marginLeft:6, fontSize:11, color:T.red, fontWeight:800}}>추천</span>}
-                {i.hidden && <span style={{marginLeft:6, fontSize:11, color:T.sub}}>숨김</span>}
-                {isGrouped(i)
-                  ? <span style={{display:'block', fontSize:12, color:T.sub}}>종류 {i.options[0].choices.map(c => `${c.name}${+c.price ? ` +${(+c.price).toLocaleString('ko-KR')}` : ''}`).join(' · ')}{i.options.length > 1 ? ` / ${i.options.slice(1).map(g=>g.name).join(', ')}` : ''}</span>
-                  : i.options?.length > 0 && <span style={{marginLeft:6, fontSize:12, color:T.sub}}>옵션 {i.options.map(g=>g.name).join(', ')}</span>}
-              </span>
-              <PriceInput value={i.price} onChange={n=>patch(i.id,{ price:n })}/>
-              <span style={{fontSize:13, color:T.sub, marginLeft:-6}}>원</span>
-              <label style={{display:'flex', alignItems:'center', gap:4, fontSize:12, color: i.soldOut ? T.red : T.sub}}>
-                <input type="checkbox" checked={!!i.soldOut} onChange={e=>patch(i.id,{ soldOut:e.target.checked })}/> 품절
-              </label>
-              <Btn small onClick={()=>setEdit(JSON.parse(JSON.stringify(i)))}>수정</Btn>
-              {isGrouped(i) && <Btn small onClick={()=>doUngroup(i)}>풀기</Btn>}
-              <Btn small onClick={()=>copyToOther(i)}>{i.mode==='pickup' ? '배달에 복사' : '포장에 복사'}</Btn>
-              <Btn small kind="danger" onClick={()=>remove(i)}>삭제</Btn>
+        <VStack key={c} gap={0}>
+          <div data-drag-group="item" data-drag-head={c}>
+            <VStack gap={1}><Heading level={5}>{c}</Heading><Divider variant="strong"/></VStack>
+          </div>
+          {list.filter(i=>i.cat===c).map(i => (
+            <div key={i.id} data-drag-group="item" data-drag-key={i.id} style={dnd.mark(i.id,'item')}>
+              <HStack gap={2} vAlign="center" hAlign="between" wrap="wrap" padding={1}>
+                <HStack gap={2} vAlign="center">
+                {picking
+                  ? <CheckboxInput label={`${i.name} 고르기`} isLabelHidden value={picking.includes(i.id)} onChange={v=>setPicking(p => v ? [...p, i.id] : p.filter(x => x !== i.id))}/>
+                  : <span {...dnd.handle(i.id, 'item', dropItem)}><Grip/></span>}
+                <VStack gap={0} minWidth={160}>
+                  <HStack gap={1} vAlign="center" wrap="wrap">
+                    <Text weight="bold" color={i.hidden ? 'secondary' : 'primary'}>{i.name}</Text>
+                    {i.best && <Badge variant="red" label="추천"/>}
+                    {i.hidden && <Badge label="숨김"/>}
+                    {i.soldOut && <Badge variant="error" label="품절"/>}
+                  </HStack>
+                  {isGrouped(i)
+                    ? <Text type="supporting" color="secondary">종류 {i.options[0].choices.map(c => `${c.name}${+c.price ? ` +${(+c.price).toLocaleString('ko-KR')}` : ''}`).join(' · ')}{i.options.length > 1 ? ` / ${i.options.slice(1).map(g=>g.name).join(', ')}` : ''}</Text>
+                    : i.options?.length > 0 && <Text type="supporting" color="secondary">옵션 {i.options.map(g=>g.name).join(', ')}</Text>}
+                </VStack>
+                </HStack>
+                <HStack gap={2} vAlign="center" wrap="wrap">
+                  <PriceInput key={`${i.id}|${i.price}`} value={i.price} label={`${i.name} 가격`} onChange={n=>patch(i.id,{ price:n })}/>
+                  <CheckboxInput label="품절" value={!!i.soldOut} onChange={v=>patch(i.id,{ soldOut:v })}/>
+                  <Button size="sm" label="수정" onClick={()=>setEdit(JSON.parse(JSON.stringify(i)))}/>
+                  {isGrouped(i) && <Button size="sm" label="풀기" onClick={()=>doUngroup(i)}/>}
+                  <Button size="sm" variant="ghost" label={i.mode==='pickup' ? '배달에 복사' : '포장에 복사'} onClick={()=>copyToOther(i)}/>
+                  <Button size="sm" variant="ghost" label="삭제" onClick={()=>remove(i)}/>
+                </HStack>
+              </HStack>
+              <Divider/>
             </div>
           ))}
-        </section>
+        </VStack>
       ))}
-      </Legacy>
+      {edit && <ItemForm edit={edit} setEdit={setEdit} onSave={saveEdit} cats={allCats} isNew={!items.some(i=>i.id===edit.id)}/>}
     </VStack>
   )
 }
@@ -720,67 +720,72 @@ function ungroupItem(i, newId) {
   return out
 }
 
-const catBtn = { background:'none', border:'none', cursor:'pointer', fontSize:11, padding:'2px 3px', fontFamily:'inherit', color:'#6E6A63' }
 
-function ItemForm({ edit, setEdit, onSave, cats }) {
+function ItemForm({ edit, setEdit, onSave, cats, isNew }) {
   const set = (k, v) => setEdit(e => ({ ...e, [k]: v }))
   const setGroup = (gi, p) => setEdit(e => ({ ...e, options: e.options.map((g,i) => i===gi ? { ...g, ...p } : g) }))
-  const inp = { padding:'6px 8px', border:`1px solid ${T.rule}`, borderRadius:4, fontFamily:'inherit', fontSize:14, background:'#FFFFFF' }
+  const close = o => { if (!o) setEdit(null) }
+  const templates = [
+    ['+ 종류 고르기 (꼭 고름)', { name:KIND, required:true, multi:false, choices:[{ name:'', price:'' },{ name:'', price:'' }] }, true],
+    ['+ 곱빼기', { name:BIG, required:false, multi:true, choices:[{ name:BIG, price:'1500' }] }],
+    ['+ 토핑 (여러 개)', { name:'토핑 추가', required:false, multi:true, choices:[{ name:'', price:'' }] }],
+    ['+ 다른 옵션', { name:'', required:false, multi:false, choices:[{ name:'', price:'' }] }],
+  ].filter(([, g]) => !g.name || !(edit.options||[]).some(x => x.name === g.name))
+  const addGroup = (g, first) => setEdit(e => { const n = 1 + Math.max(-1, ...(e.options||[]).map(x => +String(x.id).replace(/[^0-9]/g,'') || 0)); const ng = { ...g, id:`g${n}` }; return { ...e, options: first ? [ng, ...(e.options||[])] : [...(e.options||[]), ng] } })
   return (
-    <div style={{background:T.chip, borderRadius:6, padding:'12px 14px', margin:'8px 0'}}>
-      <div style={{display:'flex', gap:8, flexWrap:'wrap', alignItems:'center'}}>
-        <input value={edit.name} onChange={e=>set('name', e.target.value)} placeholder="메뉴 이름" style={{...inp, flex:'1 1 180px', fontWeight:700}}/>
-        <input inputMode="numeric" value={(+edit.price||0).toLocaleString('ko-KR')} onChange={e=>set('price', +e.target.value.replace(/[^0-9]/g,'')||0)} aria-label="가격" style={{...inp, width:110, textAlign:'right', ...num}}/>
-        <span style={{color:T.sub, fontSize:13}}>원</span>
-        <select value={edit.cat} onChange={e=>set('cat', e.target.value)} aria-label="분류" style={inp}>
-          {(cats.includes(edit.cat) ? cats : [...cats, edit.cat]).map(c => <option key={c} value={c}>{c}</option>)}
-        </select>
-        <label style={{fontSize:13, display:'flex', gap:4, alignItems:'center'}}><input type="checkbox" checked={!!edit.best} onChange={e=>set('best', e.target.checked)}/> 추천</label>
-        <label style={{fontSize:13, display:'flex', gap:4, alignItems:'center'}}><input type="checkbox" checked={!!edit.hidden} onChange={e=>set('hidden', e.target.checked)}/> 손님 화면에서 숨김</label>
-      </div>
-      <input value={edit.desc||''} onChange={e=>set('desc', e.target.value)} placeholder="설명 (선택) 예: 불맛 가득한 매콤한 짬뽕" style={{...inp, width:'100%', boxSizing:'border-box', marginTop:8}}/>
+    <Dialog isOpen onOpenChange={close} width={600} maxHeight="90dvh" purpose="form">
+      <DialogHeader title={isNew ? `새 ${MODES[edit.mode] || ''} 메뉴` : `${edit.name || '메뉴'} 고치기`} onOpenChange={close}/>
+      <VStack gap={4} padding={4}>
+        <Grid columns={{ minWidth: 160, max: 3, repeat: 'fit' }} gap={3}>
+          <TextInput label="메뉴 이름" value={edit.name} onChange={v=>set('name', v)}/>
+          <TextInput label="가격 (원)" inputMode="numeric" value={(+edit.price||0).toLocaleString('ko-KR')} onChange={v=>set('price', +String(v||'').replace(/[^0-9]/g,'')||0)}/>
+          <Selector label="분류" value={edit.cat} onChange={v=>set('cat', v)}
+            options={(cats.includes(edit.cat) ? cats : [...cats, edit.cat]).map(c => ({ value:c, label:c }))}/>
+        </Grid>
+        <TextInput label="설명" isOptional placeholder="예: 불맛 가득한 매콤한 짬뽕" value={edit.desc||''} onChange={v=>set('desc', v)}/>
+        <HStack gap={4} wrap="wrap">
+          <CheckboxInput label="추천" value={!!edit.best} onChange={v=>set('best', v)}/>
+          <CheckboxInput label="손님 화면에서 숨김" value={!!edit.hidden} onChange={v=>set('hidden', v)}/>
+        </HStack>
 
-      <div style={{marginTop:12, fontSize:13, fontWeight:800}}>옵션 <span style={{fontWeight:400, color:T.sub}}>위에서부터 손님에게 차례로 보여요</span></div>
-      {(edit.options||[]).map((g, gi) => (
-        <div key={g.id} style={{background:'#FFFFFF', border:`1px solid ${T.rule}`, borderRadius:6, padding:'8px 10px', marginTop:6}}>
-          <div style={{display:'flex', gap:8, flexWrap:'wrap', alignItems:'center'}}>
-            <input value={g.name} onChange={e=>setGroup(gi,{ name:e.target.value })} placeholder="옵션 이름 (예: 맵기)" style={{...inp, flex:'1 1 140px'}}/>
-            <label style={{fontSize:12, display:'flex', gap:4, alignItems:'center'}}><input type="checkbox" checked={!!g.required} onChange={e=>setGroup(gi,{ required:e.target.checked })}/> 꼭 고르기</label>
-            <label style={{fontSize:12, display:'flex', gap:4, alignItems:'center'}}><input type="checkbox" checked={!!g.multi} onChange={e=>setGroup(gi,{ multi:e.target.checked })}/> 여러 개 고르기</label>
-            <Btn small kind="danger" onClick={()=>setEdit(e => ({ ...e, options: e.options.filter((_,i)=>i!==gi) }))}>옵션 삭제</Btn>
-          </div>
-          {g.choices.map((c, ci) => (
-            <div key={ci} style={{display:'flex', gap:6, alignItems:'center', marginTop:6, paddingLeft:12}}>
-              <input value={c.name} onChange={e=>setGroup(gi,{ choices: g.choices.map((x,i)=>i===ci ? { ...x, name:e.target.value } : x) })} placeholder="고를 것 (예: 보통맵게)" style={{...inp, flex:1}}/>
-              <span style={{fontSize:12, color:T.sub}}>+</span>
-              <input inputMode="numeric" value={c.price} onChange={e=>setGroup(gi,{ choices: g.choices.map((x,i)=>i===ci ? { ...x, price:e.target.value.replace(/[^0-9]/g,'') } : x) })} placeholder="0" aria-label="추가 금액" style={{...inp, width:80, textAlign:'right'}}/>
-              <span style={{fontSize:12, color:T.sub}}>원</span>
-              <button type="button" onClick={()=>setGroup(gi,{ choices: g.choices.filter((_,i)=>i!==ci) })} aria-label="이 항목 삭제"
-                style={{background:'none', border:'none', color:T.red, cursor:'pointer', fontSize:12, fontFamily:'inherit'}}>삭제</button>
-            </div>
+        <VStack gap={2}>
+          <HStack gap={2} vAlign="center" wrap="wrap"><Text weight="bold">옵션</Text><Text type="supporting" color="secondary">위에서부터 손님에게 차례로 보여요</Text></HStack>
+          {(edit.options||[]).map((g, gi) => (
+            <Card key={g.id} variant="muted" padding={3}>
+              <VStack gap={2}>
+                <HStack gap={3} vAlign="end" wrap="wrap">
+                  <TextInput label="옵션 이름" placeholder="예: 맵기" value={g.name} onChange={v=>setGroup(gi,{ name:v })}/>
+                  <CheckboxInput label="꼭 고르기" value={!!g.required} onChange={v=>setGroup(gi,{ required:v })}/>
+                  <CheckboxInput label="여러 개 고르기" value={!!g.multi} onChange={v=>setGroup(gi,{ multi:v })}/>
+                  <Button size="sm" variant="ghost" label="옵션 삭제" onClick={()=>setEdit(e => ({ ...e, options: e.options.filter((_,i)=>i!==gi) }))}/>
+                </HStack>
+                {g.choices.map((c, ci) => (
+                  <HStack key={ci} gap={2} vAlign="center" wrap="wrap">
+                    <TextInput label="고를 것" isLabelHidden placeholder="고를 것 (예: 보통맵게)" value={c.name}
+                      onChange={v=>setGroup(gi,{ choices: g.choices.map((x,i)=>i===ci ? { ...x, name:v } : x) })}/>
+                    <Text color="secondary">+</Text>
+                    <TextInput label="추가 금액" isLabelHidden width={90} inputMode="numeric" placeholder="0" value={String(c.price ?? '')}
+                      onChange={v=>setGroup(gi,{ choices: g.choices.map((x,i)=>i===ci ? { ...x, price:String(v||'').replace(/[^0-9]/g,'') } : x) })}/>
+                    <Text color="secondary">원</Text>
+                    <Button size="sm" variant="ghost" label="삭제" onClick={()=>setGroup(gi,{ choices: g.choices.filter((_,i)=>i!==ci) })}/>
+                  </HStack>
+                ))}
+                <HStack><Button size="sm" variant="ghost" label="+ 고를 것 추가" onClick={()=>setGroup(gi,{ choices:[...g.choices, { name:'', price:'' }] })}/></HStack>
+              </VStack>
+            </Card>
           ))}
-          <button type="button" onClick={()=>setGroup(gi,{ choices:[...g.choices, { name:'', price:'' }] })}
-            style={{background:'none', border:'none', color:T.blue, cursor:'pointer', fontSize:12, fontFamily:'inherit', marginTop:6, paddingLeft:12}}>+ 고를 것 추가</button>
-        </div>
-      ))}
-      <div style={{display:'flex', gap:14, flexWrap:'wrap', marginTop:6}}>
-        {[
-          ['+ 종류 고르기 (꼭 고름)', { name:KIND, required:true, multi:false, choices:[{ name:'', price:'' },{ name:'', price:'' }] }, true],
-          ['+ 곱빼기', { name:BIG, required:false, multi:true, choices:[{ name:BIG, price:'1500' }] }],
-          ['+ 토핑 (여러 개)', { name:'토핑 추가', required:false, multi:true, choices:[{ name:'', price:'' }] }],
-          ['+ 다른 옵션', { name:'', required:false, multi:false, choices:[{ name:'', price:'' }] }],
-        ].filter(([, g]) => !g.name || !(edit.options||[]).some(x => x.name === g.name)).map(([t, g, first]) => (
-          <button key={t} type="button" onClick={()=>setEdit(e => { const n = 1 + Math.max(-1, ...(e.options||[]).map(x => +String(x.id).replace(/[^0-9]/g,'') || 0)); const ng = { ...g, id:`g${n}` }; return { ...e, options: first ? [ng, ...(e.options||[])] : [...(e.options||[]), ng] } })}
-            style={{background:'none', border:'none', color:T.blue, cursor:'pointer', fontSize:13, fontFamily:'inherit', padding:0}}>{t}</button>
-        ))}
-      </div>
-      <div style={{fontSize:12, color:T.sub, marginTop:4}}>종류 고르기: 메뉴 가격은 가장 싼 종류 값으로, 나머지 종류는 차이만 '+금액'에 적어요 (예: 짬뽕 9,000 · 고기짬뽕 +2,000)</div>
+          <HStack gap={2} wrap="wrap">
+            {templates.map(([t, g, first]) => <Button key={t} size="sm" label={t} onClick={()=>addGroup(g, first)}/>)}
+          </HStack>
+          <Text type="supporting" color="secondary">종류 고르기: 메뉴 가격은 가장 싼 종류 값으로, 나머지 종류는 차이만 '+금액'에 적어요 (예: 짬뽕 9,000 · 고기짬뽕 +2,000)</Text>
+        </VStack>
 
-      <div style={{display:'flex', gap:8, marginTop:12}}>
-        <Btn kind="primary" onClick={onSave}>확인</Btn>
-        <Btn onClick={()=>setEdit(null)}>취소</Btn>
-        <span style={{fontSize:12, color:T.sub, alignSelf:'center'}}>확인 뒤 위의 '저장'을 눌러야 손님 화면에 반영돼요</span>
-      </div>
-    </div>
+        <HStack gap={2} vAlign="center" wrap="wrap">
+          <Button variant="primary" label="확인" onClick={onSave}/>
+          <Button label="취소" onClick={()=>setEdit(null)}/>
+          <Text type="supporting" color="secondary">확인 뒤 위의 '저장'을 눌러야 손님 화면에 반영돼요</Text>
+        </HStack>
+      </VStack>
+    </Dialog>
   )
 }
