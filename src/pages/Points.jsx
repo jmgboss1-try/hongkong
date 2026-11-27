@@ -9,6 +9,7 @@ import { Card } from '@astryxdesign/core/Card'
 import { Grid } from '@astryxdesign/core/Grid'
 import { Button } from '@astryxdesign/core/Button'
 import { Badge } from '@astryxdesign/core/Badge'
+import { Dialog, DialogHeader } from '@astryxdesign/core/Dialog'
 import { Table } from '@astryxdesign/core/Table'
 import { List, ListItem } from '@astryxdesign/core/List'
 import { EmptyState } from '@astryxdesign/core/EmptyState'
@@ -23,21 +24,11 @@ import { DEFAULT_POINT_CONFIG, loadPointConfig, loadShop, loadPersonal, loadPoin
 // 포인트 (직원·사장님): 내 포인트 / 포인트 상점 / 교환 이력(누가 무엇을 교환했는지만 공개)
 // 사장님은 신청 처리(코드·이미지 넣고 승인, 직접 전달, 거절), 상점 관리, 직원 포인트(조정), 설정
 const T = { ink:'#1D1B18', sub:'#6E6A63', faint:'#A8A39A', rule:'#DCD7CE', soft:'#ECE8E1', chip:'#F3F1EC', paper:'#FAF9F6', accent:'var(--hk-accent)', green:'#2E7D45', red:'#B42318', blue:'#2B5C9E', amber:'#B45309' }
-const num = { fontVariantNumeric:'tabular-nums' }
 const P = n => `${(+n || 0).toLocaleString('ko-KR')}P`
 const sign = n => (n > 0 ? '+' : n < 0 ? '−' : '') + Math.abs(n).toLocaleString('ko-KR')
 const newId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 6)
 const addDays = (d, n) => { const x = new Date(d); x.setDate(x.getDate() + n); return todayStr(x) }
 
-function Btn({ children, onClick, kind = 'plain', disabled, small }) {
-  const solid = kind === 'primary' || kind === 'ok'
-  return (
-    <button type="button" onClick={onClick} disabled={disabled}
-      style={{fontFamily:'inherit', cursor: disabled ? 'default' : 'pointer', borderRadius:4, whiteSpace:'nowrap', fontSize: small ? 12 : 13, padding: small ? '4px 9px' : '7px 14px',
-        fontWeight: solid ? 700 : 500, opacity: disabled ? 0.5 : 1, background: kind === 'primary' ? T.accent : kind === 'ok' ? T.green : '#FFFFFF',
-        color: solid ? '#FFFFFF' : kind === 'danger' ? T.red : T.ink, border: solid ? 'none' : `1px solid ${kind === 'danger' ? '#E8C4BF' : T.rule}`}}>{children}</button>
-  )
-}
 
 export default function Points() {
   const { user, userData, isOwner } = useAuth()
@@ -136,7 +127,7 @@ function Mine({ me, ledger, requests, uid, personalOk }) {
           ]}/>
         )}
       </LedgerCard>
-      {code && <Legacy><CodeView uid={uid} req={code} onClose={()=>setCode(null)}/></Legacy>}
+      {code && <CodeView uid={uid} req={code} onClose={()=>setCode(null)}/>}
     </VStack>
   )
 }
@@ -145,20 +136,20 @@ function CodeView({ uid, req, onClose }) {
   const [c, setC] = useState(null)
   useEffect(() => { getDoc(doc(db, 'points', uid, 'codes', req.id)).then(s => setC(s.exists() ? s.data() : {})).catch(() => setC({ err:true })) }, [uid, req.id])
   return (
-    <div onClick={onClose} style={{position:'fixed', inset:0, zIndex:50, background:'rgba(29,27,24,0.55)', display:'flex', alignItems:'center', justifyContent:'center', padding:16}}>
-      <div onClick={e=>e.stopPropagation()} style={{background:'#FFFFFF', borderRadius:8, padding:'18px 18px 14px', width:'100%', maxWidth:420, maxHeight:'90vh', overflowY:'auto'}}>
-        <div style={{fontSize:18, fontWeight:900}}>{req.itemName}</div>
-        {!c && <div style={{color:T.sub, padding:'20px 0'}}>불러오는 중...</div>}
-        {c?.err && <div style={{color:T.red, padding:'20px 0'}}>불러오지 못했어요. 사장님께 말씀해 주세요</div>}
+    <Dialog isOpen onOpenChange={o => { if (!o) onClose() }} width={420} maxHeight="90dvh">
+      <DialogHeader title={req.itemName} onOpenChange={o => { if (!o) onClose() }}/>
+      <VStack gap={3} padding={4}>
+        {!c && <Text color="secondary">불러오는 중...</Text>}
+        {c?.err && <Banner status="error" title="불러오지 못했어요. 사장님께 말씀해 주세요"/>}
         {c && !c.err && <>
-          {c.img && <img src={c.img} alt="상품 코드" style={{width:'100%', marginTop:12, borderRadius:4, border:`1px solid ${T.rule}`}}/>}
-          {c.text && <div style={{marginTop:12, fontSize:20, fontWeight:800, letterSpacing:1, textAlign:'center', padding:'10px', background:T.chip, borderRadius:4, wordBreak:'break-all', ...num}}>{c.text}</div>}
-          {c.note && <div style={{marginTop:10, fontSize:14, color:T.sub, lineHeight:1.6}}>{c.note}</div>}
-          {!c.img && !c.text && !c.note && <div style={{color:T.sub, padding:'20px 0'}}>아직 코드가 없어요. 사장님께 말씀해 주세요</div>}
+          {c.img && <Legacy><img src={c.img} alt="상품 코드" style={{width:'100%', borderRadius:4, border:`1px solid ${T.rule}`}}/></Legacy>}
+          {c.text && <Card variant="muted" padding={3}><HStack hAlign="center"><Text type="large" weight="bold" textWrap="wrap" hasTabularNumbers>{c.text}</Text></HStack></Card>}
+          {c.note && <Text color="secondary">{c.note}</Text>}
+          {!c.img && !c.text && !c.note && <Text color="secondary">아직 코드가 없어요. 사장님께 말씀해 주세요</Text>}
         </>}
-        <div style={{marginTop:14}}><Btn onClick={onClose}>닫기</Btn></div>
-      </div>
-    </div>
+        <HStack><Button label="닫기" onClick={onClose}/></HStack>
+      </VStack>
+    </Dialog>
   )
 }
 

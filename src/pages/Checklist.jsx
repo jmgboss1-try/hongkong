@@ -18,7 +18,8 @@ import { AstryxPage, Legacy, PageHeader, LedgerCard } from '../astryx/AstryxPage
 import { prevYmOf, monthNum, rewardResults } from '../lib/rewards'
 import { db } from '../firebase'
 import { doc, getDoc, setDoc, deleteDoc, collection, getDocs, deleteField } from 'firebase/firestore'
-import { PhotoPicker, Lightbox } from '../components/PhotoAttach'
+import { Lightbox } from '../components/PhotoAttach'
+import { PhotoField } from '../astryx/PhotoField'
 import { PhotoThumbs } from '../astryx/PhotoField'
 
 const pad = n => String(n).padStart(2,'0')
@@ -403,16 +404,16 @@ export default function Checklist() {
   function ItemPhotoPanel(item) {
     if(photoEditId!==item.id) return null
     return (
-      <div style={{background:'#FFFFFF',border:'1px solid #DCD7CE',borderRadius:4,padding:10,marginTop:4}}>
-        <div style={{fontSize:11,color:'#2B5C9E',fontWeight:700,marginBottom:8}}>{item.label} — 참고 사진 (완성 기준·위치 등)</div>
-        <PhotoPicker images={photoEditImages} onChange={setPhotoEditImages} max={3}/>
-        <div style={{display:'flex',gap:8}}>
-          <button onClick={saveItemPhotos} disabled={saving}
-            style={{background:'var(--hk-accent)',color:'#FFFFFF',border:'none',borderRadius:5,padding:'6px 14px',fontSize:11,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>사진 저장</button>
-          <button onClick={()=>{setPhotoEditId(null);setPhotoEditImages([])}}
-            style={{background:'transparent',border:'1px solid #DCD7CE',color:'#6E6A63',borderRadius:5,padding:'6px 14px',fontSize:11,cursor:'pointer',fontFamily:'inherit'}}>취소</button>
-        </div>
-      </div>
+      <Card variant="muted" padding={3}>
+        <VStack gap={2}>
+          <Text type="label" weight="bold">{item.label} — 참고 사진 (완성 기준·위치 등)</Text>
+          <PhotoField images={photoEditImages} onChange={setPhotoEditImages} max={3}/>
+          <HStack gap={2}>
+            <Button size="sm" variant="primary" label="사진 저장" isDisabled={saving} onClick={saveItemPhotos}/>
+            <Button size="sm" label="취소" onClick={()=>{setPhotoEditId(null);setPhotoEditImages([])}}/>
+          </HStack>
+        </VStack>
+      </Card>
     )
   }
   function PhotoBadge(item) {
@@ -577,7 +578,7 @@ export default function Checklist() {
     )
   }
 
-  const photoPanel = item => { const pp = ItemPhotoPanel(item); return pp ? <Legacy>{pp}</Legacy> : null }
+  const photoPanel = item => ItemPhotoPanel(item)
   const itemButtons = (item, kind) => (
     <HStack gap={1}>
       <Button size="sm" variant="ghost" label={`사진${item.photoCount>0 ? ` ${item.photoCount}` : ''}`} onClick={()=>startEditPhotos(item)}/>
