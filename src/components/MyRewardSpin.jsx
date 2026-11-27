@@ -8,7 +8,6 @@ import { Text, Heading } from '@astryxdesign/core/Text'
 import { Card } from '@astryxdesign/core/Card'
 import { Badge } from '@astryxdesign/core/Badge'
 import { Banner } from '@astryxdesign/core/Banner'
-import { Legacy } from '../astryx/AstryxPage'
 
 
 // 직원 내 기록 맨 위: 지난달 개근 포상 룰렛 (사장님이 '각자 룰렛'으로 열었을 때, 한 번만 돌릴 수 있음)
@@ -60,7 +59,7 @@ export default function MyRewardSpin({ uid, name }) {
       <VStack gap={2}>
         <Heading level={4}>{m}월 개근을 축하해요! 룰렛을 돌려 포상을 받으세요</Heading>
         <Text type="supporting" color="secondary">한 번만 돌릴 수 있어요. 결과는 사장님과 매장 화면에 보여요.</Text>
-        <Legacy><Roulette people={[{ uid, name }]} prizes={rw.prizes||['꽝']} results={{}} onResult={onResult}/></Legacy>
+        <Roulette people={[{ uid, name }]} prizes={rw.prizes||['꽝']} results={{}} onResult={onResult}/>
         {err && <Banner status="error" title={err}/>}
       </VStack>
     </Card>

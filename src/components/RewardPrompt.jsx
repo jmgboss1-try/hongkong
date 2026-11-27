@@ -11,7 +11,7 @@ import { Badge } from '@astryxdesign/core/Badge'
 import { Button } from '@astryxdesign/core/Button'
 import { TextInput } from '@astryxdesign/core/TextInput'
 import { List, ListItem } from '@astryxdesign/core/List'
-import { AstryxPage, Legacy } from '../astryx/AstryxPage'
+import { AstryxPage } from '../astryx/AstryxPage'
 
 const won = n => (n||0).toLocaleString('ko-KR')
 
@@ -114,7 +114,7 @@ export default function RewardPrompt() {
             </HStack>
           </VStack>
         )}
-        {ladder && <Legacy><RewardGame ym={ym} people={eligible} onClose={()=>{ setLadder(false); setReload(k=>k+1) }} onSaved={()=>setReload(k=>k+1)}/></Legacy>}
+        {ladder && <RewardGame ym={ym} people={eligible} onClose={()=>{ setLadder(false); setReload(k=>k+1) }} onSaved={()=>setReload(k=>k+1)}/>}
       </Card>
     </AstryxPage>
   )

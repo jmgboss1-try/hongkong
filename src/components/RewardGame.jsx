@@ -1,4 +1,14 @@
 import { useEffect, useState } from 'react'
+import { VStack, HStack } from '@astryxdesign/core/Layout'
+import { Text, Heading } from '@astryxdesign/core/Text'
+import { Button } from '@astryxdesign/core/Button'
+import { Badge } from '@astryxdesign/core/Badge'
+import { TextArea } from '@astryxdesign/core/TextArea'
+import { TextInput } from '@astryxdesign/core/TextInput'
+import { List, ListItem } from '@astryxdesign/core/List'
+import { SegmentedControl, SegmentedControlItem } from '@astryxdesign/core/SegmentedControl'
+import { Dialog, DialogHeader } from '@astryxdesign/core/Dialog'
+import { Legacy } from '../astryx/AstryxPage'
 import { db } from '../firebase'
 import { doc, setDoc } from 'firebase/firestore'
 import { parseAmount, addRewardPoints, isPointPrize } from '../lib/rewards'
@@ -13,18 +23,6 @@ const SEG_TEXT = c => ['#F3F1EC','#FFFFFF'].includes(c) ? T.ink : '#FFFFFF'
 const LANE = ['var(--hk-accent)','#2B5C9E','#2E7D45','#B45309','#6B4FA0','#1D1B18']
 
 const won = n => (n||0).toLocaleString('ko-KR')
-
-function Btn({ children, onClick, kind = 'plain', disabled }) {
-  const solid = kind==='primary' || kind==='ok'
-  return (
-    <button type="button" onClick={onClick} disabled={disabled}
-      style={{fontFamily:'inherit', cursor: disabled ? 'default' : 'pointer', borderRadius:4, whiteSpace:'nowrap', fontSize:13, padding:'7px 14px',
-        fontWeight: solid ? 700 : 500, background: kind==='primary' ? T.accent : kind==='ok' ? T.green : '#FFFFFF',
-        color: solid ? '#FFFFFF' : T.ink, border: solid ? 'none' : `1px solid ${T.rule}`, opacity: disabled ? 0.5 : 1}}>
-      {children}
-    </button>
-  )
-}
 
 // ── 룰렛: 상품 칸이 그려진 판을 직원마다 한 번씩 돌림 ──
 export function Roulette({ people, prizes, results, onResult }) {
@@ -46,8 +44,8 @@ export function Roulette({ people, prizes, results, onResult }) {
   }
 
   return (
-    <div style={{display:'flex', gap:24, flexWrap:'wrap', alignItems:'center', justifyContent:'center'}}>
-      <div style={{position:'relative', width:320, height:330}}>
+    <HStack gap={6} wrap="wrap" vAlign="center" hAlign="center">
+      <Legacy><div style={{position:'relative', width:320, height:330}}>
         <div style={{position:'absolute', left:150, top:0, width:0, height:0, zIndex:2,
           borderLeft:'10px solid transparent', borderRight:'10px solid transparent', borderTop:`22px solid ${T.ink}`}}/>
         <svg width="320" height="320" viewBox="0 0 320 320" style={{marginTop:10, transform:`rotate(${angle}deg)`,
@@ -66,15 +64,15 @@ export function Roulette({ people, prizes, results, onResult }) {
           })}
           <circle cx={C} cy={C} r="16" fill="#FFFFFF" stroke={T.ink} strokeWidth="2"/>
         </svg>
-      </div>
-      <div style={{minWidth:200, textAlign:'center'}}>
+      </div></Legacy>
+      <VStack gap={2} hAlign="center">
         {next ? <>
-          <div style={{fontSize:14, color:T.sub}}>이번 차례</div>
-          <div style={{fontSize:30, fontWeight:800, margin:'4px 0 14px'}}>{next.name}</div>
-          <Btn kind="primary" onClick={spin} disabled={spinning}>{spinning ? '돌아가는 중...' : '룰렛 돌리기'}</Btn>
-        </> : <div style={{fontSize:18, fontWeight:800, color:T.green}}>모두 돌렸어요</div>}
-      </div>
-    </div>
+          <Text color="secondary">이번 차례</Text>
+          <Text type="display-2" weight="bold">{next.name}</Text>
+          <Button variant="primary" size="lg" label={spinning ? '돌아가는 중...' : '룰렛 돌리기'} isDisabled={spinning} onClick={spin}/>
+        </> : <Badge variant="success" label="모두 돌렸어요"/>}
+      </VStack>
+    </HStack>
   )
 }
 
@@ -167,7 +165,8 @@ function Ladder({ people, prizes, onResult }) {
   const winnerAt = c => arrived.find(i => endOf(i) === c) // 이 상품 칸에 도착한 사람
 
   return (
-    <div style={{overflowX:'auto'}}>
+    <VStack gap={2}>
+      <Legacy><div style={{overflowX:'auto'}}>
       <svg width={W} height={H+40} viewBox={`0 0 ${W} ${H+40}`} style={{display:'block', margin:'0 auto'}}>
         {people.map((p,i) => {
           const done = arrived.includes(i), now = running === i
@@ -203,11 +202,14 @@ function Ladder({ people, prizes, onResult }) {
           )
         })}
       </svg>
-      <div style={{textAlign:'center', fontSize:14, color: running !== null ? T.ink : T.sub, marginTop:6, fontWeight: running !== null ? 700 : 400}}>
-        {running !== null ? `${people[running].name} 내려가는 중...`
-          : arrived.length < n ? '위의 이름을 하나씩 누르면 사다리를 타고 천천히 내려가요' : '모두 내려왔어요'}
-      </div>
-    </div>
+      </div></Legacy>
+      <HStack hAlign="center">
+        <Text weight={running !== null ? 'bold' : 'normal'} color={running !== null ? 'primary' : 'secondary'}>
+          {running !== null ? `${people[running].name} 내려가는 중...`
+            : arrived.length < n ? '위의 이름을 하나씩 누르면 사다리를 타고 천천히 내려가요' : '모두 내려왔어요'}
+        </Text>
+      </HStack>
+    </VStack>
   )
 }
 
@@ -240,38 +242,30 @@ export default function RewardGame({ ym, people, onClose, onSaved, practice }) {
     setSaving(false)
   }
 
+  const close = o => { if (!o) onClose() }
+  const practiceNote = practice && done && <Text type="supporting" color="secondary">연습이 끝났어요. 실제 게임은 달이 끝난 뒤 개근한 직원끼리 해요.</Text>
   return (
-    <div onClick={onClose} style={{position:'fixed', inset:0, background:'rgba(0,0,0,0.6)', zIndex:1000, overflowY:'auto', padding:'30px 12px'}}>
-      <div onClick={e=>e.stopPropagation()} style={{background:'#FAF9F6', borderRadius:6, maxWidth:760, margin:'0 auto', padding:'20px 22px', color:T.ink}}>
-        <div style={{display:'flex', justifyContent:'space-between', alignItems:'baseline', borderBottom:`3px double ${T.ink}`, paddingBottom:8, marginBottom:14, gap:10, flexWrap:'wrap'}}>
-          <h2 style={{fontSize:22, fontWeight:800, margin:0, fontFamily:'inherit'}}>{practice ? '포상 게임 연습' : `${+m}월 개근 포상 게임`}</h2>
-          <span style={{fontSize:13, color: practice ? T.red : T.sub}}>{practice ? '연습이라 결과는 저장되지 않아요' : `개근 ${people.length}명: ${people.map(p=>p.name).join(', ')}`}</span>
-        </div>
-
+    <Dialog isOpen onOpenChange={close} width={780} maxHeight="92dvh" purpose={started && !saved ? 'required' : 'info'}>
+      <DialogHeader title={practice ? '포상 게임 연습' : `${+m}월 개근 포상 게임`}
+        subtitle={practice ? '연습이라 결과는 저장되지 않아요' : `개근 ${people.length}명: ${people.map(p=>p.name).join(', ')}`} onOpenChange={close}/>
+      <VStack gap={4} padding={4}>
         {!started ? (
           <>
-            <div style={{display:'flex', gap:16, marginBottom:12}}>
-              {[['roulette','룰렛'],['ladder','사다리']].map(([k,l]) => (
-                <button key={k} type="button" onClick={()=>setGame(k)}
-                  style={{background:'none', border:'none', padding:'4px 0', cursor:'pointer', fontFamily:'inherit', fontSize:16,
-                    fontWeight: game===k ? 800 : 500, color: game===k ? T.ink : T.sub, borderBottom:`2px solid ${game===k ? T.accent : 'transparent'}`}}>{l}</button>
-              ))}
-            </div>
-            <div style={{fontSize:13, color:T.sub, marginBottom:6, lineHeight:1.6}}>
-              {game==='roulette'
+            <SegmentedControl label="게임" value={game} onChange={v=>v && setGame(v)}>
+              <SegmentedControlItem value="roulette" label="룰렛"/>
+              <SegmentedControlItem value="ladder" label="사다리"/>
+            </SegmentedControl>
+            <TextArea label="상품" rows={2} value={prizeText} onChange={v=>setPrizeText(v)}
+              description={game==='roulette'
                 ? '룰렛 칸에 들어갈 상품을 쉼표로 나눠 적어요. 같은 상품을 여러 번 적으면 그만큼 잘 나와요. 직원마다 한 번씩 돌려요.'
-                : `사다리 아래에 놓일 상품을 쉼표로 나눠 적어요. 사람 수(${people.length}명)보다 적으면 나머지는 '꽝', 많으면 앞에서부터 ${people.length}개만 써요.`}
-            </div>
-            <textarea value={prizeText} onChange={e=>setPrizeText(e.target.value)} rows={2} aria-label="상품"
-              style={{width:'100%', boxSizing:'border-box', background:'#FFFFFF', border:'1px solid #CBC5BA', borderRadius:4, padding:'8px 10px', fontSize:15, fontFamily:'inherit'}}/>
-            <div style={{fontSize:12, color:T.sub, margin:'4px 0 14px'}}>
+                : `사다리 아래에 놓일 상품을 쉼표로 나눠 적어요. 사람 수(${people.length}명)보다 적으면 나머지는 '꽝', 많으면 앞에서부터 ${people.length}개만 써요.`}/>
+            <Text type="supporting" color="secondary">
               포인트로 읽힌 상품: {prizes.map(p => `${p}${parseAmount(p) ? `(${parseAmount(p)}${isPointPrize(p) ? 'P' : '원'})` : ''}`).join(' · ') || '없음'}
-            </div>
-            <div style={{display:'flex', gap:8}}>
-              <Btn kind="primary" onClick={()=>setStarted(true)} disabled={!prizes.length || !people.length}>게임 시작</Btn>
-              {practice && done && <span style={{fontSize:13, color:T.sub}}>연습이 끝났어요. 실제 게임은 달이 끝난 뒤 개근한 직원끼리 해요.</span>}
-              <Btn onClick={onClose}>닫기</Btn>
-            </div>
+            </Text>
+            <HStack gap={2} vAlign="center" wrap="wrap">
+              <Button variant="primary" label="게임 시작" isDisabled={!prizes.length || !people.length} onClick={()=>setStarted(true)}/>
+              <Button label="닫기" onClick={onClose}/>
+            </HStack>
           </>
         ) : (
           <>
@@ -280,36 +274,36 @@ export default function RewardGame({ ym, people, onClose, onSaved, practice }) {
               : <Ladder people={people} prizes={prizes} onResult={onResult}/>}
 
             {Object.keys(results).length > 0 && (
-              <div style={{marginTop:18}}>
-                <div style={{fontSize:15, fontWeight:800, borderBottom:`2px solid ${T.ink}`, paddingBottom:4}}>결과</div>
-                {people.filter(p=>results[p.uid]).map(p => (
-                  <div key={p.uid} style={{display:'flex', alignItems:'center', gap:10, padding:'7px 0', borderBottom:'1px solid #ECE8E1', fontSize:15}}>
-                    <b style={{minWidth:70}}>{p.name}</b>
-                    <span style={{flex:1}}>{results[p.uid]}</span>
-                    <input type="text" inputMode="numeric" value={amounts[p.uid] ? won(amounts[p.uid]) : ''} placeholder="0" aria-label={`${p.name} 금액`}
-                      onChange={e=>setAmounts(a=>({ ...a, [p.uid]: +e.target.value.replace(/[^0-9]/g,'') || 0 }))} disabled={!!saved}
-                      style={{width:110, textAlign:'right', background:'#FFFFFF', border:'1px solid #CBC5BA', borderRadius:4, padding:'5px 8px', fontSize:14, fontFamily:'inherit', fontVariantNumeric:'tabular-nums'}}/>
-                    <span style={{fontSize:13, color:T.sub}}>P</span>
-                  </div>
-                ))}
-              </div>
+              <VStack gap={1}>
+                <Heading level={5}>결과</Heading>
+                <List hasDividers edge="flush">
+                  {people.filter(p=>results[p.uid]).map(p => (
+                    <ListItem key={p.uid} label={p.name} description={results[p.uid]}
+                      endContent={
+                        <HStack gap={1} vAlign="center">
+                          <TextInput label={`${p.name} 포인트`} isLabelHidden size="sm" width={110} inputMode="numeric" placeholder="0"
+                            value={amounts[p.uid] ? won(amounts[p.uid]) : ''} isDisabled={!!saved}
+                            onChange={v=>setAmounts(a=>({ ...a, [p.uid]: +String(v||'').replace(/[^0-9]/g,'') || 0 }))}/>
+                          <Text color="secondary">P</Text>
+                        </HStack>
+                      }/>
+                  ))}
+                </List>
+              </VStack>
             )}
 
-            <div style={{display:'flex', gap:8, flexWrap:'wrap', marginTop:14, alignItems:'center'}}>
-              {saved ? (
-                <span style={{fontSize:14, fontWeight:700, color:T.green}}>
-                  {saved==='bonus' ? '저장했고 포인트로 줬어요' : '결과만 저장했어요'}
-                </span>
-              ) : done && !practice && <>
-                <Btn kind="ok" onClick={()=>save(true)} disabled={saving}>결과 저장 + 포인트 지급</Btn>
-                <Btn onClick={()=>save(false)} disabled={saving}>결과만 저장</Btn>
+            <HStack gap={2} vAlign="center" wrap="wrap">
+              {saved ? <Badge variant="success" label={saved==='bonus' ? '저장했고 포인트로 줬어요' : '결과만 저장했어요'}/>
+              : done && !practice && <>
+                <Button variant="primary" label="결과 저장 + 포인트 지급" isDisabled={saving} onClick={()=>save(true)}/>
+                <Button label="결과만 저장" isDisabled={saving} onClick={()=>save(false)}/>
               </>}
-              {practice && done && <span style={{fontSize:13, color:T.sub}}>연습이 끝났어요. 실제 게임은 달이 끝난 뒤 개근한 직원끼리 해요.</span>}
-              <Btn onClick={onClose}>닫기</Btn>
-            </div>
+              {practiceNote}
+              <Button variant="ghost" label="닫기" onClick={onClose}/>
+            </HStack>
           </>
         )}
-      </div>
-    </div>
+      </VStack>
+    </Dialog>
   )
 }

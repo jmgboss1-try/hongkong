@@ -11,7 +11,7 @@ import { TextInput } from '@astryxdesign/core/TextInput'
 import { DateInput } from '@astryxdesign/core/DateInput'
 import { Selector } from '@astryxdesign/core/Selector'
 import { CheckboxInput } from '@astryxdesign/core/CheckboxInput'
-import { AstryxPage, Legacy, LedgerCard } from '../astryx/AstryxPage'
+import { AstryxPage, LedgerCard } from '../astryx/AstryxPage'
 import { useEffect, useState } from 'react'
 import { db } from '../firebase'
 import { doc, getDoc, getDocs, collection, setDoc, deleteField, Timestamp } from 'firebase/firestore'
@@ -500,12 +500,9 @@ export default function AttendancePanel({ curMonth, nameMap, onApplied }) {
           </HStack>
         </VStack>
       )}
-      <Legacy>
       {showGame && <RewardGame ym={curMonth} people={perfectList.map(x=>({ uid:x.u.uid, name:x.u.name }))}
         onClose={()=>setShowGame(false)} onSaved={()=>{ load(false); onApplied?.() }}/>}
       {practice && <RewardGame ym={curMonth} practice people={staff.map(u=>({ uid:u.uid, name:u.name }))} onClose={()=>setPractice(false)}/>}
-
-      </Legacy>
 
       {rows.length > 0 && <>
         <Button size="sm" variant="ghost" label={showAll ? '이 달 기록 접기' : `이 달 출퇴근 기록 ${rows.length}건 보기`} onClick={()=>setShowAll(v=>!v)}/>
