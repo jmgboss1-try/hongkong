@@ -89,62 +89,64 @@ export default function SubstituteBoard() {
 
   const nameOf = uid => employees.find(e=>e.uid===uid)?.name || '—'
 
-  async function saveRequests(newList) {
-    await setDoc(doc(db,'substitutes','requests'), { list:newList })
-    setRequests(newList)
+  // 다른 사람이 그사이 바꿨을 수 있으니 저장 직전에 다시 읽고, 그 목록에 고칠 내용을 적용
+  async function updateRequests(fn) {
+    setSaving(true)
+    try {
+      const snap = await getDoc(doc(db,'substitutes','requests'))
+      const cur = snap.exists() ? (snap.data().list||[]) : []
+      const next = fn(cur)
+      await setDoc(doc(db,'substitutes','requests'), { list:next })
+      setRequests(next)
+      setSaving(false); return true
+    } catch(e) { console.error(e); alert('저장하지 못했어요. 다시 시도해 주세요.') }
+    setSaving(false); return false
   }
 
   async function addRequest() {
     if(!form.requesterUid) return alert('대타가 필요한 직원을 선택해주세요')
     if(!form.date) return alert('날짜를 선택해주세요')
-    setSaving(true)
-    try {
-      const newReq = {
-        id: Date.now().toString(),
-        requesterUid: form.requesterUid,
-        date: form.date,
-        startH: form.startH, startM: form.startM,
-        endH: form.endH, endM: form.endM,
-        reason: form.reason || '',
-        applicants: [],
-        confirmedUid: null,
-        createdAt: new Date().toISOString(),
-      }
-      await saveRequests([...requests, newReq])
-      setForm({ requesterUid:'', date: todayStr(), startH:'09', startM:'00', endH:'18', endM:'00', reason:'' })
-      setShowForm(false)
-    } catch(e) { console.error(e) }
-    setSaving(false)
+    const newReq = {
+      id: Date.now().toString(),
+      requesterUid: form.requesterUid,
+      date: form.date,
+      startH: form.startH, startM: form.startM,
+      endH: form.endH, endM: form.endM,
+      reason: form.reason || '',
+      applicants: [],
+      confirmedUid: null,
+      createdAt: new Date().toISOString(),
+    }
+    if (!await updateRequests(cur => [...cur, newReq])) return
+    setForm({ requesterUid:'', date: todayStr(), startH:'09', startM:'00', endH:'18', endM:'00', reason:'' })
+    setShowForm(false)
   }
 
   async function toggleApplicant(reqId, uid) {
-    const newList = requests.map(r=>{
+    await updateRequests(cur => cur.map(r=>{
       if(r.id !== reqId) return r
-      const applicants = r.applicants.includes(uid)
-        ? r.applicants.filter(a=>a!==uid)
-        : [...r.applicants, uid]
-      return { ...r, applicants }
-    })
-    await saveRequests(newList)
+      const list = r.applicants || []
+      return { ...r, applicants: list.includes(uid) ? list.filter(a=>a!==uid) : [...list, uid] }
+    }))
   }
 
   async function confirmApplicant(reqId, uid) {
-    const newList = requests.map(r=>
-      r.id === reqId ? { ...r, confirmedUid: uid } : r
-    )
-    await saveRequests(newList)
+    await updateRequests(cur => cur.map(r => r.id === reqId ? { ...r, confirmedUid: uid } : r))
   }
 
   async function cancelConfirm(reqId) {
-    const newList = requests.map(r=>
-      r.id === reqId ? { ...r, confirmedUid: null } : r
-    )
-    await saveRequests(newList)
+    await updateRequests(cur => cur.map(r => r.id === reqId ? { ...r, confirmedUid: null } : r))
   }
 
   async function deleteRequest(reqId) {
     if(!window.confirm('이 대타 요청을 삭제하시겠습니까?')) return
-    await saveRequests(requests.filter(r=>r.id!==reqId))
+    await updateRequests(cur => cur.filter(r=>r.id!==reqId))
+  }
+
+  async function deletePastUnconfirmed() {
+    const n = pastRequests.filter(r=>!r.confirmedUid).length
+    if(!window.confirm(`대타를 못 구한 지난 요청 ${n}건을 모두 지울까요?`)) return
+    await updateRequests(cur => cur.filter(r => !(isPast(r.date) && !r.confirmedUid)))
   }
 
   // 지난 날짜는 자동으로 목록에서 숨김 (완전 삭제는 안 함, 필터만)
@@ -154,6 +156,9 @@ export default function SubstituteBoard() {
 
   const unconfirmed = visibleRequests.filter(r=>!r.confirmedUid)
   const confirmed   = visibleRequests.filter(r=>r.confirmedUid)
+  // 지난 요청: 목록에서는 빠지지만 근무표에 남아 있으니 여기서 지울 수 있게
+  const pastRequests = requests.filter(r=>isPast(r.date)).sort((a,b)=> a.date > b.date ? -1 : a.date < b.date ? 1 : 0)
+  const pastUnconfirmed = pastRequests.filter(r=>!r.confirmedUid).length
 
   const timeLabel = r => `${r.startH}:${r.startM}~${r.endH}:${r.endM}`
 
@@ -230,13 +235,13 @@ export default function SubstituteBoard() {
                     <Text type="supporting" color="secondary">지원자 선택 (여러 명 지원 가능)</Text>
                     <HStack gap={1} wrap="wrap">
                       {employees.filter(e=>e.uid!==r.requesterUid).map(e => (
-                        <Button key={e.uid} size="sm" variant={r.applicants.includes(e.uid) ? 'primary' : 'secondary'} label={e.name} onClick={()=>toggleApplicant(r.id, e.uid)}/>
+                        <Button key={e.uid} size="sm" variant={(r.applicants||[]).includes(e.uid) ? 'primary' : 'secondary'} label={e.name} onClick={()=>toggleApplicant(r.id, e.uid)}/>
                       ))}
                     </HStack>
-                    {r.applicants.length > 0 && (
+                    {(r.applicants||[]).length > 0 && (
                       <HStack gap={1} vAlign="center" wrap="wrap">
                         <Text type="supporting" color="secondary">확정:</Text>
-                        {r.applicants.map(uid => <Button key={uid} size="sm" label={`${nameOf(uid)} 확정`} onClick={()=>confirmApplicant(r.id, uid)}/>)}
+                        {(r.applicants||[]).map(uid => <Button key={uid} size="sm" label={`${nameOf(uid)} 확정`} onClick={()=>confirmApplicant(r.id, uid)}/>)}
                       </HStack>
                     )}
                   </VStack>}
@@ -262,6 +267,22 @@ export default function SubstituteBoard() {
             </List>
           )}
         </LedgerCard>
+
+        {/* 지난 요청 */}
+        {pastRequests.length > 0 && (
+          <LedgerCard title={`지난 요청 (${pastRequests.length}건)`}>
+            <Text type="supporting" color="secondary">날짜가 지난 요청이에요. 대타를 못 구한 요청은 지워도 돼요. 확정된 대타는 주휴 계산에 쓰이니 실제로 안 바뀌었을 때만 지우세요.</Text>
+            {pastUnconfirmed > 1 && <HStack><Button size="sm" label={`못 구한 요청 ${pastUnconfirmed}건 모두 지우기`} isDisabled={saving} onClick={deletePastUnconfirmed}/></HStack>}
+            <List hasDividers edge="flush">
+              {pastRequests.map(r => (
+                <ListItem key={r.id}
+                  label={<Text weight="bold">{r.confirmedUid ? `${nameOf(r.requesterUid)} → ${nameOf(r.confirmedUid)}` : nameOf(r.requesterUid)} <Badge variant={r.confirmedUid ? 'success' : 'neutral'} label={r.confirmedUid ? '확정됐었음' : '못 구함'}/></Text>}
+                  description={<Text color="secondary" hasTabularNumbers>{dateLabel(r.date)} · {timeLabel(r)}{r.reason ? ` · ${r.reason}` : ''}</Text>}
+                  endContent={<Button size="sm" variant="ghost" label="삭제" isDisabled={saving} onClick={()=>deleteRequest(r.id)}/>}/>
+              ))}
+            </List>
+          </LedgerCard>
+        )}
       </>}
     </VStack>
     </AstryxPage>

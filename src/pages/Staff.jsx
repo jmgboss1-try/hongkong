@@ -17,8 +17,9 @@ import { AstryxPage, Legacy, PageHeader, LedgerCard } from '../astryx/AstryxPage
 import { db } from '../firebase'
 import { doc, getDoc, setDoc, collection, query, where, getDocs } from 'firebase/firestore'
 import { useAuth } from '../AuthContext'
-import { toDate, hm, dayStatus, breakForShift, recBreak, planFor, reapplyDay } from '../lib/attendance'
-import { deleteField } from 'firebase/firestore'
+import { toDate, hm, dayStatus, breakForShift, recBreak, planFor, reapplyDay, applyRecord } from '../lib/attendance'
+import { CheckboxInput } from '@astryxdesign/core/CheckboxInput'
+import { deleteField, Timestamp } from 'firebase/firestore'
 import TimeSelect from '../astryx/TimeSelect'
 import { saveUser } from '../lib/privateInfo'
 
@@ -227,6 +228,28 @@ export default function Staff() {
     await writePlan([{ d: new Date(+ds.slice(0,4), +ds.slice(5,7)-1, +ds.slice(8,10)), uid, val }])
     setCellEdit(null)
   }
+  // 찍힌 출퇴근 기록 고치기 (근무관리의 기록 수정과 같은 방식: 시간을 바꾸면 근무시간도 다시 계산)
+  const recFields = rec => rec?.in ? { hasRec:true, rIn:hm(toDate(rec.in)), rOut: rec.out ? hm(toDate(rec.out)) : '', bStart:rec.breakStart||'', bEnd:rec.breakEnd||'', noBreak:!!rec.noBreak, earlyLeave:!!rec.earlyLeave } : { hasRec:false }
+  async function saveRec() {
+    const e = cellEdit, ym = e.ds.slice(0,7), dd = e.ds.slice(8,10)
+    if (!e.rIn) return alert('출근 시각을 넣어 주세요')
+    if ((e.bStart && !e.bEnd) || (!e.bStart && e.bEnd)) return alert('휴게는 시작과 끝을 같이 넣어 주세요')
+    setBusy(true)
+    try {
+      const at = (t, plusDay) => { const [h,m] = t.split(':').map(Number); return new Date(+e.ds.slice(0,4), +e.ds.slice(5,7)-1, +dd + (plusDay?1:0), h, m) }
+      const inD = at(e.rIn), outD = e.rOut ? at(e.rOut, e.rOut < e.rIn) : null
+      const snap = await getDoc(doc(db,'attendance',ym))
+      const orig = (snap.exists() ? snap.data() : {})[e.uid]?.[dd] || {}
+      const brkChanged = e.bStart !== (orig.breakStart||'') || e.bEnd !== (orig.breakEnd||'') || !!e.noBreak !== !!orig.noBreak
+      const brk = e.noBreak ? { noBreak:true } : e.bStart ? { breakStart:e.bStart, breakEnd:e.bEnd, noBreak:false } : { breakStart:null, breakEnd:null, noBreak:false }
+      const rec = { ...orig, in: Timestamp.fromDate(inD), ...(outD ? { out: Timestamp.fromDate(outD) } : {}), ...brk, earlyLeave: !!e.earlyLeave }
+      if (!outD) delete rec.out
+      await setDoc(doc(db,'attendance',ym), { [e.uid]: { [dd]: { in: rec.in, out: outD ? rec.out : deleteField(), editedByOwner: true, earlyLeave: !!e.earlyLeave, ...(brkChanged ? { editedBreak: true } : {}), ...brk } } }, { merge:true })
+      if (outD) await applyRecord(ym, e.uid, dd, rec)
+      setCellEdit(null); setReloadKey(k => k+1)
+    } catch(err) { console.error(err); alert('저장하지 못했어요. 다시 시도해 주세요.') }
+    setBusy(false)
+  }
   async function saveClose(val) {
     const { ds } = closeEdit
     await writePlan([{ d: new Date(+ds.slice(0,4), +ds.slice(5,7)-1, +ds.slice(8,10)), val }])
@@ -395,7 +418,7 @@ export default function Staff() {
                   {c.planned && <Text weight="semibold" hasTabularNumbers hasStrikethrough={!!c.gaveAway} color={c.gaveAway ? 'secondary' : c.override && !c.rec?.in ? 'accent' : 'primary'}>{c.planned.start}~{c.planned.end||''}{c.planned.cut ? ' (마감)' : ''}</Text>}
                   {c.brk && c.planned && !c.gaveAway && <Text type="supporting" color="secondary" hasTabularNumbers>휴게 {c.brk.start}~{c.brk.end}</Text>}
                   {c.gaveAway && <Text type="supporting" color="secondary">대타 {nameOf(c.gaveAway.confirmedUid)}</Text>}
-                  {c.seeking && !c.gaveAway && <Badge variant="warning" label="대타 구하는 중"/>}
+                  {c.seeking && !c.gaveAway && !c.past && <Badge variant="warning" label="대타 구하는 중"/>}
                   {c.covering.map((v,k) => <Text key={k} type="supporting" weight="semibold" hasTabularNumbers>{v.start}~{v.end} {nameOf(v.for)} 대신</Text>)}
                   {inD && <Text type="supporting" hasTabularNumbers color={c.st?.late || c.st?.leftEarly ? 'accent' : 'secondary'}>{hm(inD)}~{outD ? hm(outD) : ''}{c.st?.late ? ` 지각${c.st.late}분` : ''}{c.st?.leftEarly ? ' 조퇴' : ''}</Text>}
                   {c.missing && <Text type="supporting" weight="bold" color="accent">{c.past ? '결근' : '아직 안 옴'}</Text>}
@@ -404,7 +427,7 @@ export default function Staff() {
               )
               return isOwner
                 ? <ClickableCard label={`${u.name} ${d.getMonth()+1}/${d.getDate()} 시간 바꾸기`} variant="transparent" padding={1}
-                    onClick={()=>setCellEdit({ uid:u.uid, ds:c.ds, start:c.planned?.start || '', end:c.planned?.end || '', override:!!c.override, })}>{body}</ClickableCard>
+                    onClick={()=>setCellEdit({ uid:u.uid, ds:c.ds, start:c.planned?.start || '', end:c.planned?.end || '', override:!!c.override, ...recFields(c.rec) })}>{body}</ClickableCard>
                 : body
             }
             return (
@@ -425,6 +448,25 @@ export default function Staff() {
           <Dialog isOpen onOpenChange={o => { if (!o) setCellEdit(null) }} width={360}>
             <DialogHeader title={`${nameOf(cellEdit.uid)} · ${dayLabel(cellEdit.ds)}`} onOpenChange={o => { if (!o) setCellEdit(null) }}/>
             <VStack gap={3} padding={4}>
+              {cellEdit.hasRec && <>
+                <Text weight="bold">찍힌 출퇴근</Text>
+                <VStack gap={1}><Text type="label">출근</Text><TimeSelect value={cellEdit.rIn} onChange={v=>setCellEdit(x=>({...x,rIn:v}))} label="실제 출근" step={1} allHours/></VStack>
+                <VStack gap={1}><Text type="label">퇴근</Text><TimeSelect value={cellEdit.rOut} onChange={v=>setCellEdit(x=>({...x,rOut:v}))} label="실제 퇴근" step={1} allHours clearable/></VStack>
+                <VStack gap={1}><Text type="label">휴게 (없으면 비워 두기)</Text>
+                  <HStack gap={1} vAlign="center" wrap="wrap">
+                    <TimeSelect value={cellEdit.bStart} onChange={v=>setCellEdit(x=>({...x,bStart:v,noBreak:false}))} label="휴게 시작" step={1} allHours clearable/>
+                    <Text>~</Text>
+                    <TimeSelect value={cellEdit.bEnd} onChange={v=>setCellEdit(x=>({...x,bEnd:v,noBreak:false}))} label="휴게 끝" step={1} allHours clearable/>
+                  </HStack>
+                </VStack>
+                <HStack gap={3} wrap="wrap">
+                  <CheckboxInput label="못 쉼" value={!!cellEdit.noBreak} onChange={v=>setCellEdit(x=>({...x,noBreak:v}))}/>
+                  <CheckboxInput label="조퇴" value={!!cellEdit.earlyLeave} onChange={v=>setCellEdit(x=>({...x,earlyLeave:v}))}/>
+                </HStack>
+                <HStack gap={2}><Button variant="primary" label="출퇴근 기록 저장" isDisabled={busy} onClick={saveRec}/></HStack>
+                <Text type="supporting" color="secondary">저장하면 근무관리의 그날 근무시간도 다시 계산돼요. 일찍 온 시간 인정은 근무관리에서 정해요.</Text>
+                <Text weight="bold">예정 시간</Text>
+              </>}
               <VStack gap={1}><Text type="label">출근</Text><TimeSelect value={cellEdit.start} onChange={v=>setCellEdit(x=>({...x,start:v}))} label="출근 예정"/></VStack>
               <VStack gap={1}><Text type="label">퇴근 (선택)</Text><TimeSelect value={cellEdit.end} onChange={v=>setCellEdit(x=>({...x,end:v}))} label="퇴근 예정" clearable/></VStack>
               <HStack gap={2} wrap="wrap">
